@@ -22,7 +22,17 @@ const modules = [
 
 export function Sidebar() {
   return (
-    <aside className="hidden min-h-[calc(100vh-4rem)] w-72 border-r border-zinc-200/80 bg-white p-4 md:block">
+    <aside className="hidden min-h-[calc(100vh-72px)] w-[300px] border-r border-zinc-200/80 bg-white px-5 py-6 md:block">
+      <div className="mb-7 flex items-center gap-3 px-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-zinc-950 text-sm font-bold text-white">
+          K
+        </div>
+        <div>
+          <p className="text-base font-semibold tracking-tight">Kinesis</p>
+          <p className="text-xs text-zinc-400">Life in motion</p>
+        </div>
+      </div>
+
       <nav className="space-y-1 text-sm">
         <SidebarItem active icon={Home} label="Dashboard" />
 
@@ -32,8 +42,8 @@ export function Sidebar() {
           <SidebarItem key={module.name} icon={module.icon} label={module.name} />
         ))}
 
-        <button className="mt-3 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950">
-          <Plus className="h-4 w-4" />
+        <button className="mt-3 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950">
+          <Plus className="h-[18px] w-[18px]" />
           Add Module
         </button>
 
@@ -57,18 +67,18 @@ function SidebarItem({
 }) {
   return (
     <button
-      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left ${
+      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
         active
-          ? "bg-zinc-950 text-white"
+          ? "bg-zinc-950 text-white shadow-sm"
           : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
       }`}
     >
-      <Icon className="h-4 w-4" />
-      {label}
+      <Icon className="h-[18px] w-[18px]" />
+      <span className="font-medium">{label}</span>
     </button>
   );
 }
 
 function Divider() {
-  return <div className="my-3 border-t border-zinc-200/80" />;
+  return <div className="my-5 border-t border-zinc-200/80" />;
 }
