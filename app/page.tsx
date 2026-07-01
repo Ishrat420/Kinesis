@@ -4,6 +4,7 @@ import { ReminderList } from "@/components/dashboard/ReminderList";
 import { StatsGrid } from "@/components/dashboard/StatsGrid";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { Topbar } from "@/components/navigation/Topbar";
+import { Plus } from "lucide-react";
 
 export default function Home() {
   return (
@@ -13,31 +14,37 @@ export default function Home() {
       <div className="flex">
         <Sidebar />
 
-      <section className="flex-1 px-10 py-8">
-        <div className="max-w-7xl">
-            <div className="flex items-start justify-between gap-4">
+        <section className="flex-1 px-10 py-8">
+          <div className="max-w-7xl">
+            {/* Header */}
+            <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">
+                <h1 className="text-[42px] font-semibold tracking-tight leading-none">
                   Good morning, Ishrat 👋
                 </h1>
-                <p className="mt-2 text-zinc-500">
+
+                <p className="mt-3 text-lg text-zinc-500">
                   Three things need your attention. Everything else is under
                   control.
                 </p>
               </div>
 
-              <button className="rounded-xl border border-zinc-200/80 bg-white px-4 py-2 text-sm font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:bg-zinc-50">
-                + Quick capture
+              <button className="flex h-12 items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
+                <Plus className="h-5 w-5" />
+                Quick capture
               </button>
             </div>
 
+            {/* KPI cards */}
             <StatsGrid />
 
+            {/* Main content */}
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
               <ReminderList />
               <ActivityFeed />
             </div>
 
+            {/* Modules */}
             <ModuleGrid />
           </div>
         </section>
