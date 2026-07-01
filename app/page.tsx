@@ -14,7 +14,7 @@ export default function Home() {
         <Sidebar />
 
       <section className="flex-1 px-10 py-8">
-        <div className="mx-auto max-w-6xl">
+        <div className="max-w-7xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">

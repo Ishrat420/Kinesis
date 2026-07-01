@@ -1,17 +1,30 @@
+import {
+  Calendar,
+  Car,
+  FileText,
+  Heart,
+  Home,
+  Landmark,
+  Plus,
+  Settings,
+  Target,
+  Users,
+} from "lucide-react";
+
 const modules = [
-  { icon: "📄", name: "Documents" },
-  { icon: "💰", name: "Finance" },
-  { icon: "❤️", name: "Health" },
-  { icon: "🚗", name: "Vehicles" },
-  { icon: "🎯", name: "Goals" },
-  { icon: "👥", name: "Relationships" },
+  { icon: FileText, name: "Documents" },
+  { icon: Landmark, name: "Finance" },
+  { icon: Heart, name: "Health" },
+  { icon: Car, name: "Vehicles" },
+  { icon: Target, name: "Goals" },
+  { icon: Users, name: "Relationships" },
 ];
 
 export function Sidebar() {
   return (
-    <aside className="hidden min-h-[calc(100vh-4rem)] w-64 border-r border-zinc-200/80 bg-white/80 p-4 md:block">
+    <aside className="hidden min-h-[calc(100vh-4rem)] w-72 border-r border-zinc-200/80 bg-white p-4 md:block">
       <nav className="space-y-1 text-sm">
-        <SidebarItem active icon="🏠" label="Dashboard" />
+        <SidebarItem active icon={Home} label="Dashboard" />
 
         <Divider />
 
@@ -19,42 +32,43 @@ export function Sidebar() {
           <SidebarItem key={module.name} icon={module.icon} label={module.name} />
         ))}
 
-        <button className="mt-3 w-full rounded-xl px-3 py-2 text-left text-zinc-500 hover:bg-zinc-50">
-          ➕ Add Module
+        <button className="mt-3 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950">
+          <Plus className="h-4 w-4" />
+          Add Module
         </button>
 
         <Divider />
 
-        <SidebarItem icon="📅" label="Timeline" />
-        <SidebarItem icon="⚙️" label="Settings" />
+        <SidebarItem icon={Calendar} label="Timeline" />
+        <SidebarItem icon={Settings} label="Settings" />
       </nav>
     </aside>
   );
 }
 
 function SidebarItem({
-  icon,
+  icon: Icon,
   label,
   active = false,
 }: {
-  icon: string;
+  icon: React.ElementType;
   label: string;
   active?: boolean;
 }) {
   return (
     <button
-      className={`w-full rounded-xl px-3 py-2 text-left ${
+      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left ${
         active
-          ? "bg-zinc-900 text-white"
+          ? "bg-zinc-950 text-white"
           : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
       }`}
     >
-      <span className="mr-2">{icon}</span>
+      <Icon className="h-4 w-4" />
       {label}
     </button>
   );
 }
 
 function Divider() {
-  return <div className="my-3 border border-zinc-200/80-t" />;
+  return <div className="my-3 border-t border-zinc-200/80" />;
 }
