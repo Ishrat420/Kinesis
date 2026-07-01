@@ -22,9 +22,9 @@ const modules = [
 
 export function Sidebar() {
   return (
-    <aside className="hidden min-h-[calc(100vh-72px)] w-[300px] border-r border-zinc-200/80 bg-white px-5 py-6 md:block">
-      <div className="mb-7 flex items-center gap-3 px-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-zinc-950 text-sm font-bold text-white">
+    <aside className="hidden min-h-[calc(100vh-72px)] w-[300px] border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
+      <div className="mb-6 flex items-center gap-3 px-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-950 text-sm font-bold text-white">
           K
         </div>
         <div>
@@ -33,26 +33,48 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="space-y-1 text-sm">
-        <SidebarItem active icon={Home} label="Dashboard" />
+      <nav className="space-y-5 text-sm">
+        <NavSection label="Main">
+          <SidebarItem active icon={Home} label="Dashboard" />
+        </NavSection>
 
-        <Divider />
+        <NavSection label="Areas">
+          {modules.map((module) => (
+            <SidebarItem
+              key={module.name}
+              icon={module.icon}
+              label={module.name}
+            />
+          ))}
+        </NavSection>
 
-        {modules.map((module) => (
-          <SidebarItem key={module.name} icon={module.icon} label={module.name} />
-        ))}
+        <NavSection label="Customize">
+          <SidebarItem icon={Plus} label="Add Module" />
+        </NavSection>
 
-        <button className="mt-3 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950">
-          <Plus className="h-[18px] w-[18px]" />
-          Add Module
-        </button>
-
-        <Divider />
-
-        <SidebarItem icon={Calendar} label="Timeline" />
-        <SidebarItem icon={Settings} label="Settings" />
+        <NavSection label="System">
+          <SidebarItem icon={Calendar} label="Timeline" />
+          <SidebarItem icon={Settings} label="Settings" />
+        </NavSection>
       </nav>
     </aside>
+  );
+}
+
+function NavSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+        {label}
+      </p>
+      <div className="space-y-1">{children}</div>
+    </div>
   );
 }
 
@@ -67,7 +89,7 @@ function SidebarItem({
 }) {
   return (
     <button
-      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
+      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
         active
           ? "bg-zinc-950 text-white shadow-sm"
           : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
@@ -77,8 +99,4 @@ function SidebarItem({
       <span className="font-medium">{label}</span>
     </button>
   );
-}
-
-function Divider() {
-  return <div className="my-5 border-t border-zinc-200/80" />;
 }
