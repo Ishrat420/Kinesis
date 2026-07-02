@@ -1,3 +1,5 @@
+import Image from "next/image";
+import kinesisIcon from "@/app/icon.png";
 import {
   Calendar,
   Car,
@@ -22,41 +24,51 @@ const modules = [
 
 export function Sidebar() {
   return (
-    <aside className="hidden min-h-[calc(100vh-72px)] w-[300px] border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
-      <div className="mb-6 flex items-center gap-3 px-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-950 text-sm font-bold text-white">
-          K
-        </div>
+    <aside className="hidden min-h-[calc(100vh-72px)] w-[270px] border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
+      <div className="mb-6 flex items-center gap-4 px-2">
+        <Image
+          src={kinesisIcon}
+          alt="Kinesis"
+          width={52}
+          height={52}
+          className="rounded-2xl shadow-sm"
+          priority
+        />
+
         <div>
-          <p className="text-base font-semibold tracking-tight">Kinesis</p>
-          <p className="text-xs text-zinc-400">Life in motion</p>
+          <h2 className="text-[28px] font-semibold leading-none tracking-tight">
+            Kinesis
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">Life in motion</p>
         </div>
       </div>
 
-      <nav className="space-y-5 text-sm">
-        <NavSection label="Main">
-          <SidebarItem active icon={Home} label="Dashboard" />
-        </NavSection>
+      <div className="border-t border-zinc-100 pt-6">
+        <nav className="space-y-5 text-sm">
+          <NavSection label="Main">
+            <SidebarItem active icon={Home} label="Dashboard" />
+          </NavSection>
 
-        <NavSection label="Areas">
-          {modules.map((module) => (
-            <SidebarItem
-              key={module.name}
-              icon={module.icon}
-              label={module.name}
-            />
-          ))}
-        </NavSection>
+          <NavSection label="Areas">
+            {modules.map((module) => (
+              <SidebarItem
+                key={module.name}
+                icon={module.icon}
+                label={module.name}
+              />
+            ))}
+          </NavSection>
 
-        <NavSection label="Customize">
-          <SidebarItem icon={Plus} label="Add Module" />
-        </NavSection>
+          <NavSection label="Customize">
+            <SidebarItem icon={Plus} label="Add Module" />
+          </NavSection>
 
-        <NavSection label="System">
-          <SidebarItem icon={Calendar} label="Timeline" />
-          <SidebarItem icon={Settings} label="Settings" />
-        </NavSection>
-      </nav>
+          <NavSection label="System">
+            <SidebarItem icon={Calendar} label="Timeline" />
+            <SidebarItem icon={Settings} label="Settings" />
+          </NavSection>
+        </nav>
+      </div>
     </aside>
   );
 }
@@ -73,6 +85,7 @@ function NavSection({
       <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
         {label}
       </p>
+
       <div className="space-y-1">{children}</div>
     </div>
   );
@@ -91,7 +104,7 @@ function SidebarItem({
     <button
       className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
         active
-          ? "bg-zinc-950 text-white shadow-sm"
+          ? "bg-zinc-950 text-white shadow-[0_8px_24px_rgb(0,0,0,0.12)]"
           : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
       }`}
     >
