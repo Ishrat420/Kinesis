@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { documents } from "@/app/lib/mock/documents";
 import Link from "next/link";
+import { useState } from "react";
 import {
   FileText,
   Plus,
@@ -9,32 +10,11 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-
 import { UploadDocumentModal } from "./UploadDocumentModal";
 
-const documents = [
-  {
-    name: "Passport",
-    type: "Identity",
-    expiry: "12 Sep 2026",
-    status: "Expiring soon",
-  },
-  {
-    name: "Driver Licence",
-    type: "Identity",
-    expiry: "03 May 2028",
-    status: "Active",
-  },
-  {
-    name: "Car Insurance",
-    type: "Vehicle",
-    expiry: "30 Jun 2025",
-    status: "Needs attention",
-  },
-];
-
 export default function DocumentsPage() {
-const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
       <div className="max-w-7xl">
@@ -50,13 +30,13 @@ const [uploadOpen, setUploadOpen] = useState(false);
             </p>
           </div>
 
-        <button
-        onClick={() => setUploadOpen(true)}
-        className="flex h-12 items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-5 text-sm font-semibold shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-[0_12px_40px_rgb(0,0,0,0.07)]"
-        >
-        <Upload className="h-[18px] w-[18px]" />
-        Upload document
-        </button>
+          <button
+            onClick={() => setUploadOpen(true)}
+            className="flex h-12 items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-5 text-sm font-semibold shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-[0_12px_40px_rgb(0,0,0,0.07)]"
+          >
+            <Upload className="h-[18px] w-[18px]" />
+            Upload document
+          </button>
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -80,11 +60,11 @@ const [uploadOpen, setUploadOpen] = useState(false);
 
           <div className="space-y-3">
             {documents.map((document) => (
-            <Link
-                key={document.name}
-                href={`/documents/${document.name.toLowerCase().replaceAll(" ", "-")}`}
+              <Link
+                key={document.id}
+                href={`/documents/${document.id}`}
                 className="grid grid-cols-[44px_1fr_180px_160px] items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md"
-            >
+              >
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50">
                   <FileText className="h-[18px] w-[18px] text-zinc-700" />
                 </div>
@@ -104,10 +84,11 @@ const [uploadOpen, setUploadOpen] = useState(false);
           </div>
         </section>
       </div>
+
       <UploadDocumentModal
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        />
+      />
     </main>
   );
 }

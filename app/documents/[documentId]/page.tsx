@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  documentDetails,
+  documentRelationships,
+  documentTimeline,
+} from "@/app/lib/mock/documents";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
   Bell,
@@ -14,30 +20,29 @@ import {
   User,
 } from "lucide-react";
 
-const document = {
-  name: "Passport",
-  type: "Identity Document",
-  status: "Expiring soon",
-  expiryDate: "12 Sep 2026",
-  issueDate: "12 Sep 2016",
-  owner: "Ishrat",
-  documentNumber: "P1234567",
-  country: "Australia",
+const relationshipIcons = {
+  owner: User,
+  reminder: Bell,
+  goal: Link2,
+  vehicle: FileText,
 };
 
-const relationships = [
-  { icon: User, label: "Owner", value: "Ishrat" },
-  { icon: Bell, label: "Reminder", value: "Renew 6 months before expiry" },
-  { icon: Link2, label: "Linked goal", value: "Japan Trip" },
-];
-
-const timeline = [
-  { title: "Document uploaded", date: "2 Jul 2026" },
-  { title: "Expiry reminder created", date: "2 Jul 2026" },
-  { title: "AI extracted metadata", date: "2 Jul 2026" },
-];
-
 export default function DocumentDetailPage() {
+  const params = useParams();
+  const documentId = params.documentId as keyof typeof documentDetails;
+
+  const document = documentDetails[documentId];
+  const relationships = documentRelationships[documentId] ?? [];
+  const timeline = documentTimeline[documentId] ?? [];
+
+  if (!document) {
+    return (
+      <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
+        <h1 className="text-[38px] font-semibold">Document not found</h1>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
       <div className="max-w-7xl">
@@ -69,7 +74,7 @@ export default function DocumentDetailPage() {
                   File preview placeholder
                 </p>
                 <p className="mt-1 text-sm text-zinc-400">
-                  Later this will show the uploaded passport PDF/image.
+                  Later this will show the uploaded document PDF/image.
                 </p>
               </div>
             </div>
@@ -93,14 +98,19 @@ export default function DocumentDetailPage() {
             <h2 className="text-lg font-semibold">Relationships</h2>
 
             <div className="mt-5 space-y-4">
-              {relationships.map((item) => (
-                <InfoRow
-                  key={item.label}
-                  icon={item.icon}
-                  label={item.label}
-                  value={item.value}
-                />
-              ))}
+              {relationships.map((item) => {
+                const Icon =
+                  relationshipIcons[item.type as keyof typeof relationshipIcons] ?? Link2;
+
+                return (
+                  <InfoRow
+                    key={item.label}
+                    icon={Icon}
+                    label={item.label}
+                    value={item.value}
+                  />
+                );
+              })}
             </div>
           </section>
 
@@ -149,10 +159,7 @@ function InfoRow({
     setCurrentValue(draftValue);
     setIsEditing(false);
     setSaved(true);
-
-    window.setTimeout(() => {
-      setSaved(false);
-    }, 900);
+    window.setTimeout(() => setSaved(false), 900);
   }
 
   function cancelEdit() {
@@ -177,7 +184,6 @@ function InfoRow({
             onBlur={saveValue}
             onKeyDown={(event) => {
               if (event.key === "Enter") saveValue();
-
               if (event.key === "Escape") {
                 event.preventDefault();
                 cancelEdit();
