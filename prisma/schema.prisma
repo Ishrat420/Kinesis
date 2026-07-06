@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id             String   @id
+  name           String
+  type           String
+  status         String
+  expiryDate     DateTime?
+  issueDate      DateTime?
+  owner          String?
+  documentNumber String?
+  country        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

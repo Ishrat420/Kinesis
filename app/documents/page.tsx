@@ -1,19 +1,11 @@
-"use client";
-
-import { documents } from "@/app/lib/mock/documents";
+import { getDocuments } from "@/lib/data/documents";
 import Link from "next/link";
-import { useState } from "react";
-import {
-  FileText,
-  Plus,
-  Search,
-  ShieldCheck,
-  Upload,
-} from "lucide-react";
-import { UploadDocumentModal } from "./UploadDocumentModal";
+import { FileText, Plus, Search, ShieldCheck } from "lucide-react";
+import { UploadDocumentButton } from "./UploadDocumentButton";
 
-export default function DocumentsPage() {
-  const [uploadOpen, setUploadOpen] = useState(false);
+
+export default async function DocumentsPage() {
+  const documents = await getDocuments();
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
@@ -23,6 +15,7 @@ export default function DocumentsPage() {
             <h1 className="text-[38px] font-semibold leading-none tracking-tight">
               Documents
             </h1>
+
             <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
               Store, track, and connect important documents.
               <br />
@@ -30,13 +23,7 @@ export default function DocumentsPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="flex h-12 items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-5 text-sm font-semibold shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-[0_12px_40px_rgb(0,0,0,0.07)]"
-          >
-            <Upload className="h-[18px] w-[18px]" />
-            Upload document
-          </button>
+          <UploadDocumentButton />
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -74,7 +61,15 @@ export default function DocumentsPage() {
                   <p className="text-sm text-zinc-500">{document.type}</p>
                 </div>
 
-                <p className="text-sm text-zinc-500">{document.expiry}</p>
+                <p className="text-sm text-zinc-500">
+                  {document.expiryDate
+                    ? document.expiryDate.toLocaleDateString("en-AU", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "No expiry"}
+                </p>
 
                 <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">
                   {document.status}
@@ -84,11 +79,6 @@ export default function DocumentsPage() {
           </div>
         </section>
       </div>
-
-      <UploadDocumentModal
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-      />
     </main>
   );
 }
@@ -108,6 +98,7 @@ function StatCard({
         <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-50">
           <Icon className="h-[18px] w-[18px] text-zinc-700" />
         </div>
+
         <p className="text-sm font-semibold text-zinc-700">{title}</p>
       </div>
 

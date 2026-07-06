@@ -1,39 +1,34 @@
-"use client";
-
-import {
-  documentDetails,
-  documentRelationships,
-  documentTimeline,
-} from "@/app/lib/mock/documents";
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { getDocument } from "@/lib/data/documents";
 import {
   Bell,
   Calendar,
-  Check,
   Clock,
   FileText,
   Link2,
   NotebookText,
-  Pencil,
   ShieldCheck,
   User,
 } from "lucide-react";
 
-const relationshipIcons = {
-  owner: User,
-  reminder: Bell,
-  goal: Link2,
-  vehicle: FileText,
-};
+const relationships = [
+  { icon: User, label: "Owner", value: "Ishrat" },
+  { icon: Bell, label: "Reminder", value: "Renew 6 months before expiry" },
+  { icon: Link2, label: "Linked goal", value: "Japan Trip" },
+];
 
-export default function DocumentDetailPage() {
-  const params = useParams();
-  const documentId = params.documentId as keyof typeof documentDetails;
+const timeline = [
+  { title: "Document uploaded", date: "2 Jul 2026" },
+  { title: "Expiry reminder created", date: "2 Jul 2026" },
+  { title: "AI extracted metadata", date: "2 Jul 2026" },
+];
 
-  const document = documentDetails[documentId];
-  const relationships = documentRelationships[documentId] ?? [];
-  const timeline = documentTimeline[documentId] ?? [];
+export default async function DocumentDetailPage({
+  params,
+}: {
+  params: Promise<{ documentId: string }>;
+}) {
+  const { documentId } = await params;
+  const document = await getDocument(documentId);
 
   if (!document) {
     return (
@@ -84,11 +79,11 @@ export default function DocumentDetailPage() {
             <h2 className="text-lg font-semibold">Information</h2>
 
             <div className="mt-5 space-y-4">
-              <InfoRow icon={Calendar} label="Expiry date" value={document.expiryDate} />
-              <InfoRow icon={Clock} label="Issue date" value={document.issueDate} />
-              <InfoRow icon={User} label="Owner" value={document.owner} />
-              <InfoRow icon={ShieldCheck} label="Document number" value={document.documentNumber} />
-              <InfoRow icon={FileText} label="Country" value={document.country} />
+              <InfoRow icon={Calendar} label="Expiry date" value={formatDate(document.expiryDate)} />
+              <InfoRow icon={Clock} label="Issue date" value={formatDate(document.issueDate)} />
+              <InfoRow icon={User} label="Owner" value={document.owner ?? "Not set"} />
+              <InfoRow icon={ShieldCheck} label="Document number" value={document.documentNumber ?? "Not set"} />
+              <InfoRow icon={FileText} label="Country" value={document.country ?? "Not set"} />
             </div>
           </section>
         </div>
@@ -98,19 +93,14 @@ export default function DocumentDetailPage() {
             <h2 className="text-lg font-semibold">Relationships</h2>
 
             <div className="mt-5 space-y-4">
-              {relationships.map((item) => {
-                const Icon =
-                  relationshipIcons[item.type as keyof typeof relationshipIcons] ?? Link2;
-
-                return (
-                  <InfoRow
-                    key={item.label}
-                    icon={Icon}
-                    label={item.label}
-                    value={item.value}
-                  />
-                );
-              })}
+              {relationships.map((item) => (
+                <InfoRow
+                  key={item.label}
+                  icon={item.icon}
+                  label={item.label}
+                  value={item.value}
+                />
+              ))}
             </div>
           </section>
 
@@ -150,67 +140,26 @@ function InfoRow({
   label: string;
   value: string;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentValue, setCurrentValue] = useState(value);
-  const [draftValue, setDraftValue] = useState(value);
-  const [saved, setSaved] = useState(false);
-
-  function saveValue() {
-    setCurrentValue(draftValue);
-    setIsEditing(false);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 900);
-  }
-
-  function cancelEdit() {
-    setDraftValue(currentValue);
-    setIsEditing(false);
-  }
-
   return (
-    <div className="group flex items-center gap-3 rounded-2xl p-2 transition hover:bg-zinc-50">
+    <div className="flex items-center gap-3 rounded-2xl p-2">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-50">
         <Icon className="h-[18px] w-[18px] text-zinc-600" />
       </div>
 
-      <div className="flex-1">
+      <div>
         <p className="text-sm text-zinc-400">{label}</p>
-
-        {isEditing ? (
-          <input
-            autoFocus
-            value={draftValue}
-            onChange={(event) => setDraftValue(event.target.value)}
-            onBlur={saveValue}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") saveValue();
-              if (event.key === "Escape") {
-                event.preventDefault();
-                cancelEdit();
-              }
-            }}
-            className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 font-medium text-zinc-800 outline-none focus:border-zinc-400"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="mt-1 flex w-full items-center justify-between rounded-xl text-left font-medium text-zinc-800"
-          >
-            <span>{currentValue}</span>
-
-            <span className="flex items-center gap-2">
-              {saved ? (
-                <span className="flex h-5 w-5 animate-pulse items-center justify-center rounded-full bg-emerald-500">
-                  <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                </span>
-              ) : (
-                <Pencil className="h-4 w-4 text-zinc-300 opacity-0 transition group-hover:opacity-100" />
-              )}
-            </span>
-          </button>
-        )}
+        <p className="font-medium text-zinc-800">{value}</p>
       </div>
     </div>
   );
+}
+
+function formatDate(date: Date | null) {
+  if (!date) return "Not set";
+
+  return date.toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
