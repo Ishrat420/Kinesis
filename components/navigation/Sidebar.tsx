@@ -19,7 +19,7 @@ const modules = [
   { icon: Landmark, name: "Finance" },
   { icon: Heart, name: "Health" },
   { icon: Car, name: "Vehicles" },
-  { icon: Target, name: "Goals" },
+  { icon: Target, name: "Goals", href: "/goals" },
   { icon: Users, name: "Relationships" },
 ];
 
