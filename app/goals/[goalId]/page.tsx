@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, Check, Circle, Flag, Gauge, Plus, RotateCcw, Target, Trash2 } from "lucide-react";
 import { getGoal, getGoalUnits } from "@/lib/data/goals";
-import { displayNumber, GOAL_STATUSES, remainingLabel } from "@/lib/goals/format";
+import { displayNumber, remainingLabel } from "@/lib/goals/format";
 import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalStatusAction } from "../actions";
+import { GoalStatusSelect } from "./GoalStatusSelect";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
@@ -17,7 +18,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   const milestoneAction = addMilestoneAction.bind(null, goal.id);
 
   return <main className="min-h-screen bg-[#f7f8fb] px-6 py-8 text-zinc-950 md:px-10"><div className="mx-auto max-w-6xl">
-    <div className="flex flex-wrap items-center justify-between gap-4"><Link href="/goals" className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"><ArrowLeft className="h-5 w-5"/> All goals</Link><div className="flex gap-3"><form action={statusAction}><select name="status" defaultValue={goal.status} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold outline-none">{GOAL_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></form><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-4"><Link href="/goals" className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"><ArrowLeft className="h-5 w-5"/> All goals</Link><div className="flex gap-3"><GoalStatusSelect status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
 
     <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 flex items-center gap-2 text-sm text-zinc-300"><CalendarDays className="h-4 w-4"/>{goal.targetDate ? <><span>Target · {goal.targetDate.toLocaleDateString("en-AU", { month: "short", year: "numeric", timeZone: "UTC" })}</span><span className="text-zinc-600">•</span><strong className="font-medium text-violet-300">{remainingLabel(goal.targetDate)}</strong></> : <span>No target date</span>}</div></div></div></header>
 
