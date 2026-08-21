@@ -4,6 +4,7 @@ import { Plus, X } from "lucide-react";
 import { useActionState, useEffect, useId, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
+import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
 
 const initialState: CreateDocumentState = {};
 
@@ -75,17 +76,15 @@ export function ManualDocumentButton() {
                 <Field label="Document type" name="type" placeholder="e.g. Passport" />
 
                 <label className="block text-sm font-medium text-zinc-700">
-                  Status
+                  Reminder
                   <select
-                    name="status"
-                    defaultValue="Active"
+                    name="prompt"
+                    defaultValue="180"
                     className="mt-2 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 outline-none transition focus:border-zinc-400"
                   >
-                    <option>Active</option>
-                    <option>Expiring soon</option>
-                    <option>Expired</option>
-                    <option>Archived</option>
+                    {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
                   </select>
+                  <span className="mt-1.5 block text-xs font-normal text-zinc-500">Status and time remaining are calculated from the expiry date.</span>
                 </label>
 
                 <div>

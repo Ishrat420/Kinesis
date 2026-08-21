@@ -3,6 +3,7 @@
 import { createDocument, updateDocument } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 
 export type DocumentActionState = { error?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -20,8 +21,10 @@ function date(formData: FormData, name: string) {
 function documentData(formData: FormData) {
   const name = text(formData, "name");
   const type = text(formData, "type");
-  const status = text(formData, "status");
-  if (!name || !type || !status) return null;
+  if (!name || !type) return null;
+  const expiryDate = date(formData, "expiryDate");
+  const requestedPrompt = Number(text(formData, "prompt"));
+  const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
 
   const customLabels = formData.getAll("customLabel");
   const customValues = formData.getAll("customValue");
@@ -34,17 +37,20 @@ function documentData(formData: FormData) {
   return {
     name,
     type,
-    status,
-    expiryDate: date(formData, "expiryDate"),
+    status: getExpiryDetails(expiryDate, prompt).status,
+    expiryDate,
     issueDate: date(formData, "issueDate"),
     documentNumber: text(formData, "documentNumber") || null,
     country: text(formData, "country") || null,
     notes: text(formData, "notes") || null,
+    link: text(formData, "link") || null,
+    prompt,
     expiryDateLabel: text(formData, "expiryDateLabel") || "Expiry date",
     issueDateLabel: text(formData, "issueDateLabel") || "Issue date",
     documentNumberLabel: text(formData, "documentNumberLabel") || "Document number",
     countryLabel: text(formData, "countryLabel") || "Country",
     notesLabel: text(formData, "notesLabel") || "Notes",
+    linkLabel: text(formData, "linkLabel") || "Link",
     customFields,
   };
 }
@@ -54,7 +60,7 @@ export async function createDocumentAction(
   formData: FormData,
 ): Promise<DocumentActionState> {
   const data = documentData(formData);
-  if (!data) return { error: "Name, type, and status are required." };
+  if (!data) return { error: "Name and type are required." };
   const document = await createDocument(data);
   redirect(`/documents/${document.id}`);
 }
@@ -65,7 +71,7 @@ export async function updateDocumentAction(
   formData: FormData,
 ): Promise<DocumentActionState> {
   const data = documentData(formData);
-  if (!data) return { error: "Name, type, and status are required." };
+  if (!data) return { error: "Name and type are required." };
   await updateDocument(documentId, data);
   revalidatePath("/documents");
   revalidatePath(`/documents/${documentId}`);

@@ -5,11 +5,7 @@ import {
   Link2,
 } from "lucide-react";
 import { EditDocumentForm } from "./EditDocumentForm";
-
-const relationships = [
-  { icon: Bell, label: "Reminder", value: "Renew 6 months before expiry" },
-  { icon: Link2, label: "Linked goal", value: "Japan Trip" },
-];
+import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 
 const timeline = [
   { title: "Document uploaded", date: "2 Jul 2026" },
@@ -32,6 +28,13 @@ export default async function DocumentDetailPage({
       </main>
     );
   }
+  const expiry = getExpiryDetails(document.expiryDate, document.prompt);
+  const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
+  const statusClass = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
+  const relationships = [
+    { icon: Bell, label: "Reminder", value: `${reminder} before expiry` },
+    ...(document.link ? [{ icon: Link2, label: "Link", value: document.link }] : []),
+  ];
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
@@ -49,7 +52,7 @@ export default async function DocumentDetailPage({
               <p className="mt-3 text-base text-zinc-500">{document.type}</p>
             </div>
 
-            <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+            <span className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>
               {document.status}
             </span>
           </div>
@@ -81,11 +84,14 @@ export default async function DocumentDetailPage({
               documentNumber: document.documentNumber ?? "",
               country: document.country ?? "",
               notes: document.notes ?? "",
+              link: document.link ?? "",
+              prompt: document.prompt,
               expiryDateLabel: document.expiryDateLabel,
               issueDateLabel: document.issueDateLabel,
               documentNumberLabel: document.documentNumberLabel,
               countryLabel: document.countryLabel,
               notesLabel: document.notesLabel,
+              linkLabel: document.linkLabel,
               customFields: document.customFields,
             }} />
           </section>
