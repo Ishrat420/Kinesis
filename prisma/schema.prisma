@@ -66,3 +66,9 @@ model DocumentField {
 
   @@index([documentId, position])
 }
+
+model DocumentType {
+  id        String   @id
+  name      String   @unique
+  createdAt DateTime @default(now())
+}

@@ -1,5 +1,6 @@
-import { getDocument } from "@/lib/data/documents";
-import { FileText } from "lucide-react";
+import { getDocument, getDocumentTypes } from "@/lib/data/documents";
+import { ArrowLeft, FileText } from "lucide-react";
+import Link from "next/link";
 import { EditDocumentForm } from "./EditDocumentForm";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 
@@ -15,7 +16,7 @@ export default async function DocumentDetailPage({
   params: Promise<{ documentId: string }>;
 }) {
   const { documentId } = await params;
-  const document = await getDocument(documentId);
+  const [document, documentTypes] = await Promise.all([getDocument(documentId), getDocumentTypes()]);
 
   if (!document) {
     return (
@@ -31,6 +32,9 @@ export default async function DocumentDetailPage({
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
       <div className="max-w-7xl">
         <div className="mb-6">
+          <Link href="/documents" className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-900">
+            <ArrowLeft className="h-4 w-4" /> Back to documents
+          </Link>
           <p className="text-sm font-medium text-zinc-400">
             Documents / {document.name}
           </p>
@@ -84,7 +88,7 @@ export default async function DocumentDetailPage({
               notesLabel: document.notesLabel,
               linkLabel: document.linkLabel,
               customFields: document.customFields,
-            }} />
+            }} documentTypes={documentTypes} />
           </section>
         </div>
 

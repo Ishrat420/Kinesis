@@ -5,10 +5,11 @@ import { useActionState, useEffect, useId, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
 import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
 
 const initialState: CreateDocumentState = {};
 
-export function ManualDocumentButton() {
+export function ManualDocumentButton({ documentTypes }: { documentTypes: DocumentTypeOption[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     createDocumentAction,
@@ -73,7 +74,7 @@ export function ManualDocumentButton() {
             <form action={formAction}>
               <div className="space-y-5 p-8">
                 <Field label="Document name" name="name" placeholder="e.g. Australian passport" autoFocus />
-                <Field label="Document type" name="type" placeholder="e.g. Passport" />
+                <DocumentTypeSelect types={documentTypes} />
 
                 <label className="block text-sm font-medium text-zinc-700">
                   Reminder
