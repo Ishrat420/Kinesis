@@ -57,7 +57,7 @@ export function EditDocumentForm({ document }: { document: EditableDocument }) {
 
       <div className="border-t border-zinc-100 pt-5">
         <p className="mb-1 font-semibold text-zinc-800">Information</p>
-        <p className="mb-4 text-xs text-zinc-500">Edit a field name in the left column and its value on the right.</p>
+        <p className="mb-4 text-xs text-zinc-500">Double-click a field name to edit it. Values stay editable in the right column.</p>
         <DocumentFields
           labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }}
           values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }}

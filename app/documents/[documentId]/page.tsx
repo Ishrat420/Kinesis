@@ -1,11 +1,7 @@
 import { getDocument } from "@/lib/data/documents";
-import {
-  Bell,
-  FileText,
-  Link2,
-} from "lucide-react";
+import { FileText } from "lucide-react";
 import { EditDocumentForm } from "./EditDocumentForm";
-import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { getExpiryDetails } from "@/lib/documents/expiry";
 
 const timeline = [
   { title: "Document uploaded", date: "2 Jul 2026" },
@@ -29,12 +25,7 @@ export default async function DocumentDetailPage({
     );
   }
   const expiry = getExpiryDetails(document.expiryDate, document.prompt);
-  const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   const statusClass = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
-  const relationships = [
-    { icon: Bell, label: "Reminder", value: `${reminder} before expiry` },
-    ...(document.link ? [{ icon: Link2, label: "Link", value: document.link }] : []),
-  ];
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
@@ -97,22 +88,7 @@ export default async function DocumentDetailPage({
           </section>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <h2 className="text-lg font-semibold">Relationships</h2>
-
-            <div className="mt-5 space-y-4">
-              {relationships.map((item) => (
-                <InfoRow
-                  key={item.label}
-                  icon={item.icon}
-                  label={item.label}
-                  value={item.value}
-                />
-              ))}
-            </div>
-          </section>
-
+        <div className="mt-6">
           <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <h2 className="text-lg font-semibold">Timeline</h2>
 
@@ -129,29 +105,6 @@ export default async function DocumentDetailPage({
         </div>
       </div>
     </main>
-  );
-}
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl p-2">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-50">
-        <Icon className="h-[18px] w-[18px] text-zinc-600" />
-      </div>
-
-      <div>
-        <p className="text-sm text-zinc-400">{label}</p>
-        <p className="font-medium text-zinc-800">{value}</p>
-      </div>
-    </div>
   );
 }
 
