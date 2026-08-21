@@ -13,8 +13,8 @@ export default async function DocumentsPage() {
       <div className="max-w-7xl">
         <div className="flex items-start justify-between">
           <div>
-            <Link href="/" className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-900">
-              <ArrowLeft className="h-4 w-4" /> Back to dashboard
+            <Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-base font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-950 hover:shadow-md">
+              <ArrowLeft className="h-5 w-5" /> Back to dashboard
             </Link>
             <h1 className="text-[38px] font-semibold leading-none tracking-tight">
               Documents
