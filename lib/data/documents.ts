@@ -26,6 +26,20 @@ export async function getDocuments() {
   return prisma.document.findMany({ orderBy: { name: "asc" } });
 }
 
+export async function getDocumentSummary() {
+  const documents = await prisma.document.findMany({
+    select: { expiryDate: true, prompt: true },
+  });
+
+  return {
+    tracked: documents.length,
+    expiringSoon: documents.filter(
+      ({ expiryDate, prompt }) =>
+        getExpiryDetails(expiryDate, prompt).status === "Expiring soon",
+    ).length,
+  };
+}
+
 export async function getDocumentTypes() {
   const [customTypes, usedTypes] = await Promise.all([
     prisma.documentType.findMany({ orderBy: { name: "asc" } }),

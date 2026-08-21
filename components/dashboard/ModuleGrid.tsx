@@ -1,15 +1,9 @@
 import { Car, FileText, Heart, Landmark, Target, Users } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { getDocumentSummary } from "@/lib/data/documents";
 import Link from "next/link";
 
 const modules = [
-  {
-    icon: FileText,
-    name: "Documents",
-    meta: "12 tracked",
-    detail: "2 expiring soon",
-    tone: "bg-blue-50",
-  },
   {
     icon: Landmark,
     name: "Finance",
@@ -47,11 +41,22 @@ const modules = [
   },
 ];
 
-export function ModuleGrid() {
+export async function ModuleGrid() {
+  const documentSummary = await getDocumentSummary();
+  const documentModule = {
+    icon: FileText,
+    name: "Documents",
+    meta: `${documentSummary.tracked} tracked`,
+    detail: documentSummary.tracked
+      ? `${documentSummary.expiringSoon} expiring soon`
+      : "Add documents to track",
+    tone: "bg-blue-50",
+  };
+
   return (
     <Card title="Modules" className="mt-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((module) => {
+        {[documentModule, ...modules].map((module) => {
           const Icon = module.icon;
           const content = (
             <>
