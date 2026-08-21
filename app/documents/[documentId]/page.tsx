@@ -1,17 +1,12 @@
 import { getDocument } from "@/lib/data/documents";
 import {
   Bell,
-  Calendar,
-  Clock,
   FileText,
   Link2,
-  NotebookText,
-  ShieldCheck,
-  User,
 } from "lucide-react";
+import { EditDocumentForm } from "./EditDocumentForm";
 
 const relationships = [
-  { icon: User, label: "Owner", value: "Ishrat" },
   { icon: Bell, label: "Reminder", value: "Renew 6 months before expiry" },
   { icon: Link2, label: "Linked goal", value: "Japan Trip" },
 ];
@@ -76,19 +71,27 @@ export default async function DocumentDetailPage({
           </section>
 
           <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <h2 className="text-lg font-semibold">Information</h2>
-
-            <div className="mt-5 space-y-4">
-              <InfoRow icon={Calendar} label="Expiry date" value={formatDate(document.expiryDate)} />
-              <InfoRow icon={Clock} label="Issue date" value={formatDate(document.issueDate)} />
-              <InfoRow icon={User} label="Owner" value={document.owner ?? "Not set"} />
-              <InfoRow icon={ShieldCheck} label="Document number" value={document.documentNumber ?? "Not set"} />
-              <InfoRow icon={FileText} label="Country" value={document.country ?? "Not set"} />
-            </div>
+            <EditDocumentForm document={{
+              id: document.id,
+              name: document.name,
+              type: document.type,
+              status: document.status,
+              expiryDate: toDateInput(document.expiryDate),
+              issueDate: toDateInput(document.issueDate),
+              documentNumber: document.documentNumber ?? "",
+              country: document.country ?? "",
+              notes: document.notes ?? "",
+              expiryDateLabel: document.expiryDateLabel,
+              issueDateLabel: document.issueDateLabel,
+              documentNumberLabel: document.documentNumberLabel,
+              countryLabel: document.countryLabel,
+              notesLabel: document.notesLabel,
+              customFields: document.customFields,
+            }} />
           </section>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <h2 className="text-lg font-semibold">Relationships</h2>
 
@@ -117,14 +120,6 @@ export default async function DocumentDetailPage({
             </div>
           </section>
 
-          <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <h2 className="text-lg font-semibold">Notes</h2>
-
-            <div className="mt-5 rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-500">
-              <NotebookText className="mb-3 h-[18px] w-[18px]" />
-              Keep renewal notes, application details, or related context here.
-            </div>
-          </section>
         </div>
       </div>
     </main>
@@ -154,12 +149,6 @@ function InfoRow({
   );
 }
 
-function formatDate(date: Date | null) {
-  if (!date) return "Not set";
-
-  return date.toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+function toDateInput(date: Date | null) {
+  return date ? date.toISOString().slice(0, 10) : "";
 }
