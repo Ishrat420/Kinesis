@@ -17,13 +17,16 @@ export async function getDocument(id: string) {
 }
 
 export async function createDocument(data: {
-  id: string;
+  id?: string;
   name: string;
   type: string;
   status: string;
 }) {
   return prisma.document.create({
-    data,
+    data: {
+      ...data,
+      id: data.id ?? crypto.randomUUID(),
+    },
   });
 }
 
