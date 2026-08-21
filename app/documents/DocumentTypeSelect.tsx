@@ -92,9 +92,7 @@ export function DocumentTypeSelect({
           </div>
         )}
       </div>
-      <span className={`mt-1.5 block text-xs font-normal ${error ? "text-red-600" : "text-zinc-500"}`}>
-        {error || "Choose a type or enter a new one. New types are saved automatically."}
-      </span>
+      {error && <span className="mt-1.5 block text-xs font-normal text-red-600">{error}</span>}
     </label>
   );
 }
