@@ -3,6 +3,7 @@
 import { Plus, X } from "lucide-react";
 import { useActionState, useEffect, useId, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
+import { DocumentFields } from "./DocumentFields";
 
 const initialState: CreateDocumentState = {};
 
@@ -47,7 +48,7 @@ export function ManualDocumentButton() {
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="w-full max-w-xl rounded-3xl bg-white shadow-2xl"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-6">
               <div>
@@ -86,6 +87,17 @@ export function ManualDocumentButton() {
                     <option>Archived</option>
                   </select>
                 </label>
+
+                <div>
+                  <div className="mb-3 flex items-end justify-between">
+                    <div>
+                      <h3 className="font-semibold text-zinc-800">Document information</h3>
+                      <p className="mt-1 text-xs text-zinc-500">Field names can be changed to match your document.</p>
+                    </div>
+                    <span className="text-xs font-medium text-zinc-400">Owner: user</span>
+                  </div>
+                  <DocumentFields />
+                </div>
 
                 {state.error && (
                   <p role="alert" className="text-sm font-medium text-red-600">
