@@ -18,11 +18,14 @@ model Document {
   documentNumber      String?
   country             String?
   notes               String?
+  link                String?
+  prompt              Int             @default(180)
   expiryDateLabel     String          @default("Expiry date")
   issueDateLabel      String          @default("Issue date")
   documentNumberLabel String          @default("Document number")
   countryLabel        String          @default("Country")
   notesLabel          String          @default("Notes")
+  linkLabel           String          @default("Link")
   customFields        DocumentField[]
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
