@@ -1,18 +1,21 @@
-import { getDocuments } from "@/lib/data/documents";
+import { getDocuments, getDocumentTypes } from "@/lib/data/documents";
 import Link from "next/link";
-import { FileText, Plus, Search, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, Plus, Search, ShieldCheck } from "lucide-react";
 import { UploadDocumentButton } from "./UploadDocumentButton";
 import { ManualDocumentButton } from "./ManualDocumentButton";
 
 
 export default async function DocumentsPage() {
-  const documents = await getDocuments();
+  const [documents, documentTypes] = await Promise.all([getDocuments(), getDocumentTypes()]);
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
       <div className="max-w-7xl">
         <div className="flex items-start justify-between">
           <div>
+            <Link href="/" className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-900">
+              <ArrowLeft className="h-4 w-4" /> Back to dashboard
+            </Link>
             <h1 className="text-[38px] font-semibold leading-none tracking-tight">
               Documents
             </h1>
@@ -25,7 +28,7 @@ export default async function DocumentsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <ManualDocumentButton />
+            <ManualDocumentButton documentTypes={documentTypes} />
             <UploadDocumentButton />
           </div>
         </div>
