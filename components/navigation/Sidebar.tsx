@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import kinesisIcon from "@/app/icon.png";
 import {
   Calendar,
@@ -14,7 +15,7 @@ import {
 } from "lucide-react";
 
 const modules = [
-  { icon: FileText, name: "Documents" },
+  { icon: FileText, name: "Documents", href: "/documents" },
   { icon: Landmark, name: "Finance" },
   { icon: Heart, name: "Health" },
   { icon: Car, name: "Vehicles" },
@@ -55,6 +56,7 @@ export function Sidebar() {
                 key={module.name}
                 icon={module.icon}
                 label={module.name}
+                href={"href" in module ? module.href : undefined}
               />
             ))}
           </NavSection>
@@ -95,21 +97,32 @@ function SidebarItem({
   icon: Icon,
   label,
   active = false,
+  href,
 }: {
   icon: React.ElementType;
   label: string;
   active?: boolean;
+  href?: string;
 }) {
-  return (
-    <button
-      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
+  const className = `flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
         active
           ? "bg-zinc-950 text-white shadow-[0_8px_24px_rgb(0,0,0,0.12)]"
           : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
-      }`}
-    >
+      }`;
+  const content = (
+    <>
       <Icon className="h-[18px] w-[18px]" />
       <span className="font-medium">{label}</span>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" className={className}>
+      {content}
     </button>
   );
 }
