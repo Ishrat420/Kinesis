@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarDays, Plus, X } from "lucide-react";
 import { createGoalAction } from "./actions";
+import { CreateGoalSubmit } from "./CreateGoalSubmit";
 
 export function CreateGoalButton() {
   const [open, setOpen] = useState(false);
@@ -15,7 +16,7 @@ export function CreateGoalButton() {
           <label className="block text-sm font-semibold">Goal name<input name="name" required autoFocus placeholder="e.g. Buy my first home" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-violet-400" /></label>
           <label className="block text-sm font-semibold">Target date <span className="font-normal text-zinc-400">(optional)</span><div className="relative mt-2"><CalendarDays className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-zinc-400"/><input name="targetDate" type="date" className="h-12 w-full rounded-2xl border border-zinc-200 pl-12 pr-4 font-normal outline-none focus:border-violet-400" /></div></label>
           <label className="block text-sm font-semibold">Note <span className="font-normal text-zinc-400">(optional)</span><textarea name="note" rows={3} placeholder="Why this matters, or a first thought..." className="mt-2 w-full resize-none rounded-2xl border border-zinc-200 p-4 font-normal outline-none focus:border-violet-400" /></label>
-          <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={() => setOpen(false)} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Cancel</button><button className="rounded-2xl bg-zinc-950 px-6 py-3 text-sm font-semibold text-white">Create active goal</button></div>
+          <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={() => setOpen(false)} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Cancel</button><CreateGoalSubmit /></div>
         </form>
       </div>
     </div>}
