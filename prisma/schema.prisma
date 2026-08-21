@@ -27,8 +27,33 @@ model Document {
   notesLabel          String          @default("Notes")
   linkLabel           String          @default("Link")
   customFields        DocumentField[]
+  notifications       Notification[]
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
+}
+
+enum NotificationType {
+  REMINDER_DUE
+  EXPIRED
+}
+
+model Notification {
+  id              String           @id
+  type            NotificationType
+  documentId      String
+  reminderAt      DateTime?
+  timeUntilExpiry String?
+  expiryDate      DateTime
+  documentName    String
+  documentType    String?
+  message         String
+  actionUrl       String
+  readAt          DateTime?
+  createdAt       DateTime         @default(now())
+  document        Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, type, expiryDate])
+  @@index([createdAt])
 }
 
 model DocumentField {

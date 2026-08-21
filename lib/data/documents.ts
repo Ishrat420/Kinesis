@@ -64,6 +64,7 @@ export async function updateDocument(id: string, data: DocumentInput) {
   const { customFields = [], ...document } = data;
   return prisma.$transaction(async (transaction) => {
     await transaction.documentField.deleteMany({ where: { documentId: id } });
+    await transaction.notification.deleteMany({ where: { documentId: id } });
     return transaction.document.update({
       where: { id },
       data: {
