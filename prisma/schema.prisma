@@ -8,15 +8,33 @@ datasource db {
 }
 
 model Document {
-  id             String   @id
-  name           String
-  type           String
-  status         String
-  expiryDate     DateTime?
-  issueDate      DateTime?
-  owner          String?
-  documentNumber String?
-  country        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String          @id
+  name                String
+  type                String
+  status              String
+  expiryDate          DateTime?
+  issueDate           DateTime?
+  owner               String          @default("user")
+  documentNumber      String?
+  country             String?
+  notes               String?
+  expiryDateLabel     String          @default("Expiry date")
+  issueDateLabel      String          @default("Issue date")
+  documentNumberLabel String          @default("Document number")
+  countryLabel        String          @default("Country")
+  notesLabel          String          @default("Notes")
+  customFields        DocumentField[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+model DocumentField {
+  id         String   @id
+  documentId String
+  label      String
+  value      String
+  position   Int      @default(0)
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, position])
 }
