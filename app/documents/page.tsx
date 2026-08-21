@@ -1,4 +1,8 @@
-import { getDocuments, getDocumentTypes } from "@/lib/data/documents";
+import {
+  getDocuments,
+  getDocumentSummary,
+  getDocumentTypes,
+} from "@/lib/data/documents";
 import Link from "next/link";
 import { ArrowLeft, FileText, Plus, Search, ShieldCheck } from "lucide-react";
 import { UploadDocumentButton } from "./UploadDocumentButton";
@@ -6,7 +10,11 @@ import { ManualDocumentButton } from "./ManualDocumentButton";
 
 
 export default async function DocumentsPage() {
-  const [documents, documentTypes] = await Promise.all([getDocuments(), getDocumentTypes()]);
+  const [documents, documentTypes, documentSummary] = await Promise.all([
+    getDocuments(),
+    getDocumentTypes(),
+    getDocumentSummary(),
+  ]);
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
@@ -34,9 +42,21 @@ export default async function DocumentsPage() {
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <StatCard icon={FileText} title="Tracked documents" value="12" />
-          <StatCard icon={ShieldCheck} title="Active documents" value="9" />
-          <StatCard icon={Plus} title="Expiring soon" value="3" />
+          <StatCard
+            icon={FileText}
+            title="Tracked documents"
+            value={documentSummary.tracked}
+          />
+          <StatCard
+            icon={ShieldCheck}
+            title="Active documents"
+            value={documentSummary.active}
+          />
+          <StatCard
+            icon={Plus}
+            title="Expiring soon"
+            value={documentSummary.expiringSoon}
+          />
         </div>
 
         <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -97,7 +117,7 @@ function StatCard({
 }: {
   icon: React.ElementType;
   title: string;
-  value: string;
+  value: number;
 }) {
   return (
     <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
