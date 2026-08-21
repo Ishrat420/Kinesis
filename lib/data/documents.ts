@@ -31,12 +31,14 @@ export async function getDocumentSummary() {
     select: { expiryDate: true, prompt: true },
   });
 
+  const statuses = documents.map(
+    ({ expiryDate, prompt }) => getExpiryDetails(expiryDate, prompt).status,
+  );
+
   return {
     tracked: documents.length,
-    expiringSoon: documents.filter(
-      ({ expiryDate, prompt }) =>
-        getExpiryDetails(expiryDate, prompt).status === "Expiring soon",
-    ).length,
+    active: statuses.filter((status) => status === "Active").length,
+    expiringSoon: statuses.filter((status) => status === "Expiring soon").length,
   };
 }
 
