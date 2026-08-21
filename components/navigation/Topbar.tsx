@@ -1,6 +1,9 @@
-import { Bell, Command, Search, User } from "lucide-react";
+import { Command, Search, User } from "lucide-react";
+import { getRecentNotifications } from "@/lib/data/notifications";
+import { NotificationBell } from "./NotificationBell";
 
-export function Topbar() {
+export async function Topbar() {
+  const { notifications, unreadCount } = await getRecentNotifications();
   return (
     <header className="sticky top-0 z-30 h-[72px] border-b border-zinc-200/80 bg-white/90 backdrop-blur">
       <div className="flex h-full items-center justify-between px-8">
@@ -20,9 +23,7 @@ export function Topbar() {
         </div>
 
         <div className="ml-6 flex items-center gap-3">
-          <button className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
-            <Bell className="h-[18px] w-[18px]" />
-          </button>
+          <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} />
 
           <button className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
             <User className="h-[18px] w-[18px]" />
