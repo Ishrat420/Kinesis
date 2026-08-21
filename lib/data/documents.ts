@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { getExpiryDetails } from "@/lib/documents/expiry";
 
 export type DocumentInput = {
   name: string;
@@ -9,11 +10,14 @@ export type DocumentInput = {
   documentNumber?: string | null;
   country?: string | null;
   notes?: string | null;
+  link?: string | null;
+  prompt?: number;
   expiryDateLabel?: string;
   issueDateLabel?: string;
   documentNumberLabel?: string;
   countryLabel?: string;
   notesLabel?: string;
+  linkLabel?: string;
   customFields?: Array<{ label: string; value: string }>;
 };
 
@@ -22,10 +26,20 @@ export async function getDocuments() {
 }
 
 export async function getDocument(id: string) {
-  return prisma.document.findUnique({
+  const document = await prisma.document.findUnique({
     where: { id },
     include: { customFields: { orderBy: { position: "asc" } } },
   });
+  if (!document) return null;
+  const status = getExpiryDetails(document.expiryDate, document.prompt).status;
+  if (status !== document.status) {
+    return prisma.document.update({
+      where: { id },
+      data: { status },
+      include: { customFields: { orderBy: { position: "asc" } } },
+    });
+  }
+  return document;
 }
 
 export async function createDocument(data: DocumentInput & { id?: string }) {
