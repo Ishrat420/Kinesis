@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { DocumentFields, type CustomField } from "../DocumentFields";
 import { updateDocumentAction, type DocumentActionState } from "../actions";
 import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSelect";
 
 const initialState: DocumentActionState = {};
 
@@ -29,7 +30,7 @@ type EditableDocument = {
   customFields: CustomField[];
 };
 
-export function EditDocumentForm({ document }: { document: EditableDocument }) {
+export function EditDocumentForm({ document, documentTypes }: { document: EditableDocument; documentTypes: DocumentTypeOption[] }) {
   const action = updateDocumentAction.bind(null, document.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [expiryDate, setExpiryDate] = useState(document.expiryDate);
@@ -41,7 +42,7 @@ export function EditDocumentForm({ document }: { document: EditableDocument }) {
     <form action={formAction} className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Document name" name="name" value={document.name} required />
-        <Field label="Document type" name="type" value={document.type} required />
+        <DocumentTypeSelect types={documentTypes} defaultValue={document.type} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-sm font-medium text-zinc-600">Reminder

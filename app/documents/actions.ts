@@ -1,6 +1,6 @@
 "use server";
 
-import { createDocument, updateDocument } from "@/lib/data/documents";
+import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
@@ -61,6 +61,7 @@ export async function createDocumentAction(
 ): Promise<DocumentActionState> {
   const data = documentData(formData);
   if (!data) return { error: "Name and type are required." };
+  data.type = await resolveDocumentType(data.type);
   const document = await createDocument(data);
   redirect(`/documents/${document.id}`);
 }
@@ -72,8 +73,15 @@ export async function updateDocumentAction(
 ): Promise<DocumentActionState> {
   const data = documentData(formData);
   if (!data) return { error: "Name and type are required." };
+  data.type = await resolveDocumentType(data.type);
   await updateDocument(documentId, data);
   revalidatePath("/documents");
   revalidatePath(`/documents/${documentId}`);
   return {};
+}
+
+export async function deleteDocumentTypeAction(name: string): Promise<DocumentActionState> {
+  const result = await deleteUnusedDocumentType(name);
+  revalidatePath("/documents");
+  return result;
 }
