@@ -2,6 +2,7 @@ import { getDocuments } from "@/lib/data/documents";
 import Link from "next/link";
 import { FileText, Plus, Search, ShieldCheck } from "lucide-react";
 import { UploadDocumentButton } from "./UploadDocumentButton";
+import { ManualDocumentButton } from "./ManualDocumentButton";
 
 
 export default async function DocumentsPage() {
@@ -23,7 +24,10 @@ export default async function DocumentsPage() {
             </p>
           </div>
 
-          <UploadDocumentButton />
+          <div className="flex items-center gap-3">
+            <ManualDocumentButton />
+            <UploadDocumentButton />
+          </div>
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
