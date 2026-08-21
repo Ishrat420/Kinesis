@@ -85,15 +85,11 @@ export function ManualDocumentButton({ documentTypes }: { documentTypes: Documen
                   >
                     {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
                   </select>
-                  <span className="mt-1.5 block text-xs font-normal text-zinc-500">Status and time remaining are calculated from the expiry date.</span>
                 </label>
 
                 <div>
                   <div className="mb-3 flex items-end justify-between">
-                    <div>
-                      <h3 className="font-semibold text-zinc-800">Document information</h3>
-                      <p className="mt-1 text-xs text-zinc-500">Field names can be changed to match your document.</p>
-                    </div>
+                    <h3 className="font-semibold text-zinc-800">Document information</h3>
                     <span className="text-xs font-medium text-zinc-400">Owner: user</span>
                   </div>
                   <DocumentFields />
