@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Link2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 export type CustomField = { id?: string; label: string; value: string };
@@ -12,22 +12,26 @@ export function DocumentFields({
     documentNumber: "Document number",
     country: "Country",
     notes: "Notes",
+    link: "Link",
   },
   values = {},
   initialCustomFields = [],
+  onExpiryDateChange,
 }: {
-  labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes", string>;
-  values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes", string>>;
+  labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
+  values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
   initialCustomFields?: CustomField[];
+  onExpiryDateChange?: (value: string) => void;
 }) {
   const [customFields, setCustomFields] = useState(initialCustomFields);
 
   return (
     <div className="space-y-4">
-      <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} />
+      <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={onExpiryDateChange} />
       <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
       <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" value={values.documentNumber} />
       <EditableField label={labels.country} labelName="countryLabel" name="country" value={values.country} />
+      <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
       <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
       {customFields.map((field, index) => (
@@ -49,14 +53,17 @@ export function DocumentFields({
 
 const inputClass = "h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-400";
 
-function EditableField({ label, labelName, name, value, type = "text", multiline = false }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean }) {
+function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, onChange }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; onChange?: (value: string) => void }) {
   return (
     <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
       <input name={labelName} defaultValue={label} aria-label={`${label} field name`} required className={inputClass} />
       {multiline ? (
         <textarea name={name} defaultValue={value} aria-label={label} rows={3} className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none transition focus:border-zinc-400" />
       ) : (
-        <input name={name} type={type} defaultValue={value} aria-label={label} className={inputClass} />
+        <div className="relative">
+          {icon && <Link2 aria-hidden="true" className="absolute left-3 top-3.5 h-4 w-4 text-zinc-400" />}
+          <input name={name} type={type} defaultValue={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} placeholder={icon ? "https://example.com" : undefined} className={`${inputClass} ${icon ? "pl-10" : ""}`} />
+        </div>
       )}
     </div>
   );
