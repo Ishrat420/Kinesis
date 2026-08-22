@@ -8,11 +8,13 @@ import {
   Heart,
   Home,
   Landmark,
-  Plus,
   Settings,
   Target,
   Users,
 } from "lucide-react";
+import { AddModuleButton } from "./AddModuleButton";
+import { getCustomModules } from "@/lib/data/custom-modules";
+import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 
 const modules = [
   { icon: FileText, name: "Documents", href: "/documents" },
@@ -23,7 +25,8 @@ const modules = [
   { icon: Users, name: "Relationships" },
 ];
 
-export function Sidebar() {
+export async function Sidebar() {
+  const customModules = await getCustomModules();
   return (
     <aside className="hidden min-h-[calc(100vh-72px)] w-[270px] border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
       <div className="mb-6 flex items-center gap-4 px-2">
@@ -47,7 +50,7 @@ export function Sidebar() {
       <div className="border-t border-zinc-100 pt-6">
         <nav className="space-y-5 text-sm">
           <NavSection label="Main">
-            <SidebarItem active icon={Home} label="Dashboard" />
+            <SidebarItem active icon={Home} label="Dashboard" href="/" />
           </NavSection>
 
           <NavSection label="Areas">
@@ -59,10 +62,16 @@ export function Sidebar() {
                 href={"href" in module ? module.href : undefined}
               />
             ))}
+            {customModules.map((customModule) => (
+              <Link key={customModule.id} href={`/custom-modules/${customModule.id}`} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}><CustomModuleIcon name={customModule.icon} className="h-4 w-4" /></span>
+                <span className="min-w-0 truncate font-medium">{customModule.name}</span>
+              </Link>
+            ))}
           </NavSection>
 
           <NavSection label="Customize">
-            <SidebarItem icon={Plus} label="Add Module" />
+            <AddModuleButton />
           </NavSection>
 
           <NavSection label="System">
