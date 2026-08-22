@@ -18,7 +18,7 @@ import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 
 const modules = [
   { icon: FileText, name: "Documents", href: "/documents" },
-  { icon: Landmark, name: "Finance" },
+  { icon: Landmark, name: "Finance", href: "/finance" },
   { icon: Heart, name: "Health" },
   { icon: Car, name: "Vehicles" },
   { icon: Target, name: "Goals", href: "/goals" },
