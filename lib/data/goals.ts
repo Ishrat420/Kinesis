@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
+import { calculateGoalHealth } from "@/lib/goals/health";
 
 export async function syncAndGetGoals() {
   const goals = await prisma.goal.findMany({ include: { milestones: true }, orderBy: { updatedAt: "desc" } });
@@ -23,4 +24,33 @@ export async function getGoal(id: string) {
 export async function getGoalUnits() {
   const custom = await prisma.goalUnit.findMany({ orderBy: { name: "asc" } });
   return [...new Set([...DEFAULT_GOAL_UNITS, ...custom.map(({ name }) => name)])];
+}
+
+export async function getGoalDashboardSummary(now = new Date()) {
+  await prisma.goal.updateMany({
+    where: { status: "Active", targetDate: { lt: now } },
+    data: { status: "Archived" },
+  });
+
+  const goals = await prisma.goal.findMany({
+    where: { status: "Active" },
+    include: { metricHistory: { orderBy: { recordedAt: "asc" } } },
+  });
+
+  const onTrack = goals.filter((goal) => {
+    if (goal.targetValue === null || goal.currentValue === null || !goal.targetDate) return false;
+    if (goal.currentValue === goal.targetValue) return true;
+
+    const health = calculateGoalHealth({
+      targetValue: goal.targetValue,
+      currentValue: goal.currentValue,
+      targetDate: goal.targetDate,
+      unit: goal.unit,
+      history: goal.metricHistory,
+      now,
+    });
+    return health !== null && health.status !== "AT RISK";
+  }).length;
+
+  return { active: goals.length, onTrack };
 }
