@@ -1,6 +1,7 @@
 import { Car, FileText, Heart, Landmark, Target, Users } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { getDocumentSummary } from "@/lib/data/documents";
+import { getGoalDashboardSummary } from "@/lib/data/goals";
 import Link from "next/link";
 
 const modules = [
@@ -26,13 +27,6 @@ const modules = [
     tone: "bg-amber-50",
   },
   {
-    icon: Target,
-    name: "Goals",
-    meta: "4 active goals",
-    detail: "2 on track",
-    tone: "bg-violet-50",
-  },
-  {
     icon: Users,
     name: "Relationships",
     meta: "24 people",
@@ -42,7 +36,10 @@ const modules = [
 ];
 
 export async function ModuleGrid() {
-  const documentSummary = await getDocumentSummary();
+  const [documentSummary, goalSummary] = await Promise.all([
+    getDocumentSummary(),
+    getGoalDashboardSummary(),
+  ]);
   const documentModule = {
     icon: FileText,
     name: "Documents",
@@ -52,11 +49,18 @@ export async function ModuleGrid() {
       : "Add documents to track",
     tone: "bg-blue-50",
   };
+  const goalModule = {
+    icon: Target,
+    name: "Goals",
+    meta: `${goalSummary.active} active goal${goalSummary.active === 1 ? "" : "s"}`,
+    detail: `${goalSummary.onTrack} on track`,
+    tone: "bg-violet-50",
+  };
 
   return (
     <Card title="Modules" className="mt-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {[documentModule, ...modules].map((module) => {
+        {[documentModule, ...modules.slice(0, 3), goalModule, ...modules.slice(3)].map((module) => {
           const Icon = module.icon;
           const content = (
             <>
