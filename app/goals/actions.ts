@@ -35,12 +35,17 @@ export async function addTargetAction(id: string, data: FormData) {
   if (targetValue === null || !Number.isFinite(targetValue) || currentValue === null || !Number.isFinite(currentValue) || !unit) return;
   if (!DEFAULT_GOAL_UNITS.some((item) => item.toLowerCase() === unit.toLowerCase())) await prisma.goalUnit.upsert({ where: { name: unit }, update: {}, create: { id: crypto.randomUUID(), name: unit } });
   await prisma.$transaction(async (tx) => {
+    const previous = await tx.goal.findUnique({ where: { id }, select: { currentValue: true } });
     await tx.goal.update({ where: { id }, data: { targetValue, currentValue, unit } });
+    if (previous?.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
     await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, autoCompleted: true } });
   }); refresh(id);
 }
 
-export async function removeTargetAction(id: string) { await prisma.goal.update({ where: { id }, data: { targetValue: null, currentValue: null, unit: null } }); refresh(id); }
+export async function removeTargetAction(id: string) {
+  await prisma.$transaction([prisma.goal.update({ where: { id }, data: { targetValue: null, currentValue: null, unit: null } }), prisma.goalMetricSnapshot.deleteMany({ where: { goalId: id } })]);
+  refresh(id);
+}
 
 export async function addMilestoneAction(id: string, data: FormData) {
   const name = value(data, "name"); const milestoneValue = numeric(data, "value"); if (!name) return;

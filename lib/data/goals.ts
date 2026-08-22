@@ -12,10 +12,11 @@ export async function syncAndGetGoals() {
 }
 
 export async function getGoal(id: string) {
-  const goal = await prisma.goal.findUnique({ where: { id }, include: { milestones: { orderBy: { position: "asc" } } } });
+  const include = { milestones: { orderBy: { position: "asc" as const } }, metricHistory: { orderBy: { recordedAt: "asc" as const } } };
+  const goal = await prisma.goal.findUnique({ where: { id }, include });
   if (!goal) return null;
   const status = effectiveStatus(goal.status, goal.targetDate);
-  if (status !== goal.status) return prisma.goal.update({ where: { id }, data: { status }, include: { milestones: { orderBy: { position: "asc" } } } });
+  if (status !== goal.status) return prisma.goal.update({ where: { id }, data: { status }, include });
   return goal;
 }
 

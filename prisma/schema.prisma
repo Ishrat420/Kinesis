@@ -74,30 +74,41 @@ model DocumentType {
 }
 
 model Goal {
-  id            String      @id
-  name          String
-  targetDate    DateTime?
-  note          String?
-  status        String      @default("Active")
-  targetValue   Float?
-  currentValue  Float?
-  unit          String?
-  showMilestoneProgress Boolean @default(true)
-  showTargetProgress    Boolean @default(true)
-  milestones    Milestone[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                    String               @id
+  name                  String
+  targetDate            DateTime?
+  note                  String?
+  status                String               @default("Active")
+  targetValue           Float?
+  currentValue          Float?
+  unit                  String?
+  showMilestoneProgress Boolean              @default(true)
+  showTargetProgress    Boolean              @default(true)
+  milestones            Milestone[]
+  metricHistory         GoalMetricSnapshot[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+}
+
+model GoalMetricSnapshot {
+  id         String   @id
+  goalId     String
+  value      Float
+  recordedAt DateTime @default(now())
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, recordedAt])
 }
 
 model Milestone {
-  id          String   @id
-  goalId      String
-  name        String
-  value       Float?
-  completed   Boolean  @default(false)
+  id            String  @id
+  goalId        String
+  name          String
+  value         Float?
+  completed     Boolean @default(false)
   autoCompleted Boolean @default(false)
-  position    Int      @default(0)
-  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  position      Int     @default(0)
+  goal          Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId, position])
 }
