@@ -1,10 +1,15 @@
 import {
-  Baby, Bike, BookOpen, Box, BriefcaseBusiness, Building2, Camera, Cat,
-  Coffee, Dumbbell, Flower2, FolderHeart, Gamepad2, Gem, Gift, Globe2,
-  GraduationCap, Hammer, Headphones, HeartPulse, House, KeyRound, Leaf,
-  Library, Music2, Package, Palette, PawPrint, Plane, Shirt, ShoppingBag,
-  Sparkles, Star, Telescope, TentTree, TreePine, Trophy, Umbrella,
-  Utensils, WalletCards, Watch, Waves, Wrench,
+  Activity, AlarmClock, Apple, Baby, BadgeDollarSign, Beer, Bike, Bird,
+  Bone, BookOpen, Bot, Box, BriefcaseBusiness, Building2, Cake, Calculator,
+  Camera, Cat, Church, CloudSun, Code2, Coffee, Compass, CookingPot, Crown,
+  Dog, Drill, Dumbbell, Factory, Film, Fish, FlaskConical, Flower2,
+  FolderHeart, Gamepad2, Gem, Gift, Globe2, GraduationCap, Guitar, Hammer,
+  Headphones, HeartPulse, Hospital, House, KeyRound, Laptop, Leaf, Library,
+  Lightbulb, Map, Medal, Microscope, Mountain, Music2, NotebookTabs, Package,
+  Palette, PartyPopper, PawPrint, Pill, Pizza, Plane, Rocket, Scissors,
+  Shield, Shirt, ShoppingBag, Sofa, Sparkles, Star, Stethoscope, Telescope,
+  TentTree, Ticket, TrainFront, TreePine, Trophy, Umbrella, Utensils,
+  Volleyball, WalletCards, Watch, Waves, Wine, Wrench, Zap,
 } from "lucide-react";
 
 export const CUSTOM_MODULE_ICONS = {
@@ -19,6 +24,17 @@ export const CUSTOM_MODULE_ICONS = {
   library: Library, music: Music2, star: Star, telescope: Telescope,
   camping: TentTree, outdoors: TreePine, trophy: Trophy, umbrella: Umbrella,
   wallet: WalletCards, watch: Watch, water: Waves,
+  activity: Activity, alarm: AlarmClock, apple: Apple, money: BadgeDollarSign,
+  drinks: Beer, bird: Bird, bone: Bone, robot: Bot, celebrations: Cake,
+  calculator: Calculator, faith: Church, weather: CloudSun, coding: Code2,
+  compass: Compass, cooking: CookingPot, crown: Crown, dog: Dog, drill: Drill,
+  factory: Factory, movies: Film, fish: Fish, science: FlaskConical,
+  guitar: Guitar, hospital: Hospital, laptop: Laptop, ideas: Lightbulb,
+  maps: Map, medal: Medal, microscope: Microscope, mountains: Mountain,
+  notebook: NotebookTabs, party: PartyPopper, medicine: Pill, pizza: Pizza,
+  rocket: Rocket, crafts: Scissors, security: Shield, furniture: Sofa,
+  doctor: Stethoscope, tickets: Ticket, train: TrainFront, sports: Volleyball,
+  wine: Wine, energy: Zap,
 } as const;
 
 export type CustomModuleIconName = keyof typeof CUSTOM_MODULE_ICONS;
