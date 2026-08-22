@@ -18,7 +18,9 @@ function periodFor(daysRemaining: number) {
 }
 
 function valueLabel(value: number, unit: string | null) {
-  const amount = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 }).format(Math.abs(value));
+  // Significant digits keep small goals useful (for example, 3 books over
+  // 8 months is 0.375/month) without adding noisy cents to large targets.
+  const amount = new Intl.NumberFormat("en-AU", { maximumSignificantDigits: 3 }).format(Math.abs(value));
   return unit?.startsWith("$") ? `${unit} ${amount}` : `${amount}${unit ? ` ${unit}` : ""}`;
 }
 
