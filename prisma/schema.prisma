@@ -119,3 +119,42 @@ model GoalUnit {
   name      String   @unique
   createdAt DateTime @default(now())
 }
+
+model CustomModule {
+  id             String       @id
+  name           String
+  normalizedName String       @unique
+  icon           String
+  color          String
+  description    String?
+  items          CustomItem[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model CustomItem {
+  id        String            @id
+  moduleId  String
+  name      String
+  notes     String?
+  reminder  DateTime?
+  link      String?
+  archived  Boolean           @default(false)
+  module    CustomModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  fields    CustomItemField[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([moduleId, archived, createdAt])
+}
+
+model CustomItemField {
+  id       String     @id
+  itemId   String
+  label    String
+  value    String
+  position Int        @default(0)
+  item     CustomItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, position])
+}
