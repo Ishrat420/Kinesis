@@ -1,14 +1,18 @@
 import {
-  Activity, AlarmClock, Apple, Baby, BadgeDollarSign, Beer, Bike, Bird,
-  Bone, BookOpen, Bot, Box, BriefcaseBusiness, Building2, Cake, Calculator,
-  Camera, Cat, Church, CloudSun, Code2, Coffee, Compass, CookingPot, Crown,
-  Dog, Drill, Dumbbell, Factory, Film, Fish, FlaskConical, Flower2,
+  Accessibility, Activity, AlarmClock, Apple, Baby, BadgeDollarSign, Beer,
+  BicepsFlexed, Bike, Binary, Bird, Bone, BookOpen, Bot, Box, Braces,
+  BriefcaseBusiness, Building2, Cake, Calculator, Camera, Cat, Church,
+  CloudSun, Code2, CodeXml, Coffee, Compass, Contact, CookingPot, Cpu, Crown,
+  Database, Dog, Drama, Drill, Dumbbell, Factory, Film, Fish, FlaskConical,
+  Flower2, Footprints,
   FolderHeart, Gamepad2, Gem, Gift, Globe2, GraduationCap, Guitar, Hammer,
-  Headphones, HeartPulse, Hospital, House, KeyRound, Laptop, Leaf, Library,
-  Lightbulb, Map, Medal, Microscope, Mountain, Music2, NotebookTabs, Package,
-  Palette, PartyPopper, PawPrint, Pill, Pizza, Plane, Rocket, Scissors,
-  Shield, Shirt, ShoppingBag, Sofa, Sparkles, Star, Stethoscope, Telescope,
-  TentTree, Ticket, TrainFront, TreePine, Trophy, Umbrella, Utensils,
+  Headphones, HeartPulse, Hospital, House, KeyRound, Leaf, Library,
+  GitBranch, Keyboard, Laptop, Lightbulb, Map, Mars, Medal, Microscope,
+  Monitor, Mountain, Mouse, Music2, NotebookTabs, Package, Palette,
+  PartyPopper, PawPrint, PersonStanding, Pill, Pizza, Plane, Rocket, Scissors,
+  Shield, Shirt, ShoppingBag, Smartphone, Sofa, Sparkles, Star, Stethoscope,
+  Tablet, Telescope, TentTree, Terminal, Ticket, TrainFront, TreePine, Trophy,
+  Tv, Umbrella, User, UserPlus, UserRound, UsersRound, Utensils, Venus,
   Volleyball, WalletCards, Watch, Waves, Wine, Wrench, Zap,
 } from "lucide-react";
 
@@ -35,6 +39,13 @@ export const CUSTOM_MODULE_ICONS = {
   rocket: Rocket, crafts: Scissors, security: Shield, furniture: Sofa,
   doctor: Stethoscope, tickets: Ticket, train: TrainFront, sports: Volleyball,
   wine: Wine, energy: Zap,
+  person: User, profile: UserRound, people: UsersRound, standing: PersonStanding,
+  accessibility: Accessibility, woman: Venus, man: Mars, contacts: Contact,
+  community: UserPlus, strength: BicepsFlexed, walking: Footprints,
+  theatre: Drama, phone: Smartphone, tablet: Tablet, computer: Monitor,
+  keyboard: Keyboard, mouse: Mouse, television: Tv, processor: Cpu,
+  terminal: Terminal, code: CodeXml, braces: Braces, binary: Binary,
+  database: Database, development: GitBranch,
 } as const;
 
 export type CustomModuleIconName = keyof typeof CUSTOM_MODULE_ICONS;
