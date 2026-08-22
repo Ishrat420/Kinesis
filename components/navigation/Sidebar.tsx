@@ -64,7 +64,7 @@ export async function Sidebar() {
             ))}
             {customModules.map((customModule) => (
               <Link key={customModule.id} href={`/custom-modules/${customModule.id}`} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-white" style={{ backgroundColor: customModule.color }}><CustomModuleIcon name={customModule.icon} className="h-4 w-4" /></span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-700" style={{ backgroundColor: customModule.color }}><CustomModuleIcon name={customModule.icon} className="h-4 w-4" /></span>
                 <span className="min-w-0 truncate font-medium">{customModule.name}</span>
               </Link>
             ))}
