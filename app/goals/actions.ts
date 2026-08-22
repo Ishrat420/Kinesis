@@ -17,13 +17,15 @@ const optionalDate = (data: FormData, key: string) => {
   const date = new Date(`${raw}T23:59:59.999Z`);
   return Number.isNaN(date.getTime()) ? undefined : date;
 };
-const refresh = (id: string) => { revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
+const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
 
 export async function createGoalAction(data: FormData) {
   const name = value(data, "name");
   if (!name) return;
   const date = value(data, "targetDate");
   const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), name, targetDate: date ? new Date(`${date}T23:59:59.999Z`) : null, note: value(data, "note") || null } });
+  revalidatePath("/");
+  revalidatePath("/goals");
   redirect(`/goals/${goal.id}`);
 }
 
@@ -34,7 +36,10 @@ export async function updateGoalStatusAction(id: string, data: FormData) {
 }
 
 export async function deleteGoalAction(id: string) {
-  await prisma.goal.delete({ where: { id } }); redirect("/goals");
+  await prisma.goal.delete({ where: { id } });
+  revalidatePath("/");
+  revalidatePath("/goals");
+  redirect("/goals");
 }
 
 export async function addTargetAction(id: string, data: FormData) {
