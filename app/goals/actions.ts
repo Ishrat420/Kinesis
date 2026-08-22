@@ -48,10 +48,21 @@ export async function removeTargetAction(id: string) {
 }
 
 export async function addMilestoneAction(id: string, data: FormData) {
-  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); if (!name) return;
+  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = value(data, "dueDate"); if (!name) return;
   const goal = await prisma.goal.findUnique({ where: { id }, select: { currentValue: true, _count: { select: { milestones: true } } } }); if (!goal) return;
   const auto = milestoneValue !== null && goal.currentValue !== null && goal.currentValue >= milestoneValue;
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, completed: auto, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate: dueDate ? new Date(`${dueDate}T23:59:59.999Z`) : null, completed: auto, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+}
+
+export async function updateMilestoneDueDateAction(id: string, milestoneId: string, data: FormData) {
+  const dueDate = value(data, "dueDate");
+  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id }, data: { dueDate: dueDate ? new Date(`${dueDate}T23:59:59.999Z`) : null } });
+  refresh(id);
+}
+
+export async function removeMilestoneDueDateAction(id: string, milestoneId: string) {
+  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id }, data: { dueDate: null } });
+  refresh(id);
 }
 
 export async function toggleMilestoneAction(id: string, milestoneId: string, completed: boolean) {

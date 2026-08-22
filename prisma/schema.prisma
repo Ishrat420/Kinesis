@@ -101,14 +101,15 @@ model GoalMetricSnapshot {
 }
 
 model Milestone {
-  id            String  @id
+  id            String    @id
   goalId        String
   name          String
   value         Float?
-  completed     Boolean @default(false)
-  autoCompleted Boolean @default(false)
-  position      Int     @default(0)
-  goal          Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  dueDate       DateTime?
+  completed     Boolean   @default(false)
+  autoCompleted Boolean   @default(false)
+  position      Int       @default(0)
+  goal          Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId, position])
 }
