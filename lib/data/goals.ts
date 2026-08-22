@@ -34,10 +34,11 @@ export async function getGoalDashboardSummary(now = new Date()) {
 
   const goals = await prisma.goal.findMany({
     where: { status: "Active" },
-    include: { metricHistory: { orderBy: { recordedAt: "asc" } } },
+    include: { metricHistory: { orderBy: { recordedAt: "asc" } }, milestones: { select: { completed: true, dueDate: true } } },
   });
 
   const onTrack = goals.filter((goal) => {
+    if (goal.milestones.some((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now)) return false;
     if (goal.targetValue === null || goal.currentValue === null || !goal.targetDate) return false;
     if (goal.currentValue === goal.targetValue) return true;
 
