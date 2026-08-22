@@ -1,9 +1,11 @@
 import { prisma } from "./prisma";
 import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
 import { calculateGoalHealth } from "@/lib/goals/health";
+import { connection } from "next/server";
 
 export async function syncAndGetGoals() {
-  const goals = await prisma.goal.findMany({ include: { milestones: true }, orderBy: { updatedAt: "desc" } });
+  await connection();
+  const goals = await prisma.goal.findMany({ include: { milestones: true, metricHistory: { orderBy: { recordedAt: "asc" } } }, orderBy: { updatedAt: "desc" } });
   const overdue = goals.filter((goal) => effectiveStatus(goal.status, goal.targetDate) === "Archived" && goal.status === "Active");
   if (overdue.length) {
     await prisma.goal.updateMany({ where: { id: { in: overdue.map(({ id }) => id) } }, data: { status: "Archived" } });
@@ -27,6 +29,7 @@ export async function getGoalUnits() {
 }
 
 export async function getGoalDashboardSummary(now = new Date()) {
+  await connection();
   await prisma.goal.updateMany({
     where: { status: "Active", targetDate: { lt: now } },
     data: { status: "Archived" },
