@@ -82,10 +82,10 @@ export async function ModuleGrid() {
             </>
           );
 
-          return module.name === "Documents" || module.name === "Goals" ? (
+          return module.name === "Documents" || module.name === "Goals" || module.name === "Finance" ? (
             <Link
               key={module.name}
-              href={module.name === "Goals" ? "/goals" : "/documents"}
+              href={module.name === "Goals" ? "/goals" : module.name === "Finance" ? "/finance" : "/documents"}
               className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
             >
               {content}
