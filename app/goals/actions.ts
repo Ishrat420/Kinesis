@@ -10,6 +10,13 @@ const numeric = (data: FormData, key: string) => {
   const raw = value(data, key);
   return raw === "" ? null : Number(raw);
 };
+const optionalDate = (data: FormData, key: string) => {
+  const raw = value(data, key);
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  const date = new Date(`${raw}T23:59:59.999Z`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
 const refresh = (id: string) => { revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
 
 export async function createGoalAction(data: FormData) {
@@ -48,15 +55,18 @@ export async function removeTargetAction(id: string) {
 }
 
 export async function addMilestoneAction(id: string, data: FormData) {
-  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = value(data, "dueDate"); if (!name) return;
-  const goal = await prisma.goal.findUnique({ where: { id }, select: { currentValue: true, _count: { select: { milestones: true } } } }); if (!goal) return;
+  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate"); if (!name || dueDate === undefined) return;
+  const goal = await prisma.goal.findUnique({ where: { id }, select: { currentValue: true, targetDate: true, _count: { select: { milestones: true } } } }); if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
   const auto = milestoneValue !== null && goal.currentValue !== null && goal.currentValue >= milestoneValue;
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate: dueDate ? new Date(`${dueDate}T23:59:59.999Z`) : null, completed: auto, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate, completed: auto, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
 }
 
 export async function updateMilestoneDueDateAction(id: string, milestoneId: string, data: FormData) {
-  const dueDate = value(data, "dueDate");
-  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id }, data: { dueDate: dueDate ? new Date(`${dueDate}T23:59:59.999Z`) : null } });
+  const dueDate = optionalDate(data, "dueDate");
+  if (dueDate === undefined) return;
+  const goal = await prisma.goal.findUnique({ where: { id }, select: { targetDate: true } });
+  if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
+  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id }, data: { dueDate } });
   refresh(id);
 }
 
