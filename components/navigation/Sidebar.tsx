@@ -22,7 +22,7 @@ const modules = [
   { icon: Heart, name: "Health" },
   { icon: Car, name: "Vehicles" },
   { icon: Target, name: "Goals", href: "/goals" },
-  { icon: Users, name: "Relationships" },
+  { icon: Users, name: "Relationships", href: "/relationships" },
 ];
 
 export async function Sidebar() {
