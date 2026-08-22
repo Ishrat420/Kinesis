@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Gauge, Plus, X } from "lucide-react";
+import { CalendarDays, Gauge, Plus, X } from "lucide-react";
 
 type FormAction = (formData: FormData) => Promise<void>;
 
 export function AddMilestoneForm({
   action,
   hasTarget,
+  goalTargetDate,
 }: {
   action: FormAction;
   hasTarget: boolean;
+  goalTargetDate: Date | null;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const latestDueDate = goalTargetDate ? new Date(goalTargetDate.getTime() - 86_400_000).toISOString().slice(0, 10) : undefined;
 
   if (!expanded) {
     return (
@@ -37,10 +40,26 @@ export function AddMilestoneForm({
       <div className="flex flex-col gap-2 sm:flex-row">
         <input name="name" required autoFocus placeholder="What is the next meaningful checkpoint?" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
         {hasTarget && <input name="value" type="number" step="any" min="0" placeholder="Numeric value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-36" />}
+        <input name="dueDate" type="date" max={latestDueDate} aria-label="Optional milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
         <button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Save milestone</button>
       </div>
     </form>
   );
+}
+
+export function MilestoneDueDateForm({ action, removeAction, dueDate, goalTargetDate, overdue }: { action: FormAction; removeAction: () => Promise<void>; dueDate: Date | null; goalTargetDate: Date | null; overdue: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const formatted = dueDate?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const latestDueDate = goalTargetDate ? new Date(goalTargetDate.getTime() - 86_400_000).toISOString().slice(0, 10) : undefined;
+
+  if (!editing) return <button type="button" onClick={() => setEditing(true)} className={`mt-1 inline-flex items-center gap-1.5 text-xs font-medium hover:text-violet-700 ${overdue ? "text-red-600" : "text-zinc-500"}`}><CalendarDays className="h-3.5 w-3.5" />{formatted ? `Due ${formatted} · Edit` : "Add due date"}</button>;
+
+  return <form action={action} className="mt-2 flex flex-wrap items-center gap-2">
+    <input name="dueDate" type="date" max={latestDueDate} aria-label="Milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} defaultValue={dueDate?.toISOString().slice(0, 10) ?? ""} className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-xs outline-none focus:border-violet-400" />
+    <button className="h-9 rounded-lg bg-zinc-900 px-3 text-xs font-semibold text-white">Save date</button>
+    {dueDate && <button formAction={removeAction} className="h-9 px-2 text-xs font-semibold text-red-500">Remove</button>}
+    <button type="button" onClick={() => setEditing(false)} className="h-9 px-2 text-xs font-medium text-zinc-500">Cancel</button>
+  </form>;
 }
 
 export function MeasurableTargetForm({
