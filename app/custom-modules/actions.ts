@@ -41,6 +41,26 @@ export async function createCustomItemAction(moduleId: string, data: FormData) {
   refresh(moduleId);
 }
 
+export async function updateCustomItemAction(moduleId: string, itemId: string, data: FormData) {
+  const name = getValue(data, "name");
+  if (!name) return;
+  const labels = data.getAll("fieldLabel").map(String);
+  const values = data.getAll("fieldValue").map(String);
+  const reminder = getValue(data, "reminder");
+  const fields = labels.map((label, position) => ({ id: crypto.randomUUID(), label: label.trim(), value: (values[position] ?? "").trim(), position })).filter((field) => field.label);
+  await prisma.$transaction(async (tx) => {
+    await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
+      name, notes: getValue(data, "notes") || null,
+      reminder: reminder ? new Date(`${reminder}T12:00:00.000Z`) : null,
+      link: getValue(data, "link") || null, archived: data.get("archived") === "true",
+    } });
+    await tx.customItemField.deleteMany({ where: { itemId } });
+    if (fields.length) await tx.customItemField.createMany({ data: fields.map((field) => ({ ...field, itemId })) });
+  });
+  refresh(moduleId);
+  revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
+}
+
 export async function toggleCustomItemArchivedAction(moduleId: string, itemId: string, archived: boolean) {
   await prisma.customItem.updateMany({ where: { id: itemId, moduleId }, data: { archived } });
   refresh(moduleId);
@@ -49,6 +69,7 @@ export async function toggleCustomItemArchivedAction(moduleId: string, itemId: s
 export async function deleteCustomItemAction(moduleId: string, itemId: string) {
   await prisma.customItem.deleteMany({ where: { id: itemId, moduleId } });
   refresh(moduleId);
+  redirect(`/custom-modules/${moduleId}`);
 }
 
 export async function deleteCustomModuleAction(moduleId: string) {
