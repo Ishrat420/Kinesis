@@ -50,7 +50,7 @@ export async function Sidebar() {
       <div className="border-t border-zinc-100 pt-6">
         <nav className="space-y-5 text-sm">
           <NavSection label="Main">
-            <SidebarItem active icon={Home} label="Dashboard" />
+            <SidebarItem active icon={Home} label="Dashboard" href="/" />
           </NavSection>
 
           <NavSection label="Areas">
