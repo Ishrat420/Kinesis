@@ -16,13 +16,13 @@ function relativeTime(date: Date) {
 
 export function ActivityFeed({ activity }: { activity: ActivityItem[] }) {
   return (
-    <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-      <div className="mb-5 flex items-center justify-between">
+    <section className="flex h-[396px] flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div className="mb-5 flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold">Recent activity</h2>
         <span className="text-sm text-zinc-400">Latest updates</span>
       </div>
 
-      <div className="space-y-5">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-2">
         {activity.map((item) => {
           const Icon = item.action === "Completed" ? CheckCircle2 : icons[item.icon as keyof typeof icons] ?? Package;
           const title = item.moduleName === "Finance"
