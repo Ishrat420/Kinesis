@@ -4,6 +4,13 @@ export function getCustomModules() {
   return prisma.customModule.findMany({ orderBy: { createdAt: "asc" } });
 }
 
+export function getCustomModulesWithItemCount() {
+  return prisma.customModule.findMany({
+    include: { _count: { select: { items: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
 export function getCustomModule(id: string) {
   return prisma.customModule.findUnique({
     where: { id },

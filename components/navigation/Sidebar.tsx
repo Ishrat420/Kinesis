@@ -3,9 +3,7 @@ import Link from "next/link";
 import kinesisIcon from "@/app/icon.png";
 import {
   Calendar,
-  Car,
   FileText,
-  Heart,
   Home,
   Landmark,
   Settings,
@@ -14,13 +12,11 @@ import {
 } from "lucide-react";
 import { AddModuleButton } from "./AddModuleButton";
 import { getCustomModules } from "@/lib/data/custom-modules";
-import { CustomModuleIcon } from "@/lib/custom-modules/icons";
+import { DraggableCustomModuleLink } from "./DraggableCustomModuleLink";
 
 const modules = [
   { icon: FileText, name: "Documents", href: "/documents" },
   { icon: Landmark, name: "Finance", href: "/finance" },
-  { icon: Heart, name: "Health" },
-  { icon: Car, name: "Vehicles" },
   { icon: Target, name: "Goals", href: "/goals" },
   { icon: Users, name: "Relationships", href: "/relationships" },
 ];
@@ -53,7 +49,7 @@ export async function Sidebar() {
             <SidebarItem active icon={Home} label="Dashboard" href="/" />
           </NavSection>
 
-          <NavSection label="Areas">
+          <NavSection label="Modules">
             {modules.map((module) => (
               <SidebarItem
                 key={module.name}
@@ -63,10 +59,7 @@ export async function Sidebar() {
               />
             ))}
             {customModules.map((customModule) => (
-              <Link key={customModule.id} href={`/custom-modules/${customModule.id}`} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}><CustomModuleIcon name={customModule.icon} className="h-4 w-4" /></span>
-                <span className="min-w-0 truncate font-medium">{customModule.name}</span>
-              </Link>
+              <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
             ))}
           </NavSection>
 
