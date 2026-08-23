@@ -9,15 +9,17 @@ import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getGoalDashboardSummary, getMilestonesDueSoon } from "@/lib/data/goals";
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getNeedsAttention } from "@/lib/data/attention";
+import { getRecentActivity } from "@/lib/data/activity";
 
 export default async function Home() {
-  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary] = await Promise.all([
+  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity] = await Promise.all([
     getUpcomingAndDue(),
     getCurrentUser(),
     getMilestonesDueSoon(),
     getExpiringDocuments(),
     getNeedsAttention(),
     getGoalDashboardSummary(),
+    getRecentActivity(),
   ]);
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
@@ -49,7 +51,7 @@ export default async function Home() {
 
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
               <ReminderList items={upcomingItems} />
-              <ActivityFeed />
+              <ActivityFeed activity={activity} />
             </div>
 
             <ModuleGrid />
