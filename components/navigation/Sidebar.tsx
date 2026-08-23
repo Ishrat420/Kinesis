@@ -69,7 +69,7 @@ export async function Sidebar() {
 
           <NavSection label="System">
             <SidebarItem icon={Calendar} label="Timeline" />
-            <SidebarItem icon={Settings} label="Settings" />
+            <SidebarItem icon={Settings} label="Settings" href="/settings" />
           </NavSection>
         </nav>
       </div>
