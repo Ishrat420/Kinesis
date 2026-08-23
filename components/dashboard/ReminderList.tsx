@@ -89,7 +89,7 @@ export function ReminderList({ items }: { items: UpcomingItem[] }) {
   );
 
   return (
-    <section className="flex h-[376px] flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="flex h-[396px] flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <div className="mb-5 flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold">Upcoming &amp; Due</h2>
       </div>
