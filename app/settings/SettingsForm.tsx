@@ -40,13 +40,13 @@ export function SettingsForm({ settings }: { settings: Settings }) {
 
       <section id="notifications" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h2 className="text-lg font-semibold">Notifications &amp; reminders</h2>
-        <p className="mt-1 text-sm text-zinc-500">Decide when Kinesis should bring something to your attention.</p>
+        <p className="mt-1 text-sm text-zinc-500">Decide when Kinesis should bring something to your attention. Your default applies to new items; an item-specific reminder can override it.</p>
         <div className="mt-5 divide-y divide-zinc-100">
           <Toggle name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} icon={Bell} title="In-app notifications" description="Show updates and alerts in Kinesis." />
           <Toggle name="remindersEnabled" defaultChecked={settings.remindersEnabled} onChange={setRemindersEnabled} icon={Clock3} title="Reminders" description="Get advance notice for upcoming dates." />
           <label className="flex items-center justify-between gap-5 py-4 text-sm">
             <span><span className="font-medium text-zinc-800">Remind me before</span><span className="mt-1 block text-zinc-500">Default notice for upcoming items.</span></span>
-            <span className="flex items-center gap-2"><input aria-disabled={!remindersEnabled} name="reminderLeadDays" type="number" min="0" max="365" defaultValue={settings.reminderLeadDays} className="h-10 w-20 rounded-xl border border-zinc-200 px-3 text-right outline-none focus:border-zinc-400 aria-disabled:bg-zinc-100 aria-disabled:text-zinc-400" /><span className="text-zinc-500">days</span></span>
+            <span className="flex items-center gap-2">{!remindersEnabled && <input type="hidden" name="reminderLeadDays" value={settings.reminderLeadDays} />}<input disabled={!remindersEnabled} name={remindersEnabled ? "reminderLeadDays" : undefined} type="number" min="0" max="365" defaultValue={settings.reminderLeadDays} className="h-10 w-20 rounded-xl border border-zinc-200 px-3 text-right outline-none focus:border-zinc-400 disabled:bg-zinc-100 disabled:text-zinc-400" /><span className="text-zinc-500">days</span></span>
           </label>
         </div>
       </section>
