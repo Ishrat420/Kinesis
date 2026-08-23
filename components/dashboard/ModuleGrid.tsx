@@ -15,7 +15,9 @@ export async function ModuleGrid() {
     <Card title="Module Shortcuts" className="mt-5">
       <ModuleShortcuts
         documentCount={documentSummary.tracked}
+        documentsExpiringSoon={documentSummary.expiringSoon}
         goalCount={goalSummary.active}
+        goalsAtRisk={goalSummary.atRisk}
         customModules={customModules.map((module) => ({
           id: module.id,
           name: module.name,

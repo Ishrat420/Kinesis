@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, GripVertical, Landmark, Target, Users, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { FileText, GripVertical, Target, X } from "lucide-react";
+import { type DragEvent, useEffect, useMemo, useState } from "react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
-import { useFinanceItems } from "@/lib/useFinanceItems";
+import { FinanceModuleCard } from "./FinanceModuleCard";
+import { RelationshipModuleCard } from "./RelationshipModuleCard";
 
 const STORAGE_KEY = "kinesis-module-shortcuts";
+const CUSTOM_MODULE_MIME = "application/x-kinesis-custom-module";
 const SYSTEM_IDS = ["documents", "goals", "finance", "relationships"] as const;
 const MAX_CUSTOM_MODULES = 2;
 
@@ -20,78 +22,45 @@ type CustomModuleSummary = {
 
 type ModuleShortcutsProps = {
   documentCount: number;
+  documentsExpiringSoon: number;
   goalCount: number;
+  goalsAtRisk: number;
   customModules: CustomModuleSummary[];
 };
 
-function readRelationshipCount() {
-  try {
-    const value = localStorage.getItem("kinesis-relationship-map");
-    if (value) {
-      const people = JSON.parse(value);
-      if (Array.isArray(people)) return people.length;
-    }
-  } catch {
-    // Keep the dashboard's existing useful fallback if local data is malformed.
-  }
-  return 6;
-}
-
-export function ModuleShortcuts({ documentCount, goalCount, customModules }: ModuleShortcutsProps) {
-  const financeItems = useFinanceItems();
-  const [relationshipCount, setRelationshipCount] = useState(6);
-  const [order, setOrder] = useState<string[]>([
-    ...SYSTEM_IDS,
-    ...customModules.slice(0, MAX_CUSTOM_MODULES).map(({ id }) => id),
-  ]);
+export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCount, goalsAtRisk, customModules }: ModuleShortcutsProps) {
+  const [order, setOrder] = useState<string[]>([...SYSTEM_IDS]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [moduleToAdd, setModuleToAdd] = useState("");
-
   const customIds = useMemo(() => new Set(customModules.map(({ id }) => id)), [customModules]);
   const selectedCustomCount = order.filter((id) => customIds.has(id)).length;
-  const availableModules = customModules.filter(({ id }) => !order.includes(id));
 
   useEffect(() => {
-    const refreshRelationships = () => setRelationshipCount(readRelationshipCount());
-    window.addEventListener("storage", refreshRelationships);
-    window.addEventListener("kinesis-relationships-updated", refreshRelationships);
-
     const hydrate = setTimeout(() => {
-      refreshRelationships();
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try {
-          const saved = JSON.parse(stored);
-          if (Array.isArray(saved)) {
-            const seen = new Set<string>();
-            const valid = saved.filter((id): id is string => {
-              if (typeof id !== "string" || seen.has(id)) return false;
-              const isAvailable = SYSTEM_IDS.includes(id as (typeof SYSTEM_IDS)[number]) || customIds.has(id);
-              if (isAvailable) seen.add(id);
-              return isAvailable;
-            });
-            let customCount = 0;
-            const completeOrder = valid.filter((id) => {
-              if (!customIds.has(id)) return true;
-              customCount += 1;
-              return customCount <= MAX_CUSTOM_MODULES;
-            });
-            for (const systemId of SYSTEM_IDS) {
-              if (!completeOrder.includes(systemId)) completeOrder.push(systemId);
-            }
-            setOrder(completeOrder);
-          }
-        } catch {
-          // Ignore malformed preferences and use the default order.
+      if (!stored) return;
+      try {
+        const saved = JSON.parse(stored);
+        if (!Array.isArray(saved)) return;
+        const seen = new Set<string>();
+        let customCount = 0;
+        const completeOrder = saved.filter((id): id is string => {
+          if (typeof id !== "string" || seen.has(id)) return false;
+          const isSystem = SYSTEM_IDS.includes(id as (typeof SYSTEM_IDS)[number]);
+          const isCustom = customIds.has(id) && customCount < MAX_CUSTOM_MODULES;
+          if (!isSystem && !isCustom) return false;
+          if (isCustom) customCount += 1;
+          seen.add(id);
+          return true;
+        });
+        for (const systemId of SYSTEM_IDS) {
+          if (!completeOrder.includes(systemId)) completeOrder.push(systemId);
         }
+        setOrder(completeOrder);
+      } catch {
+        // Ignore malformed preferences and retain the default system shortcuts.
       }
     }, 0);
-
-    return () => {
-      clearTimeout(hydrate);
-      window.removeEventListener("storage", refreshRelationships);
-      window.removeEventListener("kinesis-relationships-updated", refreshRelationships);
-    };
+    return () => clearTimeout(hydrate);
   }, [customIds]);
 
   function saveOrder(nextOrder: string[]) {
@@ -99,86 +68,111 @@ export function ModuleShortcuts({ documentCount, goalCount, customModules }: Mod
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextOrder));
   }
 
-  function moveModule(targetId: string) {
+  function reorder(targetId: string) {
     if (!draggedId || draggedId === targetId) return;
     const nextOrder = order.filter((id) => id !== draggedId);
     nextOrder.splice(nextOrder.indexOf(targetId), 0, draggedId);
     saveOrder(nextOrder);
   }
 
-  function addModule() {
-    if (!moduleToAdd || selectedCustomCount >= MAX_CUSTOM_MODULES) return;
-    saveOrder([...order, moduleToAdd]);
-    setModuleToAdd("");
+  function addCustomModule(event: DragEvent) {
+    event.preventDefault();
+    if (draggedId || selectedCustomCount >= MAX_CUSTOM_MODULES) return;
+    const id = event.dataTransfer.getData(CUSTOM_MODULE_MIME);
+    if (!customIds.has(id) || order.includes(id)) return;
+    saveOrder([...order, id]);
   }
 
-  function removeModule(id: string) {
+  function removeCustomModule(id: string) {
     saveOrder(order.filter((moduleId) => moduleId !== id));
   }
 
-  const systemModules = {
-    documents: { name: "Documents", href: "/documents", count: documentCount, icon: FileText, tone: "bg-blue-50" },
-    goals: { name: "Goal", href: "/goals", count: goalCount, icon: Target, tone: "bg-violet-50" },
-    finance: { name: "Finance", href: "/finance", count: financeItems.length, icon: Landmark, tone: "bg-emerald-50" },
-    relationships: { name: "Relationship", href: "/relationships", count: relationshipCount, icon: Users, tone: "bg-sky-50" },
-  };
+  function dragProps(id: string) {
+    return {
+      draggable: true,
+      onDragStart: () => setDraggedId(id),
+      onDragEnd: () => setDraggedId(null),
+      onDragOver: (event: DragEvent) => event.preventDefault(),
+      onDrop: (event: DragEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (draggedId) reorder(id);
+        else addCustomModule(event);
+      },
+    };
+  }
 
   return (
-    <div>
-      <p className="mb-4 text-sm text-zinc-500">Drag modules to reorder your shortcuts. The four system modules always stay available.</p>
+    <div
+      onDragOver={(event) => {
+        if (selectedCustomCount < MAX_CUSTOM_MODULES) event.preventDefault();
+      }}
+      onDrop={addCustomModule}
+    >
+      <p className="mb-4 text-sm text-zinc-500">
+        Drag shortcuts to reorder them. Drag a custom module here from the sidebar to fill one of the two custom slots.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {order.map((id) => {
-          const systemModule = systemModules[id as keyof typeof systemModules];
           const customModule = customModules.find((module) => module.id === id);
-          if (!systemModule && !customModule) return null;
-          const name = systemModule?.name ?? customModule!.name;
-          const count = systemModule?.count ?? customModule!.itemCount;
-          const href = systemModule?.href ?? `/custom-modules/${id}`;
-          const Icon = systemModule?.icon;
+          const wrapperClass = `relative ${draggedId === id ? "opacity-60" : ""}`;
+
+          if (id === "documents") return (
+            <div key={id} {...dragProps(id)} className={wrapperClass}>
+              <SystemCard icon={FileText} tone="bg-blue-50" name="Documents" href="/documents" meta={`${documentCount} tracked`} detail={documentCount ? `${documentsExpiringSoon} expiring soon` : "Add documents to track"} />
+            </div>
+          );
+          if (id === "goals") return (
+            <div key={id} {...dragProps(id)} className={wrapperClass}>
+              <SystemCard icon={Target} tone="bg-violet-50" name="Goals" href="/goals" meta={`${goalCount} active goal${goalCount === 1 ? "" : "s"}`} detail={`${goalsAtRisk} on risk`} />
+            </div>
+          );
+          if (id === "finance") return <div key={id} {...dragProps(id)} className={wrapperClass}><FinanceModuleCard /></div>;
+          if (id === "relationships") return <div key={id} {...dragProps(id)} className={wrapperClass}><RelationshipModuleCard /></div>;
+          if (!customModule) return null;
 
           return (
-            <div
-              key={id}
-              draggable
-              onDragStart={() => setDraggedId(id)}
-              onDragEnd={() => setDraggedId(null)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => moveModule(id)}
-              className={`group relative rounded-2xl border bg-white p-4 shadow-sm transition ${draggedId === id ? "border-zinc-400 opacity-60" : "border-zinc-200/80 hover:-translate-y-0.5 hover:shadow-md"}`}
-            >
-              <div className="flex items-start justify-between">
-                <span className={`flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700 ${systemModule?.tone ?? ""}`} style={customModule ? { backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` } : undefined}>
-                  {Icon ? <Icon className="h-[18px] w-[18px]" /> : <CustomModuleIcon name={customModule!.icon} className="h-[18px] w-[18px]" />}
-                </span>
-                <div className="flex items-center gap-1">
-                  <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label={`Drag ${name}`} />
-                  {customModule && (
-                    <button type="button" onClick={() => removeModule(id)} aria-label={`Remove ${name} shortcut`} className="rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-950">
+            <div key={id} {...dragProps(id)} className={wrapperClass}>
+              <div className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-start justify-between">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}>
+                    <CustomModuleIcon name={customModule.icon} className="h-[18px] w-[18px]" />
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label={`Drag ${customModule.name}`} />
+                    <button type="button" onClick={() => removeCustomModule(id)} aria-label={`Remove ${customModule.name} shortcut`} className="rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-950">
                       <X className="h-4 w-4" />
                     </button>
-                  )}
+                  </div>
                 </div>
+                <Link href={`/custom-modules/${id}`} className="mt-4 block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
+                  <p className="font-semibold text-zinc-900">{customModule.name}</p>
+                  <p className="mt-1 text-sm text-zinc-500">{customModule.itemCount} {customModule.name} {customModule.itemCount === 1 ? "Item" : "Items"}</p>
+                </Link>
               </div>
-              <Link href={href} className="mt-4 block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900">
-                <p className="font-semibold text-zinc-900">{name}</p>
-                <p className="mt-1 text-sm text-zinc-500">{count} {name} {count === 1 ? "Item" : "Items"}</p>
-              </Link>
             </div>
           );
         })}
       </div>
-
-      {availableModules.length > 0 && selectedCustomCount < MAX_CUSTOM_MODULES && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <label htmlFor="module-shortcut" className="text-sm font-medium text-zinc-600">Add a custom module</label>
-          <select id="module-shortcut" value={moduleToAdd} onChange={(event) => setModuleToAdd(event.target.value)} className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-zinc-400">
-            <option value="">Choose a module</option>
-            {availableModules.map((module) => <option key={module.id} value={module.id}>{module.name}</option>)}
-          </select>
-          <button type="button" onClick={addModule} disabled={!moduleToAdd} className="h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">Add shortcut</button>
-          <span className="text-xs text-zinc-400">{selectedCustomCount} of {MAX_CUSTOM_MODULES} custom slots used</span>
+      {selectedCustomCount < MAX_CUSTOM_MODULES && (
+        <div className="mt-3 rounded-2xl border border-dashed border-zinc-200 px-4 py-3 text-center text-xs text-zinc-400">
+          Drop a custom module here · {MAX_CUSTOM_MODULES - selectedCustomCount} custom {MAX_CUSTOM_MODULES - selectedCustomCount === 1 ? "slot" : "slots"} available
         </div>
       )}
     </div>
+  );
+}
+
+function SystemCard({ icon: Icon, tone, name, href, meta, detail }: { icon: React.ElementType; tone: string; name: string; href: string; meta: string; detail: string }) {
+  return (
+    <Link href={href} className="group block rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone}`}><Icon className="h-[18px] w-[18px] text-zinc-700" /></div>
+        <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label={`Drag ${name}`} />
+      </div>
+      <p className="mt-4 font-semibold text-zinc-900">{name}</p>
+      <p className="mt-1 text-sm text-zinc-500">{meta}</p>
+      <p className="text-sm text-zinc-400">{detail}</p>
+    </Link>
   );
 }
