@@ -58,3 +58,9 @@ curl --fail-with-body \
   evaluator completes and verify that `created` was greater than zero.
 - **The database reports that `Notification` does not exist:** run
   `npx prisma migrate deploy` against that database.
+
+  Vercel runs this migration step through the repository's `buildCommand`. Prisma's
+  advisory migration lock is disabled there because serverless build connections
+  can otherwise leave the deploy waiting until it fails with `P1002`. Keep only one
+  production deployment running at a time so two builds do not apply migrations
+  concurrently.

@@ -70,3 +70,32 @@ export async function getGoalDashboardSummary(now = new Date()) {
 
   return { active: goals.length, atRisk };
 }
+
+export async function getMilestonesDueSoon(now = new Date()) {
+  await connection();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const oneMonthFromToday = new Date(today);
+  oneMonthFromToday.setUTCMonth(oneMonthFromToday.getUTCMonth() + 1);
+
+  return prisma.milestone.findMany({
+    where: {
+      completed: false,
+      dueDate: { gte: today, lte: oneMonthFromToday },
+      goal: { status: "Active" },
+    },
+    include: { goal: { select: { id: true, name: true } } },
+    orderBy: [{ dueDate: "asc" }, { position: "asc" }],
+  });
+}
+
+export async function getActiveIncompleteMilestones() {
+  await connection();
+  return prisma.milestone.findMany({
+    where: {
+      completed: false,
+      goal: { status: "Active" },
+    },
+    include: { goal: { select: { id: true, name: true } } },
+    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }],
+  });
+}
