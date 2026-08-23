@@ -1,8 +1,9 @@
-import { Car, FileText, Heart, Landmark, Target, Users } from "lucide-react";
+import { Car, FileText, Heart, Landmark, Target } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { getDocumentSummary } from "@/lib/data/documents";
 import { getGoalDashboardSummary } from "@/lib/data/goals";
 import Link from "next/link";
+import { RelationshipModuleCard } from "./RelationshipModuleCard";
 
 const modules = [
   {
@@ -25,13 +26,6 @@ const modules = [
     meta: "Toyota Corolla",
     detail: "Service due soon",
     tone: "bg-amber-50",
-  },
-  {
-    icon: Users,
-    name: "Relationships",
-    meta: "24 people",
-    detail: "1 birthday soon",
-    tone: "bg-sky-50",
   },
 ];
 
@@ -60,7 +54,7 @@ export async function ModuleGrid() {
   return (
     <Card title="Modules" className="mt-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {[documentModule, ...modules.slice(0, 3), goalModule, ...modules.slice(3)].map((module) => {
+        {[documentModule, ...modules, goalModule].map((module) => {
           const Icon = module.icon;
           const content = (
             <>
@@ -99,6 +93,7 @@ export async function ModuleGrid() {
             </div>
           );
         })}
+        <RelationshipModuleCard />
       </div>
     </Card>
   );
