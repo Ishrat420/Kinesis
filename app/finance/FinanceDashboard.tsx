@@ -6,24 +6,12 @@ import {
   CreditCard, Landmark, Pencil, Plus, Trash2, WalletCards, X,
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
-
-type Kind = "asset" | "liability" | "income" | "expense";
-type Frequency = "Weekly" | "Fortnightly" | "Monthly" | "Quarterly" | "Yearly";
-type FinanceItem = {
-  id: string; kind: Kind; name: string; amount: number; category?: string;
-  rate?: number; frequency?: Frequency; startDate?: string; endDate?: string; notes?: string;
-};
-
-const defaults: FinanceItem[] = [
-  { id: "a1", kind: "asset", name: "House in Mont Albert", amount: 550000, category: "Property" },
-  { id: "a2", kind: "asset", name: "Savings Account", amount: 15000, category: "Savings", rate: 2 },
-  { id: "a3", kind: "asset", name: "Cash", amount: 2000, category: "Cash" },
-  { id: "l1", kind: "liability", name: "Credit Card", amount: 5000, category: "Credit Card", rate: 15 },
-  { id: "l2", kind: "liability", name: "Loan from Mum", amount: 1000, category: "Personal Loan" },
-  { id: "i1", kind: "income", name: "Monthly Earnings", amount: 5000, frequency: "Monthly" },
-  { id: "i2", kind: "income", name: "Car Park Rent", amount: 200, frequency: "Monthly" },
-  { id: "e1", kind: "expense", name: "Living Expenses", amount: 3500, frequency: "Monthly" },
-];
+import {
+  type FinanceFrequency as Frequency,
+  type FinanceItem,
+  type FinanceKind as Kind,
+} from "@/lib/finance";
+import { saveFinanceItems, useFinanceItems } from "@/lib/useFinanceItems";
 
 const assetCategories = ["Cash", "Savings", "Property", "Investment", "Vehicle", "Superannuation", "Other"];
 const liabilityCategories = ["Credit Card", "Mortgage", "Personal Loan", "Car Loan", "Student Loan", "Other"];
@@ -33,7 +21,7 @@ const monthlyFactor: Record<Frequency, number> = { Weekly: 52 / 12, Fortnightly:
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
 export function FinanceDashboard() {
-  const [items, setItems] = useState(defaults);
+  const items = useFinanceItems();
   const [modal, setModal] = useState<"choose" | "form" | null>(null);
   const [formKind, setFormKind] = useState<Kind>("asset");
   const [editing, setEditing] = useState<FinanceItem | null>(null);
@@ -52,9 +40,9 @@ export function FinanceDashboard() {
     const next: FinanceItem = { id: editing?.id || crypto.randomUUID(), kind: formKind, name: String(data.get("name")), amount: Number(data.get("amount")), notes: String(data.get("notes") || "") };
     if (formKind === "asset" || formKind === "liability") { next.category = String(data.get("category")); const rate = data.get("rate"); if (rate !== "") next.rate = Number(rate); }
     else { next.frequency = String(data.get("frequency")) as Frequency; next.startDate = String(data.get("startDate") || ""); next.endDate = String(data.get("endDate") || ""); }
-    setItems((current) => editing ? current.map((item) => item.id === editing.id ? next : item) : [...current, next]); setModal(null); setEditing(null);
+    saveFinanceItems(editing ? items.map((item) => item.id === editing.id ? next : item) : [...items, next]); setModal(null); setEditing(null);
   }
-  function remove() { if (!deleting) return; setItems((current) => current.filter((item) => item.id !== deleting.id)); setDeleting(null); }
+  function remove() { if (!deleting) return; saveFinanceItems(items.filter((item) => item.id !== deleting.id)); setDeleting(null); }
 
   const assets = items.filter((item) => item.kind === "asset");
   const liabilities = items.filter((item) => item.kind === "liability");
