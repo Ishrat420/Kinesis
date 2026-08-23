@@ -1,27 +1,10 @@
-import { Car, FileText, Heart, Target } from "lucide-react";
+import { FileText, Target } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { getDocumentSummary } from "@/lib/data/documents";
 import { getGoalDashboardSummary } from "@/lib/data/goals";
 import Link from "next/link";
 import { RelationshipModuleCard } from "./RelationshipModuleCard";
 import { FinanceModuleCard } from "./FinanceModuleCard";
-
-const modules = [
-  {
-    icon: Heart,
-    name: "Health",
-    meta: "3 active records",
-    detail: "1 appointment due",
-    tone: "bg-rose-50",
-  },
-  {
-    icon: Car,
-    name: "Vehicles",
-    meta: "Toyota Corolla",
-    detail: "Service due soon",
-    tone: "bg-amber-50",
-  },
-];
 
 export async function ModuleGrid() {
   const [documentSummary, goalSummary] = await Promise.all([
@@ -46,9 +29,9 @@ export async function ModuleGrid() {
   };
 
   return (
-    <Card title="Modules" className="mt-5">
+    <Card title="Module Shortcuts" className="mt-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {[documentModule, ...modules, goalModule].map((module) => {
+        {[documentModule, goalModule].map((module) => {
           const Icon = module.icon;
           const content = (
             <>
