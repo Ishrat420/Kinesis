@@ -2,6 +2,7 @@ import { prisma } from "./prisma";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
 import { getCurrentUser, getUserDisplayName } from "./user";
+import { connection } from "next/server";
 
 export type DocumentInput = {
   name: string;
@@ -41,6 +42,23 @@ export async function getDocumentSummary() {
     active: statuses.filter((status) => status === "Active").length,
     expiringSoon: statuses.filter((status) => status === "Expiring soon").length,
   };
+}
+
+export async function getExpiringDocuments(now = new Date()) {
+  await connection();
+  const documents = await prisma.document.findMany({
+    where: { expiryDate: { not: null } },
+    orderBy: { expiryDate: "asc" },
+  });
+
+  const upcoming = documents.filter(
+    (document) => getExpiryDetails(document.expiryDate, document.prompt, now).status === "Expiring soon",
+  );
+  const expired = documents
+    .filter((document) => getExpiryDetails(document.expiryDate, document.prompt, now).status === "Expired")
+    .reverse();
+
+  return { upcoming, expired };
 }
 
 export async function getDocumentTypes() {

@@ -10,6 +10,7 @@ import {
   type FinanceFrequency as Frequency,
   type FinanceItem,
   type FinanceKind as Kind,
+  getMonthlyCashFlow,
 } from "@/lib/finance";
 import { saveFinanceItems, useFinanceItems } from "@/lib/useFinanceItems";
 
@@ -17,7 +18,6 @@ const assetCategories = ["Cash", "Savings", "Property", "Investment", "Vehicle",
 const liabilityCategories = ["Credit Card", "Mortgage", "Personal Loan", "Car Loan", "Student Loan", "Other"];
 const frequencies: Frequency[] = ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"];
 const kindLabels: Record<Kind, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
-const monthlyFactor: Record<Frequency, number> = { Weekly: 52 / 12, Fortnightly: 26 / 12, Monthly: 1, Quarterly: 4 / 12, Yearly: 1 / 12 };
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
 export function FinanceDashboard() {
@@ -29,9 +29,9 @@ export function FinanceDashboard() {
 
   const totals = useMemo(() => {
     const sum = (kind: Kind) => items.filter((item) => item.kind === kind).reduce((total, item) => total + item.amount, 0);
-    const recurring = (kind: "income" | "expense") => items.filter((item) => item.kind === kind).reduce((total, item) => total + item.amount * monthlyFactor[item.frequency || "Monthly"], 0);
-    const assets = sum("asset"), liabilities = sum("liability"), income = recurring("income"), expenses = recurring("expense");
-    return { assets, liabilities, income, expenses, netWorth: assets - liabilities, flow: income - expenses };
+    const assets = sum("asset"), liabilities = sum("liability");
+    const { income, expenses, netCashFlow } = getMonthlyCashFlow(items);
+    return { assets, liabilities, income, expenses, netWorth: assets - liabilities, flow: netCashFlow };
   }, [items]);
 
   function openForm(kind: Kind, item: FinanceItem | null = null) { setFormKind(kind); setEditing(item); setModal("form"); }
