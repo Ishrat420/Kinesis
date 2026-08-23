@@ -7,15 +7,18 @@ import { Topbar } from "@/components/navigation/Topbar";
 import { Plus } from "lucide-react";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
-import { getMilestonesDueSoon } from "@/lib/data/goals";
+import { getGoalDashboardSummary, getMilestonesDueSoon } from "@/lib/data/goals";
 import { getExpiringDocuments } from "@/lib/data/documents";
+import { getNeedsAttention } from "@/lib/data/attention";
 
 export default async function Home() {
-  const [upcomingItems, user, milestonesDueSoon, expiringDocuments] = await Promise.all([
+  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary] = await Promise.all([
     getUpcomingAndDue(),
     getCurrentUser(),
     getMilestonesDueSoon(),
     getExpiringDocuments(),
+    getNeedsAttention(),
+    getGoalDashboardSummary(),
   ]);
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
@@ -33,7 +36,7 @@ export default async function Home() {
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
-                  Three things need your attention.
+                  {attentionItems.length} {attentionItems.length === 1 ? "thing needs" : "things need"} your attention.
                   <br />
                   Everything else is under control.
                 </p>
@@ -48,6 +51,8 @@ export default async function Home() {
             <StatsGrid
               milestonesDueSoon={milestonesDueSoon.length}
               expiringSoon={expiringDocuments.upcoming.length}
+              attentionItems={attentionItems}
+              goalsAtRisk={goalSummary.atRisk}
             />
 
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
