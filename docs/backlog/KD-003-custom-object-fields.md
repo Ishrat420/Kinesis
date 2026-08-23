@@ -27,6 +27,8 @@ Initial supported field types:
 * Currency
 * URL
 * Kinesis Link
+* Reminder 
+* Re-occuring reminder
 
 Fields can be added and configured independently for each object.
 
