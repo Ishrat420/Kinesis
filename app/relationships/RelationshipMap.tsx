@@ -367,10 +367,11 @@ function ImportantDateForm({ onSave, onCancel }: { onSave: (date: Relationship["
 }
 
 function GoalPicker({ goals, linkedGoalIds, onLink }: { goals: GoalOption[]; linkedGoalIds: string[]; onLink: (goalId: string) => void }) {
+  const [expanded, setExpanded] = useState(true);
   const availableGoals = goals.filter((goal) => !linkedGoalIds.includes(goal.id));
   return <div className="mb-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
-    <p className="px-2 pb-2 pt-1 text-[10px] font-medium leading-4 text-zinc-400">Choose an existing goal in any status.</p>
-    {availableGoals.length ? <div className="max-h-52 space-y-1 overflow-y-auto">{availableGoals.map((goal) => <button key={goal.id} type="button" onClick={() => onLink(goal.id)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-zinc-50"><span className="truncate text-[11px] font-semibold text-zinc-700">{goal.name}</span><GoalStatus status={goal.status} /></button>)}</div> : <p className="rounded-lg bg-zinc-50 px-3 py-2.5 text-[10px] leading-4 text-zinc-400">{goals.length ? "All existing goals are already linked." : "Create a goal on the Goals page before linking it here."}</p>}
+    <button type="button" onClick={() => setExpanded((current) => !current)} className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-[10px] font-semibold leading-4 text-zinc-500 hover:bg-zinc-50" aria-expanded={expanded}><span>Choose a goal to link</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} /></button>
+    {expanded && (availableGoals.length ? <div className="mt-1 max-h-52 space-y-1 overflow-y-auto">{availableGoals.map((goal) => <button key={goal.id} type="button" onClick={() => { onLink(goal.id); setExpanded(false); }} className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-zinc-50"><span className="truncate text-[11px] font-semibold text-zinc-700">{goal.name}</span><GoalStatus status={goal.status} /></button>)}</div> : <p className="mt-1 rounded-lg bg-zinc-50 px-3 py-2.5 text-[10px] leading-4 text-zinc-400">{goals.length ? "All existing goals are already linked." : "Create a goal on the Goals page before linking it here."}</p>)}
   </div>;
 }
 
