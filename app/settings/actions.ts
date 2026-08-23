@@ -11,18 +11,13 @@ export async function updateSettingsAction(
   formData: FormData,
 ): Promise<SettingsActionState> {
   const appearance = String(formData.get("appearance") ?? "system");
-  const reminderLeadDays = Number(formData.get("reminderLeadDays") ?? 7);
 
   if (!["light", "dark", "system"].includes(appearance)) return { error: "Choose a valid appearance." };
-  if (!Number.isInteger(reminderLeadDays) || reminderLeadDays < 0 || reminderLeadDays > 365) {
-    return { error: "Reminder notice must be between 0 and 365 days." };
-  }
 
   const data = {
     appearance,
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     remindersEnabled: formData.get("remindersEnabled") === "on",
-    reminderLeadDays,
   };
   await prisma.userSettings.upsert({
     where: { id: CURRENT_SETTINGS_ID },
