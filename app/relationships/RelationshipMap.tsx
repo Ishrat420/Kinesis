@@ -52,21 +52,9 @@ type GoalOption = { id: string; name: string; status: string };
 
 const initialPeople: Person[] = [
   { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user" },
-  { id: "anj", name: "Anj", detail: "Partner", x: 745, y: 420, size: 96, color: "#9a7063", icon: "heart" },
-  { id: "child", name: "Child", detail: "Family", x: 510, y: 520, size: 82, color: "#c58e52", icon: "baby" },
-  { id: "sister", name: "Sister", detail: "Family", x: 795, y: 175, size: 88, color: "#6f7f72", icon: "user" },
-  { id: "friend", name: "Maya", detail: "Friend", x: 225, y: 295, size: 76, color: "#7686a7", icon: "user" },
-  { id: "mum", name: "Mum", detail: "Family", x: 260, y: 520, size: 92, color: "#9a6d83", icon: "home" },
 ];
 
-const initialRelationships: Relationship[] = [
-  { id: "c1", from: "anj", to: "self", type: "Partner", practices: [{ title: "Date night", cadence: "Every Friday" }, { title: "Monthly check-in", cadence: "Monthly" }], reflections: [{ text: "We've both been busy lately and date nights have helped us reconnect.", date: "22 Aug 2026" }], linkedGoals: [], importantDates: [{ label: "Anniversary", date: "14 October" }], notes: "Make space for unhurried time together." },
-  { id: "c2", from: "child", to: "self", type: "Parent & child", practices: [{ title: "Story time", cadence: "Every evening" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c3", from: "anj", to: "child", type: "Parent & child", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c4", from: "self", to: "sister", type: "Siblings", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c5", from: "friend", to: "self", type: "Friend", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c6", from: "self", to: "mum", type: "Parent & child", practices: [{ title: "Call Mum", cadence: "Every Sunday" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-];
+const initialRelationships: Relationship[] = [];
 
 const icons = { user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House };
 const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866"];
@@ -74,7 +62,7 @@ const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83"
 export function RelationshipMap({ goals, userDisplayName }: { goals: GoalOption[]; userDisplayName: string }) {
   const [people, setPeople] = useState(() => initialPeople.map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person));
   const [relationships, setRelationships] = useState(initialRelationships);
-  const [selection, setSelection] = useState<Selection>({ kind: "person", id: "anj" });
+  const [selection, setSelection] = useState<Selection>({ kind: "person", id: "self" });
   const [scale, setScale] = useState(0.9);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [linkFrom, setLinkFrom] = useState<string | null>(null);
@@ -169,7 +157,11 @@ export function RelationshipMap({ goals, userDisplayName }: { goals: GoalOption[
     setSelection({ kind: "person", id });
   }
   function reset() {
-    setPeople(initialPeople); setRelationships(initialRelationships); setOffset({ x: 0, y: 0 }); setScale(0.9); setSelection({ kind: "person", id: "anj" });
+    setPeople(initialPeople.map((person) => ({ ...person, name: userDisplayName })));
+    setRelationships(initialRelationships);
+    setOffset({ x: 0, y: 0 });
+    setScale(0.9);
+    setSelection({ kind: "person", id: "self" });
   }
   function startInspectorResize(event: ReactPointerEvent) {
     event.preventDefault();
