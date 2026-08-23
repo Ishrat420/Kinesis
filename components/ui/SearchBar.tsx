@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Command, FileText, Search, X } from "lucide-react";
+import { Command, FileText, Landmark, Search, Target, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFinanceItems } from "@/lib/useFinanceItems";
 
 type SearchableDocument = {
   id: string;
@@ -10,19 +11,75 @@ type SearchableDocument = {
   type: string;
 };
 
-export function SearchBar({ documents }: { documents: SearchableDocument[] }) {
+type SearchableGoal = { id: string; name: string; status: string };
+type RelationshipPerson = { id: string; name: string; detail?: string };
+type Relationship = { id: string; from: string; to: string; type?: string | null; notes?: string };
+type SearchResult = {
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  keywords: string;
+  kind: "Document" | "Relationship" | "Finance" | "Goal";
+};
+
+const fallbackPeople: RelationshipPerson[] = [
+  { id: "ishrat", name: "Ishrat", detail: "You" },
+  { id: "anj", name: "Anj", detail: "Partner" },
+  { id: "child", name: "Child", detail: "Family" },
+  { id: "sister", name: "Sister", detail: "Family" },
+  { id: "friend", name: "Maya", detail: "Friend" },
+  { id: "mum", name: "Mum", detail: "Family" },
+];
+
+function readStoredArray<T>(key: string, fallback: T[]) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) as T[] : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function SearchBar({ documents, goals }: { documents: SearchableDocument[]; goals: SearchableGoal[] }) {
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [people, setPeople] = useState<RelationshipPerson[]>(fallbackPeople);
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
+  const financeItems = useFinanceItems();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     if (!normalizedQuery) return [];
 
-    return documents
-      .filter((document) => document.name.toLocaleLowerCase().includes(normalizedQuery))
-      .slice(0, 6);
-  }, [documents, query]);
+    const peopleById = new Map(people.map((person) => [person.id, person.name]));
+    const searchable: SearchResult[] = [
+      ...documents.map((document) => ({ id: `document-${document.id}`, title: document.name, subtitle: document.type, href: `/documents/${document.id}`, keywords: `${document.name} ${document.type}`, kind: "Document" as const })),
+      ...goals.map((goal) => ({ id: `goal-${goal.id}`, title: goal.name, subtitle: `${goal.status} goal`, href: `/goals/${goal.id}`, keywords: `${goal.name} ${goal.status} goal`, kind: "Goal" as const })),
+      ...financeItems.map((item) => ({ id: `finance-${item.id}`, title: item.name, subtitle: `${item.category || item.kind} · $${item.amount.toLocaleString("en-AU")}`, href: "/finance", keywords: `${item.name} ${item.kind} ${item.category || ""} ${item.notes || ""} ${item.amount}`, kind: "Finance" as const })),
+      ...people.map((person) => ({ id: `person-${person.id}`, title: person.name, subtitle: person.detail || "Relationship", href: "/relationships", keywords: `${person.name} ${person.detail || ""} relationship person`, kind: "Relationship" as const })),
+      ...relationships.map((relationship) => { const names = [peopleById.get(relationship.from), peopleById.get(relationship.to)].filter(Boolean).join(" & "); return { id: `relationship-${relationship.id}`, title: names || relationship.type || "Relationship", subtitle: relationship.type || "Relationship", href: "/relationships", keywords: `${names} ${relationship.type || ""} ${relationship.notes || ""}`, kind: "Relationship" as const }; }),
+    ];
+
+    return searchable
+      .filter((item) => item.keywords.toLocaleLowerCase().includes(normalizedQuery))
+      .slice(0, 8);
+  }, [documents, financeItems, goals, people, query, relationships]);
+
+  useEffect(() => {
+    function refreshRelationships() {
+      setPeople(readStoredArray("kinesis-relationship-map", fallbackPeople));
+      setRelationships(readStoredArray("kinesis-relationships", []));
+    }
+    refreshRelationships();
+    window.addEventListener("storage", refreshRelationships);
+    window.addEventListener("kinesis-relationships-updated", refreshRelationships);
+    return () => {
+      window.removeEventListener("storage", refreshRelationships);
+      window.removeEventListener("kinesis-relationships-updated", refreshRelationships);
+    };
+  }, []);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -55,8 +112,8 @@ export function SearchBar({ documents }: { documents: SearchableDocument[] }) {
           onFocus={() => setIsFocused(true)}
           onBlur={() => window.setTimeout(() => setIsFocused(false), 150)}
           className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:hidden"
-          placeholder="Search documents by name..."
-          aria-label="Search documents by name"
+          placeholder="Search documents, relationships, finance and goals..."
+          aria-label="Search documents, relationships, finance and goals"
           role="combobox"
           aria-expanded={showResults}
           aria-controls="global-search-results"
@@ -88,28 +145,31 @@ export function SearchBar({ documents }: { documents: SearchableDocument[] }) {
           className="absolute inset-x-0 top-[60px] overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]"
         >
           {results.length > 0 ? (
-            <ul aria-label="Matching documents">
-              {results.map((document) => (
-                <li key={document.id}>
+            <ul aria-label="Search results">
+              {results.map((result) => {
+                const Icon = result.kind === "Document" ? FileText : result.kind === "Goal" ? Target : result.kind === "Finance" ? Landmark : UsersRound;
+                const iconTone = result.kind === "Document" ? "bg-blue-50" : result.kind === "Goal" ? "bg-violet-50" : result.kind === "Finance" ? "bg-emerald-50" : "bg-rose-50";
+                return <li key={result.id}>
                   <Link
-                    href={`/documents/${document.id}`}
+                    href={result.href}
                     className="flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none"
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-zinc-700">
-                      <FileText className="h-4 w-4" aria-hidden="true" />
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-700 ${iconTone}`}>
+                      <Icon className="h-4 w-4" aria-hidden="true" />
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-zinc-900">{document.name}</span>
-                      <span className="block truncate text-xs text-zinc-500">{document.type}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-zinc-900">{result.title}</span>
+                      <span className="block truncate text-xs text-zinc-500">{result.subtitle}</span>
                     </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{result.kind}</span>
                   </Link>
                 </li>
-              ))}
+              })}
             </ul>
           ) : (
             <div className="px-4 py-6 text-center">
-              <p className="text-sm font-medium text-zinc-700">No documents found</p>
-              <p className="mt-1 text-xs text-zinc-400">Try another document name.</p>
+              <p className="text-sm font-medium text-zinc-700">No results found</p>
+              <p className="mt-1 text-xs text-zinc-400">Try another name, type, category or status.</p>
             </div>
           )}
         </div>
