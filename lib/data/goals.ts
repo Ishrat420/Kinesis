@@ -28,6 +28,18 @@ export async function getGoalUnits() {
   return [...new Set([...DEFAULT_GOAL_UNITS, ...custom.map(({ name }) => name)])];
 }
 
+export async function getGoalsForLinking() {
+  await connection();
+  await prisma.goal.updateMany({
+    where: { status: "Active", targetDate: { lt: new Date() } },
+    data: { status: "Archived" },
+  });
+  return prisma.goal.findMany({
+    select: { id: true, name: true, status: true },
+    orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+  });
+}
+
 export async function getGoalDashboardSummary(now = new Date()) {
   await connection();
   await prisma.goal.updateMany({
