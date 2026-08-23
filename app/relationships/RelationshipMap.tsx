@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   Baby,
   BookOpen,
@@ -46,6 +48,7 @@ type Relationship = {
 };
 type Selection = { kind: "person" | "relationship"; id: string } | null;
 type PendingConnection = { from: string; to: string; type: string };
+type GoalOption = { id: string; name: string; status: string };
 
 const initialPeople: Person[] = [
   { id: "ishrat", name: "Ishrat", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user" },
@@ -57,7 +60,7 @@ const initialPeople: Person[] = [
 ];
 
 const initialRelationships: Relationship[] = [
-  { id: "c1", from: "anj", to: "ishrat", type: "Partner", practices: [{ title: "Date night", cadence: "Every Friday" }, { title: "Monthly check-in", cadence: "Monthly" }], reflections: [{ text: "We've both been busy lately and date nights have helped us reconnect.", date: "22 Aug 2026" }], linkedGoals: ["Plan our autumn trip"], importantDates: [{ label: "Anniversary", date: "14 October" }], notes: "Make space for unhurried time together." },
+  { id: "c1", from: "anj", to: "ishrat", type: "Partner", practices: [{ title: "Date night", cadence: "Every Friday" }, { title: "Monthly check-in", cadence: "Monthly" }], reflections: [{ text: "We've both been busy lately and date nights have helped us reconnect.", date: "22 Aug 2026" }], linkedGoals: [], importantDates: [{ label: "Anniversary", date: "14 October" }], notes: "Make space for unhurried time together." },
   { id: "c2", from: "child", to: "ishrat", type: "Parent & child", practices: [{ title: "Story time", cadence: "Every evening" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
   { id: "c3", from: "anj", to: "child", type: "Parent & child", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
   { id: "c4", from: "ishrat", to: "sister", type: "Siblings", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
@@ -68,7 +71,7 @@ const initialRelationships: Relationship[] = [
 const icons = { user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House };
 const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866"];
 
-export function RelationshipMap() {
+export function RelationshipMap({ goals }: { goals: GoalOption[] }) {
   const [people, setPeople] = useState(initialPeople);
   const [relationships, setRelationships] = useState(initialRelationships);
   const [selection, setSelection] = useState<Selection>({ kind: "person", id: "anj" });
@@ -241,7 +244,7 @@ export function RelationshipMap() {
 
         <aside style={{ width: inspectorWidth }} className="absolute inset-y-0 right-0 z-30 hidden max-w-[calc(100%-2rem)] shrink-0 overflow-y-auto border-l border-zinc-200 bg-white shadow-[-12px_0_32px_rgba(24,24,27,0.08)] sm:block lg:relative lg:max-w-[55%] lg:shadow-none">
           <button onPointerDown={startInspectorResize} className="absolute inset-y-0 left-0 z-40 w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400" aria-label="Resize relationship details" title="Drag to resize details" />
-          {selectedPerson ? <PersonInspector person={selectedPerson} relationships={relationships} people={people} onChange={updateSelected} onLink={() => setLinkFrom(selectedPerson.id)} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDelete={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
+          {selectedPerson ? <PersonInspector person={selectedPerson} relationships={relationships} people={people} onChange={updateSelected} onLink={() => setLinkFrom(selectedPerson.id)} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDelete={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
         </aside>
       </div>
     </section>
@@ -267,11 +270,11 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
   </div>;
 }
 
-function RelationshipInspector({ relationship, people, onChange, onDelete }: { relationship: Relationship; people: Person[]; onChange: (patch: Partial<Relationship>) => void; onDelete: () => void }) {
+function RelationshipInspector({ relationship, people, goals, onChange, onDelete }: { relationship: Relationship; people: Person[]; goals: GoalOption[]; onChange: (patch: Partial<Relationship>) => void; onDelete: () => void }) {
   const first = people.find((person) => person.id === relationship.from);
   const second = people.find((person) => person.id === relationship.to);
   const [from, to] = second?.detail === "You" ? [second, first] : [first, second];
-  const [adding, setAdding] = useState<"practice" | "reflection" | "date" | null>(null);
+  const [adding, setAdding] = useState<"practice" | "reflection" | "date" | "goal" | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   return <div>
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship details</p><p className="mt-0.5 text-[11px] text-zinc-400">Shared between two people</p></div><Link2 className="h-4 w-4 text-zinc-400" /></div>
@@ -281,7 +284,10 @@ function RelationshipInspector({ relationship, people, onChange, onDelete }: { r
       <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice, index) => <DetailItem key={index} title={practice.title} detail={practice.cadence} onDelete={() => onChange({ practices: relationship.practices.filter((_, itemIndex) => itemIndex !== index) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection, index) => <div key={index} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((_, itemIndex) => itemIndex !== index) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are not sent.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date, index) => <DetailItem key={index} title={date.label} detail={formatDate(date.date)} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((_, itemIndex) => itemIndex !== index) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => onChange({ linkedGoals: [...relationship.linkedGoals, "Choose a goal"] })}>{relationship.linkedGoals.map((goal, index) => <MockItem key={`${goal}-${index}`} title={goal} detail="Goal" />)}{relationship.linkedGoals.length === 0 && <EmptyDetail>No goals linked yet.</EmptyDetail>}</RelationshipSection>
+      <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
+        {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
+        <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); if (!goal) return null; return <LinkedGoal key={goal.id} goal={goal} onUnlink={() => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goal.id) })} />; })}{relationship.linkedGoals.every((goalId) => !goals.some((goal) => goal.id === goalId)) && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
+      </RelationshipSection>
       <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={relationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about this relationship…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
       <button onClick={onDelete} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove connection</button>
     </div>
@@ -335,12 +341,31 @@ function ImportantDateForm({ onSave, onCancel }: { onSave: (date: Relationship["
   </form>;
 }
 
+function GoalPicker({ goals, linkedGoalIds, onLink }: { goals: GoalOption[]; linkedGoalIds: string[]; onLink: (goalId: string) => void }) {
+  const availableGoals = goals.filter((goal) => !linkedGoalIds.includes(goal.id));
+  return <div className="mb-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+    <p className="px-2 pb-2 pt-1 text-[10px] font-medium leading-4 text-zinc-400">Choose an existing goal in any status.</p>
+    {availableGoals.length ? <div className="max-h-52 space-y-1 overflow-y-auto">{availableGoals.map((goal) => <button key={goal.id} type="button" onClick={() => onLink(goal.id)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-zinc-50"><span className="truncate text-[11px] font-semibold text-zinc-700">{goal.name}</span><GoalStatus status={goal.status} /></button>)}</div> : <p className="rounded-lg bg-zinc-50 px-3 py-2.5 text-[10px] leading-4 text-zinc-400">{goals.length ? "All existing goals are already linked." : "Create a goal on the Goals page before linking it here."}</p>}
+  </div>;
+}
+
+function LinkedGoal({ goal, onUnlink }: { goal: GoalOption; onUnlink: () => void }) {
+  return <div className="group flex items-center gap-1 rounded-xl bg-zinc-50 p-1.5 pl-3">
+    <Link href={`/goals/${goal.id}`} className="min-w-0 flex-1 rounded-lg py-1 hover:text-violet-700"><p className="truncate text-[11px] font-semibold">{goal.name}</p><div className="mt-1"><GoalStatus status={goal.status} /></div></Link>
+    <button type="button" onClick={onUnlink} className="rounded-lg p-2 text-zinc-300 transition hover:bg-white hover:text-red-500" aria-label={`Unlink ${goal.name}`} title="Unlink goal"><X className="h-3.5 w-3.5" /></button>
+  </div>;
+}
+
+function GoalStatus({ status }: { status: string }) {
+  const tone = status === "Active" ? "bg-violet-100 text-violet-700" : status === "Finished" ? "bg-emerald-100 text-emerald-700" : status === "Revisit Later" ? "bg-amber-100 text-amber-700" : "bg-zinc-200 text-zinc-600";
+  return <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold ${tone}`}>{status}</span>;
+}
+
 function FormActions({ onCancel }: { onCancel: () => void }) { return <div className="flex justify-end gap-2"><button type="button" onClick={onCancel} className="rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-zinc-500 hover:bg-white">Cancel</button><button type="submit" className="rounded-lg bg-zinc-900 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-zinc-800">Save</button></div>; }
 function DeleteItemButton({ onClick }: { onClick: () => void }) { return <button type="button" onClick={onClick} className="absolute right-2.5 top-2.5 rounded-md p-1 text-zinc-300 opacity-0 transition hover:bg-white hover:text-red-500 group-hover:opacity-100 focus:opacity-100" aria-label="Delete item"><Trash2 className="h-3 w-3" /></button>; }
 function DetailItem({ title, detail, onDelete }: { title: string; detail: string; onDelete: () => void }) { return <div className="group relative rounded-xl bg-zinc-50 px-3 py-2.5 pr-9"><p className="text-[11px] font-semibold text-zinc-700">{title}</p><p className="mt-0.5 text-[10px] text-zinc-400">{detail}</p><DeleteItemButton onClick={onDelete} /></div>; }
 function formatDate(value: string) { const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : null; return parsed && !Number.isNaN(parsed.valueOf()) ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(parsed) : value; }
 
-function MockItem({ title, detail }: { title: string; detail: string }) { return <div className="rounded-xl bg-zinc-50 px-3 py-2.5"><p className="text-[11px] font-semibold text-zinc-700">{title}</p><p className="mt-0.5 text-[10px] text-zinc-400">{detail}</p></div>; }
 function EmptyDetail({ children }: { children: React.ReactNode }) { return <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2.5 text-[10px] leading-4 text-zinc-400">{children}</p>; }
 function PersonDot({ person }: { person?: Person }) { if (!person) return null; const Icon = icons[person.icon]; return <span style={{ backgroundColor: person.color }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"><Icon className="h-4 w-4" /></span>; }
 
