@@ -244,11 +244,36 @@ export function RelationshipMap({ goals }: { goals: GoalOption[] }) {
 
         <aside style={{ width: inspectorWidth }} className="absolute inset-y-0 right-0 z-30 hidden max-w-[calc(100%-2rem)] shrink-0 overflow-y-auto border-l border-zinc-200 bg-white shadow-[-12px_0_32px_rgba(24,24,27,0.08)] sm:block lg:relative lg:max-w-[55%] lg:shadow-none">
           <button onPointerDown={startInspectorResize} className="absolute inset-y-0 left-0 z-40 w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400" aria-label="Resize relationship details" title="Drag to resize details" />
-          {selectedPerson ? <PersonInspector person={selectedPerson} relationships={relationships} people={people} onChange={updateSelected} onLink={() => setLinkFrom(selectedPerson.id)} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDelete={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
+          {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => setLinkFrom(selectedPerson.id)} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
         </aside>
       </div>
     </section>
   );
+}
+
+function PersonInspectorTabs({ person, relationships, people, goals, onChangePerson, onChangeRelationship, onLink, onRemoveRelationship, onDeletePerson }: { person: Person; relationships: Relationship[]; people: Person[]; goals: GoalOption[]; onChangePerson: (patch: Partial<Person>) => void; onChangeRelationship: (id: string, patch: Partial<Relationship>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDeletePerson: () => void }) {
+  const related = relationships.filter((relationship) => relationship.from === person.id || relationship.to === person.id);
+  const self = people.find((item) => item.detail === "You");
+  const preferred = related.find((relationship) => relationship.from === self?.id || relationship.to === self?.id) ?? related[0];
+  const [tab, setTab] = useState<"person" | "relationship">("person");
+  const [relationshipId, setRelationshipId] = useState(preferred?.id ?? "");
+  const relationship = related.find((item) => item.id === relationshipId) ?? preferred;
+  return <div>
+    <div className="sticky top-0 z-20 grid grid-cols-2 border-b border-zinc-200 bg-white px-4 pt-3">
+      <InspectorTab active={tab === "person"} onClick={() => setTab("person")}>Person details</InspectorTab>
+      <InspectorTab active={tab === "relationship"} disabled={!related.length} onClick={() => setTab("relationship")}>Relationship details</InspectorTab>
+    </div>
+    {tab === "person" ? <PersonInspector person={person} relationships={relationships} people={people} onChange={onChangePerson} onLink={onLink} onRemoveRelationship={onRemoveRelationship} onDelete={onDeletePerson} /> : relationship ? <><RelationshipChoice person={person} relationship={relationship} relationships={related} people={people} onChange={setRelationshipId} /><RelationshipInspector relationship={relationship} people={people} goals={goals} onChange={(patch) => onChangeRelationship(relationship.id, patch)} onDelete={() => { onRemoveRelationship(relationship.id); setTab("person"); }} /></> : <div className="px-5 py-10 text-center text-xs text-zinc-400">Connect this person to someone to add relationship details.</div>}
+  </div>;
+}
+
+function InspectorTab({ active, disabled, onClick, children }: { active: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className={`border-b-2 px-2 py-3 text-xs font-semibold transition ${active ? "border-zinc-900 text-zinc-900" : "border-transparent text-zinc-400 hover:text-zinc-700"} disabled:cursor-not-allowed disabled:opacity-40`}>{children}</button>;
+}
+
+function RelationshipChoice({ person, relationship, relationships, people, onChange }: { person: Person; relationship: Relationship; relationships: Relationship[]; people: Person[]; onChange: (id: string) => void }) {
+  if (relationships.length < 2) return null;
+  return <div className="border-b border-zinc-100 bg-zinc-50 px-5 py-3"><label htmlFor="person-relationship" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[.12em] text-zinc-400">Relationship with</label><select id="person-relationship" value={relationship.id} onChange={(event) => onChange(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs">{relationships.map((item) => { const otherId = item.from === person.id ? item.to : item.from; return <option key={item.id} value={item.id}>{people.find((candidate) => candidate.id === otherId)?.name ?? "Unknown person"}</option>; })}</select></div>;
 }
 
 function PersonInspector({ person, relationships, people, onChange, onLink, onRemoveRelationship, onDelete }: { person: Person; relationships: Relationship[]; people: Person[]; onChange: (patch: Partial<Person>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDelete: () => void }) {
