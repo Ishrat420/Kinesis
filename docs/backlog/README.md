@@ -95,45 +95,33 @@ Done
 
 ## 💡 Idea
 
-| Ticket | Description |
-| ------ | ----------- |
-| —      | —           |
+KD-003-custom-object-fields
+KD-004-templates-object-types
+KD-005-customisable-module-widgets
+KD-006-recurring-reminder-field
+KD-008-adding-quick-capture
+
 
 ## 🧠 Planning Needed
 
-| Ticket | Description |
-| ------ | ----------- |
-| —      | —           |
+KD-001-improve-milestone-display
+KD-002-kinesis-internal-link-field
+KD-007-adding-priority
 
 ## ✓ Accepted
 
-| Ticket | Description |
-| ------ | ----------- |
-| —      | —           |
 
 ## 🚧 In Progress
 
-| Ticket | Description |
-| ------ | ----------- |
-| —      | —           |
 
 ## ⛔ Blocked
 
-| Ticket | Description | Blocked By |
-| ------ | ----------- | ---------- |
-| —      | —           | —          |
 
 ## ✅ Done
 
-| Ticket | Description |
-| ------ | ----------- |
-| —      | —           |
 
 ## 🗑 Dropped
 
-| Ticket | Description | Reason |
-| ------ | ----------- | ------ |
-| —      | —           | —      |
 
 ---
 
@@ -141,33 +129,20 @@ Done
 
 ## Open
 
-| Bug | Description | Priority |
-| --- | ----------- | -------- |
-| —   | —           | —        |
+BUG-001-title
+BUG-002-goal-showing-active
 
 ## In Progress
 
-| Bug | Description | Priority |
-| --- | ----------- | -------- |
-| —   | —           | —        |
 
 ## Blocked
 
-| Bug | Description | Priority | Blocked By |
-| --- | ----------- | -------- | ---------- |
-| —   | —           | —        | —          |
 
 ## Fixed
 
-| Bug | Description |
-| --- | ----------- |
-| —   | —           |
 
 ## Won't Fix
 
-| Bug | Description | Reason |
-| --- | ----------- | ------ |
-| —   | —           | —      |
 
 ---
 
