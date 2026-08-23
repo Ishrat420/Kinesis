@@ -11,12 +11,18 @@ const money = new Intl.NumberFormat("en-AU", {
   maximumFractionDigits: 0,
 });
 
-export function StatsGrid({ milestonesDueSoon }: { milestonesDueSoon: number }) {
+export function StatsGrid({
+  milestonesDueSoon,
+  expiringSoon,
+}: {
+  milestonesDueSoon: number;
+  expiringSoon: number;
+}) {
   const items = useFinanceItems();
   const { netCashFlow } = getMonthlyCashFlow(items);
   const stats = [
     { icon: Flag, title: "Needs attention", value: "5", label: "items", tone: "bg-amber-50", href: "#" },
-    { icon: Calendar, title: "Expiring soon", value: "3", label: "items", tone: "bg-blue-50", href: "/documents" },
+    { icon: Calendar, title: "Expiring soon", value: String(expiringSoon), label: "documents", tone: "bg-blue-50", href: "/documents/expiring-soon" },
     { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: "due within one month", tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
     { icon: Target, title: "Goals progress", value: "2", label: "on track", tone: "bg-violet-50", href: "/goals" },
     { icon: TrendingUp, title: "This month", value: money.format(netCashFlow), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
