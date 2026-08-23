@@ -17,6 +17,16 @@ model User {
   updatedAt     DateTime @updatedAt
 }
 
+model UserSettings {
+  id                   String   @id @default("current")
+  appearance           String   @default("system")
+  notificationsEnabled Boolean  @default(true)
+  remindersEnabled     Boolean  @default(true)
+  reminderLeadDays     Int      @default(7)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
 model Document {
   id                  String          @id
   name                String
