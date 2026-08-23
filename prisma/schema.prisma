@@ -22,7 +22,6 @@ model UserSettings {
   appearance           String   @default("system")
   notificationsEnabled Boolean  @default(true)
   remindersEnabled     Boolean  @default(true)
-  reminderLeadDays     Int      @default(7)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }

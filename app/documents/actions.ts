@@ -3,7 +3,7 @@
 import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getExpiryDetails } from "@/lib/documents/expiry";
+import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 
 export type DocumentActionState = { error?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -24,9 +24,7 @@ function documentData(formData: FormData) {
   if (!name || !type) return null;
   const expiryDate = date(formData, "expiryDate");
   const requestedPrompt = Number(text(formData, "prompt"));
-  const prompt = Number.isInteger(requestedPrompt) && requestedPrompt >= 0 && requestedPrompt <= 365
-    ? requestedPrompt
-    : 180;
+  const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
 
   const customLabels = formData.getAll("customLabel");
   const customValues = formData.getAll("customValue");

@@ -7,7 +7,6 @@ export const defaultSettings = {
   appearance: "system",
   notificationsEnabled: true,
   remindersEnabled: true,
-  reminderLeadDays: 7,
 };
 
 export async function getSettings() {
