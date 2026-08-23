@@ -133,7 +133,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
 
           return (
             <div key={id} {...dragProps(id)} className={wrapperClass}>
-              <div className="group h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="group relative h-full rounded-2xl border border-zinc-200/80 bg-white p-4 pb-10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}>
                     <CustomModuleIcon name={customModule.icon} className="h-[18px] w-[18px]" />
@@ -149,6 +149,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
                   <p className="font-semibold text-zinc-900">{customModule.name}</p>
                   <p className="mt-1 text-sm text-zinc-500">{customModule.itemCount} {customModule.name} {customModule.itemCount === 1 ? "Item" : "Items"}</p>
                 </Link>
+                <span className="absolute bottom-4 right-4 text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700">→</span>
               </div>
             </div>
           );
@@ -165,7 +166,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
 
 function SystemCard({ icon: Icon, tone, name, href, meta, detail }: { icon: React.ElementType; tone: string; name: string; href: string; meta: string; detail: string }) {
   return (
-    <Link href={href} className="group block h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+    <Link href={href} className="group relative block h-full rounded-2xl border border-zinc-200/80 bg-white p-4 pb-10 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone}`}><Icon className="h-[18px] w-[18px] text-zinc-700" /></div>
         <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label={`Drag ${name}`} />
@@ -173,6 +174,7 @@ function SystemCard({ icon: Icon, tone, name, href, meta, detail }: { icon: Reac
       <p className="mt-4 font-semibold text-zinc-900">{name}</p>
       <p className="mt-1 text-sm text-zinc-500">{meta}</p>
       <p className="text-sm text-zinc-400">{detail}</p>
+      <span className="absolute bottom-4 right-4 text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700">→</span>
     </Link>
   );
 }
