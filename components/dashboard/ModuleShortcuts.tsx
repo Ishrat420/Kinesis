@@ -115,7 +115,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {order.map((id) => {
           const customModule = customModules.find((module) => module.id === id);
-          const wrapperClass = `relative ${draggedId === id ? "opacity-60" : ""}`;
+          const wrapperClass = `relative h-full ${draggedId === id ? "opacity-60" : ""}`;
 
           if (id === "documents") return (
             <div key={id} {...dragProps(id)} className={wrapperClass}>
@@ -133,7 +133,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
 
           return (
             <div key={id} {...dragProps(id)} className={wrapperClass}>
-              <div className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="group h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <div className="flex items-start justify-between">
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}>
                     <CustomModuleIcon name={customModule.icon} className="h-[18px] w-[18px]" />
@@ -165,7 +165,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
 
 function SystemCard({ icon: Icon, tone, name, href, meta, detail }: { icon: React.ElementType; tone: string; name: string; href: string; meta: string; detail: string }) {
   return (
-    <Link href={href} className="group block rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+    <Link href={href} className="group block h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone}`}><Icon className="h-[18px] w-[18px] text-zinc-700" /></div>
         <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label={`Drag ${name}`} />

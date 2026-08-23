@@ -60,7 +60,7 @@ export function RelationshipModuleCard() {
     const midnight = setTimeout(() => { refresh(); daily = setInterval(refresh, 86_400_000); }, nextMidnight.getTime() - now.getTime());
     return () => { clearTimeout(initialRefresh); clearTimeout(midnight); if (daily) clearInterval(daily); window.removeEventListener("storage", refresh); window.removeEventListener("kinesis-relationships-updated", refresh); };
   }, [refresh]);
-  return <Link href="/relationships" className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+  return <Link href="/relationships" className="group block h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
     <div className="flex items-start justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-50"><Users className="h-[18px] w-[18px] text-zinc-700" /></div><span className="text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700">→</span></div>
     <p className="mt-4 font-semibold text-zinc-900">Relationships</p>
     <p className="mt-1 text-sm text-zinc-500">{summary.people} {summary.people === 1 ? "person" : "people"} · including yourself</p>
