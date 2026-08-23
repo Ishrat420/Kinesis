@@ -7,9 +7,14 @@ import { Topbar } from "@/components/navigation/Topbar";
 import { Plus } from "lucide-react";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
+import { getMilestonesDueSoon } from "@/lib/data/goals";
 
 export default async function Home() {
-  const [upcomingItems, user] = await Promise.all([getUpcomingAndDue(), getCurrentUser()]);
+  const [upcomingItems, user, milestonesDueSoon] = await Promise.all([
+    getUpcomingAndDue(),
+    getCurrentUser(),
+    getMilestonesDueSoon(),
+  ]);
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
       <Topbar />
@@ -38,7 +43,7 @@ export default async function Home() {
               </button>
             </div>
 
-            <StatsGrid />
+            <StatsGrid milestonesDueSoon={milestonesDueSoon.length} />
 
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
               <ReminderList items={upcomingItems} />
