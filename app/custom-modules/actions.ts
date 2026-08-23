@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/data/prisma";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
+import { addActivity } from "@/lib/data/activity";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/custom-modules/${moduleId}`); };
@@ -38,6 +39,8 @@ export async function createCustomItemAction(moduleId: string, data: FormData) {
     reminder: reminder ? new Date(`${reminder}T12:00:00.000Z`) : null, link: getValue(data, "link") || null,
     fields: { create: labels.map((label, position) => ({ id: crypto.randomUUID(), label: label.trim(), value: (values[position] ?? "").trim(), position })).filter((field) => field.label) },
   } });
+  const customModule = await prisma.customModule.findUnique({ where: { id: moduleId }, select: { name: true, icon: true } });
+  if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
 }
 
@@ -57,6 +60,8 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, d
     await tx.customItemField.deleteMany({ where: { itemId } });
     if (fields.length) await tx.customItemField.createMany({ data: fields.map((field) => ({ ...field, itemId })) });
   });
+  const customModule = await prisma.customModule.findUnique({ where: { id: moduleId }, select: { name: true, icon: true } });
+  if (customModule) await addActivity({ action: "Updated", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
   revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
 }
