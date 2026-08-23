@@ -1,18 +1,12 @@
-import { Car, FileText, Heart, Landmark, Target } from "lucide-react";
+import { Car, FileText, Heart, Target } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { getDocumentSummary } from "@/lib/data/documents";
 import { getGoalDashboardSummary } from "@/lib/data/goals";
 import Link from "next/link";
 import { RelationshipModuleCard } from "./RelationshipModuleCard";
+import { FinanceModuleCard } from "./FinanceModuleCard";
 
 const modules = [
-  {
-    icon: Landmark,
-    name: "Finance",
-    meta: "$147k net worth",
-    detail: "4.3% this month",
-    tone: "bg-emerald-50",
-  },
   {
     icon: Heart,
     name: "Health",
@@ -76,10 +70,10 @@ export async function ModuleGrid() {
             </>
           );
 
-          return module.name === "Documents" || module.name === "Goals" || module.name === "Finance" ? (
+          return module.name === "Documents" || module.name === "Goals" ? (
             <Link
               key={module.name}
-              href={module.name === "Goals" ? "/goals" : module.name === "Finance" ? "/finance" : "/documents"}
+              href={module.name === "Goals" ? "/goals" : "/documents"}
               className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
             >
               {content}
@@ -93,6 +87,7 @@ export async function ModuleGrid() {
             </div>
           );
         })}
+        <FinanceModuleCard />
         <RelationshipModuleCard />
       </div>
     </Card>
