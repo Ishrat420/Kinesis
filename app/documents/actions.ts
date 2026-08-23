@@ -63,6 +63,7 @@ export async function createDocumentAction(
   if (!data) return { error: "Name and type are required." };
   data.type = await resolveDocumentType(data.type);
   const document = await createDocument(data);
+  revalidatePath("/", "layout");
   redirect(`/documents/${document.id}`);
 }
 
@@ -75,8 +76,7 @@ export async function updateDocumentAction(
   if (!data) return { error: "Name and type are required." };
   data.type = await resolveDocumentType(data.type);
   await updateDocument(documentId, data);
-  revalidatePath("/documents");
-  revalidatePath(`/documents/${documentId}`);
+  revalidatePath("/", "layout");
   return {};
 }
 
