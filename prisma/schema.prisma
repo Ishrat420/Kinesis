@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String   @id @default("current")
+  firstName     String
+  lastName      String
+  preferredName String?
+  email         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 model Document {
   id                  String          @id
   name                String
@@ -14,7 +24,7 @@ model Document {
   status              String
   expiryDate          DateTime?
   issueDate           DateTime?
-  owner               String          @default("user")
+  owner               String
   documentNumber      String?
   country             String?
   notes               String?

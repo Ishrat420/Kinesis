@@ -51,7 +51,7 @@ type PendingConnection = { from: string; to: string; type: string };
 type GoalOption = { id: string; name: string; status: string };
 
 const initialPeople: Person[] = [
-  { id: "ishrat", name: "Ishrat", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user" },
+  { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user" },
   { id: "anj", name: "Anj", detail: "Partner", x: 745, y: 420, size: 96, color: "#9a7063", icon: "heart" },
   { id: "child", name: "Child", detail: "Family", x: 510, y: 520, size: 82, color: "#c58e52", icon: "baby" },
   { id: "sister", name: "Sister", detail: "Family", x: 795, y: 175, size: 88, color: "#6f7f72", icon: "user" },
@@ -60,19 +60,19 @@ const initialPeople: Person[] = [
 ];
 
 const initialRelationships: Relationship[] = [
-  { id: "c1", from: "anj", to: "ishrat", type: "Partner", practices: [{ title: "Date night", cadence: "Every Friday" }, { title: "Monthly check-in", cadence: "Monthly" }], reflections: [{ text: "We've both been busy lately and date nights have helped us reconnect.", date: "22 Aug 2026" }], linkedGoals: [], importantDates: [{ label: "Anniversary", date: "14 October" }], notes: "Make space for unhurried time together." },
-  { id: "c2", from: "child", to: "ishrat", type: "Parent & child", practices: [{ title: "Story time", cadence: "Every evening" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
+  { id: "c1", from: "anj", to: "self", type: "Partner", practices: [{ title: "Date night", cadence: "Every Friday" }, { title: "Monthly check-in", cadence: "Monthly" }], reflections: [{ text: "We've both been busy lately and date nights have helped us reconnect.", date: "22 Aug 2026" }], linkedGoals: [], importantDates: [{ label: "Anniversary", date: "14 October" }], notes: "Make space for unhurried time together." },
+  { id: "c2", from: "child", to: "self", type: "Parent & child", practices: [{ title: "Story time", cadence: "Every evening" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
   { id: "c3", from: "anj", to: "child", type: "Parent & child", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c4", from: "ishrat", to: "sister", type: "Siblings", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c5", from: "friend", to: "ishrat", type: "Friend", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-  { id: "c6", from: "ishrat", to: "mum", type: "Parent & child", practices: [{ title: "Call Mum", cadence: "Every Sunday" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
+  { id: "c4", from: "self", to: "sister", type: "Siblings", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
+  { id: "c5", from: "friend", to: "self", type: "Friend", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
+  { id: "c6", from: "self", to: "mum", type: "Parent & child", practices: [{ title: "Call Mum", cadence: "Every Sunday" }], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
 ];
 
 const icons = { user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House };
 const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866"];
 
-export function RelationshipMap({ goals }: { goals: GoalOption[] }) {
-  const [people, setPeople] = useState(initialPeople);
+export function RelationshipMap({ goals, userDisplayName }: { goals: GoalOption[]; userDisplayName: string }) {
+  const [people, setPeople] = useState(() => initialPeople.map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person));
   const [relationships, setRelationships] = useState(initialRelationships);
   const [selection, setSelection] = useState<Selection>({ kind: "person", id: "anj" });
   const [scale, setScale] = useState(0.9);
@@ -91,12 +91,12 @@ export function RelationshipMap({ goals }: { goals: GoalOption[] }) {
     if (savedPeople) {
       // Restore the user's previous arrangement after hydration.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      try { setPeople(JSON.parse(savedPeople)); } catch { /* Ignore invalid local mock state. */ }
+      try { setPeople((JSON.parse(savedPeople) as Person[]).map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person)); } catch { /* Ignore invalid local mock state. */ }
     }
     if (savedRelationships) try { setRelationships(JSON.parse(savedRelationships)); } catch { /* Ignore invalid local mock state. */ }
     if (savedInspectorWidth) setInspectorWidth(Math.min(640, Math.max(300, Number(savedInspectorWidth) || 360)));
     setLoaded(true);
-  }, []);
+  }, [userDisplayName]);
   useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationship-map", JSON.stringify(people)); }, [people, loaded]);
   useEffect(() => { if (loaded) { localStorage.setItem("kinesis-relationships", JSON.stringify(relationships)); window.dispatchEvent(new Event("kinesis-relationships-updated")); } }, [relationships, loaded]);
   useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationship-inspector-width", String(inspectorWidth)); }, [inspectorWidth, loaded]);

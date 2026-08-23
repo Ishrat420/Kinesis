@@ -7,13 +7,15 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Plus, Search, ShieldCheck } from "lucide-react";
 import { UploadDocumentButton } from "./UploadDocumentButton";
 import { ManualDocumentButton } from "./ManualDocumentButton";
+import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 
 
 export default async function DocumentsPage() {
-  const [documents, documentTypes, documentSummary] = await Promise.all([
+  const [documents, documentTypes, documentSummary, user] = await Promise.all([
     getDocuments(),
     getDocumentTypes(),
     getDocumentSummary(),
+    getCurrentUser(),
   ]);
 
   return (
@@ -36,7 +38,7 @@ export default async function DocumentsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <ManualDocumentButton documentTypes={documentTypes} />
+            <ManualDocumentButton documentTypes={documentTypes} ownerName={getUserDisplayName(user)} />
             <UploadDocumentButton />
           </div>
         </div>

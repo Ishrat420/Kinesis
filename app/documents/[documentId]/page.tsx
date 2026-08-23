@@ -3,6 +3,7 @@ import { ArrowLeft, FileText } from "lucide-react";
 import Link from "next/link";
 import { EditDocumentForm } from "./EditDocumentForm";
 import { getExpiryDetails } from "@/lib/documents/expiry";
+import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 
 const timeline = [
   { title: "Document uploaded", date: "2 Jul 2026" },
@@ -16,7 +17,7 @@ export default async function DocumentDetailPage({
   params: Promise<{ documentId: string }>;
 }) {
   const { documentId } = await params;
-  const [document, documentTypes] = await Promise.all([getDocument(documentId), getDocumentTypes()]);
+  const [document, documentTypes, user] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser()]);
 
   if (!document) {
     return (
@@ -88,7 +89,7 @@ export default async function DocumentDetailPage({
               notesLabel: document.notesLabel,
               linkLabel: document.linkLabel,
               customFields: document.customFields,
-            }} documentTypes={documentTypes} />
+            }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} />
           </section>
         </div>
 
