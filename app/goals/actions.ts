@@ -4,6 +4,7 @@ import { prisma } from "@/lib/data/prisma";
 import { DEFAULT_GOAL_UNITS, GOAL_STATUSES } from "@/lib/goals/format";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { addActivity } from "@/lib/data/activity";
 
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const numeric = (data: FormData, key: string) => {
@@ -24,6 +25,7 @@ export async function createGoalAction(data: FormData) {
   if (!name) return;
   const date = value(data, "targetDate");
   const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), name, targetDate: date ? new Date(`${date}T23:59:59.999Z`) : null, note: value(data, "note") || null } });
+  await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   revalidatePath("/");
   revalidatePath("/goals");
   redirect(`/goals/${goal.id}`);
@@ -81,7 +83,9 @@ export async function removeMilestoneDueDateAction(id: string, milestoneId: stri
 }
 
 export async function toggleMilestoneAction(id: string, milestoneId: string, completed: boolean) {
-  await prisma.milestone.update({ where: { id: milestoneId }, data: { completed, autoCompleted: false } }); refresh(id);
+  const milestone = await prisma.milestone.update({ where: { id: milestoneId }, data: { completed, autoCompleted: false }, include: { goal: { select: { name: true } } } });
+  if (completed) await addActivity({ action: "Completed", moduleName: "Milestone", objectName: `${milestone.name} for ${milestone.goal.name}`, icon: "goals", href: `/goals/${id}` });
+  refresh(id);
 }
 
 export async function deleteMilestoneAction(id: string, milestoneId: string) { await prisma.milestone.delete({ where: { id: milestoneId } }); refresh(id); }

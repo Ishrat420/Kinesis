@@ -13,6 +13,7 @@ import {
   getMonthlyCashFlow,
 } from "@/lib/finance";
 import { saveFinanceItems, useFinanceItems } from "@/lib/useFinanceItems";
+import { recordFinanceActivity } from "@/app/finance/actions";
 
 const assetCategories = ["Cash", "Savings", "Property", "Investment", "Vehicle", "Superannuation", "Other"];
 const liabilityCategories = ["Credit Card", "Mortgage", "Personal Loan", "Car Loan", "Student Loan", "Other"];
@@ -35,12 +36,14 @@ export function FinanceDashboard() {
   }, [items]);
 
   function openForm(kind: Kind, item: FinanceItem | null = null) { setFormKind(kind); setEditing(item); setModal("form"); }
-  function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const data = new FormData(event.currentTarget);
     const next: FinanceItem = { id: editing?.id || crypto.randomUUID(), kind: formKind, name: String(data.get("name")), amount: Number(data.get("amount")), notes: String(data.get("notes") || "") };
     if (formKind === "asset" || formKind === "liability") { next.category = String(data.get("category")); const rate = data.get("rate"); if (rate !== "") next.rate = Number(rate); }
     else { next.frequency = String(data.get("frequency")) as Frequency; next.startDate = String(data.get("startDate") || ""); next.endDate = String(data.get("endDate") || ""); }
+    const wasEditing = Boolean(editing);
     saveFinanceItems(editing ? items.map((item) => item.id === editing.id ? next : item) : [...items, next]); setModal(null); setEditing(null);
+    await recordFinanceActivity(formKind, wasEditing, next.name);
   }
   function remove() { if (!deleting) return; saveFinanceItems(items.filter((item) => item.id !== deleting.id)); setDeleting(null); }
 

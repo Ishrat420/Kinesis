@@ -4,6 +4,7 @@ import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDo
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { addActivity } from "@/lib/data/activity";
 
 export type DocumentActionState = { error?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -63,6 +64,7 @@ export async function createDocumentAction(
   if (!data) return { error: "Name and type are required." };
   data.type = await resolveDocumentType(data.type);
   const document = await createDocument(data);
+  await addActivity({ action: "Added", moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
   revalidatePath("/", "layout");
   redirect(`/documents/${document.id}`);
 }
@@ -76,6 +78,7 @@ export async function updateDocumentAction(
   if (!data) return { error: "Name and type are required." };
   data.type = await resolveDocumentType(data.type);
   await updateDocument(documentId, data);
+  await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
   revalidatePath("/", "layout");
   return {};
 }

@@ -277,3 +277,15 @@ model AttentionDismissal {
   itemKey   String   @unique
   createdAt DateTime @default(now())
 }
+
+model ActivityEvent {
+  id         String   @id
+  action     String
+  moduleName String
+  objectName String
+  icon       String
+  href       String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
