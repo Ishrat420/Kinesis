@@ -3,9 +3,7 @@ import Link from "next/link";
 import kinesisIcon from "@/app/icon.png";
 import {
   Calendar,
-  Car,
   FileText,
-  Heart,
   Home,
   Landmark,
   Settings,
@@ -19,8 +17,6 @@ import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 const modules = [
   { icon: FileText, name: "Documents", href: "/documents" },
   { icon: Landmark, name: "Finance", href: "/finance" },
-  { icon: Heart, name: "Health" },
-  { icon: Car, name: "Vehicles" },
   { icon: Target, name: "Goals", href: "/goals" },
   { icon: Users, name: "Relationships", href: "/relationships" },
 ];
@@ -53,7 +49,7 @@ export async function Sidebar() {
             <SidebarItem active icon={Home} label="Dashboard" href="/" />
           </NavSection>
 
-          <NavSection label="Areas">
+          <NavSection label="Modules">
             {modules.map((module) => (
               <SidebarItem
                 key={module.name}
