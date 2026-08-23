@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { getSettings } from "./settings";
 
 const DAY = 86_400_000;
 
@@ -19,6 +20,8 @@ function durationUntil(days: number) {
 }
 
 export async function evaluateNotifications(now = new Date()) {
+  const settings = await getSettings();
+  if (!settings.notificationsEnabled) return { evaluated: 0, created: 0 };
   const today = utcMidnight(now);
   const documents = await prisma.document.findMany({
     where: { expiryDate: { not: null } },
@@ -28,7 +31,11 @@ export async function evaluateNotifications(now = new Date()) {
   for (const document of documents) {
     const expiryDate = utcMidnight(document.expiryDate!);
     const reminderAt = new Date(expiryDate.getTime() - document.prompt * DAY);
-    const type = today >= expiryDate ? "EXPIRED" as const : today >= reminderAt ? "REMINDER_DUE" as const : null;
+    const type = today >= expiryDate
+      ? "EXPIRED" as const
+      : settings.remindersEnabled && today >= reminderAt
+        ? "REMINDER_DUE" as const
+        : null;
     if (!type) continue;
 
     const timeUntilExpiry = type === "REMINDER_DUE"
@@ -56,6 +63,8 @@ export async function evaluateNotifications(now = new Date()) {
 }
 
 export async function getRecentNotifications(limit = 8) {
+  const settings = await getSettings();
+  if (!settings.notificationsEnabled) return { notifications: [], unreadCount: 0 };
   const notifications = await prisma.notification.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,

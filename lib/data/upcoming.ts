@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 
 import { prisma } from "./prisma";
+import { getSettings } from "./settings";
 
 const DAY = 86_400_000;
 
@@ -29,7 +30,7 @@ function formatDate(value: Date) {
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
   const today = startOfUtcDay(now);
-  const [documents, milestones] = await Promise.all([
+  const [documents, milestones, settings] = await Promise.all([
     prisma.document.findMany({
       where: { expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
@@ -42,13 +43,14 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
+    getSettings(),
   ]);
 
   const documentItems = documents.flatMap((document): UpcomingItem[] => {
     const expiry = startOfUtcDay(document.expiryDate!);
     const reminderDate = new Date(expiry.getTime() - document.prompt * DAY);
-    if (today < reminderDate) return [];
     const expired = expiry < today;
+    if (!expired && (!settings.remindersEnabled || today < reminderDate)) return [];
     return [{
       id: `document-${document.id}`,
       kind: "document",
@@ -59,14 +61,14 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     }];
   });
 
-  const milestoneItems = milestones.map((milestone): UpcomingItem => ({
+  const milestoneItems = settings.remindersEnabled ? milestones.map((milestone): UpcomingItem => ({
     id: `milestone-${milestone.id}`,
     kind: "milestone",
     title: `${milestone.name} is over its due date`,
     date: formatDate(milestone.dueDate!),
     timestamp: milestone.dueDate!.getTime(),
     href: `/goals/${milestone.goalId}`,
-  }));
+  })) : [];
 
   return [...documentItems, ...milestoneItems].sort((a, b) => a.timestamp - b.timestamp);
 }

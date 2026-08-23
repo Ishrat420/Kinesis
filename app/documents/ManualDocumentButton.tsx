@@ -9,7 +9,7 @@ import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelec
 
 const initialState: CreateDocumentState = {};
 
-export function ManualDocumentButton({ documentTypes, ownerName }: { documentTypes: DocumentTypeOption[]; ownerName: string }) {
+export function ManualDocumentButton({ documentTypes, ownerName, defaultReminderDays }: { documentTypes: DocumentTypeOption[]; ownerName: string; defaultReminderDays: number }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     createDocumentAction,
@@ -80,10 +80,11 @@ export function ManualDocumentButton({ documentTypes, ownerName }: { documentTyp
                   Reminder
                   <select
                     name="prompt"
-                    defaultValue="180"
+                    defaultValue={String(defaultReminderDays)}
                     className="mt-2 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 outline-none transition focus:border-zinc-400"
                   >
-                    {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
+                    {!REMINDER_OPTIONS.some((option) => option.days === defaultReminderDays) && <option value={defaultReminderDays}>{defaultReminderDays} {defaultReminderDays === 1 ? "day" : "days"} before expiry (your default)</option>}
+                    {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry{option.days === defaultReminderDays ? " (your default)" : ""}</option>)}
                   </select>
                 </label>
 
