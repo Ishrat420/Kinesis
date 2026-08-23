@@ -5,8 +5,10 @@ import { StatsGrid } from "@/components/dashboard/StatsGrid";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { Topbar } from "@/components/navigation/Topbar";
 import { Plus } from "lucide-react";
+import { getUpcomingAndDue } from "@/lib/data/upcoming";
 
-export default function Home() {
+export default async function Home() {
+  const upcomingItems = await getUpcomingAndDue();
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
       <Topbar />
@@ -38,7 +40,7 @@ export default function Home() {
             <StatsGrid />
 
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
-              <ReminderList />
+              <ReminderList items={upcomingItems} />
               <ActivityFeed />
             </div>
 

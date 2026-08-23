@@ -52,10 +52,10 @@ export async function getGoalDashboardSummary(now = new Date()) {
     include: { metricHistory: { orderBy: { recordedAt: "asc" } }, milestones: { select: { completed: true, dueDate: true } } },
   });
 
-  const onTrack = goals.filter((goal) => {
-    if (goal.milestones.some((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now)) return false;
+  const atRisk = goals.filter((goal) => {
+    if (goal.milestones.some((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now)) return true;
     if (goal.targetValue === null || goal.currentValue === null || !goal.targetDate) return false;
-    if (goal.currentValue === goal.targetValue) return true;
+    if (goal.currentValue === goal.targetValue) return false;
 
     const health = calculateGoalHealth({
       targetValue: goal.targetValue,
@@ -65,8 +65,8 @@ export async function getGoalDashboardSummary(now = new Date()) {
       history: goal.metricHistory,
       now,
     });
-    return health !== null && health.status !== "AT RISK";
+    return health?.status === "AT RISK";
   }).length;
 
-  return { active: goals.length, onTrack };
+  return { active: goals.length, atRisk };
 }

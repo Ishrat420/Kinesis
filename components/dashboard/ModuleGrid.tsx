@@ -41,7 +41,7 @@ export async function ModuleGrid() {
     icon: Target,
     name: "Goals",
     meta: `${goalSummary.active} active goal${goalSummary.active === 1 ? "" : "s"}`,
-    detail: `${goalSummary.onTrack} on track`,
+    detail: `${goalSummary.atRisk} on risk`,
     tone: "bg-violet-50",
   };
 
