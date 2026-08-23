@@ -8,12 +8,14 @@ import { Plus } from "lucide-react";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getMilestonesDueSoon } from "@/lib/data/goals";
+import { getExpiringDocuments } from "@/lib/data/documents";
 
 export default async function Home() {
-  const [upcomingItems, user, milestonesDueSoon] = await Promise.all([
+  const [upcomingItems, user, milestonesDueSoon, expiringDocuments] = await Promise.all([
     getUpcomingAndDue(),
     getCurrentUser(),
     getMilestonesDueSoon(),
+    getExpiringDocuments(),
   ]);
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
@@ -43,7 +45,10 @@ export default async function Home() {
               </button>
             </div>
 
-            <StatsGrid milestonesDueSoon={milestonesDueSoon.length} />
+            <StatsGrid
+              milestonesDueSoon={milestonesDueSoon.length}
+              expiringSoon={expiringDocuments.upcoming.length}
+            />
 
             <div className="mt-5 grid gap-5 xl:grid-cols-2">
               <ReminderList items={upcomingItems} />
