@@ -6,9 +6,10 @@ import { Sidebar } from "@/components/navigation/Sidebar";
 import { Topbar } from "@/components/navigation/Topbar";
 import { Plus } from "lucide-react";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
+import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 
 export default async function Home() {
-  const upcomingItems = await getUpcomingAndDue();
+  const [upcomingItems, user] = await Promise.all([getUpcomingAndDue(), getCurrentUser()]);
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
       <Topbar />
@@ -21,7 +22,7 @@ export default async function Home() {
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-[38px] font-semibold leading-none tracking-tight">
-                  Good morning, Ishrat
+                  Good morning, {getUserDisplayName(user)}
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">

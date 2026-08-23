@@ -30,7 +30,7 @@ type EditableDocument = {
   customFields: CustomField[];
 };
 
-export function EditDocumentForm({ document, documentTypes }: { document: EditableDocument; documentTypes: DocumentTypeOption[] }) {
+export function EditDocumentForm({ document, documentTypes, ownerName }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string }) {
   const action = updateDocumentAction.bind(null, document.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [expiryDate, setExpiryDate] = useState(document.expiryDate);
@@ -66,7 +66,7 @@ export function EditDocumentForm({ document, documentTypes }: { document: Editab
 
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
       <div className="flex items-center justify-between border-t border-zinc-100 pt-5">
-        <p className="text-sm text-zinc-500">Owner: <span className="font-medium text-zinc-700">user</span></p>
+        <p className="text-sm text-zinc-500">Owner: <span className="font-medium text-zinc-700">{ownerName}</span></p>
         <button disabled={pending} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50">
           <Save className="h-4 w-4" /> {pending ? "Saving…" : "Save changes"}
         </button>

@@ -23,8 +23,8 @@ type SearchResult = {
   kind: "Document" | "Relationship" | "Finance" | "Goal";
 };
 
-const fallbackPeople: RelationshipPerson[] = [
-  { id: "ishrat", name: "Ishrat", detail: "You" },
+const fallbackPeople = (userDisplayName: string): RelationshipPerson[] => [
+  { id: "self", name: userDisplayName, detail: "You" },
   { id: "anj", name: "Anj", detail: "Partner" },
   { id: "child", name: "Child", detail: "Family" },
   { id: "sister", name: "Sister", detail: "Family" },
@@ -41,10 +41,10 @@ function readStoredArray<T>(key: string, fallback: T[]) {
   }
 }
 
-export function SearchBar({ documents, goals }: { documents: SearchableDocument[]; goals: SearchableGoal[] }) {
+export function SearchBar({ documents, goals, userDisplayName }: { documents: SearchableDocument[]; goals: SearchableGoal[]; userDisplayName: string }) {
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  const [people, setPeople] = useState<RelationshipPerson[]>(fallbackPeople);
+  const [people, setPeople] = useState<RelationshipPerson[]>(fallbackPeople(userDisplayName));
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const financeItems = useFinanceItems();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +69,8 @@ export function SearchBar({ documents, goals }: { documents: SearchableDocument[
 
   useEffect(() => {
     function refreshRelationships() {
-      setPeople(readStoredArray("kinesis-relationship-map", fallbackPeople));
+      const stored = readStoredArray("kinesis-relationship-map", fallbackPeople(userDisplayName));
+      setPeople(stored.map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person));
       setRelationships(readStoredArray("kinesis-relationships", []));
     }
     refreshRelationships();
@@ -79,7 +80,7 @@ export function SearchBar({ documents, goals }: { documents: SearchableDocument[
       window.removeEventListener("storage", refreshRelationships);
       window.removeEventListener("kinesis-relationships-updated", refreshRelationships);
     };
-  }, []);
+  }, [userDisplayName]);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {

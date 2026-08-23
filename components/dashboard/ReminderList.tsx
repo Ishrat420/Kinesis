@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { UpcomingItem } from "@/lib/data/upcoming";
 
-type StoredPerson = { id: string; name: string };
+type StoredPerson = { id: string; name: string; detail?: string };
 type StoredRelationship = {
   id: string;
   from: string;
@@ -43,7 +43,7 @@ function readRelationshipItems(now = new Date()): RelationshipItem[] {
     const relationships = JSON.parse(localStorage.getItem("kinesis-relationships") ?? "[]") as StoredRelationship[];
     if (!Array.isArray(people) || !Array.isArray(relationships)) return [];
     const peopleById = new Map(people.map((person) => [person.id, person]));
-    const self = people.find((person) => person.id === "ishrat") ?? people[0];
+    const self = people.find((person) => person.detail === "You") ?? people[0];
 
     return relationships.flatMap((relationship) => {
       const personId = relationship.from === self?.id ? relationship.to : relationship.from;
