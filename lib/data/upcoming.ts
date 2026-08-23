@@ -35,7 +35,11 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       select: { id: true, name: true, expiryDate: true, prompt: true },
     }),
     prisma.milestone.findMany({
-      where: { completed: false, dueDate: { lt: today } },
+      where: {
+        completed: false,
+        dueDate: { lt: today },
+        goal: { status: "Active" },
+      },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
   ]);
