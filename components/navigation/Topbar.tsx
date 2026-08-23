@@ -4,12 +4,15 @@ import { getDocuments } from "@/lib/data/documents";
 import { getGoalsForLinking } from "@/lib/data/goals";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { NotificationBell } from "./NotificationBell";
+import Link from "next/link";
+import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 
 export async function Topbar() {
-  const [{ notifications, unreadCount }, documents, goals] = await Promise.all([
+  const [{ notifications, unreadCount }, documents, goals, user] = await Promise.all([
     getRecentNotifications(),
     getDocuments(),
     getGoalsForLinking(),
+    getCurrentUser(),
   ]);
 
   return (
@@ -19,15 +22,16 @@ export async function Topbar() {
           <SearchBar
             documents={documents.map(({ id, name, type }) => ({ id, name, type }))}
             goals={goals}
+            userDisplayName={getUserDisplayName(user)}
           />
         </div>
 
         <div className="relative flex items-center gap-3">
           <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} />
 
-          <button className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
+          <Link href="/user" aria-label="Open user profile" className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
             <User className="h-[18px] w-[18px]" />
-          </button>
+          </Link>
         </div>
       </div>
     </header>

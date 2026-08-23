@@ -9,7 +9,7 @@ import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelec
 
 const initialState: CreateDocumentState = {};
 
-export function ManualDocumentButton({ documentTypes }: { documentTypes: DocumentTypeOption[] }) {
+export function ManualDocumentButton({ documentTypes, ownerName }: { documentTypes: DocumentTypeOption[]; ownerName: string }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     createDocumentAction,
@@ -90,7 +90,7 @@ export function ManualDocumentButton({ documentTypes }: { documentTypes: Documen
                 <div>
                   <div className="mb-3 flex items-end justify-between">
                     <h3 className="font-semibold text-zinc-800">Document information</h3>
-                    <span className="text-xs font-medium text-zinc-400">Owner: user</span>
+                    <span className="text-xs font-medium text-zinc-400">Owner: {ownerName}</span>
                   </div>
                   <DocumentFields />
                 </div>

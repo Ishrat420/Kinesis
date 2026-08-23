@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
+import { getCurrentUser, getUserDisplayName } from "./user";
 
 export type DocumentInput = {
   name: string;
@@ -97,12 +98,13 @@ export async function getDocument(id: string) {
 }
 
 export async function createDocument(data: DocumentInput & { id?: string }) {
+  const user = await getCurrentUser();
   const { customFields = [], ...document } = data;
   return prisma.document.create({
     data: {
       ...document,
       id: data.id ?? crypto.randomUUID(),
-      owner: "user",
+      owner: getUserDisplayName(user),
       customFields: {
         create: customFields.map((field, position) => ({
           id: crypto.randomUUID(),
