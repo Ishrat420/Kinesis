@@ -98,7 +98,7 @@ export function RelationshipMap({ goals }: { goals: GoalOption[] }) {
     setLoaded(true);
   }, []);
   useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationship-map", JSON.stringify(people)); }, [people, loaded]);
-  useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationships", JSON.stringify(relationships)); }, [relationships, loaded]);
+  useEffect(() => { if (loaded) { localStorage.setItem("kinesis-relationships", JSON.stringify(relationships)); window.dispatchEvent(new Event("kinesis-relationships-updated")); } }, [relationships, loaded]);
   useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationship-inspector-width", String(inspectorWidth)); }, [inspectorWidth, loaded]);
 
   const selectedPerson = selection?.kind === "person" ? people.find((person) => person.id === selection.id) ?? null : null;
