@@ -20,7 +20,7 @@ export function FinanceModuleCard() {
   return (
     <Link
       href="/finance"
-      className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      className="group block h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex items-start justify-between">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50">
