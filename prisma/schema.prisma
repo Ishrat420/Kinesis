@@ -262,3 +262,9 @@ model CustomItemField {
 
   @@index([itemId, position])
 }
+
+model AttentionDismissal {
+  id        String   @id
+  itemKey   String   @unique
+  createdAt DateTime @default(now())
+}
