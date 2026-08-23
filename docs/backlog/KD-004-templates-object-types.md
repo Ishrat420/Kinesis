@@ -1,4 +1,4 @@
-# KD-004 Templates / Object Types
+# KD-004 — Templates / Object Types
 
 **Status:** Idea
 **Priority:** Medium
