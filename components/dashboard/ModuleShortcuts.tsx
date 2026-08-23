@@ -109,9 +109,6 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
       }}
       onDrop={addCustomModule}
     >
-      <p className="mb-4 text-sm text-zinc-500">
-        Drag shortcuts to reorder them. Drag a custom module here from the sidebar to fill one of the two custom slots.
-      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {order.map((id) => {
           const customModule = customModules.find((module) => module.id === id);
@@ -156,8 +153,8 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
         })}
       </div>
       {selectedCustomCount < MAX_CUSTOM_MODULES && (
-        <div className="mt-3 rounded-2xl border border-dashed border-zinc-200 px-4 py-3 text-center text-xs text-zinc-400">
-          Drop a custom module here · {MAX_CUSTOM_MODULES - selectedCustomCount} custom {MAX_CUSTOM_MODULES - selectedCustomCount === 1 ? "slot" : "slots"} available
+        <div className="mt-3 rounded-2xl border border-dashed border-zinc-100 px-4 py-2.5 text-center text-[11px] text-zinc-300">
+          Drop a custom module here · {MAX_CUSTOM_MODULES - selectedCustomCount} slots available
         </div>
       )}
     </div>
