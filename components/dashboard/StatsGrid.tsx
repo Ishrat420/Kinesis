@@ -17,7 +17,7 @@ export function StatsGrid({ milestonesDueSoon }: { milestonesDueSoon: number }) 
   const stats = [
     { icon: Flag, title: "Needs attention", value: "5", label: "items", tone: "bg-amber-50", href: "#" },
     { icon: Calendar, title: "Expiring soon", value: "3", label: "items", tone: "bg-blue-50", href: "/documents" },
-    { icon: CheckSquare, title: "Milestones due soon", value: String(milestonesDueSoon), label: "within one month", tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
+    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: "due within one month", tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
     { icon: Target, title: "Goals progress", value: "2", label: "on track", tone: "bg-violet-50", href: "/goals" },
     { icon: TrendingUp, title: "This month", value: money.format(netCashFlow), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
   ];

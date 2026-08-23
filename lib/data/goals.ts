@@ -87,3 +87,15 @@ export async function getMilestonesDueSoon(now = new Date()) {
     orderBy: [{ dueDate: "asc" }, { position: "asc" }],
   });
 }
+
+export async function getActiveIncompleteMilestones() {
+  await connection();
+  return prisma.milestone.findMany({
+    where: {
+      completed: false,
+      goal: { status: "Active" },
+    },
+    include: { goal: { select: { id: true, name: true } } },
+    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }],
+  });
+}
