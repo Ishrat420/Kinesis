@@ -7,16 +7,302 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String   @id @default("current")
+  firstName     String
+  lastName      String
+  preferredName String?
+  email         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UserSettings {
+  id                   String   @id @default("current")
+  appearance           String   @default("system")
+  notificationsEnabled Boolean  @default(true)
+  remindersEnabled     Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model FinanceItem {
+  id        String   @id
+  kind      String
+  name      String
+  amount    Float
+  category  String?
+  rate      Float?
+  frequency String?
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, name])
+}
+
 model Document {
-  id             String   @id
+  id                  String          @id
+  name                String
+  type                String
+  status              String
+  expiryDate          DateTime?
+  issueDate           DateTime?
+  owner               String
+  documentNumber      String?
+  country             String?
+  notes               String?
+  link                String?
+  prompt              Int             @default(180)
+  expiryDateLabel     String          @default("Expiry date")
+  issueDateLabel      String          @default("Issue date")
+  documentNumberLabel String          @default("Document number")
+  countryLabel        String          @default("Country")
+  notesLabel          String          @default("Notes")
+  linkLabel           String          @default("Link")
+  customFields        DocumentField[]
+  notifications       Notification[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+enum NotificationType {
+  REMINDER_DUE
+  EXPIRED
+}
+
+model Notification {
+  id              String           @id
+  type            NotificationType
+  documentId      String
+  reminderAt      DateTime?
+  timeUntilExpiry String?
+  expiryDate      DateTime
+  documentName    String
+  documentType    String?
+  message         String
+  actionUrl       String
+  readAt          DateTime?
+  createdAt       DateTime         @default(now())
+  document        Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, type, expiryDate])
+  @@index([createdAt])
+}
+
+model DocumentField {
+  id         String   @id
+  documentId String
+  label      String
+  value      String
+  position   Int      @default(0)
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, position])
+}
+
+model DocumentType {
+  id        String   @id
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model Goal {
+  id                    String               @id
+  name                  String
+  targetDate            DateTime?
+  note                  String?
+  status                String               @default("Active")
+  targetValue           Float?
+  currentValue          Float?
+  unit                  String?
+  showMilestoneProgress Boolean              @default(true)
+  showTargetProgress    Boolean              @default(true)
+  milestones            Milestone[]
+  metricHistory         GoalMetricSnapshot[]
+  relationshipLinks     RelationshipGoal[]
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+}
+
+model Person {
+  id                    String                      @id
+  name                  String
+  category              String?
+  icon                  String                      @default("user")
+  color                 String                      @default("#292524")
+  bubbleSize            Int                         @default(84)
+  positionX             Float                       @default(0)
+  positionY             Float                       @default(0)
+  isSelf                Boolean                     @default(false)
+  relationshipsAsFirst  Relationship[]              @relation("RelationshipFirstPerson")
+  relationshipsAsSecond Relationship[]              @relation("RelationshipSecondPerson")
+  selfPractices         ConnectionPractice[]
+  selfReflections       RelationshipReflection[]
+  selfImportantDates    RelationshipImportantDate[]
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+}
+
+model Relationship {
+  id             String                      @id
+  firstPersonId  String
+  secondPersonId String
+  type           String?
+  notes          String?
+  firstPerson    Person                      @relation("RelationshipFirstPerson", fields: [firstPersonId], references: [id], onDelete: Cascade)
+  secondPerson   Person                      @relation("RelationshipSecondPerson", fields: [secondPersonId], references: [id], onDelete: Cascade)
+  practices      ConnectionPractice[]
+  reflections    RelationshipReflection[]
+  importantDates RelationshipImportantDate[]
+  linkedGoals    RelationshipGoal[]
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  @@unique([firstPersonId, secondPersonId])
+  @@index([firstPersonId])
+  @@index([secondPersonId])
+}
+
+model ConnectionPractice {
+  id             String        @id
+  relationshipId String?
+  selfPersonId   String?
+  title          String
+  cadence        String?
+  position       Int           @default(0)
+  relationship   Relationship? @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  selfPerson     Person?       @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([relationshipId, position])
+  @@index([selfPersonId, position])
+}
+
+model RelationshipReflection {
+  id             String        @id
+  relationshipId String?
+  selfPersonId   String?
+  text           String
+  reflectedAt    DateTime
+  relationship   Relationship? @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  selfPerson     Person?       @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  @@index([relationshipId, reflectedAt])
+  @@index([selfPersonId, reflectedAt])
+}
+
+model RelationshipImportantDate {
+  id             String        @id
+  relationshipId String?
+  selfPersonId   String?
+  label          String
+  date           DateTime
+  repeatsYearly  Boolean       @default(false)
+  relationship   Relationship? @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  selfPerson     Person?       @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
+
+  @@index([relationshipId, date])
+  @@index([selfPersonId, date])
+}
+
+model RelationshipGoal {
+  relationshipId String
+  goalId         String
+  relationship   Relationship @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  goal           Goal         @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@id([relationshipId, goalId])
+  @@index([goalId])
+}
+
+model GoalMetricSnapshot {
+  id         String   @id
+  goalId     String
+  value      Float
+  recordedAt DateTime @default(now())
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, recordedAt])
+}
+
+model Milestone {
+  id            String    @id
+  goalId        String
+  name          String
+  value         Float?
+  dueDate       DateTime?
+  completed     Boolean   @default(false)
+  autoCompleted Boolean   @default(false)
+  position      Int       @default(0)
+  goal          Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, position])
+}
+
+model GoalUnit {
+  id        String   @id
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model CustomModule {
+  id             String       @id
   name           String
-  type           String
-  status         String
-  expiryDate     DateTime?
-  issueDate      DateTime?
-  owner          String?
-  documentNumber String?
-  country        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  normalizedName String       @unique
+  icon           String
+  color          String
+  description    String?
+  items          CustomItem[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model CustomItem {
+  id        String            @id
+  moduleId  String
+  name      String
+  notes     String?
+  reminder  DateTime?
+  link      String?
+  archived  Boolean           @default(false)
+  module    CustomModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  fields    CustomItemField[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([moduleId, archived, createdAt])
+}
+
+model CustomItemField {
+  id       String     @id
+  itemId   String
+  label    String
+  value    String
+  position Int        @default(0)
+  item     CustomItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, position])
+}
+
+model AttentionDismissal {
+  id        String   @id
+  itemKey   String   @unique
+  createdAt DateTime @default(now())
+}
+
+model ActivityEvent {
+  id         String   @id
+  action     String
+  moduleName String
+  objectName String
+  icon       String
+  href       String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

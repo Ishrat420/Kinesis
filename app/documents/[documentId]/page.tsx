@@ -1,20 +1,9 @@
-import { getDocument } from "@/lib/data/documents";
-import {
-  Bell,
-  Calendar,
-  Clock,
-  FileText,
-  Link2,
-  NotebookText,
-  ShieldCheck,
-  User,
-} from "lucide-react";
-
-const relationships = [
-  { icon: User, label: "Owner", value: "Ishrat" },
-  { icon: Bell, label: "Reminder", value: "Renew 6 months before expiry" },
-  { icon: Link2, label: "Linked goal", value: "Japan Trip" },
-];
+import { getDocument, getDocumentTypes } from "@/lib/data/documents";
+import { ArrowLeft, FileText } from "lucide-react";
+import Link from "next/link";
+import { EditDocumentForm } from "./EditDocumentForm";
+import { getExpiryDetails } from "@/lib/documents/expiry";
+import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 
 const timeline = [
   { title: "Document uploaded", date: "2 Jul 2026" },
@@ -28,7 +17,7 @@ export default async function DocumentDetailPage({
   params: Promise<{ documentId: string }>;
 }) {
   const { documentId } = await params;
-  const document = await getDocument(documentId);
+  const [document, documentTypes, user] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser()]);
 
   if (!document) {
     return (
@@ -37,11 +26,16 @@ export default async function DocumentDetailPage({
       </main>
     );
   }
+  const expiry = getExpiryDetails(document.expiryDate, document.prompt);
+  const statusClass = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
       <div className="max-w-7xl">
         <div className="mb-6">
+          <Link href="/documents" className="mb-4 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-base font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-950 hover:shadow-md">
+            <ArrowLeft className="h-5 w-5" /> Back to documents
+          </Link>
           <p className="text-sm font-medium text-zinc-400">
             Documents / {document.name}
           </p>
@@ -54,7 +48,7 @@ export default async function DocumentDetailPage({
               <p className="mt-3 text-base text-zinc-500">{document.type}</p>
             </div>
 
-            <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+            <span className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>
               {document.status}
             </span>
           </div>
@@ -76,34 +70,30 @@ export default async function DocumentDetailPage({
           </section>
 
           <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <h2 className="text-lg font-semibold">Information</h2>
-
-            <div className="mt-5 space-y-4">
-              <InfoRow icon={Calendar} label="Expiry date" value={formatDate(document.expiryDate)} />
-              <InfoRow icon={Clock} label="Issue date" value={formatDate(document.issueDate)} />
-              <InfoRow icon={User} label="Owner" value={document.owner ?? "Not set"} />
-              <InfoRow icon={ShieldCheck} label="Document number" value={document.documentNumber ?? "Not set"} />
-              <InfoRow icon={FileText} label="Country" value={document.country ?? "Not set"} />
-            </div>
+            <EditDocumentForm document={{
+              id: document.id,
+              name: document.name,
+              type: document.type,
+              status: document.status,
+              expiryDate: toDateInput(document.expiryDate),
+              issueDate: toDateInput(document.issueDate),
+              documentNumber: document.documentNumber ?? "",
+              country: document.country ?? "",
+              notes: document.notes ?? "",
+              link: document.link ?? "",
+              prompt: document.prompt,
+              expiryDateLabel: document.expiryDateLabel,
+              issueDateLabel: document.issueDateLabel,
+              documentNumberLabel: document.documentNumberLabel,
+              countryLabel: document.countryLabel,
+              notesLabel: document.notesLabel,
+              linkLabel: document.linkLabel,
+              customFields: document.customFields,
+            }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} />
           </section>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-3">
-          <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <h2 className="text-lg font-semibold">Relationships</h2>
-
-            <div className="mt-5 space-y-4">
-              {relationships.map((item) => (
-                <InfoRow
-                  key={item.label}
-                  icon={item.icon}
-                  label={item.label}
-                  value={item.value}
-                />
-              ))}
-            </div>
-          </section>
-
+        <div className="mt-6">
           <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <h2 className="text-lg font-semibold">Timeline</h2>
 
@@ -117,49 +107,12 @@ export default async function DocumentDetailPage({
             </div>
           </section>
 
-          <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <h2 className="text-lg font-semibold">Notes</h2>
-
-            <div className="mt-5 rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-500">
-              <NotebookText className="mb-3 h-[18px] w-[18px]" />
-              Keep renewal notes, application details, or related context here.
-            </div>
-          </section>
         </div>
       </div>
     </main>
   );
 }
 
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl p-2">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-50">
-        <Icon className="h-[18px] w-[18px] text-zinc-600" />
-      </div>
-
-      <div>
-        <p className="text-sm text-zinc-400">{label}</p>
-        <p className="font-medium text-zinc-800">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function formatDate(date: Date | null) {
-  if (!date) return "Not set";
-
-  return date.toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+function toDateInput(date: Date | null) {
+  return date ? date.toISOString().slice(0, 10) : "";
 }

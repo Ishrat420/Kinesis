@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run db:deploy && npm run build",
+  "crons": [
+    {
+      "path": "/api/notifications/evaluate",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}

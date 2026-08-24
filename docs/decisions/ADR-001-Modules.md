@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Kinesis is designed to help users manage many interconnected areas of life, such as documents, finance, health, vehicles, goals, relationships, and custom personal interests. Modules exist because users need mental structure.
+Kinesis is designed to help users manage many interconnected areas of life, such as documents, finance, health, vehicles, goals, relationships, and any other custom personal interests. Modules exist because users need mental structure.
 
 Users need structure so the app feels understandable and organised.
 

@@ -1,17 +1,31 @@
-import { getDocuments } from "@/lib/data/documents";
+import {
+  getDocuments,
+  getDocumentSummary,
+  getDocumentTypes,
+} from "@/lib/data/documents";
 import Link from "next/link";
-import { FileText, Plus, Search, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, Plus, Search, ShieldCheck } from "lucide-react";
 import { UploadDocumentButton } from "./UploadDocumentButton";
+import { ManualDocumentButton } from "./ManualDocumentButton";
+import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 
 
 export default async function DocumentsPage() {
-  const documents = await getDocuments();
+  const [documents, documentTypes, documentSummary, user] = await Promise.all([
+    getDocuments(),
+    getDocumentTypes(),
+    getDocumentSummary(),
+    getCurrentUser(),
+  ]);
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
       <div className="max-w-7xl">
         <div className="flex items-start justify-between">
           <div>
+            <Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-base font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-950 hover:shadow-md">
+              <ArrowLeft className="h-5 w-5" /> Back to dashboard
+            </Link>
             <h1 className="text-[38px] font-semibold leading-none tracking-tight">
               Documents
             </h1>
@@ -23,13 +37,28 @@ export default async function DocumentsPage() {
             </p>
           </div>
 
-          <UploadDocumentButton />
+          <div className="flex items-center gap-3">
+            <ManualDocumentButton documentTypes={documentTypes} ownerName={getUserDisplayName(user)} />
+            <UploadDocumentButton />
+          </div>
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <StatCard icon={FileText} title="Tracked documents" value="12" />
-          <StatCard icon={ShieldCheck} title="Active documents" value="9" />
-          <StatCard icon={Plus} title="Expiring soon" value="3" />
+          <StatCard
+            icon={FileText}
+            title="Tracked documents"
+            value={documentSummary.tracked}
+          />
+          <StatCard
+            icon={ShieldCheck}
+            title="Active documents"
+            value={documentSummary.active}
+          />
+          <StatCard
+            icon={Plus}
+            title="Expiring soon"
+            value={documentSummary.expiringSoon}
+          />
         </div>
 
         <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -90,7 +119,7 @@ function StatCard({
 }: {
   icon: React.ElementType;
   title: string;
-  value: string;
+  value: number;
 }) {
   return (
     <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
