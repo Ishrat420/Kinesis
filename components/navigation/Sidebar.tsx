@@ -1,28 +1,28 @@
 import Image from "next/image";
+import Link from "next/link";
 import kinesisIcon from "@/app/icon.png";
 import {
   Calendar,
-  Car,
   FileText,
-  Heart,
   Home,
   Landmark,
-  Plus,
   Settings,
   Target,
   Users,
 } from "lucide-react";
+import { AddModuleButton } from "./AddModuleButton";
+import { getCustomModules } from "@/lib/data/custom-modules";
+import { DraggableCustomModuleLink } from "./DraggableCustomModuleLink";
 
 const modules = [
-  { icon: FileText, name: "Documents" },
-  { icon: Landmark, name: "Finance" },
-  { icon: Heart, name: "Health" },
-  { icon: Car, name: "Vehicles" },
-  { icon: Target, name: "Goals" },
-  { icon: Users, name: "Relationships" },
+  { icon: FileText, name: "Documents", href: "/documents" },
+  { icon: Landmark, name: "Finance", href: "/finance" },
+  { icon: Target, name: "Goals", href: "/goals" },
+  { icon: Users, name: "Relationships", href: "/relationships" },
 ];
 
-export function Sidebar() {
+export async function Sidebar() {
+  const customModules = await getCustomModules();
   return (
     <aside className="hidden min-h-[calc(100vh-72px)] w-[270px] border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
       <div className="mb-6 flex items-center gap-4 px-2">
@@ -46,26 +46,30 @@ export function Sidebar() {
       <div className="border-t border-zinc-100 pt-6">
         <nav className="space-y-5 text-sm">
           <NavSection label="Main">
-            <SidebarItem active icon={Home} label="Dashboard" />
+            <SidebarItem active icon={Home} label="Dashboard" href="/" />
           </NavSection>
 
-          <NavSection label="Areas">
+          <NavSection label="Modules">
             {modules.map((module) => (
               <SidebarItem
                 key={module.name}
                 icon={module.icon}
                 label={module.name}
+                href={"href" in module ? module.href : undefined}
               />
+            ))}
+            {customModules.map((customModule) => (
+              <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
             ))}
           </NavSection>
 
           <NavSection label="Customize">
-            <SidebarItem icon={Plus} label="Add Module" />
+            <AddModuleButton />
           </NavSection>
 
           <NavSection label="System">
             <SidebarItem icon={Calendar} label="Timeline" />
-            <SidebarItem icon={Settings} label="Settings" />
+            <SidebarItem icon={Settings} label="Settings" href="/settings" />
           </NavSection>
         </nav>
       </div>
@@ -95,21 +99,32 @@ function SidebarItem({
   icon: Icon,
   label,
   active = false,
+  href,
 }: {
   icon: React.ElementType;
   label: string;
   active?: boolean;
+  href?: string;
 }) {
-  return (
-    <button
-      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
+  const className = `flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
         active
           ? "bg-zinc-950 text-white shadow-[0_8px_24px_rgb(0,0,0,0.12)]"
           : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
-      }`}
-    >
+      }`;
+  const content = (
+    <>
       <Icon className="h-[18px] w-[18px]" />
       <span className="font-medium">{label}</span>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" className={className}>
+      {content}
     </button>
   );
 }

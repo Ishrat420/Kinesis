@@ -23,3 +23,26 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-300 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100;
+  }
+
+  .map-button {
+    @apply flex h-10 items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 text-xs font-semibold text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  .map-button svg,
+  .map-icon svg {
+    @apply h-3.5 w-3.5;
+  }
+
+  .map-button-dark {
+    @apply border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800;
+  }
+
+  .map-icon {
+    @apply flex h-9 w-9 items-center justify-center border-zinc-100 text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900;
+  }
+}
