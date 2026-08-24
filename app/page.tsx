@@ -10,9 +10,11 @@ import { getGoalDashboardSummary, getMilestonesDueSoon } from "@/lib/data/goals"
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getNeedsAttention } from "@/lib/data/attention";
 import { getRecentActivity } from "@/lib/data/activity";
+import { getFinanceItems } from "@/lib/data/finance";
+import { getMonthlyCashFlow } from "@/lib/finance";
 
 export default async function Home() {
-  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity] = await Promise.all([
+  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity, financeItems] = await Promise.all([
     getUpcomingAndDue(),
     getCurrentUser(),
     getMilestonesDueSoon(),
@@ -20,6 +22,7 @@ export default async function Home() {
     getNeedsAttention(),
     getGoalDashboardSummary(),
     getRecentActivity(),
+    getFinanceItems(),
   ]);
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-zinc-950">
@@ -47,6 +50,7 @@ export default async function Home() {
               expiringSoon={expiringDocuments.upcoming.length}
               attentionItems={attentionItems}
               goalsAtRisk={goalSummary.atRisk}
+              netCashFlow={getMonthlyCashFlow(financeItems).netCashFlow}
             />
 
             <div className="mt-5 grid gap-5 xl:grid-cols-2">

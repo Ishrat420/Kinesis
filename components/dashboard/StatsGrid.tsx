@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import { Calendar, CheckSquare, Target, TrendingUp } from "lucide-react";
-import { getMonthlyCashFlow } from "@/lib/finance";
-import { useFinanceItems } from "@/lib/useFinanceItems";
 import type { AttentionItem } from "@/lib/data/attention";
 import { NeedsAttentionCard } from "./NeedsAttentionCard";
 
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-export function StatsGrid({ milestonesDueSoon, expiringSoon, attentionItems, goalsAtRisk }: { milestonesDueSoon: number; expiringSoon: number; attentionItems: AttentionItem[]; goalsAtRisk: number }) {
-  const { netCashFlow } = getMonthlyCashFlow(useFinanceItems());
+export function StatsGrid({ milestonesDueSoon, expiringSoon, attentionItems, goalsAtRisk, netCashFlow }: { milestonesDueSoon: number; expiringSoon: number; attentionItems: AttentionItem[]; goalsAtRisk: number; netCashFlow: number }) {
   const stats = [
     { icon: Calendar, title: "Expiring soon", value: String(expiringSoon), label: "documents", tone: "bg-blue-50", href: "/documents/expiring-soon" },
     { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: "due within one month", tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
