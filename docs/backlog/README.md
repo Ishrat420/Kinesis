@@ -107,6 +107,7 @@ KD-008-adding-quick-capture
 KD-001-improve-milestone-display
 KD-002-kinesis-internal-link-field
 KD-007-adding-priority
+KD-009-implement-authetication-system
 
 ## ✓ Accepted
 

@@ -1,6 +1,6 @@
 # KD-009 — Implement Authentication System
 
-**Status:** Idea
+**Status:** Planning Needed
 **Priority:** High
 
 ## Summary
