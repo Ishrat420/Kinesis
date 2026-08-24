@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { CheckCircle2, FileText, Landmark, Package, Target } from "lucide-react";
+import { CheckCircle2, FileText, Landmark, Package, Target, UsersRound } from "lucide-react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import type { ActivityItem } from "@/lib/data/activity";
 
-const icons = { documents: FileText, finance: Landmark, goals: Target };
+const icons = { documents: FileText, finance: Landmark, goals: Target, relationships: UsersRound };
 
 function relativeTime(date: Date) {
   const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
