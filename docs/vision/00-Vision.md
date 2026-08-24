@@ -4,7 +4,7 @@
 
 Life isn't difficult because information is unavailable. It's difficult because there is too much to keep track of. Kinesis remembers what matters so that people don't have to. Kinesis exists to reduce the friction between where you are today and where you want to be tomorrow.
 
-Kinesis is a single-tenant application, where each environment serves one person. It is someone's life management system. 
+Kinesis is a **single-tenant application**: each deployed environment serves exactly one person and contains that person's life management system. An environment is not shared by multiple people, and Kinesis is not designed for multiple users, households, teams, or organisations within the same deployment.
 
 ## Vision
 
