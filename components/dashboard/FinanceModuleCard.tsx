@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   getFinanceBalance,
 } from "@/lib/finance";
-import { useFinanceItems } from "@/lib/useFinanceItems";
+import type { FinanceItem } from "@/lib/finance";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -13,8 +13,7 @@ const money = new Intl.NumberFormat("en-AU", {
   maximumFractionDigits: 0,
 });
 
-export function FinanceModuleCard() {
-  const items = useFinanceItems();
+export function FinanceModuleCard({ items }: { items: FinanceItem[] }) {
   const balance = getFinanceBalance(items);
 
   return (

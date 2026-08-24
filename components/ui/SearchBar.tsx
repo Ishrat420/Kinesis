@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Command, FileText, Landmark, Search, Target, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useFinanceItems } from "@/lib/useFinanceItems";
+import type { FinanceItem } from "@/lib/finance";
+import type { RelationshipPerson, RelationshipRecord } from "@/lib/relationships";
 
 type SearchableDocument = {
   id: string;
@@ -12,8 +13,6 @@ type SearchableDocument = {
 };
 
 type SearchableGoal = { id: string; name: string; status: string };
-type RelationshipPerson = { id: string; name: string; detail?: string };
-type Relationship = { id: string; from: string; to: string; type?: string | null; notes?: string };
 type SearchResult = {
   id: string;
   title: string;
@@ -23,30 +22,9 @@ type SearchResult = {
   kind: "Document" | "Relationship" | "Finance" | "Goal";
 };
 
-const fallbackPeople = (userDisplayName: string): RelationshipPerson[] => [
-  { id: "self", name: userDisplayName, detail: "You" },
-  { id: "anj", name: "Anj", detail: "Partner" },
-  { id: "child", name: "Child", detail: "Family" },
-  { id: "sister", name: "Sister", detail: "Family" },
-  { id: "friend", name: "Maya", detail: "Friend" },
-  { id: "mum", name: "Mum", detail: "Family" },
-];
-
-function readStoredArray<T>(key: string, fallback: T[]) {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value ? JSON.parse(value) as T[] : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-export function SearchBar({ documents, goals, userDisplayName }: { documents: SearchableDocument[]; goals: SearchableGoal[]; userDisplayName: string }) {
+export function SearchBar({ documents, goals, financeItems, people, relationships }: { documents: SearchableDocument[]; goals: SearchableGoal[]; financeItems: FinanceItem[]; people: RelationshipPerson[]; relationships: RelationshipRecord[] }) {
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  const [people, setPeople] = useState<RelationshipPerson[]>(fallbackPeople(userDisplayName));
-  const [relationships, setRelationships] = useState<Relationship[]>([]);
-  const financeItems = useFinanceItems();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
@@ -66,21 +44,6 @@ export function SearchBar({ documents, goals, userDisplayName }: { documents: Se
       .filter((item) => item.keywords.toLocaleLowerCase().includes(normalizedQuery))
       .slice(0, 8);
   }, [documents, financeItems, goals, people, query, relationships]);
-
-  useEffect(() => {
-    function refreshRelationships() {
-      const stored = readStoredArray("kinesis-relationship-map", fallbackPeople(userDisplayName));
-      setPeople(stored.map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person));
-      setRelationships(readStoredArray("kinesis-relationships", []));
-    }
-    refreshRelationships();
-    window.addEventListener("storage", refreshRelationships);
-    window.addEventListener("kinesis-relationships-updated", refreshRelationships);
-    return () => {
-      window.removeEventListener("storage", refreshRelationships);
-      window.removeEventListener("kinesis-relationships-updated", refreshRelationships);
-    };
-  }, [userDisplayName]);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {

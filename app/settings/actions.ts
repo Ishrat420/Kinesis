@@ -40,6 +40,7 @@ export async function deleteAllDataAction(): Promise<void> {
     prisma.goal.deleteMany(),
     prisma.goalUnit.deleteMany(),
     prisma.customModule.deleteMany(),
+    prisma.financeItem.deleteMany(),
     prisma.userSettings.deleteMany(),
     prisma.user.deleteMany(),
   ]);
