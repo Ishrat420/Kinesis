@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { FileText, GripVertical, Target, X } from "lucide-react";
-import { type DragEvent, useEffect, useMemo, useState } from "react";
+import { type DragEvent, useMemo, useState } from "react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { FinanceModuleCard } from "./FinanceModuleCard";
 import { RelationshipModuleCard } from "./RelationshipModuleCard";
+import type { FinanceItem } from "@/lib/finance";
 
-const STORAGE_KEY = "kinesis-module-shortcuts";
 const CUSTOM_MODULE_MIME = "application/x-kinesis-custom-module";
 const SYSTEM_IDS = ["documents", "goals", "finance", "relationships"] as const;
 const MAX_CUSTOM_MODULES = 2;
@@ -26,46 +26,19 @@ type ModuleShortcutsProps = {
   goalCount: number;
   goalsAtRisk: number;
   customModules: CustomModuleSummary[];
+  financeItems: FinanceItem[];
+  relationshipPeople: number;
+  relationshipUpcomingDates: number;
 };
 
-export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCount, goalsAtRisk, customModules }: ModuleShortcutsProps) {
+export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCount, goalsAtRisk, customModules, financeItems, relationshipPeople, relationshipUpcomingDates }: ModuleShortcutsProps) {
   const [order, setOrder] = useState<string[]>([...SYSTEM_IDS]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const customIds = useMemo(() => new Set(customModules.map(({ id }) => id)), [customModules]);
   const selectedCustomCount = order.filter((id) => customIds.has(id)).length;
 
-  useEffect(() => {
-    const hydrate = setTimeout(() => {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-      try {
-        const saved = JSON.parse(stored);
-        if (!Array.isArray(saved)) return;
-        const seen = new Set<string>();
-        let customCount = 0;
-        const completeOrder = saved.filter((id): id is string => {
-          if (typeof id !== "string" || seen.has(id)) return false;
-          const isSystem = SYSTEM_IDS.includes(id as (typeof SYSTEM_IDS)[number]);
-          const isCustom = customIds.has(id) && customCount < MAX_CUSTOM_MODULES;
-          if (!isSystem && !isCustom) return false;
-          if (isCustom) customCount += 1;
-          seen.add(id);
-          return true;
-        });
-        for (const systemId of SYSTEM_IDS) {
-          if (!completeOrder.includes(systemId)) completeOrder.push(systemId);
-        }
-        setOrder(completeOrder);
-      } catch {
-        // Ignore malformed preferences and retain the default system shortcuts.
-      }
-    }, 0);
-    return () => clearTimeout(hydrate);
-  }, [customIds]);
-
   function saveOrder(nextOrder: string[]) {
     setOrder(nextOrder);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextOrder));
   }
 
   function reorder(targetId: string) {
@@ -124,8 +97,8 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
               <SystemCard icon={Target} tone="bg-violet-50" name="Goals" href="/goals" meta={`${goalCount} active goal${goalCount === 1 ? "" : "s"}`} detail={`${goalsAtRisk} on risk`} />
             </div>
           );
-          if (id === "finance") return <div key={id} {...dragProps(id)} className={wrapperClass}><FinanceModuleCard /></div>;
-          if (id === "relationships") return <div key={id} {...dragProps(id)} className={wrapperClass}><RelationshipModuleCard /></div>;
+          if (id === "finance") return <div key={id} {...dragProps(id)} className={wrapperClass}><FinanceModuleCard items={financeItems} /></div>;
+          if (id === "relationships") return <div key={id} {...dragProps(id)} className={wrapperClass}><RelationshipModuleCard people={relationshipPeople} upcomingDates={relationshipUpcomingDates} /></div>;
           if (!customModule) return null;
 
           return (

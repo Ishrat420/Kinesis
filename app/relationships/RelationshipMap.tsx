@@ -32,20 +32,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { saveRelationshipMap } from "./actions";
+import type { RelationshipMapData, RelationshipPerson as Person, RelationshipRecord as Relationship } from "@/lib/relationships";
 
 type PersonIcon = "user" | "heart" | "baby" | "cat" | "home";
-type Person = { id: string; name: string; detail: string; x: number; y: number; size: number; color: string; icon: PersonIcon };
-type Relationship = {
-  id: string;
-  from: string;
-  to: string;
-  type: string | null;
-  practices: { title: string; cadence: string }[];
-  reflections: { text: string; date: string }[];
-  linkedGoals: string[];
-  importantDates: { label: string; date: string }[];
-  notes: string;
-};
 type Selection = { kind: "person" | "relationship"; id: string } | null;
 type PendingConnection = { from: string; to: string; type: string };
 type GoalOption = { id: string; name: string; status: string };
@@ -59,35 +49,25 @@ const initialRelationships: Relationship[] = [];
 const icons = { user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House };
 const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866"];
 
-export function RelationshipMap({ goals, userDisplayName }: { goals: GoalOption[]; userDisplayName: string }) {
-  const [people, setPeople] = useState(() => initialPeople.map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person));
-  const [relationships, setRelationships] = useState(initialRelationships);
+export function RelationshipMap({ goals, userDisplayName, initialData }: { goals: GoalOption[]; userDisplayName: string; initialData: RelationshipMapData }) {
+  const startingPeople = initialData.people.length ? initialData.people : initialPeople.map((person) => ({ ...person, name: userDisplayName }));
+  const [people, setPeople] = useState(startingPeople);
+  const [relationships, setRelationships] = useState(initialData.relationships);
   const [selection, setSelection] = useState<Selection>({ kind: "person", id: "self" });
   const [scale, setScale] = useState(0.9);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [linkFrom, setLinkFrom] = useState<string | null>(null);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [inspectorWidth, setInspectorWidth] = useState(360);
   const canvas = useRef<HTMLDivElement>(null);
   const action = useRef<{ kind: "node" | "pan"; id?: string; x: number; y: number; ox: number; oy: number } | null>(null);
 
+  const skipInitialSave = useRef(true);
   useEffect(() => {
-    const savedPeople = localStorage.getItem("kinesis-relationship-map");
-    const savedRelationships = localStorage.getItem("kinesis-relationships");
-    const savedInspectorWidth = localStorage.getItem("kinesis-relationship-inspector-width");
-    if (savedPeople) {
-      // Restore the user's previous arrangement after hydration.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      try { setPeople((JSON.parse(savedPeople) as Person[]).map((person) => person.detail === "You" ? { ...person, name: userDisplayName } : person)); } catch { /* Ignore invalid local mock state. */ }
-    }
-    if (savedRelationships) try { setRelationships(JSON.parse(savedRelationships)); } catch { /* Ignore invalid local mock state. */ }
-    if (savedInspectorWidth) setInspectorWidth(Math.min(640, Math.max(300, Number(savedInspectorWidth) || 360)));
-    setLoaded(true);
-  }, [userDisplayName]);
-  useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationship-map", JSON.stringify(people)); }, [people, loaded]);
-  useEffect(() => { if (loaded) { localStorage.setItem("kinesis-relationships", JSON.stringify(relationships)); window.dispatchEvent(new Event("kinesis-relationships-updated")); } }, [relationships, loaded]);
-  useEffect(() => { if (loaded) localStorage.setItem("kinesis-relationship-inspector-width", String(inspectorWidth)); }, [inspectorWidth, loaded]);
+    if (skipInitialSave.current) { skipInitialSave.current = false; return; }
+    const timeout = window.setTimeout(() => void saveRelationshipMap({ people, relationships }), 350);
+    return () => window.clearTimeout(timeout);
+  }, [people, relationships]);
 
   const selectedPerson = selection?.kind === "person" ? people.find((person) => person.id === selection.id) ?? null : null;
   const selectedRelationship = selection?.kind === "relationship" ? relationships.find((relationship) => relationship.id === selection.id) ?? null : null;
