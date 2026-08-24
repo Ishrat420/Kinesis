@@ -71,25 +71,30 @@ model Document {
 enum NotificationType {
   REMINDER_DUE
   EXPIRED
+  MILESTONE_DUE
 }
 
 model Notification {
   id              String           @id
   type            NotificationType
-  documentId      String
+  documentId      String?
+  milestoneId     String?
   reminderAt      DateTime?
   timeUntilExpiry String?
-  expiryDate      DateTime
+  expiryDate      DateTime?
   documentName    String
   documentType    String?
   message         String
   actionUrl       String
   readAt          DateTime?
   createdAt       DateTime         @default(now())
-  document        Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document        Document?        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  milestone       Milestone?       @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, type, expiryDate])
+  @@unique([milestoneId, type, expiryDate])
   @@index([createdAt])
+  @@index([milestoneId])
 }
 
 model DocumentField {
@@ -231,15 +236,16 @@ model GoalMetricSnapshot {
 }
 
 model Milestone {
-  id            String    @id
+  id            String         @id
   goalId        String
   name          String
   value         Float?
   dueDate       DateTime?
-  completed     Boolean   @default(false)
-  autoCompleted Boolean   @default(false)
-  position      Int       @default(0)
-  goal          Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  completed     Boolean        @default(false)
+  autoCompleted Boolean        @default(false)
+  position      Int            @default(0)
+  goal          Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  notifications Notification[]
 
   @@index([goalId, position])
 }
