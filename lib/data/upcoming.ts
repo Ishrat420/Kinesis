@@ -7,7 +7,7 @@ const DAY = 86_400_000;
 
 export type UpcomingItem = {
   id: string;
-  kind: "document" | "milestone";
+  kind: "document" | "milestone" | "relationship";
   title: string;
   date: string;
   timestamp: number;
@@ -30,7 +30,7 @@ function formatDate(value: Date) {
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
   const today = startOfUtcDay(now);
-  const [documents, milestones, settings] = await Promise.all([
+  const [documents, milestones, importantDates, settings] = await Promise.all([
     prisma.document.findMany({
       where: { expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
@@ -43,6 +43,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
+    prisma.relationshipImportantDate.findMany({ include: { relationship: { include: { firstPerson: true, secondPerson: true } } } }),
     getSettings(),
   ]);
 
@@ -70,5 +71,14 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     href: `/goals/${milestone.goalId}`,
   })) : [];
 
-  return [...documentItems, ...milestoneItems].sort((a, b) => a.timestamp - b.timestamp);
+  const relationshipItems = importantDates.flatMap((importantDate): UpcomingItem[] => {
+    if (!importantDate.relationship) return [];
+    let occurrence = new Date(Date.UTC(today.getUTCFullYear(), importantDate.date.getUTCMonth(), importantDate.date.getUTCDate()));
+    if (occurrence < today) occurrence = new Date(Date.UTC(today.getUTCFullYear() + 1, importantDate.date.getUTCMonth(), importantDate.date.getUTCDate()));
+    if (occurrence.getTime() > today.getTime() + 31 * DAY) return [];
+    const relationship = importantDate.relationship;
+    const other = relationship.firstPerson.isSelf ? relationship.secondPerson : relationship.firstPerson;
+    return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${other.name}${other.name.toLowerCase().endsWith("s") ? "'" : "'s"} ${importantDate.label} is coming`, date: formatDate(occurrence), timestamp: occurrence.getTime(), href: "/relationships" }];
+  });
+  return [...documentItems, ...milestoneItems, ...relationshipItems].sort((a, b) => a.timestamp - b.timestamp);
 }

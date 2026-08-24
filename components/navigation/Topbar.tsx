@@ -6,14 +6,18 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { NotificationBell } from "./NotificationBell";
 import Link from "next/link";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
+import { getFinanceItems } from "@/lib/data/finance";
+import { getRelationshipMap } from "@/lib/data/relationships";
 
 export async function Topbar() {
-  const [{ notifications, unreadCount }, documents, goals, user] = await Promise.all([
+  const [{ notifications, unreadCount }, documents, goals, user, financeItems] = await Promise.all([
     getRecentNotifications(),
     getDocuments(),
     getGoalsForLinking(),
     getCurrentUser(),
+    getFinanceItems(),
   ]);
+  const relationshipMap = await getRelationshipMap(getUserDisplayName(user));
 
   return (
     <header className="sticky top-0 z-30 h-[72px] border-b border-zinc-200/80 bg-white/90 backdrop-blur">
@@ -22,7 +26,9 @@ export async function Topbar() {
           <SearchBar
             documents={documents.map(({ id, name, type }) => ({ id, name, type }))}
             goals={goals}
-            userDisplayName={getUserDisplayName(user)}
+            financeItems={financeItems}
+            people={relationshipMap.people.map((person) => person.detail === "You" ? { ...person, name: getUserDisplayName(user) } : person)}
+            relationships={relationshipMap.relationships}
           />
         </div>
 

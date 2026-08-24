@@ -26,6 +26,23 @@ model UserSettings {
   updatedAt            DateTime @updatedAt
 }
 
+model FinanceItem {
+  id        String   @id
+  kind      String
+  name      String
+  amount    Float
+  category  String?
+  rate      Float?
+  frequency String?
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind, name])
+}
+
 model Document {
   id                  String          @id
   name                String

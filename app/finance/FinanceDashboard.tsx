@@ -12,8 +12,7 @@ import {
   type FinanceKind as Kind,
   getMonthlyCashFlow,
 } from "@/lib/finance";
-import { saveFinanceItems, useFinanceItems } from "@/lib/useFinanceItems";
-import { recordFinanceActivity } from "@/app/finance/actions";
+import { deleteFinanceItem, saveFinanceItem } from "@/app/finance/actions";
 
 const assetCategories = ["Cash", "Savings", "Property", "Investment", "Vehicle", "Superannuation", "Other"];
 const liabilityCategories = ["Credit Card", "Mortgage", "Personal Loan", "Car Loan", "Student Loan", "Other"];
@@ -21,8 +20,8 @@ const frequencies: Frequency[] = ["Weekly", "Fortnightly", "Monthly", "Quarterly
 const kindLabels: Record<Kind, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-export function FinanceDashboard() {
-  const items = useFinanceItems();
+export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[] }) {
+  const [items, setItems] = useState(initialItems);
   const [modal, setModal] = useState<"choose" | "form" | null>(null);
   const [formKind, setFormKind] = useState<Kind>("asset");
   const [editing, setEditing] = useState<FinanceItem | null>(null);
@@ -42,10 +41,10 @@ export function FinanceDashboard() {
     if (formKind === "asset" || formKind === "liability") { next.category = String(data.get("category")); const rate = data.get("rate"); if (rate !== "") next.rate = Number(rate); }
     else { next.frequency = String(data.get("frequency")) as Frequency; next.startDate = String(data.get("startDate") || ""); next.endDate = String(data.get("endDate") || ""); }
     const wasEditing = Boolean(editing);
-    saveFinanceItems(editing ? items.map((item) => item.id === editing.id ? next : item) : [...items, next]); setModal(null); setEditing(null);
-    await recordFinanceActivity(formKind, wasEditing, next.name);
+    setItems((current) => editing ? current.map((item) => item.id === editing.id ? next : item) : [...current, next]); setModal(null); setEditing(null);
+    await saveFinanceItem(next, wasEditing);
   }
-  function remove() { if (!deleting) return; saveFinanceItems(items.filter((item) => item.id !== deleting.id)); setDeleting(null); }
+  async function remove() { if (!deleting) return; const id = deleting.id; setItems((current) => current.filter((item) => item.id !== id)); setDeleting(null); await deleteFinanceItem(id); }
 
   const assets = items.filter((item) => item.kind === "asset");
   const liabilities = items.filter((item) => item.kind === "liability");

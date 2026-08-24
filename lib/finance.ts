@@ -14,10 +14,6 @@ export type FinanceItem = {
   notes?: string;
 };
 
-export const FINANCE_STORAGE_KEY = "kinesis-finance-items";
-
-export const defaultFinanceItems: FinanceItem[] = [];
-
 const monthlyFactor: Record<FinanceFrequency, number> = {
   Weekly: 52 / 12,
   Fortnightly: 26 / 12,
