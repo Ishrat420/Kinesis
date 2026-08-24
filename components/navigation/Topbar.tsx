@@ -33,7 +33,7 @@ export async function Topbar() {
         </div>
 
         <div className="relative flex items-center gap-3">
-          <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} />
+          <NotificationBell key={`${unreadCount}:${notifications.map(({ id, readAt }) => `${id}:${readAt?.getTime() ?? "unread"}`).join(",")}`} notifications={notifications} initialUnreadCount={unreadCount} />
 
           <Link href="/user" aria-label="Open user profile" className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
             <User className="h-[18px] w-[18px]" />
