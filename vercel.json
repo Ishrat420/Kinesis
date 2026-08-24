@@ -1,5 +1,5 @@
 {
-  "buildCommand": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 npx prisma migrate deploy && npm run build",
+  "buildCommand": "npm run db:deploy && npm run build",
   "crons": [
     {
       "path": "/api/notifications/evaluate",
