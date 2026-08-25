@@ -9,13 +9,15 @@ export default clerkMiddleware(async (auth, request) => {
   if (isPublicRoute(request) || isCronRoute(request)) return;
 
   const { userId } = await auth();
-  if (userId) return;
-
-  if (isApiRoute(request)) {
+  if (!userId) {
+    if (!isApiRoute(request)) return NextResponse.redirect(new URL("/sign-in", request.url));
     await auth.protect();
     return;
   }
-  return NextResponse.redirect(new URL("/sign-in", request.url));
+
+  const ownerId = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
+  if (!ownerId) return new NextResponse("Kinesis owner authentication is not configured.", { status: 503 });
+  if (userId !== ownerId) return new NextResponse("Forbidden", { status: 403 });
 });
 
 export const config = {
