@@ -1,10 +1,21 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
 const isCronRoute = createRouteMatcher(["/api/notifications/evaluate"]);
+const isApiRoute = createRouteMatcher(["/api(.*)", "/trpc(.*)"]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request) && !isCronRoute(request)) await auth.protect();
+  if (isPublicRoute(request) || isCronRoute(request)) return;
+
+  const { userId } = await auth();
+  if (userId) return;
+
+  if (isApiRoute(request)) {
+    await auth.protect();
+    return;
+  }
+  return NextResponse.redirect(new URL("/sign-in", request.url));
 });
 
 export const config = {
