@@ -13,8 +13,8 @@ KINESIS_OWNER_CLERK_USER_ID=user_...
 ```
 
 Find the `user_...` value on the owner's Clerk dashboard profile. Only that exact
-Clerk identity can open the application or claim the existing `current` Kinesis
-data. A different authenticated Clerk user is denied, including on a brand-new
+Clerk identity can open the application or claim the existing Kinesis data. A
+different authenticated Clerk user is denied, including on a brand-new
 database. Keep public sign-up disabled in the Clerk dashboard unless it is needed
 for another application sharing the same Clerk instance.
 
@@ -25,8 +25,8 @@ If the Clerk owner is deleted or must be replaced:
 1. Create or select the replacement user in Clerk and ensure it has a primary email.
 2. Change `KINESIS_OWNER_CLERK_USER_ID` to the replacement Clerk user ID in the
    deployment environment, then redeploy or restart every application instance.
-3. Sign in as the replacement user. Kinesis atomically transfers the fixed owner
-   binding and preserves all existing owner data.
+3. Sign in as the replacement user. Kinesis atomically transfers the local owner
+   binding and preserves its generated ID and all existing owner data.
 
 Changing this value grants complete access to the stored Kinesis data. Restrict
 permission to edit deployment environment variables, audit changes through the
@@ -42,16 +42,13 @@ This distinction is intentional:
 - Product access remains limited to one pre-approved Clerk identity.
 - Public sign-up, a second user, invitations, organizations, and data sharing are
   not supported yet.
-- Kinesis users will have normal generated local IDs rather than a permanent
-  hardcoded `"current"` ID.
+- Kinesis users have normal generated local IDs rather than a hardcoded
+  `"current"` ID.
 - Every top-level personal-data record remains associated with its owning Kinesis
   user through `userId`, and reads and mutations must enforce that ownership.
 
-The generated-ID portion is the target architecture and still requires a database
-migration; the current implementation retains the legacy `"current"` owner while
-that migration is pending. The configured `KINESIS_OWNER_CLERK_USER_ID` controls
-who may use and provision this deployment—it should not become the permanent local
-database ID.
+The configured `KINESIS_OWNER_CLERK_USER_ID` controls who may use and provision
+this deployment; it is deliberately separate from the generated local database ID.
 
 If additional users are supported later, that will be an explicit product change
 with provisioning and cross-user authorization tests. It must not be implemented

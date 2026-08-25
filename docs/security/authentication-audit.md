@@ -14,7 +14,7 @@ and top-level records are generally filtered by the resolved Kinesis user ID.
 
 The two highest-priority findings from the initial review have now been addressed.
 The application requires an explicitly configured Clerk owner ID before it binds
-or returns the fixed `current` owner, and changing that configuration provides an
+or returns the generated local owner, and changing that configuration provides an
 operator-controlled recovery path that preserves existing data.
 
 Other lifecycle controls remain incomplete. There is no Clerk webhook, no explicit
@@ -47,7 +47,7 @@ authentication or authorization tests.
 The proxy and `requireKinesisUser()` now fail closed unless
 `KINESIS_OWNER_CLERK_USER_ID` is configured and the authenticated Clerk ID matches
 it. Only that pre-provisioned identity can reach protected routes or bind/load the
-fixed `current` owner, so an arbitrary valid Clerk account can no longer claim a
+generated local owner, so an arbitrary valid Clerk account can no longer claim a
 fresh instance.
 
 The README documents the required server environment and recommends disabling
@@ -60,8 +60,8 @@ required under the separate testing finding below.
 The configured owner ID is now the authority for the single-owner binding. An
 operator can replace a deleted or inaccessible Clerk identity by changing
 `KINESIS_OWNER_CLERK_USER_ID` and restarting or redeploying all instances. On the
-replacement owner's first request, the transaction updates the existing `current`
-record in place, preserving all related data.
+replacement owner's first request, the transaction updates the existing local user
+record in place, preserving its generated ID and all related data.
 
 The recovery procedure and its security implications are documented in the README.
 A signature-verified Clerk webhook may still be useful for prompt profile syncing
@@ -93,22 +93,18 @@ invitation/pre-provisioning only, and revise the requirement; or (2) supported
 sign-up, with an explicit Clerk `<SignUp>` route and a real multi-user ownership
 model. Do not enable general sign-up while retaining first-user-wins provisioning.
 
-### P1 — The schema looks multi-user, but provisioning is deliberately single-owner
+### Resolved P1 — Schema and provisioning now reflect the tenancy decision
 
-Most tables and queries are user-scoped, yet every new identity is forced toward
-the single record whose ID is `current`. The schema's `User.id` also defaults to
-`current`, and settings IDs use the same fixed-value pattern. The backlog calls
-for isolated user data while listing “one user access” as a future consideration,
-leaving the intended tenancy model unclear.
+Kinesis is explicitly a single-user product with a multi-user-capable schema.
+`User` and `UserSettings` now receive generated local IDs, the configured Clerk ID
+is an access policy rather than a database primary key, and provisioning reuses the
+sole local user without relying on `current`. All top-level personal data remains
+scoped by `userId`.
 
-**Impact:** Enabling multiple users in Clerk does not make Kinesis multi-user. A
-second legitimate account is rejected, and future developers may mistakenly rely
-on apparent per-user schema support.
-
-**Recommended action:** Record a tenancy decision. For single-owner deployments,
-name and enforce that constraint throughout configuration and documentation. For
-multi-user deployments, generate local user/settings IDs, create one local user per
-Clerk identity, remove the `current` claim path, and test isolation comprehensively.
+The migration replaces legacy `current` user/settings IDs while foreign-key
+`ON UPDATE CASCADE` constraints preserve existing ownership relations. Supporting
+additional users remains a separate product decision that requires provisioning
+policy and comprehensive isolation tests.
 
 ### P2 — Authentication failures do not have a consistent application response
 
