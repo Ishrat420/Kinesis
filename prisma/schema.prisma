@@ -8,13 +8,26 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default("current")
-  firstName     String
-  lastName      String
-  preferredName String?
-  email         String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String               @id @default("current")
+  firstName      String
+  lastName       String
+  preferredName  String?
+  email          String
+  clerkUserId    String?              @unique
+  settings       UserSettings?
+  financeItems   FinanceItem[]
+  documents      Document[]
+  notifications  Notification[]
+  documentTypes  DocumentType[]
+  goals          Goal[]
+  people         Person[]
+  relationships  Relationship[]
+  goalUnits      GoalUnit[]
+  customModules  CustomModule[]
+  dismissals     AttentionDismissal[]
+  activityEvents ActivityEvent[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 }
 
 model UserSettings {
@@ -22,12 +35,14 @@ model UserSettings {
   appearance           String   @default("system")
   notificationsEnabled Boolean  @default(true)
   remindersEnabled     Boolean  @default(true)
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }
 
 model FinanceItem {
-  id        String   @id
+  id        String    @id
   kind      String
   name      String
   amount    Float
@@ -37,10 +52,12 @@ model FinanceItem {
   startDate DateTime?
   endDate   DateTime?
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  @@index([kind, name])
+  @@index([userId, kind, name])
 }
 
 model Document {
@@ -55,6 +72,8 @@ model Document {
   country             String?
   notes               String?
   link                String?
+  userId              String
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   prompt              Int             @default(180)
   expiryDateLabel     String          @default("Expiry date")
   issueDateLabel      String          @default("Issue date")
@@ -87,13 +106,15 @@ model Notification {
   message         String
   actionUrl       String
   readAt          DateTime?
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime         @default(now())
   document        Document?        @relation(fields: [documentId], references: [id], onDelete: Cascade)
   milestone       Milestone?       @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
 
-  @@unique([documentId, type, expiryDate])
-  @@unique([milestoneId, type, expiryDate])
-  @@index([createdAt])
+  @@unique([userId, documentId, type, expiryDate])
+  @@unique([userId, milestoneId, type, expiryDate])
+  @@index([userId, createdAt])
   @@index([milestoneId])
 }
 
@@ -110,8 +131,12 @@ model DocumentField {
 
 model DocumentType {
   id        String   @id
-  name      String   @unique
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@unique([userId, name])
 }
 
 model Goal {
@@ -125,6 +150,8 @@ model Goal {
   unit                  String?
   showMilestoneProgress Boolean              @default(true)
   showTargetProgress    Boolean              @default(true)
+  userId                String
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   milestones            Milestone[]
   metricHistory         GoalMetricSnapshot[]
   relationshipLinks     RelationshipGoal[]
@@ -142,6 +169,8 @@ model Person {
   positionX             Float                       @default(0)
   positionY             Float                       @default(0)
   isSelf                Boolean                     @default(false)
+  userId                String
+  user                  User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   relationshipsAsFirst  Relationship[]              @relation("RelationshipFirstPerson")
   relationshipsAsSecond Relationship[]              @relation("RelationshipSecondPerson")
   selfPractices         ConnectionPractice[]
@@ -157,6 +186,8 @@ model Relationship {
   secondPersonId String
   type           String?
   notes          String?
+  userId         String
+  user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   firstPerson    Person                      @relation("RelationshipFirstPerson", fields: [firstPersonId], references: [id], onDelete: Cascade)
   secondPerson   Person                      @relation("RelationshipSecondPerson", fields: [secondPersonId], references: [id], onDelete: Cascade)
   practices      ConnectionPractice[]
@@ -166,7 +197,7 @@ model Relationship {
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
 
-  @@unique([firstPersonId, secondPersonId])
+  @@unique([userId, firstPersonId, secondPersonId])
   @@index([firstPersonId])
   @@index([secondPersonId])
 }
@@ -252,20 +283,28 @@ model Milestone {
 
 model GoalUnit {
   id        String   @id
-  name      String   @unique
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@unique([userId, name])
 }
 
 model CustomModule {
   id             String       @id
   name           String
-  normalizedName String       @unique
+  normalizedName String
   icon           String
   color          String
   description    String?
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   items          CustomItem[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, normalizedName])
 }
 
 model CustomItem {
@@ -297,8 +336,12 @@ model CustomItemField {
 
 model AttentionDismissal {
   id        String   @id
-  itemKey   String   @unique
+  itemKey   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@unique([userId, itemKey])
 }
 
 model ActivityEvent {
@@ -308,7 +351,9 @@ model ActivityEvent {
   objectName String
   icon       String
   href       String?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@index([createdAt])
+  @@index([userId, createdAt])
 }

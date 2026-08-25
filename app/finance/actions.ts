@@ -5,6 +5,7 @@ import { addActivity } from "@/lib/data/activity";
 import type { FinanceKind } from "@/lib/finance";
 import type { FinanceItem } from "@/lib/finance";
 import { prisma } from "@/lib/data/prisma";
+import { requireKinesisUser } from "@/lib/auth";
 
 const labels: Record<FinanceKind, string> = {
   asset: "Asset",
@@ -29,13 +30,17 @@ function date(value?: string) {
 }
 
 export async function saveFinanceItem(item: FinanceItem, updated: boolean) {
+  const user = await requireKinesisUser();
   const data = { kind: item.kind, name: item.name, amount: item.amount, category: item.category || null, rate: item.rate ?? null, frequency: item.frequency || null, startDate: date(item.startDate), endDate: date(item.endDate), notes: item.notes || null };
-  await prisma.financeItem.upsert({ where: { id: item.id }, create: { id: item.id, ...data }, update: data });
+  const existing = await prisma.financeItem.findFirst({ where: { id: item.id, userId: user.id }, select: { id: true } });
+  if (existing) await prisma.financeItem.update({ where: { id: item.id }, data });
+  else await prisma.financeItem.create({ data: { id: item.id, userId: user.id, ...data } });
   await recordFinanceActivity(item.kind, updated, item.name);
   revalidatePath("/finance");
 }
 
 export async function deleteFinanceItem(id: string) {
-  await prisma.financeItem.delete({ where: { id } });
+  const user = await requireKinesisUser();
+  await prisma.financeItem.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/", "layout");
 }
