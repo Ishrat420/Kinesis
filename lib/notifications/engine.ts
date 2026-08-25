@@ -1,6 +1,5 @@
 import type { Document, Milestone, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
-import { getSettings } from "@/lib/data/settings";
 
 const DAY = 86_400_000;
 
@@ -98,22 +97,22 @@ export function getMilestoneNotificationCandidate(
   };
 }
 
-async function reconcileDocument(document: Document, now: Date, remindersEnabled: boolean) {
+async function reconcileDocument(document: Document, userId: string, now: Date, remindersEnabled: boolean) {
   const candidate = getDocumentNotificationCandidate(document, now, remindersEnabled);
   const stale = await prisma.notification.deleteMany({
     where: candidate
-      ? { documentId: document.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { documentId: document.id },
+      ? { userId, documentId: document.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
+      : { userId, documentId: document.id },
   });
   if (!candidate) return { created: 0, removed: stale.count };
 
   const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), documentId: document.id, ...candidate }],
+    data: [{ id: crypto.randomUUID(), userId, documentId: document.id, ...candidate }],
     skipDuplicates: true,
   });
   if (!inserted.count) {
     await prisma.notification.updateMany({
-      where: { documentId: document.id, type: candidate.type, expiryDate: candidate.expiryDate },
+      where: { userId, documentId: document.id, type: candidate.type, expiryDate: candidate.expiryDate },
       data: candidate,
     });
   }
@@ -122,24 +121,25 @@ async function reconcileDocument(document: Document, now: Date, remindersEnabled
 
 async function reconcileMilestone(
   milestone: Pick<Milestone, "id" | "name" | "dueDate"> & { goal: { id: string; name: string } },
+  userId: string,
   now: Date,
   remindersEnabled: boolean,
 ) {
   const candidate = remindersEnabled ? getMilestoneNotificationCandidate(milestone, now) : null;
   const stale = await prisma.notification.deleteMany({
     where: candidate
-      ? { milestoneId: milestone.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { milestoneId: milestone.id },
+      ? { userId, milestoneId: milestone.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
+      : { userId, milestoneId: milestone.id },
   });
   if (!candidate) return { created: 0, removed: stale.count };
 
   const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), milestoneId: milestone.id, ...candidate }],
+    data: [{ id: crypto.randomUUID(), userId, milestoneId: milestone.id, ...candidate }],
     skipDuplicates: true,
   });
   if (!inserted.count) {
     await prisma.notification.updateMany({
-      where: { milestoneId: milestone.id, type: candidate.type, expiryDate: candidate.expiryDate },
+      where: { userId, milestoneId: milestone.id, type: candidate.type, expiryDate: candidate.expiryDate },
       data: candidate,
     });
   }
@@ -147,18 +147,19 @@ async function reconcileMilestone(
 }
 
 /** Reconciles every supported source so normal page loads and the cron are equally reliable. */
-export async function runNotificationEngine(now = new Date()) {
-  const settings = await getSettings();
+export async function runNotificationEngine(userId: string, now = new Date()): Promise<{ evaluated: number; created: number; removed: number }> {
+  const settings = await prisma.userSettings.findUnique({ where: { userId } }) ?? { notificationsEnabled: true, remindersEnabled: true };
   if (!settings.notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
   const [documents, milestones, orphanCleanup] = await Promise.all([
-    prisma.document.findMany(),
+    prisma.document.findMany({ where: { userId } }),
     prisma.milestone.findMany({
-      where: { completed: false, goal: { status: "Active" } },
+      where: { completed: false, goal: { userId, status: "Active" } },
       include: { goal: { select: { id: true, name: true } } },
     }),
     prisma.notification.deleteMany({
       where: {
+        userId,
         OR: [
           { documentId: null, milestoneId: null },
           { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { status: { not: "Active" } } }] } } },
@@ -168,15 +169,12 @@ export async function runNotificationEngine(now = new Date()) {
   ]);
 
   const results = await Promise.all([
-    ...documents.map((document) => reconcileDocument(document, now, settings.remindersEnabled)),
-    ...milestones.map((milestone) => reconcileMilestone(milestone, now, settings.remindersEnabled)),
+    ...documents.map((document) => reconcileDocument(document, userId, now, settings.remindersEnabled)),
+    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, settings.remindersEnabled)),
   ]);
-  return results.reduce(
-    (total, result) => ({
-      evaluated: documents.length + milestones.length,
-      created: total.created + result.created,
-      removed: total.removed + result.removed,
-    }),
-    { evaluated: documents.length + milestones.length, created: 0, removed: orphanCleanup.count } as { evaluated: number; created: number; removed: number },
-  );
+  return {
+    evaluated: documents.length + milestones.length,
+    created: results.reduce((total, result) => total + result.created, 0),
+    removed: orphanCleanup.count + results.reduce((total, result) => total + result.removed, 0),
+  };
 }

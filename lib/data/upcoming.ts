@@ -2,6 +2,7 @@ import { connection } from "next/server";
 
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
+import { requireKinesisUser } from "@/lib/auth";
 
 const DAY = 86_400_000;
 
@@ -29,21 +30,22 @@ function formatDate(value: Date) {
 
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
+  const user = await requireKinesisUser();
   const today = startOfUtcDay(now);
   const [documents, milestones, importantDates, settings] = await Promise.all([
     prisma.document.findMany({
-      where: { expiryDate: { not: null } },
+      where: { userId: user.id, expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
     }),
     prisma.milestone.findMany({
       where: {
         completed: false,
         dueDate: { lt: today },
-        goal: { status: "Active" },
+        goal: { userId: user.id, status: "Active" },
       },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
-    prisma.relationshipImportantDate.findMany({ include: { relationship: { include: { firstPerson: true, secondPerson: true } } } }),
+    prisma.relationshipImportantDate.findMany({ where: { relationship: { userId: user.id } }, include: { relationship: { include: { firstPerson: true, secondPerson: true } } } }),
     getSettings(),
   ]);
 
