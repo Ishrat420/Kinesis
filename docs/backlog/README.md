@@ -70,6 +70,48 @@ The work has deliberately been abandoned.
 
 The ticket should ideally explain why it was dropped.
 
+--- 
+
+# Tags 
+
+### Maturity Dependent
+
+This is intentionally parked because Kinesis is not mature enough for us to make good design decisions about it yet.
+
+### Foundation Dependent
+Requires another core capability/architecture first
+
+### Post-MVP
+This will have to be done post MVP stage
+
+### Experimental
+Worth trying, cool idea but solution/value isn't proven
+
+### Architecture
+Changes or affects fundamental Kinesis architecture
+
+### Integration
+Changes or affects fundamental Kinesis architecture
+
+### UX / UI
+Primarily interaction or visual design work
+
+### Data Model
+Requires schema/data-model consideration
+
+### Security
+Authentication, authorization, privacy, encryption, etc.
+
+### Needs Research
+Requires external/product/technical research before designing
+
+### Technical Debt
+Existing implementation should eventually be improved/refactored
+
+### Performance
+Primarily concerned with speed/scalability
+
+
 ---
 
 # Workflow
@@ -82,6 +124,8 @@ Idea
 Planning Needed
   ↓
 Accepted
+  ↓
+Accepted — Needs Planning
   ↓
 In Progress
   ↓
@@ -100,6 +144,9 @@ KD-004-templates-object-types
 KD-005-customisable-module-widgets
 KD-006-recurring-reminder-field
 KD-008-adding-quick-capture
+KD-010-external-app-notes-Integration
+KD-012-starter-example-data
+KD-013-guided-onboarding
 
 
 ## 🧠 Planning Needed
@@ -114,6 +161,10 @@ KD-009-implement-authetication-system
 
 ## 🚧 In Progress
 
+
+## Accepted — Needs Planning
+
+KD-011-unified-todo-view
 
 ## ⛔ Blocked
 
