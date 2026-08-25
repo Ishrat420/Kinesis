@@ -4,8 +4,6 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { prisma } from "@/lib/data/prisma";
 
-const OWNER_ID = "current";
-
 function getConfiguredOwnerId() {
   const ownerId = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
   if (!ownerId) {
@@ -36,7 +34,6 @@ export const requireKinesisUser = cache(async () => {
 
   const mapped = await prisma.user.findUnique({ where: { clerkUserId } });
   if (mapped) {
-    if (mapped.id !== OWNER_ID) throw new Error("Unauthorized");
     if (mapped.email === email && mapped.firstName === firstName && mapped.lastName === lastName) return mapped;
     const previousDisplayName = mapped.preferredName?.trim() || mapped.firstName;
     const nextDisplayName = mapped.preferredName?.trim() || firstName;
@@ -48,12 +45,18 @@ export const requireKinesisUser = cache(async () => {
   }
 
   return prisma.$transaction(async (tx) => {
-    const existingOwner = await tx.user.findUnique({ where: { id: OWNER_ID } });
-    const owner = await tx.user.upsert({
-      where: { id: OWNER_ID },
-      create: { id: OWNER_ID, clerkUserId, firstName, lastName, email },
-      update: { clerkUserId, firstName, lastName, email },
-    });
+    const existingUsers = await tx.user.findMany({ orderBy: { createdAt: "asc" }, take: 2 });
+    if (existingUsers.length > 1) {
+      throw new Error("This single-user Kinesis deployment contains multiple users.");
+    }
+
+    const existingOwner = existingUsers[0];
+    const owner = existingOwner
+      ? await tx.user.update({
+          where: { id: existingOwner.id },
+          data: { clerkUserId, firstName, lastName, email },
+        })
+      : await tx.user.create({ data: { clerkUserId, firstName, lastName, email } });
 
     if (existingOwner) {
       const previousDisplayName = existingOwner.preferredName?.trim() || existingOwner.firstName;
