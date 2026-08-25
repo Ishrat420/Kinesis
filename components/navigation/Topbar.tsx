@@ -1,8 +1,7 @@
-import { User } from "lucide-react";
+import { Settings, User } from "lucide-react";
 import { getRecentNotifications } from "@/lib/data/notifications";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { NotificationBell } from "./NotificationBell";
-import Link from "next/link";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getGlobalSearchIndex } from "@/lib/search/engine";
 import { UserButton } from "@clerk/nextjs";
@@ -24,10 +23,12 @@ export async function Topbar() {
         <div className="relative flex items-center gap-3">
           <NotificationBell key={`${unreadCount}:${notifications.map(({ id, readAt }) => `${id}:${readAt?.getTime() ?? "unread"}`).join(",")}`} notifications={notifications} initialUnreadCount={unreadCount} />
 
-          <Link href="/user" aria-label="Open user profile" className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
-            <User className="h-[18px] w-[18px]" />
-          </Link>
-          <UserButton />
+          <UserButton appearance={{ elements: { avatarBox: "h-11 w-11 border border-zinc-200/80 shadow-sm" } }}>
+            <UserButton.MenuItems>
+              <UserButton.Link label="Personal profile" labelIcon={<User className="h-4 w-4" />} href="/user" />
+              <UserButton.Link label="Settings" labelIcon={<Settings className="h-4 w-4" />} href="/settings" />
+            </UserButton.MenuItems>
+          </UserButton>
         </div>
       </div>
     </header>
