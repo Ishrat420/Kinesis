@@ -48,7 +48,7 @@ export default function SignInPage() {
             <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-zinc-200 bg-white shadow-sm">
               <LockKeyhole className="h-5 w-5 text-zinc-700" />
             </span>
-            <h1 className="mt-7 text-5xl font-semibold leading-[1.05] tracking-[-0.045em] xl:text-6xl">Your private workspace, securely within reach.</h1>
+            <h1 className="mt-7 text-5xl font-semibold leading-[1.05] tracking-[-0.045em] xl:text-6xl">Log in to Kinesis, your life in motion.</h1>
             <p className="mt-6 max-w-lg text-lg leading-8 text-zinc-500">Bring your documents, goals, finances, and relationships together in one calm, personal space.</p>
           </div>
 
@@ -59,7 +59,7 @@ export default function SignInPage() {
         </section>
 
         <section className="flex items-center justify-center px-5 pb-10 sm:px-10 lg:px-16 lg:py-12">
-          <div className="w-full max-w-[470px] rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_24px_80px_rgba(24,24,27,0.10)] backdrop-blur sm:p-9 lg:p-10">
+          <div className="w-full max-w-[470px] px-1 py-6 sm:px-4">
             <div className="mb-8">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Private access</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-[2.25rem]">Welcome back.</h2>
