@@ -49,7 +49,7 @@ export default function SignInPage() {
               <LockKeyhole className="h-5 w-5 text-zinc-700" />
             </span>
             <h1 className="mt-7 text-5xl font-semibold leading-[1.05] tracking-[-0.045em] xl:text-6xl">Log in to Kinesis, your life in motion.</h1>
-            <p className="mt-6 max-w-lg text-lg leading-8 text-zinc-500">Bring your documents, goals, finances, and relationships together in one calm, personal space.</p>
+            <p className="mt-6 max-w-lg text-lg leading-8 text-zinc-500">Bring your life, goals, finances, and relationships together in one space.</p>
           </div>
 
           <div className="hidden items-center gap-2 text-sm text-zinc-500 lg:flex">
