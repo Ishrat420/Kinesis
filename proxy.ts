@@ -11,8 +11,7 @@ export default clerkMiddleware(async (auth, request) => {
   const { userId } = await auth();
   if (!userId) {
     if (!isApiRoute(request)) return NextResponse.redirect(new URL("/sign-in", request.url));
-    await auth.protect();
-    return;
+    return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const ownerId = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
