@@ -64,7 +64,14 @@ describe("requireKinesisUser", () => {
 
   it("loads only the local user mapped to the configured Clerk owner", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
-    const owner = { ...clerkUser(), id: "local-owner" };
+    const owner = {
+      id: "local-owner",
+      clerkUserId: "user_owner",
+      firstName: "Kira",
+      lastName: "Owner",
+      preferredName: null,
+      email: "kira@example.com",
+    };
     mocks.prisma.user.findUnique.mockResolvedValue(owner);
     const requireKinesisUser = await loadSubject();
 
