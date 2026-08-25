@@ -1,6 +1,22 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-export default clerkMiddleware()
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
+const isCronRoute = createRouteMatcher(["/api/notifications/evaluate"]);
+const isApiRoute = createRouteMatcher(["/api(.*)", "/trpc(.*)"]);
+
+export default clerkMiddleware(async (auth, request) => {
+  if (isPublicRoute(request) || isCronRoute(request)) return;
+
+  const { userId } = await auth();
+  if (userId) return;
+
+  if (isApiRoute(request)) {
+    await auth.protect();
+    return;
+  }
+  return NextResponse.redirect(new URL("/sign-in", request.url));
+});
 
 export const config = {
   matcher: [
@@ -9,4 +25,4 @@ export const config = {
     // Always run for API routes
     '/(api|trpc)(.*)',
   ],
-}
+};

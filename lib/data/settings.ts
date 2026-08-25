@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { requireKinesisUser } from "@/lib/auth";
 
 export const CURRENT_SETTINGS_ID = "current";
 
@@ -10,5 +11,6 @@ export const defaultSettings = {
 };
 
 export async function getSettings() {
-  return (await prisma.userSettings.findUnique({ where: { id: CURRENT_SETTINGS_ID } })) ?? defaultSettings;
+  const user = await requireKinesisUser();
+  return (await prisma.userSettings.findUnique({ where: { userId: user.id } })) ?? { ...defaultSettings, userId: user.id };
 }

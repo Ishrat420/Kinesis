@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/data/prisma";
 import type { SearchProvider } from "./types";
+import { requireKinesisUser } from "@/lib/auth";
 
 const text = (...values: unknown[]) => values.flat(Infinity).filter((value) => value !== null && value !== undefined && value !== "").map(String);
 
 const documents: SearchProvider = {
   id: "documents",
   async getEntries() {
-    const rows = await prisma.document.findMany({ include: { customFields: true } });
+    const user = await requireKinesisUser();
+    const rows = await prisma.document.findMany({ where: { userId: user.id }, include: { customFields: true } });
     return rows.map((document) => ({
       id: `document:${document.id}`, title: document.name, subtitle: document.type,
       href: `/documents/${document.id}`, kind: "Document" as const,
@@ -18,7 +20,8 @@ const documents: SearchProvider = {
 const goals: SearchProvider = {
   id: "goals",
   async getEntries() {
-    const rows = await prisma.goal.findMany({ include: { milestones: true } });
+    const user = await requireKinesisUser();
+    const rows = await prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true } });
     return rows.map((goal) => ({
       id: `goal:${goal.id}`, title: goal.name, subtitle: `${goal.status} goal`,
       href: `/goals/${goal.id}`, kind: "Goal" as const,
@@ -30,7 +33,8 @@ const goals: SearchProvider = {
 const finance: SearchProvider = {
   id: "finance",
   async getEntries() {
-    const rows = await prisma.financeItem.findMany();
+    const user = await requireKinesisUser();
+    const rows = await prisma.financeItem.findMany({ where: { userId: user.id } });
     return rows.map((item) => ({
       id: `finance:${item.id}`, title: item.name,
       subtitle: `${item.category || item.kind} · $${item.amount.toLocaleString("en-AU")}`,
@@ -43,9 +47,10 @@ const finance: SearchProvider = {
 const relationships: SearchProvider = {
   id: "relationships",
   async getEntries() {
+    const user = await requireKinesisUser();
     const [people, connections] = await Promise.all([
-      prisma.person.findMany(),
-      prisma.relationship.findMany({ include: { firstPerson: true, secondPerson: true, practices: true, reflections: true, importantDates: true } }),
+      prisma.person.findMany({ where: { userId: user.id } }),
+      prisma.relationship.findMany({ where: { userId: user.id }, include: { firstPerson: true, secondPerson: true, practices: true, reflections: true, importantDates: true } }),
     ]);
     return [
       ...people.map((person) => ({
@@ -66,7 +71,8 @@ const relationships: SearchProvider = {
 const customModules: SearchProvider = {
   id: "custom-modules",
   async getEntries() {
-    const modules = await prisma.customModule.findMany({ include: { items: { where: { archived: false }, include: { fields: true } } } });
+    const user = await requireKinesisUser();
+    const modules = await prisma.customModule.findMany({ where: { userId: user.id }, include: { items: { where: { archived: false }, include: { fields: true } } } });
     return modules.flatMap((module) => [
       {
         id: `custom-module:${module.id}`, title: module.name, subtitle: "Custom module",
