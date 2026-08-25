@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
-import { CURRENT_SETTINGS_ID } from "@/lib/data/settings";
 import { requireKinesisUser } from "@/lib/auth";
 
 export type SettingsActionState = { error?: string; message?: string };
@@ -23,7 +22,7 @@ export async function updateSettingsAction(
   };
   await prisma.userSettings.upsert({
     where: { userId: user.id },
-    create: { id: CURRENT_SETTINGS_ID, userId: user.id, ...data },
+    create: { userId: user.id, ...data },
     update: data,
   });
   revalidatePath("/settings");
