@@ -14,10 +14,10 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: { width: "100%", margin: "0 auto" },
-    cardBox: { width: "100%", boxShadow: "none" },
-    card: { width: "100%", padding: 0, background: "transparent", border: 0, borderRadius: 0, boxShadow: "none" },
+    cardBox: { width: "100%", overflow: "visible", boxShadow: "none" },
+    card: { width: "100%", overflow: "visible", padding: 0, background: "transparent", border: 0, borderRadius: 0, boxShadow: "none" },
     header: { display: "none" },
-    main: { padding: 0 },
+    main: { padding: "0.25rem 0.5rem 0.75rem" },
     socialButtonsBlockButton: { height: "3rem", borderRadius: "0.75rem", boxShadow: "none" },
     dividerLine: { backgroundColor: "#e4e4e7" },
     dividerText: { color: "#a1a1aa", fontSize: "0.75rem" },
