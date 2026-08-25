@@ -5,6 +5,7 @@ import { NotificationBell } from "./NotificationBell";
 import Link from "next/link";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getGlobalSearchIndex } from "@/lib/search/engine";
+import { UserButton } from "@clerk/nextjs";
 
 export async function Topbar() {
   const [{ notifications, unreadCount }, user, searchEntries] = await Promise.all([
@@ -26,6 +27,7 @@ export async function Topbar() {
           <Link href="/user" aria-label="Open user profile" className="flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
             <User className="h-[18px] w-[18px]" />
           </Link>
+          <UserButton />
         </div>
       </div>
     </header>
