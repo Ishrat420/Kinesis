@@ -10,12 +10,17 @@ export const requireKinesisUser = cache(async () => {
   const { userId: clerkUserId } = await auth();
   if (!clerkUserId) throw new Error("Unauthenticated");
 
-  const mapped = await prisma.user.findUnique({ where: { clerkUserId } });
-  if (mapped) return mapped;
-
   const clerkUser = await currentUser();
   if (!clerkUser || clerkUser.id !== clerkUserId) throw new Error("Unauthenticated");
-  const email = clerkUser.primaryEmailAddress?.emailAddress ?? "";
+  const email = clerkUser.primaryEmailAddress?.emailAddress.trim();
+  if (!email) throw new Error("A primary email address is required for Kinesis.");
+
+  const mapped = await prisma.user.findUnique({ where: { clerkUserId } });
+  if (mapped) {
+    if (mapped.email === email) return mapped;
+    return prisma.user.update({ where: { id: mapped.id }, data: { email } });
+  }
+
   const firstName = clerkUser.firstName?.trim() || email.split("@")[0] || "Kinesis";
   const lastName = clerkUser.lastName?.trim() || "Owner";
 
