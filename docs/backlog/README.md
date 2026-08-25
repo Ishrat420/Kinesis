@@ -154,7 +154,6 @@ KD-013-guided-onboarding
 KD-001-improve-milestone-display
 KD-002-kinesis-internal-link-field
 KD-007-adding-priority
-KD-009-implement-authetication-system
 
 ## ✓ Accepted
 
@@ -170,7 +169,7 @@ KD-011-unified-todo-view
 
 
 ## ✅ Done
-
+KD-009-implement-authetication-system
 
 ## 🗑 Dropped
 

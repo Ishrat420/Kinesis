@@ -55,6 +55,8 @@ public Clerk registration for this single-owner application. Automated tests for
 missing configuration, mismatched identities, and concurrent requests are still
 required under the separate testing finding below.
 
+Status: Functionally resolved and implemented. Manually tested for now. But will need automation tests. 
+
 ### Resolved P1 — Deleted or replaced Clerk accounts left the instance locked
 
 The configured owner ID is now the authority for the single-owner binding. An
@@ -66,6 +68,8 @@ record in place, preserving its generated ID and all related data.
 The recovery procedure and its security implications are documented in the README.
 A signature-verified Clerk webhook may still be useful for prompt profile syncing
 and monitoring, but recovery no longer depends on receiving a deletion webhook.
+
+Status: Operationally resolved but an operator need to change the configured Clerk owner ID and preserve the existing data.
 
 ### P1 — No automated tests cover the security boundary
 
@@ -79,6 +83,8 @@ the public sign-in and cron exceptions, first-owner concurrency, rejected second
 users, every ID-based read/write using another user's fixture, export isolation,
 sign-out/session expiry, and cron-secret failure cases. Consider centralizing
 owned-record lookups to reduce repetition.
+
+Status: Need to use vitest to test some of this. 
 
 ### P1 — Sign-up is required by the backlog but is not an explicit product flow
 
@@ -105,6 +111,8 @@ The migration replaces legacy `current` user/settings IDs while foreign-key
 `ON UPDATE CASCADE` constraints preserve existing ownership relations. Supporting
 additional users remains a separate product decision that requires provisioning
 policy and comprehensive isolation tests.
+
+Status: Architecture decision recorded, technical migration completed
 
 ### P2 — Authentication failures do not have a consistent application response
 
@@ -153,17 +161,6 @@ product activity rather than a tamper-resistant security log.
 identity changes asynchronously. Add privacy-conscious security event logging with
 retention and access rules; never log session tokens, bearer secrets, or exported
 personal data.
-
-### P3 — Backlog status and acceptance criteria are stale
-
-The authentication backlog item still says “Planning Needed” after Clerk route
-protection and user scoping were implemented. It does not identify which provider
-was chosen or distinguish completed baseline behavior from the missing controls
-above.
-
-**Recommended action:** Update the work item only after the owner-provisioning
-policy is decided, with verifiable acceptance criteria for registration, recovery,
-tenant count, session behavior, and authorization tests.
 
 ## Suggested delivery order
 
