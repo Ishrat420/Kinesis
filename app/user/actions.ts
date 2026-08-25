@@ -12,11 +12,9 @@ export async function updateUserAction(_state: UserFormState, formData: FormData
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
   const preferredName = String(formData.get("preferredName") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  if (!firstName || !lastName || !email) return { error: "First name, last name, and email are required." };
-  if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Enter a valid email address." };
+  if (!firstName || !lastName) return { error: "First name and last name are required." };
 
-  const user = { firstName, lastName, preferredName: preferredName || null, email };
+  const user = { firstName, lastName, preferredName: preferredName || null };
   const previous = currentUser;
   await prisma.$transaction([
     prisma.user.update({ where: { id: currentUser.id }, data: user }),
