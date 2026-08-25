@@ -45,6 +45,14 @@ export const requireKinesisUser = cache(async () => {
   }
 
   return prisma.$transaction(async (tx) => {
+    // Serialize provisioning attempts for this Clerk identity. React's cache only
+    // deduplicates work within one render/request, so two first requests can
+    // otherwise both observe an empty User table.
+    await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", clerkUserId);
+
+    const concurrentlyMapped = await tx.user.findUnique({ where: { clerkUserId } });
+    if (concurrentlyMapped) return concurrentlyMapped;
+
     const existingUsers = await tx.user.findMany({ orderBy: { createdAt: "asc" }, take: 2 });
     if (existingUsers.length > 1) {
       throw new Error("This single-user Kinesis deployment contains multiple users.");
