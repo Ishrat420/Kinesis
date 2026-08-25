@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { LockKeyhole, ShieldCheck } from "lucide-react";
 import { SignIn } from "@clerk/nextjs";
 import kinesisIcon from "@/app/icon.png";
 
@@ -30,51 +29,16 @@ const clerkAppearance = {
 
 export default function SignInPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f5f6f8] text-zinc-950">
-      <div aria-hidden="true" className="absolute -left-28 -top-36 h-96 w-96 rounded-full bg-white blur-3xl" />
-      <div aria-hidden="true" className="absolute -bottom-48 -right-32 h-[30rem] w-[30rem] rounded-full bg-zinc-200/60 blur-3xl" />
+    <main className="flex min-h-screen items-center justify-center bg-white px-5 py-12 text-zinc-950 sm:px-8">
+      <section className="w-full max-w-[440px]">
+        <div className="mb-9 text-center">
+          <Image src={kinesisIcon} alt="Kinesis" width={52} height={52} className="mx-auto rounded-2xl shadow-sm" priority />
+          <h1 className="mt-6 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Log in to Kinesis</h1>
+          <p className="mt-2 text-lg font-medium text-zinc-400">Get your life in motion.</p>
+        </div>
 
-      <div className="relative mx-auto grid min-h-screen w-full max-w-[1440px] lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="flex flex-col justify-between px-6 py-8 sm:px-10 lg:px-16 lg:py-12 xl:px-24">
-          <div className="flex items-center gap-3">
-            <Image src={kinesisIcon} alt="" width={48} height={48} className="rounded-2xl shadow-sm" priority />
-            <div>
-              <p className="text-xl font-semibold tracking-tight">Kinesis</p>
-              <p className="text-xs font-medium text-zinc-400">Life in motion</p>
-            </div>
-          </div>
-
-          <div className="hidden max-w-xl lg:block">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-zinc-200 bg-white shadow-sm">
-              <LockKeyhole className="h-5 w-5 text-zinc-700" />
-            </span>
-            <h1 className="mt-7 text-5xl font-semibold leading-[1.05] tracking-[-0.045em] xl:text-6xl">Log in to Kinesis, your life in motion.</h1>
-            <p className="mt-6 max-w-lg text-lg leading-8 text-zinc-500">Bring your life, goals, finances, and relationships together in one space.</p>
-          </div>
-
-          <div className="hidden items-center gap-2 text-sm text-zinc-500 lg:flex">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Your workspace is private to your account.</span>
-          </div>
-        </section>
-
-        <section className="flex items-center justify-center px-5 pb-10 sm:px-10 lg:px-16 lg:py-12">
-          <div className="w-full max-w-[470px] px-1 py-6 sm:px-4">
-            <div className="mb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Private access</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-[2.25rem]">Welcome back.</h2>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">Sign in to securely access your private Kinesis workspace.</p>
-            </div>
-
-            <SignIn path="/sign-in" routing="path" appearance={clerkAppearance} />
-
-            <div className="mt-7 flex items-start gap-3 border-t border-zinc-100 pt-6 text-xs leading-5 text-zinc-500 lg:hidden">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-zinc-700" />
-              <span>Your workspace is private to your account.</span>
-            </div>
-          </div>
-        </section>
-      </div>
+        <SignIn path="/sign-in" routing="path" appearance={clerkAppearance} />
+      </section>
     </main>
   );
 }
