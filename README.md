@@ -119,3 +119,6 @@ curl --fail-with-body \
   can otherwise leave the deploy waiting until it fails with `P1002`. Keep only one
   production deployment running at a time so two builds do not apply migrations
   concurrently.
+
+## Testing
+See `docs/testing/testing-strategy.md` for the Kinesis testing approach and commands.
