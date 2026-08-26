@@ -1,4 +1,7 @@
 import { defineConfig } from "vitest/config";
+import { config } from "dotenv";
+
+config({ path: ".env.test" });
 
 export default defineConfig({
   resolve: {
@@ -11,6 +14,7 @@ export default defineConfig({
     environment: "node",
     clearMocks: true,
     restoreMocks: true,
-    include: ["tests/unit/**/*.test.ts"],
+    include: ["tests/integration/**/*.test.ts"],
+    setupFiles: ["./tests/integration/setup-env.ts"],
   },
 });
