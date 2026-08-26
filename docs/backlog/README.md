@@ -147,7 +147,7 @@ KD-008-adding-quick-capture
 KD-010-external-app-notes-Integration
 KD-012-starter-example-data
 KD-013-guided-onboarding
-
+KD-15-kinesis-timeline-review
 
 ## 🧠 Planning Needed
 
@@ -164,6 +164,7 @@ KD-007-adding-priority
 ## Accepted — Needs Planning
 
 KD-011-unified-todo-view
+KD-014-kinesis-calendar
 
 ## ⛔ Blocked
 
