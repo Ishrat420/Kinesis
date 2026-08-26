@@ -28,8 +28,8 @@ export function getExpiryDetails(expiryDate: Date | null, prompt: number, now = 
 
   return {
     label,
-    urgency: expired ? "expired" as const : differenceInDays < prompt ? "soon" as const : "safe" as const,
-    status: expired ? "Expired" : differenceInDays < prompt ? "Expiring soon" : "Active",
+    urgency: expired ? "expired" as const : differenceInDays <= prompt ? "soon" as const : "safe" as const,
+    status: expired ? "Expired" : differenceInDays <= prompt ? "Expiring soon" : "Active",
   };
 }
 

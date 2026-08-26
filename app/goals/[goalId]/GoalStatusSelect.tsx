@@ -1,6 +1,8 @@
 "use client";
 
 import { GOAL_STATUSES } from "@/lib/goals/format";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export function GoalStatusSelect({
   status,
@@ -9,12 +11,23 @@ export function GoalStatusSelect({
   status: string;
   action: (formData: FormData) => Promise<void>;
 }) {
+  const router = useRouter();
+  const [selectedStatus, setSelectedStatus] = useState(status);
+
+  async function updateStatus(formData: FormData) {
+    await action(formData);
+    router.refresh();
+  }
+
   return (
-    <form action={action}>
+    <form action={updateStatus}>
       <select
         name="status"
-        defaultValue={status}
-        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        value={selectedStatus}
+        onChange={(event) => {
+          setSelectedStatus(event.currentTarget.value);
+          event.currentTarget.form?.requestSubmit();
+        }}
         aria-label="Goal status"
         className="h-11 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold outline-none"
       >
