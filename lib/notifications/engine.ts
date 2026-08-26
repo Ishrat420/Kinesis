@@ -1,5 +1,6 @@
 import type { Document, Milestone, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
+import { getExpiryReminderDate } from "@/lib/documents/expiry";
 
 const DAY = 86_400_000;
 
@@ -46,7 +47,7 @@ export function getDocumentNotificationCandidate(
 
   const today = startOfUtcDay(now);
   const expiryDate = startOfUtcDay(document.expiryDate);
-  const reminderAt = new Date(expiryDate.getTime() - document.prompt * DAY);
+  const reminderAt = getExpiryReminderDate(expiryDate, document.prompt);
   const daysRemaining = Math.max(0, Math.round((expiryDate.getTime() - today.getTime()) / DAY));
   // A document remains valid for its full expiry date; it is expired the following day.
   const type = today > expiryDate
