@@ -127,3 +127,7 @@ including:
 
 Database-dependent cases should be covered by integration tests rather than
 mocking Prisma behaviour.
+
+The owner-provisioning integration suite covers fresh provisioning, migrated and
+rotated owners, ambiguous legacy owner records, preservation of owned data during
+rotation, and concurrent first requests against PostgreSQL.
