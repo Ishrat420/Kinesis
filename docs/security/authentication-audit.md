@@ -57,11 +57,12 @@ fresh instance.
 
 The README documents the required server environment and recommends disabling
 public Clerk registration for this single-owner application. Unit tests cover
-missing configuration, mismatched identities, and simulated concurrent requests;
-database-backed integration coverage is still required under the separate testing
-finding below.
+missing configuration and mismatched identities. Database-backed integration
+tests additionally cover fresh-instance rejection and provisioning, migrated
+owners, owner rotation with retained data, ambiguous owners, and concurrent first
+requests.
 
-Status: Functionally resolved and covered by unit tests; integration testing remains.
+Status: Functionally resolved with unit and database-backed integration coverage.
 
 ### Resolved P1 — Deleted or replaced Clerk accounts left the instance locked
 
@@ -90,22 +91,21 @@ Status: Functionally resolved and covered by a cross-user authorization unit tes
 ### P1 — Automated security tests remain incomplete
 
 The repository now tests page redirects, API 401 responses, public proxy
-exceptions, missing/mismatched owner configuration, concurrent initial owner
-provisioning, export isolation, and cron-secret behavior. It still has no broad
-cross-user fixture suite for Server Actions and ID-based child mutations, no
-database-backed provisioning/rotation integration tests, and no automated
-sign-out or session-expiry coverage. Authorization predicates remain repeated
-across many Prisma calls, so a future query can omit one without a test detecting
-the regression.
+exceptions, missing/mismatched owner configuration, database-backed initial owner
+provisioning and rotation (including real concurrent requests), export isolation,
+and cron-secret behavior. It still has no broad cross-user fixture suite for
+Server Actions and ID-based child mutations, and no automated sign-out coverage.
+Session-expiry rejection has unit coverage, but not a browser or Clerk integration
+test. Authorization predicates remain repeated across many Prisma calls, so a
+future query can omit one without a test detecting the regression.
 
 **Recommended action:** Prioritize cross-user fixtures for every ID-based
-read/write, building on the relationship-to-goal regression test, then add
-database-backed tests for migrated/rotated/ambiguous owners and real concurrent
-requests. Add browser or Clerk integration coverage for sign-out and session
-expiry. Consider centralizing owned-record lookups to reduce repetition.
+read/write, building on the relationship-to-goal regression test. Add browser or
+Clerk integration coverage for sign-out and session expiry. Consider centralizing
+owned-record lookups to reduce repetition.
 
-Status: Partial Vitest coverage exists; cross-user and database-backed integration
-coverage is still required.
+Status: Database-backed provisioning coverage now exists; broad cross-user and
+browser/Clerk lifecycle coverage is still required.
 
 ### P1 — Sign-up is required by the backlog but is not an explicit product flow
 
