@@ -93,19 +93,21 @@ Status: Functionally resolved and covered by a cross-user authorization unit tes
 The repository now tests page redirects, API 401 responses, public proxy
 exceptions, missing/mismatched owner configuration, database-backed initial owner
 provisioning and rotation (including real concurrent requests), export isolation,
-and cron-secret behavior. It still has no broad cross-user fixture suite for
-Server Actions and ID-based child mutations, and no automated sign-out coverage.
+cron-secret behavior, and database-backed cross-user isolation for the current
+document, goal, finance, custom-module, notification, and relationship action
+surfaces. The cross-user contract includes full goal-milestone and custom-item
+parent/child mismatch matrices. It still has no automated sign-out coverage.
 Session-expiry rejection has unit coverage, but not a browser or Clerk integration
-test. Authorization predicates remain repeated across many Prisma calls, so a
-future query can omit one without a test detecting the regression.
+test. Authorization predicates remain repeated across many Prisma calls, so new
+ID-based functions must be added to the shared contract to retain this coverage.
 
 **Recommended action:** Prioritize cross-user fixtures for every ID-based
 read/write, building on the relationship-to-goal regression test. Add browser or
 Clerk integration coverage for sign-out and session expiry. Consider centralizing
 owned-record lookups to reduce repetition.
 
-Status: Database-backed provisioning coverage now exists; broad cross-user and
-browser/Clerk lifecycle coverage is still required.
+Status: Database-backed provisioning and broad current-surface cross-user
+coverage now exist; browser/Clerk lifecycle coverage is still required.
 
 ### P1 — Sign-up is required by the backlog but is not an explicit product flow
 

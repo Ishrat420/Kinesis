@@ -128,6 +128,13 @@ including:
 Database-dependent cases should be covered by integration tests rather than
 mocking Prisma behaviour.
 
+The shared cross-user fixture in `tests/integration/authorization/fixture.ts`
+creates two recognizably different owners and representative records for every
+owned domain. Its authorization contract covers owned positive controls,
+foreign and unknown IDs, parent/child mismatch matrices, direct post-mutation
+database snapshots, and atomic mixed-owner relationship payloads. New
+ID-accepting reads and actions should add a row or matrix case to that contract.
+
 The owner-provisioning integration suite covers fresh provisioning, migrated and
 rotated owners, ambiguous legacy owner records, preservation of owned data during
 rotation, and concurrent first requests against PostgreSQL.
