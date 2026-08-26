@@ -77,7 +77,7 @@ function formatDuration(start: Date, end: Date) {
   const parts = [
     years ? `${years} ${years === 1 ? "year" : "years"}` : "",
     months ? `${months} ${months === 1 ? "month" : "months"}` : "",
-    !years && !months ? `${days} ${days === 1 ? "day" : "days"}` : "",
+    days || (!years && !months) ? `${days} ${days === 1 ? "day" : "days"}` : "",
   ].filter(Boolean);
   return parts.join(", ");
 }
