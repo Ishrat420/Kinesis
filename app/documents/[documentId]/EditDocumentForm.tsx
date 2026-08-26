@@ -46,7 +46,7 @@ export function EditDocumentForm({ document, documentTypes, ownerName }: { docum
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-sm font-medium text-zinc-600">Reminder
-          <select name="prompt" value={prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 outline-none focus:border-zinc-400">
+          <select name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 outline-none focus:border-zinc-400">
             {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
           </select>
         </label>
