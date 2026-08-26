@@ -8,6 +8,17 @@ import { requireKinesisUser } from "@/lib/auth";
 export async function saveRelationshipMap(data: RelationshipMapData) {
   const user = await requireKinesisUser();
   await prisma.$transaction(async (tx) => {
+    const linkedGoalIds = [...new Set(data.relationships.flatMap((relationship) => relationship.linkedGoals))];
+    if (linkedGoalIds.length) {
+      const ownedGoals = await tx.goal.findMany({
+        where: { id: { in: linkedGoalIds }, userId: user.id },
+        select: { id: true },
+      });
+      if (ownedGoals.length !== linkedGoalIds.length) {
+        throw new Error("One or more linked goals were not found.");
+      }
+    }
+
     const existingPeople = await tx.person.findMany({ where: { userId: user.id } });
     const existingById = new Map(existingPeople.map((person) => [person.id, person]));
     await tx.relationship.deleteMany({ where: { userId: user.id } });
