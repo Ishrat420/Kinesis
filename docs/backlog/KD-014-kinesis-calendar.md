@@ -155,9 +155,7 @@ Scheduled items may eventually be synced to external calendar providers.
 
 # Visual Difference
 
-Dated and Scheduled items must have **different visual treatments**.
-
-Do not rely only on colour.
+Dated and Scheduled items must have **different visual treatments**. And it includes color difference too.
 
 For example:
 
