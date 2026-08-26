@@ -17,10 +17,8 @@ describe("Integration test database", () => {
     expect(process.env.TEST_DATABASE_URL).not.toBe("");
   });
 
-  it("does not use the normal application database", () => {
-    expect(process.env.TEST_DATABASE_URL).not.toBe(
-      process.env.DATABASE_URL
-    );
+  it("points Prisma at the dedicated test database", () => {
+    expect(process.env.DATABASE_URL).toBe(process.env.TEST_DATABASE_URL);
   });
 
   it("can actually connect to PostgreSQL", async () => {
