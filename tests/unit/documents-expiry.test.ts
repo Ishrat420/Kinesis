@@ -48,6 +48,15 @@ describe("getExpiryDetails", () => {
     expect(getExpiryReminderDate(expiry, 180)).toEqual(new Date("2026-08-23T00:00:00.000Z"));
   });
 
+  it("shows days beyond a calendar-month threshold instead of hiding them", () => {
+    const expiry = new Date("2027-02-27T00:00:00.000Z");
+
+    expect(getExpiryDetails(expiry, 180, today)).toMatchObject({
+      label: "6 months, 1 day left",
+      urgency: "safe",
+    });
+  });
+
   it("clamps calendar reminders to the final day of shorter months", () => {
     const expiry = new Date("2027-08-31T00:00:00.000Z");
 
