@@ -1,5 +1,5 @@
 # BUG-001 — Goal showing active status even after changing the status 
-**Status:** Open
+**Status:** Fixed
 **Priority:** High
 
 ## Problem

@@ -171,6 +171,7 @@ KD-014-kinesis-calendar
 
 ## ✅ Done
 KD-009-implement-authetication-system
+KD-014-kinesis-calendar
 
 ## 🗑 Dropped
 
@@ -181,9 +182,6 @@ KD-009-implement-authetication-system
 
 ## Open
 
-BUG-001-title
-BUG-002-goal-showing-active
-
 ## In Progress
 
 
@@ -191,6 +189,9 @@ BUG-002-goal-showing-active
 
 
 ## Fixed
+
+BUG-001-title
+BUG-002-goal-showing-active
 
 
 ## Won't Fix
