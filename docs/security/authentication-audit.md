@@ -1,6 +1,6 @@
 # Authentication and authorization audit
 
-**Reviewed:** 2026-08-25
+**Reviewed:** 2026-08-26
 **Scope:** Clerk integration, route protection, Kinesis user provisioning, data
 ownership checks, privileged endpoints, account lifecycle, operational guidance,
 and automated verification.
@@ -18,8 +18,10 @@ or returns the generated local owner, and changing that configuration provides a
 operator-controlled recovery path that preserves existing data.
 
 Other lifecycle controls remain incomplete. There is no Clerk webhook, no explicit
-sign-up page even though sign-up is an MVP requirement, and no automated
-authentication or authorization tests.
+sign-up page even though sign-up is an MVP requirement, and the automated tests
+cover only part of the authentication and authorization boundary. The review also
+previously found that relationship updates could link an owned relationship to
+another user's goal when given that goal's ID; that gap is now closed.
 
 ## What is already in place
 
@@ -39,6 +41,9 @@ authentication or authorization tests.
 - The notification evaluator fails closed when `CRON_SECRET` is absent and checks
   its bearer credential before processing all users.
 - Clerk's `UserButton` supplies the normal sign-out/account-management surface.
+- Vitest coverage now verifies the principal proxy status paths, configured-owner
+  checks, concurrent initial provisioning behavior, export scoping, and cron
+  authentication.
 
 ## Findings and gaps
 
@@ -51,11 +56,12 @@ generated local owner, so an arbitrary valid Clerk account can no longer claim a
 fresh instance.
 
 The README documents the required server environment and recommends disabling
-public Clerk registration for this single-owner application. Automated tests for
-missing configuration, mismatched identities, and concurrent requests are still
-required under the separate testing finding below.
+public Clerk registration for this single-owner application. Unit tests cover
+missing configuration, mismatched identities, and simulated concurrent requests;
+database-backed integration coverage is still required under the separate testing
+finding below.
 
-Status: Functionally resolved and implemented. Manually tested for now. But will need automation tests. 
+Status: Functionally resolved and covered by unit tests; integration testing remains.
 
 ### Resolved P1 — Deleted or replaced Clerk accounts left the instance locked
 
@@ -71,20 +77,35 @@ and monitoring, but recovery no longer depends on receiving a deletion webhook.
 
 Status: Operationally resolved but an operator need to change the configured Clerk owner ID and preserve the existing data.
 
-### P1 — No automated tests cover the security boundary
+### Resolved P1 — Relationship updates did not verify linked-goal ownership
 
-The repository has no test suite for the proxy, owner claim, server actions, API
-responses, or cross-user access. The authorization checks are repeated manually
-across many Prisma calls, so a future query can omit a user predicate without a
-test detecting the regression.
+`saveRelationshipMap()` now deduplicates all client-supplied linked-goal IDs and,
+inside the same transaction, verifies that every referenced goal belongs to the
+authenticated local user. If any ID is missing or belongs to another user, the
+action rejects the complete update before deleting or recreating relationship
+data. A regression test confirms that an unowned goal prevents all mutations.
 
-**Recommended action:** Add tests for unauthenticated page redirects and API 401s,
-the public sign-in and cron exceptions, first-owner concurrency, rejected second
-users, every ID-based read/write using another user's fixture, export isolation,
-sign-out/session expiry, and cron-secret failure cases. Consider centralizing
-owned-record lookups to reduce repetition.
+Status: Functionally resolved and covered by a cross-user authorization unit test.
 
-Status: Need to use vitest to test some of this. 
+### P1 — Automated security tests remain incomplete
+
+The repository now tests page redirects, API 401 responses, public proxy
+exceptions, missing/mismatched owner configuration, concurrent initial owner
+provisioning, export isolation, and cron-secret behavior. It still has no broad
+cross-user fixture suite for Server Actions and ID-based child mutations, no
+database-backed provisioning/rotation integration tests, and no automated
+sign-out or session-expiry coverage. Authorization predicates remain repeated
+across many Prisma calls, so a future query can omit one without a test detecting
+the regression.
+
+**Recommended action:** Prioritize cross-user fixtures for every ID-based
+read/write, building on the relationship-to-goal regression test, then add
+database-backed tests for migrated/rotated/ambiguous owners and real concurrent
+requests. Add browser or Clerk integration coverage for sign-out and session
+expiry. Consider centralizing owned-record lookups to reduce repetition.
+
+Status: Partial Vitest coverage exists; cross-user and database-backed integration
+coverage is still required.
 
 ### P1 — Sign-up is required by the backlog but is not an explicit product flow
 
@@ -138,13 +159,15 @@ export or destroy all personal data immediately.
 operations, add server-enforced confirmation for deletion, and record security
 events without logging exported content.
 
-### P2 — Clerk deployment and security configuration is undocumented
+### P2 — Clerk deployment and security configuration is only partially documented
 
-The README documents the database and cron secret but not Clerk publishable/secret
-keys, allowed origins/redirects, production instance configuration, enabled sign-in
-methods, registration policy, email verification, session lifetime, or key
-rotation. These external settings determine important parts of the actual security
-posture.
+The README names the Clerk publishable and secret keys, the configured owner, and
+the expected single-owner registration policy. It still does not provide a
+repeatable checklist for allowed origins/redirects, production instance settings,
+enabled sign-in methods, email verification, session lifetime, MFA, webhook
+secrets, or key rotation. These external settings determine important parts of the
+actual security posture, and there is no committed `.env.example` containing safe
+variable names.
 
 **Recommended action:** Add a deployment checklist and an `.env.example` containing
 names only. Pin down the expected Clerk dashboard settings and validate required
@@ -164,8 +187,8 @@ personal data.
 
 ## Suggested delivery order
 
-1. **Prove isolation:** establish integration tests around proxy behavior, owner
-   claiming, IDOR attempts, export, cron authentication, and session expiry.
+1. **Prove isolation broadly:** establish database-backed integration tests around
+   provisioning/rotation, IDOR attempts, Server Actions, and session expiry.
 2. **Harden sensitive actions:** add recent-authentication checks, server-side
    confirmation, typed errors, and security events.
 3. **Complete lifecycle integration:** add verified webhooks for proactive identity
