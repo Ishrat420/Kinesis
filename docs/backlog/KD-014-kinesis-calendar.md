@@ -1,6 +1,6 @@
 # KD-014 — Kinesis Calendar
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** High
 **Tags:** Integration, UX / UI
 
