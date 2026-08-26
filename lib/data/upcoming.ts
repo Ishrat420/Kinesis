@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { requireKinesisUser } from "@/lib/auth";
+import { getExpiryReminderDate } from "@/lib/documents/expiry";
 
 const DAY = 86_400_000;
 
@@ -51,7 +52,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
 
   const documentItems = documents.flatMap((document): UpcomingItem[] => {
     const expiry = startOfUtcDay(document.expiryDate!);
-    const reminderDate = new Date(expiry.getTime() - document.prompt * DAY);
+    const reminderDate = getExpiryReminderDate(expiry, document.prompt);
     const expired = expiry < today;
     if (!expired && (!settings.remindersEnabled || today < reminderDate)) return [];
     return [{
