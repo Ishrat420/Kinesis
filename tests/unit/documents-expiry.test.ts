@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExpiryDetails } from "@/lib/documents/expiry";
+import { getExpiryDetails, getExpiryReminderDate } from "@/lib/documents/expiry";
 
 describe("getExpiryDetails", () => {
   const today = new Date("2026-08-26T18:30:00.000Z");
@@ -35,5 +35,22 @@ describe("getExpiryDetails", () => {
       urgency: "expired",
       status: "Expired",
     });
+  });
+
+  it("uses calendar months for the six-month reminder option", () => {
+    const expiry = new Date("2027-02-23T00:00:00.000Z");
+    const now = new Date("2026-08-26T12:00:00.000Z");
+
+    expect(getExpiryDetails(expiry, 180, now)).toMatchObject({
+      urgency: "soon",
+      status: "Expiring soon",
+    });
+    expect(getExpiryReminderDate(expiry, 180)).toEqual(new Date("2026-08-23T00:00:00.000Z"));
+  });
+
+  it("clamps calendar reminders to the final day of shorter months", () => {
+    const expiry = new Date("2027-08-31T00:00:00.000Z");
+
+    expect(getExpiryReminderDate(expiry, 180)).toEqual(new Date("2027-02-28T00:00:00.000Z"));
   });
 });
