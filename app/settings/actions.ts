@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
-import { requireKinesisUser } from "@/lib/auth";
+import { requireKinesisUser, requireRecentVerification } from "@/lib/auth";
+import { DELETE_ALL_CONFIRMATION } from "./constants";
 
 export type SettingsActionState = { error?: string; message?: string };
 
@@ -29,7 +30,11 @@ export async function updateSettingsAction(
   return { message: "Settings saved." };
 }
 
-export async function deleteAllDataAction(): Promise<void> {
+export async function deleteAllDataAction(confirmation: string) {
+  const verification = await requireRecentVerification();
+  if (verification !== true) return verification;
+  if (confirmation !== DELETE_ALL_CONFIRMATION) return { error: "Enter the confirmation phrase exactly as shown." };
+
   const user = await requireKinesisUser();
   await prisma.$transaction([
     prisma.notification.deleteMany({ where: { userId: user.id } }),
@@ -45,6 +50,8 @@ export async function deleteAllDataAction(): Promise<void> {
     prisma.financeItem.deleteMany({ where: { userId: user.id } }),
     prisma.userSettings.deleteMany({ where: { userId: user.id } }),
     prisma.activityEvent.deleteMany({ where: { userId: user.id } }),
+    prisma.securityEvent.create({ data: { event: "ALL_DATA_DELETED", userId: user.id } }),
   ]);
   revalidatePath("/", "layout");
+  return { success: true };
 }
