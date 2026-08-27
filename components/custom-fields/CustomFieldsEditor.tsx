@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Check, Minus, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
   type CustomFieldType,
@@ -41,6 +41,21 @@ export function CustomFieldsEditor({
       editingName: false,
     })),
   );
+  const [resetRevision, setResetRevision] = useState(0);
+  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+
+  // React resets action forms after a successful submission. These fields are
+  // controlled, so repaint them after that native reset rather than briefly
+  // showing their empty/default DOM values until the page is reopened.
+  useEffect(() => {
+    const form = fieldsetRef.current?.closest("form");
+    if (!form) return;
+    const restoreControlledValues = () => {
+      window.setTimeout(() => setResetRevision((revision) => revision + 1), 0);
+    };
+    form.addEventListener("reset", restoreControlledValues);
+    return () => form.removeEventListener("reset", restoreControlledValues);
+  }, []);
 
   const update = (key: string, changes: Partial<EditorField>) => {
     setFields((current) =>
@@ -62,22 +77,14 @@ export function CustomFieldsEditor({
   };
 
   return (
-    <fieldset>
+    <fieldset ref={fieldsetRef}>
       <legend className="sr-only">Custom fields</legend>
-      <button
-        type="button"
-        onClick={addField}
-        className="inline-flex items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950"
-      >
-        <Plus className="h-4 w-4" /> Add Custom field
-      </button>
-
       {fields.length > 0 && (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           {fields.map((field, index) => (
             <div
-              key={field.key}
-              className="grid min-h-14 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] items-start gap-2 rounded-2xl border border-zinc-100 bg-zinc-50/50 p-2 transition-all"
+              key={`${field.key}:${resetRevision}`}
+              className="grid min-h-11 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] items-start gap-2 transition-all"
             >
               <FieldIdentity
                 field={field}
@@ -105,6 +112,13 @@ export function CustomFieldsEditor({
           ))}
         </div>
       )}
+      <button
+        type="button"
+        onClick={addField}
+        className={`${fields.length ? "mt-3" : ""} inline-flex items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950`}
+      >
+        <Plus className="h-4 w-4" /> Add custom field
+      </button>
     </fieldset>
   );
 }
