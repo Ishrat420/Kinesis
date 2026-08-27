@@ -96,6 +96,16 @@ tests/manual/
 These are used for workflows that are currently inappropriate or unnecessarily
 expensive to automate, particularly full browser and authentication journeys.
 
+The security-focused Clerk login/logout lifecycle runbook is:
+
+`tests/manual/authentication-lifecycle-security.md`
+
+It must be executed against a production-like, non-production deployment before
+authentication, Clerk, proxy, cookie, domain, or session-policy changes are
+released. The runbook covers anonymous access, owner and non-owner login, missing
+owner configuration, logout, session revocation/expiry, concurrent windows,
+browser history, cookie posture, and redirect safety.
+
 ## Current Testing Philosophy
 
 Use the cheapest appropriate testing layer:
