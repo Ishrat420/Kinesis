@@ -225,7 +225,7 @@ function FieldInput({ field, index, linkOptions, names, update }: {
             href={selectedOption.href}
             className={`${inputClass} flex items-center justify-between gap-3 text-zinc-700 hover:border-zinc-400 hover:text-zinc-950`}
           >
-            <span className="min-w-0 truncate">{selectedOption.module} → {selectedOption.name}</span>
+            <span className="min-w-0 truncate">{selectedOption.name}</span>
             <ExternalLink className="h-4 w-4 shrink-0 text-zinc-400" />
           </Link>
         </div>
