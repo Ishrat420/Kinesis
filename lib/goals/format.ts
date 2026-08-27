@@ -19,3 +19,16 @@ export function displayNumber(value: number, unit?: string | null) {
   const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value);
   return unit?.startsWith("$") ? `${unit} ${number}` : `${number}${unit ? ` ${unit}` : ""}`;
 }
+
+export function milestoneTimingLabel(dueDate: Date, now = new Date()) {
+  const dayMs = 86_400_000;
+  const dueDay = Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const days = Math.round((dueDay - today) / dayMs);
+
+  if (days < 0) return `${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} overdue`;
+  if (days === 0) return "due today";
+  if (days < 60) return `${days} ${days === 1 ? "day" : "days"} left`;
+  const months = Math.max(1, Math.round(days / 30.44));
+  return `${months} ${months === 1 ? "month" : "months"} left`;
+}

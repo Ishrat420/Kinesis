@@ -52,7 +52,7 @@ export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[]
   return <main className="min-h-screen bg-[#f7f8fb] px-5 py-7 text-zinc-950 sm:px-8 lg:px-10">
     <div className="mx-auto max-w-7xl">
       <header className="flex items-start justify-between gap-5">
-        <div><Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"><ArrowLeft className="h-4 w-4"/>Back to dashboard</Link><h1 className="text-[38px] font-semibold leading-none tracking-tight">Finance</h1><p className="mt-3 text-base leading-7 text-zinc-500">Your financial picture, all in one place.<br/>See what you own, owe, earn and spend.</p></div>
+        <div><Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"><ArrowLeft className="h-4 w-4"/>Back to dashboard</Link><h1 className="text-[38px] font-semibold leading-none tracking-tight">Finance</h1><p className="mt-3 text-base leading-7 text-zinc-500">Money in, money out, the whole situation.<br/>See what you own, owe, earn and spend.</p></div>
         <button onClick={() => setModal("choose")} className="mt-14 flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgb(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:bg-zinc-800"><Plus className="h-[18px] w-[18px]"/>Add</button>
       </header>
 

@@ -38,11 +38,26 @@ export default async function Home() {
                 Good morning, {getUserDisplayName(user)}
               </h1>
 
-              <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
-                {attentionItems.length} {attentionItems.length === 1 ? "thing needs" : "things need"} your attention.
-                <br />
-                Everything else is under control.
-              </p>
+              <div className="mt-4 max-w-2xl" aria-live="polite">
+                {attentionItems.length === 0 ? (
+                  <p className="text-lg font-semibold text-zinc-900">
+                    <span className="mr-2 text-emerald-600" aria-hidden="true">
+                      ✓
+                    </span>
+                    Nothing to action
+                  </p>
+                ) : (
+                  <p className="text-lg font-semibold text-zinc-900">
+                    <span className="text-2xl font-bold">{attentionItems.length}</span>{" "}
+                    {attentionItems.length === 1 ? "thing needs" : "things need"} your attention.
+                  </p>
+                )}
+                <p className="mt-1 text-base leading-7 text-zinc-500">
+                  {attentionItems.length === 0
+                    ? "Everything seems under control."
+                    : "Everything else seems under control."}
+                </p>
+              </div>
             </div>
 
             <StatsGrid

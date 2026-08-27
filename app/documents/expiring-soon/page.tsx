@@ -89,7 +89,7 @@ export default async function ExpiringDocumentsPage() {
           <div>
             <h1 className="text-[38px] font-semibold leading-none tracking-tight">Expiring documents</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
-              Documents enter Upcoming when they reach their individual reminder period.
+              A document appears in Upcoming when its reminder period begins.
             </p>
           </div>
         </div>

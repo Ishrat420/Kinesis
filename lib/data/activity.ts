@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/data/prisma";
+import { requireKinesisUser } from "@/lib/auth";
 
 export type ActivityAction = "Added" | "Updated" | "Completed";
 
@@ -12,12 +13,14 @@ export type ActivityItem = {
   createdAt: Date;
 };
 
-export function addActivity({ action, moduleName, objectName, icon, href }: Omit<ActivityItem, "id" | "createdAt">) {
+export async function addActivity({ action, moduleName, objectName, icon, href }: Omit<ActivityItem, "id" | "createdAt">) {
+  const user = await requireKinesisUser();
   return prisma.activityEvent.create({
-    data: { id: crypto.randomUUID(), action, moduleName, objectName, icon, href },
+    data: { id: crypto.randomUUID(), userId: user.id, action, moduleName, objectName, icon, href },
   });
 }
 
-export function getRecentActivity(limit = 8) {
-  return prisma.activityEvent.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+export async function getRecentActivity(limit = 8) {
+  const user = await requireKinesisUser();
+  return prisma.activityEvent.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: limit });
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import { Link2, Plus, Trash2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
+import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 
-export type CustomField = { id?: string; label: string; value: string };
+export type CustomField = CustomFieldValue;
 
 export function DocumentFields({
   labels = {
@@ -17,14 +19,14 @@ export function DocumentFields({
   values = {},
   initialCustomFields = [],
   onExpiryDateChange,
+  linkOptions,
 }: {
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
   initialCustomFields?: CustomField[];
   onExpiryDateChange?: (value: string) => void;
+  linkOptions: KinesisLinkOption[];
 }) {
-  const [customFields, setCustomFields] = useState(initialCustomFields);
-
   return (
     <div className="space-y-4">
       <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={onExpiryDateChange} />
@@ -34,19 +36,7 @@ export function DocumentFields({
       <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
       <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
-      {customFields.map((field, index) => (
-        <div key={field.id ?? index} className="grid grid-cols-[0.8fr_1.2fr_auto] gap-2">
-          <EditableLabel name="customLabel" initialValue={field.label} ariaLabel={`Custom field ${index + 1} name`} placeholder="Field name" />
-          <input name="customValue" defaultValue={field.value} aria-label={`Custom field ${index + 1} value`} placeholder="Value" className={inputClass} />
-          <button type="button" aria-label={`Remove custom field ${index + 1}`} onClick={() => setCustomFields((fields) => fields.filter((_, itemIndex) => itemIndex !== index))} className="rounded-xl border border-zinc-200 px-3 text-zinc-500 hover:bg-zinc-50 hover:text-red-600">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-
-      <button type="button" onClick={() => setCustomFields((fields) => [...fields, { id: crypto.randomUUID(), label: "", value: "" }])} className="flex items-center gap-2 rounded-xl border border-dashed border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50">
-        <Plus className="h-4 w-4" /> Add field
-      </button>
+      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} names={{ id: "customId", label: "customLabel", type: "customType", value: "customValue", target: "customTarget" }}/>
     </div>
   );
 }

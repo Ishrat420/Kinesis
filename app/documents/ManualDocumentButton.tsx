@@ -6,10 +6,11 @@ import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
 import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
+import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 
 const initialState: CreateDocumentState = {};
 
-export function ManualDocumentButton({ documentTypes, ownerName }: { documentTypes: DocumentTypeOption[]; ownerName: string }) {
+export function ManualDocumentButton({ documentTypes, ownerName, linkOptions }: { documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     createDocumentAction,
@@ -92,7 +93,7 @@ export function ManualDocumentButton({ documentTypes, ownerName }: { documentTyp
                     <h3 className="font-semibold text-zinc-800">Document information</h3>
                     <span className="text-xs font-medium text-zinc-400">Owner: {ownerName}</span>
                   </div>
-                  <DocumentFields />
+                  <DocumentFields linkOptions={linkOptions} />
                 </div>
 
                 {state.error && (

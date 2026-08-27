@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
+import { parseKinesisTarget, CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 
 export type DocumentActionState = { error?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -28,11 +30,19 @@ function documentData(formData: FormData) {
   const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
 
   const customLabels = formData.getAll("customLabel");
+  const customIds = formData.getAll("customId");
   const customValues = formData.getAll("customValue");
+  const customTypes = formData.getAll("customType");
+  const customTargets = formData.getAll("customTarget");
+  const validTypes = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
   const customFields = customLabels.flatMap((label, index) => {
     if (typeof label !== "string" || !label.trim()) return [];
     const value = customValues[index];
-    return [{ label: label.trim(), value: typeof value === "string" ? value.trim() : "" }];
+    const requestedType = String(customTypes[index] ?? "TEXT") as CustomFieldType;
+    const type = validTypes.has(requestedType) ? requestedType : "TEXT";
+    const target = type === "KINESIS_LINK" ? parseKinesisTarget(String(customTargets[index] ?? "")) : null;
+    if (type === "KINESIS_LINK" && !target) throw new Error("Select an object for every Kinesis Link field");
+    return [{ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null }];
   });
 
   return {
@@ -63,6 +73,7 @@ export async function createDocumentAction(
   const data = documentData(formData);
   if (!data) return { error: "Name and type are required." };
   data.type = await resolveDocumentType(data.type);
+  await validateKinesisTargets(data.customFields);
   const document = await createDocument(data);
   await addActivity({ action: "Added", moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
   revalidatePath("/", "layout");
@@ -77,6 +88,7 @@ export async function updateDocumentAction(
   const data = documentData(formData);
   if (!data) return { error: "Name and type are required." };
   data.type = await resolveDocumentType(data.type);
+  await validateKinesisTargets(data.customFields);
   await updateDocument(documentId, data);
   await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
   revalidatePath("/", "layout");

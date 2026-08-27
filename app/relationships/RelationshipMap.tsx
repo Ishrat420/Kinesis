@@ -162,7 +162,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
         <div>
           <div className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-400"><span>Relationships</span><span>/</span><span className="text-zinc-600">My constellation</span></div>
           <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.035em]">Your people, in orbit</h1>
-          <p className="mt-1 text-sm text-zinc-500">Arrange your relationships in a way that feels true to you.</p>
+          <p className="mt-1 text-sm text-zinc-500">Love them, tolerate them, call them every Sunday. Map them here.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={reset} className="map-button"><RotateCcw /> Reset</button>
