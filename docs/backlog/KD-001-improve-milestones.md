@@ -1,4 +1,4 @@
-# KD-001 — Improve Milestone Display
+# KD-001 — Improve Milestones
 
 **Status:** Accepted
 **Priority:** High
