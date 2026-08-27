@@ -41,6 +41,7 @@ function documentData(formData: FormData) {
     const requestedType = String(customTypes[index] ?? "TEXT") as CustomFieldType;
     const type = validTypes.has(requestedType) ? requestedType : "TEXT";
     const target = type === "KINESIS_LINK" ? parseKinesisTarget(String(customTargets[index] ?? "")) : null;
+    if (type === "KINESIS_LINK" && !target) throw new Error("Select an object for every Kinesis Link field");
     return [{ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null }];
   });
 
