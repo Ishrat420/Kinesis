@@ -151,7 +151,6 @@ KD-015-kinesis-timeline-review
 
 ## 🧠 Planning Needed
 
-KD-001-improve-milestone-display
 KD-002-kinesis-internal-link-field
 KD-007-adding-priority
 
@@ -164,7 +163,6 @@ KD-007-adding-priority
 ## Accepted — Needs Planning
 
 KD-011-unified-todo-view
-KD-014-kinesis-calendar
 
 ## ⛔ Blocked
 
@@ -172,6 +170,7 @@ KD-014-kinesis-calendar
 ## ✅ Done
 KD-009-implement-authetication-system
 KD-014-kinesis-calendar
+KD-001-improve-milestones
 
 ## 🗑 Dropped
 
