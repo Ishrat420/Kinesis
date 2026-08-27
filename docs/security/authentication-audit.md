@@ -1,6 +1,6 @@
 # Authentication and authorization audit
 
-**Reviewed:** 2026-08-26
+**Reviewed:** 2026-08-27
 **Scope:** Clerk integration, route protection, Kinesis user provisioning, data
 ownership checks, privileged endpoints, account lifecycle, operational guidance,
 and automated verification.
@@ -17,11 +17,22 @@ The application requires an explicitly configured Clerk owner ID before it binds
 or returns the generated local owner, and changing that configuration provides an
 operator-controlled recovery path that preserves existing data.
 
-Other lifecycle controls remain incomplete. There is no Clerk webhook, no explicit
-sign-up page even though sign-up is an MVP requirement, and the automated tests
-cover only part of the authentication and authorization boundary. The review also
-previously found that relationship updates could link an owned relationship to
-another user's goal when given that goal's ID; that gap is now closed.
+Other lifecycle controls remain incomplete. There is no Clerk webhook and no
+explicit sign-up page even though sign-up is an MVP requirement. Authentication
+verification now follows the repository's intentionally layered testing strategy:
+stable server behavior is covered by unit and database-backed integration tests,
+while browser and external Clerk lifecycle behavior is covered by a repeatable
+production-like manual test plan. Browser automation is not required for this
+finding to remain resolved. The review also previously found that relationship
+updates could link an owned relationship to another user's goal when given that
+goal's ID; that gap is now closed.
+
+Sensitive data export and bulk deletion now require a first-factor verification
+no more than ten minutes old. Bulk deletion also requires an exact server-checked
+confirmation phrase, and both successful operations write content-free security
+events. Deployment guidance, credential-rotation procedures, and a safe environment
+variable template have also been added, although the production Clerk settings are
+not yet finalized.
 
 ## What is already in place
 
@@ -44,6 +55,14 @@ another user's goal when given that goal's ID; that gap is now closed.
 - Vitest coverage now verifies the principal proxy status paths, configured-owner
   checks, concurrent initial provisioning behavior, export scoping, and cron
   authentication.
+- Sensitive export and bulk-deletion operations use Clerk reverification on both
+  the client flow and server boundary; deletion additionally checks an exact
+  confirmation phrase on the server.
+- Successful exports and bulk deletions create minimal, owner-scoped security
+  events without recording exported or deleted content.
+- A manual security runbook covers anonymous access, owner and non-owner login,
+  missing owner configuration, sign-out, session revocation and expiry, concurrent
+  windows, browser history, cookie posture, and redirect safety.
 
 ## Findings and gaps
 
@@ -88,7 +107,7 @@ data. A regression test confirms that an unowned goal prevents all mutations.
 
 Status: Functionally resolved and covered by a cross-user authorization unit test.
 
-### P1 — Automated security tests remain incomplete
+### Resolved P1 — Authentication security coverage needed a lifecycle strategy
 
 The repository now tests page redirects, API 401 responses, public proxy
 exceptions, missing/mismatched owner configuration, database-backed initial owner
@@ -96,18 +115,23 @@ provisioning and rotation (including real concurrent requests), export isolation
 cron-secret behavior, and database-backed cross-user isolation for the current
 document, goal, finance, custom-module, notification, and relationship action
 surfaces. The cross-user contract includes full goal-milestone and custom-item
-parent/child mismatch matrices. It still has no automated sign-out coverage.
-Session-expiry rejection has unit coverage, but not a browser or Clerk integration
-test. Authorization predicates remain repeated across many Prisma calls, so new
-ID-based functions must be added to the shared contract to retain this coverage.
+parent/child mismatch matrices. Session-expiry rejection also has unit coverage.
 
-**Recommended action:** Prioritize cross-user fixtures for every ID-based
-read/write, building on the relationship-to-goal regression test. Add browser or
-Clerk integration coverage for sign-out and session expiry. Consider centralizing
-owned-record lookups to reduce repetition.
+Sign-out and the external Clerk/browser lifecycle are deliberately verified using
+the committed manual lifecycle security plan rather than Playwright or another
+browser automation framework. The plan supplies repeatable production-like checks
+for sign-out, revocation/expiry, concurrent windows, browser history, cookie posture,
+and redirect safety. This is the accepted coverage layer for those workflows, not
+an outstanding requirement to introduce browser automation.
 
-Status: Database-backed provisioning and broad current-surface cross-user
-coverage now exist; browser/Clerk lifecycle coverage is still required.
+**Ongoing requirement:** Run and retain evidence from the manual lifecycle plan
+before authentication, Clerk, proxy, cookie, domain, or session-policy releases.
+Keep every new ID-based read/write in the shared cross-user contract, and consider
+centralizing owned-record lookups to reduce repeated authorization predicates.
+
+Status: Resolved through layered unit, database-backed integration, and repeatable
+manual lifecycle coverage. Browser automation is not planned or required; failure
+to execute the manual plan for a relevant release would reopen the verification gap.
 
 ### P1 — Sign-up is required by the backlog but is not an explicit product flow
 
@@ -150,53 +174,74 @@ errors. Translate them at page/action/route boundaries without disclosing accoun
 details. Add dedicated error UI for missing verified primary email and ownership
 conflicts.
 
-### P2 — Destructive operations have no recent-authentication requirement
+### Resolved P2 — Sensitive operations lacked recent-authentication controls
 
-“Delete all data” and full JSON export rely on the existing session only. They do
-not request step-up/reverification, and delete-all has only a client-side
-confirmation. An unattended or stolen authenticated browser session can therefore
-export or destroy all personal data immediately.
+“Delete all data” and full JSON export now require Clerk first-factor
+reverification when the current verification is more than ten minutes old. The
+client flows invoke Clerk's reverification UI, while the Server Action and Route
+Handler independently enforce the requirement. Bulk deletion also requires the
+exact `DELETE ALL MY DATA` phrase at the server boundary before any mutation.
 
-**Recommended action:** Require recent Clerk verification for export and destructive
-operations, add server-enforced confirmation for deletion, and record security
-events without logging exported content.
+Successful export and deletion operations create minimal `SecurityEvent` records
+without exported content, deleted content, credentials, or tokens. Unit tests cover
+the verification challenge, export rejection, confirmation rejection, and event
+creation paths.
 
-### P2 — Clerk deployment and security configuration is only partially documented
+Status: Functionally resolved with server-side enforcement and unit coverage.
 
-The README names the Clerk publishable and secret keys, the configured owner, and
-the expected single-owner registration policy. It still does not provide a
-repeatable checklist for allowed origins/redirects, production instance settings,
-enabled sign-in methods, email verification, session lifetime, MFA, webhook
-secrets, or key rotation. These external settings determine important parts of the
-actual security posture, and there is no committed `.env.example` containing safe
-variable names.
+### Partially resolved P2 — Clerk deployment and security configuration
 
-**Recommended action:** Add a deployment checklist and an `.env.example` containing
-names only. Pin down the expected Clerk dashboard settings and validate required
-environment variables at startup/build time.
+The repository now includes a Clerk deployment document describing the current
+development authentication methods, email verification, authorization behavior,
+session policy, known origin/redirect gaps, production checklist, and secret
+management. It also includes a names-only `.env.example` and a separate credential
+and owner-rotation procedure.
 
-### P2 — No webhook-backed profile synchronization or audit trail
+The production Clerk instance, domain, trusted origins, redirect URLs, session
+lifetime, MFA policy, password policy, account-deletion behavior, and production
+reverification exercise are explicitly still pending. Required variables are not
+validated centrally at startup/build time, and the configuration document's
+reverification section still describes the now-implemented application flow as
+planned.
+
+**Recommended action:** Finalize and record the production dashboard values, update
+the configuration document after exercising reverification in a production-like
+environment, and validate required environment variables at startup/build time.
+
+Status: Documentation and safe variable/rotation templates now exist; production
+configuration and automated environment validation remain open.
+
+### Partially resolved P2 — No webhook-backed profile synchronization; audit trail is limited
 
 Name/email changes are copied into Kinesis only on the next authenticated request.
-There is no record of owner claims, rejected claims, sign-ins, exports, bulk
-deletions, ownership changes, or webhook events. Existing activity records are
-product activity rather than a tamper-resistant security log.
+There is still no Clerk webhook and no record of owner claims, rejected claims,
+sign-ins, ownership changes, or webhook events. Successful exports and bulk
+deletions are now recorded in a dedicated `SecurityEvent` model, but the events are
+deleted with their owning user, have no recorded metadata or retention policy, and
+do not constitute a tamper-resistant audit log. Existing activity records remain
+product activity rather than security events.
 
 **Recommended action:** Verify Clerk webhook signatures and synchronize supported
-identity changes asynchronously. Add privacy-conscious security event logging with
-retention and access rules; never log session tokens, bearer secrets, or exported
-personal data.
+identity changes asynchronously. Extend privacy-conscious security event coverage
+to the remaining lifecycle events and define retention, integrity, and access
+rules; never log session tokens, bearer secrets, or exported personal data.
+
+Status: Export and bulk-deletion success events are recorded; webhook synchronization
+and a comprehensive, durable security audit trail remain open.
 
 ## Suggested delivery order
 
-1. **Prove isolation broadly:** establish database-backed integration tests around
-   provisioning/rotation, IDOR attempts, Server Actions, and session expiry.
-2. **Harden sensitive actions:** add recent-authentication checks, server-side
-   confirmation, typed errors, and security events.
+1. **Maintain isolation coverage:** keep provisioning/rotation, IDOR attempts, and
+   Server Actions in the unit and database-backed integration contracts, and run
+   the manual lifecycle plan for relevant authentication releases.
+2. **Finish sensitive-action hardening:** recent-authentication checks, server-side
+   deletion confirmation, and minimal export/deletion events are implemented; add
+   typed errors and define security-event retention and integrity controls.
 3. **Complete lifecycle integration:** add verified webhooks for proactive identity
    synchronization and security monitoring.
-4. **Make operation repeatable:** expand the Clerk deployment checklist and
-   reconcile the backlog with the chosen tenancy and registration policy.
+4. **Make operation repeatable:** finalize the documented production Clerk values,
+   add startup/build-time environment validation, and reconcile the backlog with
+   the chosen tenancy and registration policy.
 
 ## Audit limitations
 
