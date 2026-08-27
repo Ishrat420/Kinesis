@@ -25,6 +25,7 @@ function customFields(data: FormData) {
     const requested = types[position] as CustomFieldType;
     const type = validTypes.has(requested) ? requested : "TEXT";
     const target = type === "KINESIS_LINK" ? parseKinesisTarget(targets[position] ?? "") : null;
+    if (type === "KINESIS_LINK" && !target) throw new Error("Select an object for every Kinesis Link field");
     return { id: ids[position] || crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null, position };
   }).filter((field) => field.label);
 }

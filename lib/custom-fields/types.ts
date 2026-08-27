@@ -8,7 +8,7 @@ export const CUSTOM_FIELD_TYPES = [
 ] as const;
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]["value"];
-export type KinesisObjectType = "DOCUMENT" | "CUSTOM_ITEM";
+export type KinesisObjectType = "DOCUMENT" | "CUSTOM_ITEM" | "GOAL";
 export type CustomFieldValue = {
   id?: string;
   label: string;
@@ -31,6 +31,6 @@ export function parseKinesisTarget(value: string) {
   if (separator < 1) return null;
   const type = value.slice(0, separator);
   const id = value.slice(separator + 1);
-  if ((type !== "DOCUMENT" && type !== "CUSTOM_ITEM") || !id) return null;
+  if ((type !== "DOCUMENT" && type !== "CUSTOM_ITEM" && type !== "GOAL") || !id) return null;
   return { targetType: type as KinesisObjectType, targetId: id };
 }

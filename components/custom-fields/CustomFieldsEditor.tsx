@@ -11,7 +11,7 @@ import {
 } from "@/lib/custom-fields/types";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
-type EditorField = CustomFieldValue & { key: string; phase: FieldPhase };
+type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
 type FieldNames = { id: string; label: string; type: string; value: string; target: string };
 
 const inputClass = "h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100";
@@ -38,6 +38,7 @@ export function CustomFieldsEditor({
       key: field.id ?? crypto.randomUUID(),
       type: field.type ?? "TEXT",
       phase: "ready",
+      editingName: false,
     })),
   );
 
@@ -48,15 +49,16 @@ export function CustomFieldsEditor({
   };
 
   const addField = () => {
+    const id = crypto.randomUUID();
     setFields((current) => [
       ...current,
-      { key: crypto.randomUUID(), label: "", value: "", phase: "choosing" },
+      { id, key: id, label: "", value: "", phase: "choosing", editingName: false },
     ]);
   };
 
   const chooseType = (key: string, type: CustomFieldType) => {
     update(key, { type, phase: "confirming" });
-    window.setTimeout(() => update(key, { phase: "ready" }), 400);
+    window.setTimeout(() => update(key, { phase: "ready", editingName: true }), 400);
   };
 
   return (
@@ -137,6 +139,27 @@ function FieldIdentity({ field, index, names, chooseType, update }: {
     );
   }
 
+  if (!field.editingName && field.label.trim()) {
+    return (
+      <div className="flex h-11 min-w-0 items-center px-3">
+        <input type="hidden" name={names.id} value={field.id ?? ""} />
+        <input type="hidden" name={names.type} value={field.type} />
+        <input type="hidden" name={names.label} value={field.label} />
+        <button
+          type="button"
+          onDoubleClick={() => update({ editingName: true })}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === "F2") update({ editingName: true });
+          }}
+          title="Double-click to rename"
+          className="w-full truncate text-left text-sm font-medium text-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300"
+        >
+          {field.label}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <input type="hidden" name={names.id} value={field.id ?? ""} />
@@ -145,6 +168,13 @@ function FieldIdentity({ field, index, names, chooseType, update }: {
         name={names.label}
         value={field.label}
         onChange={(event) => update({ label: event.target.value })}
+        onBlur={() => field.label.trim() && update({ editingName: false })}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && field.label.trim()) {
+            event.preventDefault();
+            update({ editingName: false });
+          }
+        }}
         aria-label={`Field ${index + 1} name`}
         placeholder="Field name"
         required
