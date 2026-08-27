@@ -274,6 +274,7 @@ model Milestone {
   value         Float?
   dueDate       DateTime?
   completed     Boolean        @default(false)
+  completedAt   DateTime?
   autoCompleted Boolean        @default(false)
   position      Int            @default(0)
   goal          Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)

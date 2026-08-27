@@ -8,10 +8,12 @@ type FormAction = (formData: FormData) => Promise<void>;
 export function AddMilestoneForm({
   action,
   hasTarget,
+  unit,
   goalTargetDate,
 }: {
   action: FormAction;
   hasTarget: boolean;
+  unit: string | null;
   goalTargetDate: Date | null;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -37,12 +39,14 @@ export function AddMilestoneForm({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input name="name" required autoFocus placeholder="What is the next meaningful checkpoint?" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
-        {hasTarget && <input name="value" type="number" step="any" min="0" placeholder="Numeric value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-36" />}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input name="name" required autoFocus placeholder="What will you do next?" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
+        {hasTarget && <input name="value" type="number" step="any" min="0" placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />}
+        {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
+        <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
         <input name="dueDate" type="date" max={latestDueDate} aria-label="Optional milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
-        <button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Save milestone</button>
       </div>
+      <div className="mt-3 flex justify-end"><button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Save milestone</button></div>
     </form>
   );
 }
