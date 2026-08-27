@@ -1,6 +1,6 @@
 # KD-002 — Kinesis Link Field
 
-**Status:** Accepted 
+**Status:** Done
 **Priority:** High
 
 ## Summary
