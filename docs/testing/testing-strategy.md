@@ -127,6 +127,11 @@ including:
 
 Database-dependent cases should be covered by integration tests rather than
 mocking Prisma behaviour.
+Database-backed integration tests exercise authorization/provisioning against 
+the dedicated test database while Clerk remains mocked. 
+
+Clerk is mocked at the application boundary for automated tests. 
+Unit tests verify Kinesis authorization behavior against simulated Clerk identities. 
 
 The shared cross-user fixture in `tests/integration/authorization/fixture.ts`
 creates two recognizably different owners and representative records for every
