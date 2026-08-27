@@ -4,6 +4,7 @@ import Link from "next/link";
 import { EditDocumentForm } from "./EditDocumentForm";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
+import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 
 const timeline = [
   { title: "Document uploaded", date: "2 Jul 2026" },
@@ -17,7 +18,7 @@ export default async function DocumentDetailPage({
   params: Promise<{ documentId: string }>;
 }) {
   const { documentId } = await params;
-  const [document, documentTypes, user] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser()]);
+  const [document, documentTypes, user, linkOptions] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser(), getKinesisLinkOptions()]);
 
   if (!document) {
     return (
@@ -89,7 +90,7 @@ export default async function DocumentDetailPage({
               notesLabel: document.notesLabel,
               linkLabel: document.linkLabel,
               customFields: document.customFields,
-            }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} />
+            }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} />
           </section>
         </div>
 

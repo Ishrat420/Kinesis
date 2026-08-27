@@ -4,6 +4,7 @@ import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } fro
 import { getCurrentUser, getUserDisplayName } from "./user";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
+import type { CustomFieldValue } from "@/lib/custom-fields/types";
 
 export type DocumentInput = {
   name: string;
@@ -22,7 +23,7 @@ export type DocumentInput = {
   countryLabel?: string;
   notesLabel?: string;
   linkLabel?: string;
-  customFields?: Array<{ label: string; value: string }>;
+  customFields?: CustomFieldValue[];
 };
 
 export async function getDocuments() {
@@ -134,9 +135,9 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
       userId: user.id,
       owner: getUserDisplayName(user),
       customFields: {
-        create: customFields.map((field, position) => ({
-          id: crypto.randomUUID(),
+        create: customFields.map(({ id: fieldId, ...field }, position) => ({
           ...field,
+          id: fieldId ?? crypto.randomUUID(),
           position,
         })),
       },
@@ -150,6 +151,9 @@ export async function updateDocument(id: string, data: DocumentInput) {
   return prisma.$transaction(async (transaction) => {
     const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true } });
     if (!owned) throw new Error("Document not found");
+    const existingFields = await transaction.documentField.findMany({ where: { documentId: id }, select: { id: true, type: true } });
+    const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
+    if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) throw new Error("A custom field's type cannot be changed");
     await transaction.documentField.deleteMany({ where: { documentId: id } });
     await transaction.notification.deleteMany({ where: { documentId: id, userId: user.id } });
     return transaction.document.update({
@@ -157,9 +161,9 @@ export async function updateDocument(id: string, data: DocumentInput) {
       data: {
         ...document,
         customFields: {
-          create: customFields.map((field, position) => ({
-            id: crypto.randomUUID(),
+          create: customFields.map(({ id: fieldId, ...field }, position) => ({
             ...field,
+            id: fieldId ?? crypto.randomUUID(),
             position,
           })),
         },
