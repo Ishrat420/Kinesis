@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma db push --force-reset --skip-generate && npm run build",
+  "buildCommand": "npm run db:deploy && npm run build",
   "crons": [
     {
       "path": "/api/notifications/evaluate",
