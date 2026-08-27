@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ExternalLink, Minus, Plus } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
@@ -132,15 +132,18 @@ function FieldIdentity({ field, index, names, chooseType, update }: {
 }) {
   if (field.phase === "choosing") {
     return (
-      <select
-        defaultValue=""
-        onChange={(event) => chooseType(event.target.value as CustomFieldType)}
-        aria-label={`Field ${index + 1} type`}
-        className={inputClass}
-      >
-        <option value="" disabled>Field type</option>
-        {CUSTOM_FIELD_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-      </select>
+      <div className="relative">
+        <select
+          defaultValue=""
+          onChange={(event) => chooseType(event.target.value as CustomFieldType)}
+          aria-label={`Field ${index + 1} type`}
+          className={`${inputClass} appearance-none pr-11`}
+        >
+          <option value="" disabled>Field type</option>
+          {CUSTOM_FIELD_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+        </select>
+        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+      </div>
     );
   }
 
@@ -231,26 +234,29 @@ function FieldInput({ field, index, linkOptions, names, update }: {
     return (
       <div>
         <input type="hidden" name={names.value} value="" />
-        <select
-          required
-          name={names.target}
-          value={selected}
-          onChange={(event) => {
-            const [targetType, ...id] = event.target.value.split(":");
-            update({ targetType: targetType as CustomFieldValue["targetType"], targetId: id.join(":") });
-          }}
-          aria-label={`Field ${index + 1} linked object`}
-          className={inputClass}
-        >
-          <option value="">Select object ↗</option>
-          {modules.map((module) => (
-            <optgroup key={module} label={module}>
-              {linkOptions.filter((option) => option.module === module).map((option) => (
-                <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            required
+            name={names.target}
+            value={selected}
+            onChange={(event) => {
+              const [targetType, ...id] = event.target.value.split(":");
+              update({ targetType: targetType as CustomFieldValue["targetType"], targetId: id.join(":") });
+            }}
+            aria-label={`Field ${index + 1} linked object`}
+            className={`${inputClass} appearance-none pr-11`}
+          >
+            <option value="">Select object ↗</option>
+            {modules.map((module) => (
+              <optgroup key={module} label={module}>
+                {linkOptions.filter((option) => option.module === module).map((option) => (
+                  <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        </div>
       </div>
     );
   }
