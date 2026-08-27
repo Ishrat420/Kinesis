@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser, requireRecentVerification } from "@/lib/auth";
+import { DELETE_ALL_CONFIRMATION } from "./constants";
 
 export type SettingsActionState = { error?: string; message?: string };
 
@@ -28,8 +29,6 @@ export async function updateSettingsAction(
   revalidatePath("/settings");
   return { message: "Settings saved." };
 }
-
-export const DELETE_ALL_CONFIRMATION = "DELETE ALL MY DATA";
 
 export async function deleteAllDataAction(confirmation: string) {
   const verification = await requireRecentVerification();
