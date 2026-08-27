@@ -58,7 +58,7 @@ export async function addTargetAction(id: string, data: FormData) {
     if (!previous) throw new Error("Goal not found");
     await tx.goal.update({ where: { id }, data: { targetValue, currentValue, unit } });
     if (previous?.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
-    await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, autoCompleted: true } });
+    await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, completedAt: new Date(), autoCompleted: true } });
   }); refresh(id);
 }
 
@@ -73,7 +73,26 @@ export async function addMilestoneAction(id: string, data: FormData) {
   const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate"); if (!name || dueDate === undefined) return;
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true, targetDate: true, _count: { select: { milestones: true } } } }); if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
   const auto = milestoneValue !== null && goal.currentValue !== null && goal.currentValue >= milestoneValue;
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate, completed: auto, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+}
+
+export async function updateMilestoneAction(id: string, milestoneId: string, data: FormData) {
+  const user = await requireKinesisUser();
+  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate");
+  if (!name || dueDate === undefined || (milestoneValue !== null && !Number.isFinite(milestoneValue))) return;
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetDate: true } });
+  if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
+  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { name, value: milestoneValue, dueDate } });
+  refresh(id);
+}
+
+export async function duplicateMilestoneAction(id: string, milestoneId: string) {
+  const user = await requireKinesisUser();
+  const milestone = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
+  if (!milestone) return;
+  const count = await prisma.milestone.count({ where: { goalId: id } });
+  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name: milestone.name, value: milestone.value, dueDate: milestone.dueDate, position: count } });
+  refresh(id);
 }
 
 export async function updateMilestoneDueDateAction(id: string, milestoneId: string, data: FormData) {
@@ -96,7 +115,7 @@ export async function toggleMilestoneAction(id: string, milestoneId: string, com
   const user = await requireKinesisUser();
   const owned = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
   if (!owned) throw new Error("Milestone not found");
-  const milestone = await prisma.milestone.update({ where: { id: milestoneId }, data: { completed, autoCompleted: false }, include: { goal: { select: { name: true } } } });
+  const milestone = await prisma.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true } } } });
   if (completed) await addActivity({ action: "Completed", moduleName: "Milestone", objectName: `${milestone.name} for ${milestone.goal.name}`, icon: "goals", href: `/goals/${id}` });
   refresh(id);
 }
