@@ -1,6 +1,6 @@
 # BUG-001 — Expiry Status Colour Incorrect Near Reminder Threshold
 
-**Status:** Open
+**Status:** Fixed
 **Priority:** Medium
 
 ## Problem

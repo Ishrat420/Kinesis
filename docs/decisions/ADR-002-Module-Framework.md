@@ -189,6 +189,10 @@ Activity answers:
 # Insights
 
 Insights surface useful observations.
+Insight Cards as we call it, provides compact, actionable summaries derived from data across Kinesis.
+These are present in the homepage and used module knowledge to summery actionable items. 
+
+Each card should answer **“Is there something here I should know?”**
 
 Examples:
 

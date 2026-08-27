@@ -3,6 +3,8 @@ import { getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
 import { getCurrentUser, getUserDisplayName } from "./user";
 import { connection } from "next/server";
+import { requireKinesisUser } from "@/lib/auth";
+import type { CustomFieldValue } from "@/lib/custom-fields/types";
 
 export type DocumentInput = {
   name: string;
@@ -21,15 +23,18 @@ export type DocumentInput = {
   countryLabel?: string;
   notesLabel?: string;
   linkLabel?: string;
-  customFields?: Array<{ label: string; value: string }>;
+  customFields?: CustomFieldValue[];
 };
 
 export async function getDocuments() {
-  return prisma.document.findMany({ orderBy: { name: "asc" } });
+  const user = await requireKinesisUser();
+  return prisma.document.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } });
 }
 
 export async function getDocumentSummary() {
+  const user = await requireKinesisUser();
   const documents = await prisma.document.findMany({
+    where: { userId: user.id },
     select: { expiryDate: true, prompt: true },
   });
 
@@ -46,8 +51,9 @@ export async function getDocumentSummary() {
 
 export async function getExpiringDocuments(now = new Date()) {
   await connection();
+  const user = await requireKinesisUser();
   const documents = await prisma.document.findMany({
-    where: { expiryDate: { not: null } },
+    where: { userId: user.id, expiryDate: { not: null } },
     orderBy: { expiryDate: "asc" },
   });
 
@@ -62,9 +68,10 @@ export async function getExpiringDocuments(now = new Date()) {
 }
 
 export async function getDocumentTypes() {
+  const user = await requireKinesisUser();
   const [customTypes, usedTypes] = await Promise.all([
-    prisma.documentType.findMany({ orderBy: { name: "asc" } }),
-    prisma.document.findMany({ distinct: ["type"], select: { type: true } }),
+    prisma.documentType.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } }),
+    prisma.document.findMany({ where: { userId: user.id }, distinct: ["type"], select: { type: true } }),
   ]);
   const used = new Set(usedTypes.map(({ type }) => type.toLocaleLowerCase()));
   const names = new Map<string, { name: string; isDefault: boolean; inUse: boolean }>();
@@ -80,34 +87,37 @@ export async function getDocumentTypes() {
 }
 
 export async function resolveDocumentType(value: string) {
+  const user = await requireKinesisUser();
   const formatted = formatDocumentType(value);
   if (!formatted || isDefaultDocumentType(formatted)) return formatted;
   const existing = await prisma.documentType.findFirst({
-    where: { name: { equals: formatted, mode: "insensitive" } },
+    where: { userId: user.id, name: { equals: formatted, mode: "insensitive" } },
   });
   if (existing) return existing.name;
-  await prisma.documentType.create({ data: { id: crypto.randomUUID(), name: formatted } });
+  await prisma.documentType.create({ data: { id: crypto.randomUUID(), userId: user.id, name: formatted } });
   return formatted;
 }
 
 export async function deleteUnusedDocumentType(name: string) {
+  const user = await requireKinesisUser();
   if (isDefaultDocumentType(name)) return { error: "Default document types cannot be deleted." };
-  const inUse = await prisma.document.count({ where: { type: { equals: name, mode: "insensitive" } } });
+  const inUse = await prisma.document.count({ where: { userId: user.id, type: { equals: name, mode: "insensitive" } } });
   if (inUse) return { error: "This type is being used by a document." };
-  await prisma.documentType.deleteMany({ where: { name: { equals: name, mode: "insensitive" } } });
+  await prisma.documentType.deleteMany({ where: { userId: user.id, name: { equals: name, mode: "insensitive" } } });
   return {};
 }
 
 export async function getDocument(id: string) {
-  const document = await prisma.document.findUnique({
-    where: { id },
+  const user = await requireKinesisUser();
+  const document = await prisma.document.findFirst({
+    where: { id, userId: user.id },
     include: { customFields: { orderBy: { position: "asc" } } },
   });
   if (!document) return null;
   const status = getExpiryDetails(document.expiryDate, document.prompt).status;
   if (status !== document.status) {
     return prisma.document.update({
-      where: { id },
+      where: { id, userId: user.id },
       data: { status },
       include: { customFields: { orderBy: { position: "asc" } } },
     });
@@ -122,11 +132,12 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
     data: {
       ...document,
       id: data.id ?? crypto.randomUUID(),
+      userId: user.id,
       owner: getUserDisplayName(user),
       customFields: {
-        create: customFields.map((field, position) => ({
-          id: crypto.randomUUID(),
+        create: customFields.map(({ id: fieldId, ...field }, position) => ({
           ...field,
+          id: fieldId ?? crypto.randomUUID(),
           position,
         })),
       },
@@ -135,18 +146,24 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
 }
 
 export async function updateDocument(id: string, data: DocumentInput) {
+  const user = await requireKinesisUser();
   const { customFields = [], ...document } = data;
   return prisma.$transaction(async (transaction) => {
+    const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true } });
+    if (!owned) throw new Error("Document not found");
+    const existingFields = await transaction.documentField.findMany({ where: { documentId: id }, select: { id: true, type: true } });
+    const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
+    if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) throw new Error("A custom field's type cannot be changed");
     await transaction.documentField.deleteMany({ where: { documentId: id } });
-    await transaction.notification.deleteMany({ where: { documentId: id } });
+    await transaction.notification.deleteMany({ where: { documentId: id, userId: user.id } });
     return transaction.document.update({
       where: { id },
       data: {
         ...document,
         customFields: {
-          create: customFields.map((field, position) => ({
-            id: crypto.randomUUID(),
+          create: customFields.map(({ id: fieldId, ...field }, position) => ({
             ...field,
+            id: fieldId ?? crypto.randomUUID(),
             position,
           })),
         },
@@ -156,5 +173,6 @@ export async function updateDocument(id: string, data: DocumentInput) {
 }
 
 export async function deleteDocument(id: string) {
-  return prisma.document.delete({ where: { id } });
+  const user = await requireKinesisUser();
+  return prisma.document.deleteMany({ where: { id, userId: user.id } });
 }

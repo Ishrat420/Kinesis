@@ -1,7 +1,7 @@
-# KD-002 — Kinesis Internal Link Field
+# KD-002 — Kinesis Link Field
 
-**Status:** Planning Needed
-**Priority:** Medium
+**Status:** Done
+**Priority:** High
 
 ## Summary
 
@@ -17,8 +17,8 @@ Example:
 
 The linked object should be displayed as a clickable reference. Clicking it navigates directly to that object's page.
 
-## Notes
+We are calling this field type: Kinesis Link 
 
-Working name: **Kinesis Link** / **Smart Link**. Final user-facing name TBD.
+## Notes
 
 This should use the existing object relationship system rather than duplicate data.
