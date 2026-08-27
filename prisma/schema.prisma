@@ -26,6 +26,7 @@ model User {
   customModules  CustomModule[]
   dismissals     AttentionDismissal[]
   activityEvents ActivityEvent[]
+  securityEvents SecurityEvent[]
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 }
@@ -354,6 +355,16 @@ model ActivityEvent {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model SecurityEvent {
+  id        String   @id @default(uuid())
+  event     String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
 }
