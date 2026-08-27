@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useReverification } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Trash2, X } from "lucide-react";
-import { DELETE_ALL_CONFIRMATION, deleteAllDataAction } from "./actions";
+import { deleteAllDataAction } from "./actions";
+import { DELETE_ALL_CONFIRMATION } from "./constants";
 
 export function DeleteDataButton() {
   const [confirming, setConfirming] = useState(false);
