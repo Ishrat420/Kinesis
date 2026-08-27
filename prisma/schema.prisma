@@ -120,14 +120,18 @@ model Notification {
 }
 
 model DocumentField {
-  id         String   @id
+  id         String             @id
   documentId String
   label      String
   value      String
-  position   Int      @default(0)
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  type       CustomFieldType    @default(TEXT)
+  targetType KinesisObjectType?
+  targetId   String?
+  position   Int                @default(0)
+  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId, position])
+  @@index([targetType, targetId])
 }
 
 model DocumentType {
@@ -326,14 +330,33 @@ model CustomItem {
 }
 
 model CustomItemField {
-  id       String     @id
-  itemId   String
-  label    String
-  value    String
-  position Int        @default(0)
-  item     CustomItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id         String             @id
+  itemId     String
+  label      String
+  value      String
+  type       CustomFieldType    @default(TEXT)
+  targetType KinesisObjectType?
+  targetId   String?
+  position   Int                @default(0)
+  item       CustomItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId, position])
+  @@index([targetType, targetId])
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  CHECKBOX
+  LINK
+  KINESIS_LINK
+}
+
+enum KinesisObjectType {
+  DOCUMENT
+  CUSTOM_ITEM
+  GOAL
 }
 
 model AttentionDismissal {
