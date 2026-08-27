@@ -12,7 +12,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
-vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth, currentUser: mocks.currentUser }));
+vi.mock("@clerk/nextjs/server", () => ({
+  auth: mocks.auth,
+  currentUser: mocks.currentUser,
+  reverificationError: vi.fn((config) => ({ clerk_error: { metadata: { reverification: config } } })),
+  reverificationErrorResponse: vi.fn(() => new Response(null, { status: 403 })),
+}));
 vi.mock("@/lib/data/prisma", () => ({ prisma: mocks.prisma }));
 
 const clerkUser = (id = "user_owner") => ({
@@ -26,9 +31,21 @@ describe("requireKinesisUser", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     delete process.env.KINESIS_OWNER_CLERK_USER_ID;
-    mocks.auth.mockResolvedValue({ userId: "user_owner" });
+    mocks.auth.mockResolvedValue({ userId: "user_owner", has: vi.fn().mockReturnValue(true) });
     mocks.currentUser.mockResolvedValue(clerkUser());
     mocks.prisma.user.findUnique.mockResolvedValue(null);
+  });
+
+  it("requires a first-factor verification no more than ten minutes old", async () => {
+    const has = vi.fn().mockReturnValue(false);
+    mocks.auth.mockResolvedValue({ userId: "user_owner", has });
+    vi.resetModules();
+    const { requireRecentVerification } = await import("@/lib/auth");
+
+    const result = await requireRecentVerification();
+
+    expect(has).toHaveBeenCalledWith({ reverification: { level: "first_factor", afterMinutes: 10 } });
+    expect(result).toMatchObject({ clerk_error: { metadata: { reverification: { level: "first_factor", afterMinutes: 10 } } } });
   });
 
   async function loadSubject() {
