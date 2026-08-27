@@ -139,7 +139,6 @@ Done
 
 ## 💡 Idea
 
-KD-003-custom-object-fields
 KD-004-templates-object-types
 KD-005-customisable-module-widgets
 KD-006-recurring-reminder-field
@@ -151,7 +150,6 @@ KD-015-kinesis-timeline-review
 
 ## 🧠 Planning Needed
 
-KD-002-kinesis-internal-link-field
 KD-007-adding-priority
 
 ## ✓ Accepted
@@ -171,6 +169,8 @@ KD-011-unified-todo-view
 KD-009-implement-authetication-system
 KD-014-kinesis-calendar
 KD-001-improve-milestones
+KD-002-kinesis-internal-link-field
+KD-003-custom-object-fields
 
 ## 🗑 Dropped
 

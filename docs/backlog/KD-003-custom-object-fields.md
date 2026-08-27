@@ -1,6 +1,6 @@
 # KD-003 — Custom Object Fields
 
-**Status:** Accepted 
+**Status:** Done
 **Priority:** High
 
 ## Summary
