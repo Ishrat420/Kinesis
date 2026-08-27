@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { displayNumber, milestoneTimingLabel } from "@/lib/goals/format";
 
 type FormAction = (formData: FormData) => Promise<void>;
+const AUTO_COMPLETION_FEEDBACK_MS = 15_000;
+
+function hasActiveAutoCompletionFeedback(autoCompleted: boolean, completedAt: Date | null) {
+  return autoCompleted && completedAt !== null && completedAt.getTime() + AUTO_COMPLETION_FEEDBACK_MS > Date.now();
+}
 
 export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, updateAction, duplicateAction, deleteAction }: {
   milestone: { id: string; name: string; value: number | null; dueDate: Date | null; completed: boolean; completedAt: Date | null; autoCompleted: boolean };
@@ -16,12 +21,24 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   deleteAction: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [showAutoCompletionFeedback, setShowAutoCompletionFeedback] = useState(() => hasActiveAutoCompletionFeedback(milestone.autoCompleted, milestone.completedAt));
   const now = new Date();
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
   const date = milestone.dueDate?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   const completedDate = milestone.completedAt?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   const latestDueDate = goalTargetDate ? new Date(goalTargetDate.getTime() - 86_400_000).toISOString().slice(0, 10) : undefined;
   const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit)}`}`;
+
+  useEffect(() => {
+    const active = hasActiveAutoCompletionFeedback(milestone.autoCompleted, milestone.completedAt);
+    const remaining = milestone.completedAt ? milestone.completedAt.getTime() + AUTO_COMPLETION_FEEDBACK_MS - Date.now() : 0;
+    const showTimeout = window.setTimeout(() => setShowAutoCompletionFeedback(active), 0);
+    const hideTimeout = active ? window.setTimeout(() => setShowAutoCompletionFeedback(false), remaining) : undefined;
+    return () => {
+      window.clearTimeout(showTimeout);
+      if (hideTimeout !== undefined) window.clearTimeout(hideTimeout);
+    };
+  }, [milestone.autoCompleted, milestone.completedAt]);
 
   if (editing) return <form action={updateAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -40,9 +57,11 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
       {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {milestoneTimingLabel(milestone.dueDate, now)}</p>}
-      {milestone.autoCompleted && <p className="mt-1 text-xs font-medium text-emerald-600">Completed automatically</p>}
+      {showAutoCompletionFeedback && <div role="status" className="mt-2 flex w-fit items-center gap-3 rounded-lg bg-emerald-100/80 px-3 py-2 text-xs font-medium text-emerald-700">
+        <span>Completed automatically</span>
+        <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-emerald-900"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
+      </div>}
     </div>
-    {milestone.autoCompleted && <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button title="Undo" className="rounded-lg p-2 text-zinc-400 hover:bg-white"><RotateCcw className="h-4 w-4"/></button></form>}
     <details className="relative" onClick={(event) => event.stopPropagation()}>
       <summary aria-label="Milestone actions" className="list-none rounded-lg p-2 text-zinc-400 hover:bg-white hover:text-zinc-700"><Ellipsis className="h-5 w-5" /></summary>
       <div className="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-lg">
