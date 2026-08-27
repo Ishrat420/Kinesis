@@ -15,6 +15,7 @@ const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/cu
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
 
 function customFields(data: FormData) {
+  const ids = data.getAll("fieldId").map(String);
   const labels = data.getAll("fieldLabel").map(String);
   const values = data.getAll("fieldValue").map(String);
   const types = data.getAll("fieldType").map(String);
@@ -24,7 +25,7 @@ function customFields(data: FormData) {
     const requested = types[position] as CustomFieldType;
     const type = validTypes.has(requested) ? requested : "TEXT";
     const target = type === "KINESIS_LINK" ? parseKinesisTarget(targets[position] ?? "") : null;
-    return { id: crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null, position };
+    return { id: ids[position] || crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null, position };
   }).filter((field) => field.label);
 }
 
@@ -75,6 +76,9 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, d
   await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
     if (!ownedItem) throw new Error("Item not found");
+    const existingFields = await tx.customItemField.findMany({ where: { itemId }, select: { id: true, type: true } });
+    const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
+    if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) throw new Error("A custom field's type cannot be changed");
     await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
       name, notes: getValue(data, "notes") || null,
       reminder: reminder ? new Date(`${reminder}T12:00:00.000Z`) : null,

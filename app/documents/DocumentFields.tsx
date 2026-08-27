@@ -36,7 +36,7 @@ export function DocumentFields({
       <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
       <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
-      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} names={{ label: "customLabel", type: "customType", value: "customValue", target: "customTarget" }}/>
+      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} names={{ id: "customId", label: "customLabel", type: "customType", value: "customValue", target: "customTarget" }}/>
     </div>
   );
 }

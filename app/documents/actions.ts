@@ -30,6 +30,7 @@ function documentData(formData: FormData) {
   const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
 
   const customLabels = formData.getAll("customLabel");
+  const customIds = formData.getAll("customId");
   const customValues = formData.getAll("customValue");
   const customTypes = formData.getAll("customType");
   const customTargets = formData.getAll("customTarget");
@@ -40,7 +41,7 @@ function documentData(formData: FormData) {
     const requestedType = String(customTypes[index] ?? "TEXT") as CustomFieldType;
     const type = validTypes.has(requestedType) ? requestedType : "TEXT";
     const target = type === "KINESIS_LINK" ? parseKinesisTarget(String(customTargets[index] ?? "")) : null;
-    return [{ label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null }];
+    return [{ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null }];
   });
 
   return {
