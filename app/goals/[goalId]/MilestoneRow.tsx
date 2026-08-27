@@ -6,9 +6,14 @@ import { displayNumber, milestoneTimingLabel } from "@/lib/goals/format";
 
 type FormAction = (formData: FormData) => Promise<void>;
 const AUTO_COMPLETION_FEEDBACK_MS = 15_000;
+const AUTO_COMPLETION_FADE_MS = 500;
+type FeedbackState = "visible" | "fading" | "hidden";
 
-function hasActiveAutoCompletionFeedback(autoCompleted: boolean, completedAt: Date | null) {
-  return autoCompleted && completedAt !== null && completedAt.getTime() + AUTO_COMPLETION_FEEDBACK_MS > Date.now();
+function autoCompletionFeedbackState(autoCompleted: boolean, completedAt: Date | null): FeedbackState {
+  if (!autoCompleted || completedAt === null) return "hidden";
+  const remaining = completedAt.getTime() + AUTO_COMPLETION_FEEDBACK_MS - Date.now();
+  if (remaining <= 0) return "hidden";
+  return remaining <= AUTO_COMPLETION_FADE_MS ? "fading" : "visible";
 }
 
 export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, updateAction, duplicateAction, deleteAction }: {
@@ -21,7 +26,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   deleteAction: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
-  const [showAutoCompletionFeedback, setShowAutoCompletionFeedback] = useState(() => hasActiveAutoCompletionFeedback(milestone.autoCompleted, milestone.completedAt));
+  const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
   const now = new Date();
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
   const date = milestone.dueDate?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -30,15 +35,22 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit)}`}`;
 
   useEffect(() => {
-    const active = hasActiveAutoCompletionFeedback(milestone.autoCompleted, milestone.completedAt);
+    const nextState = autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt);
     const remaining = milestone.completedAt ? milestone.completedAt.getTime() + AUTO_COMPLETION_FEEDBACK_MS - Date.now() : 0;
-    const showTimeout = window.setTimeout(() => setShowAutoCompletionFeedback(active), 0);
-    const hideTimeout = active ? window.setTimeout(() => setShowAutoCompletionFeedback(false), remaining) : undefined;
+    const showTimeout = window.setTimeout(() => setAutoCompletionFeedback(nextState), 0);
+    const fadeTimeout = nextState === "visible" ? window.setTimeout(() => setAutoCompletionFeedback("fading"), Math.max(0, remaining - AUTO_COMPLETION_FADE_MS)) : undefined;
+    const hideTimeout = nextState !== "hidden" ? window.setTimeout(() => setAutoCompletionFeedback("hidden"), Math.max(0, remaining)) : undefined;
     return () => {
       window.clearTimeout(showTimeout);
+      if (fadeTimeout !== undefined) window.clearTimeout(fadeTimeout);
       if (hideTimeout !== undefined) window.clearTimeout(hideTimeout);
     };
   }, [milestone.autoCompleted, milestone.completedAt]);
+
+  function dismissAutoCompletionFeedback() {
+    setAutoCompletionFeedback("fading");
+    window.setTimeout(() => setAutoCompletionFeedback("hidden"), AUTO_COMPLETION_FADE_MS);
+  }
 
   if (editing) return <form action={updateAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -57,9 +69,10 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
       {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {milestoneTimingLabel(milestone.dueDate, now)}</p>}
-      {showAutoCompletionFeedback && <div role="status" className="mt-2 flex w-fit items-center gap-3 rounded-lg bg-emerald-100/80 px-3 py-2 text-xs font-medium text-emerald-700">
-        <span>Completed automatically</span>
-        <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-emerald-900"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
+      {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-emerald-800 shadow-lg shadow-emerald-950/10 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
+        <span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" />Completed automatically</span>
+        <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-emerald-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
+        <button type="button" onClick={(event) => { event.stopPropagation(); dismissAutoCompletionFeedback(); }} aria-label="Dismiss automatic completion message" className="rounded-md p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-3.5 w-3.5" /></button>
       </div>}
     </div>
     <details className="relative" onClick={(event) => event.stopPropagation()}>
