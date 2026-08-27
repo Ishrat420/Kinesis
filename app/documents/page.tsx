@@ -32,8 +32,6 @@ export default async function DocumentsPage() {
 
             <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
               Store, track, and connect important documents.
-              <br />
-              Expiry dates and reminders stay visible.
             </p>
           </div>
 
