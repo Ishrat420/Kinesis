@@ -1,6 +1,6 @@
 # KD-001 — Improve Milestones
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** High
 **Tags:** UX / UI
 

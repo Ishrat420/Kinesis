@@ -1,6 +1,6 @@
 # KD-003 — Custom Object Fields
 
-**Status:** Idea
+**Status:** Accepted 
 **Priority:** High
 
 ## Summary
@@ -21,17 +21,18 @@ Initial supported field types:
 
 * Text
 * Number
-* Date
+* Date (dd/mm/yyyy)
 * Checkbox
-* Select
-* Currency
-* URL
+* Link (same as the one present in Document)
 * Kinesis Link
-* Reminder 
-* Re-occuring reminder
 
-Fields can be added and configured independently for each object.
+
+Anywhere you can add a field (Such as in document and in custom module objects), you have these options for the field. 
 
 ## Notes
 
 This forms a core capability of configurable modules and freestyle objects.
+
+## Related
+
+- ADR-002 — Kinesis Link Field
