@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Minus, Plus } from "lucide-react";
+import { Check, ExternalLink, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
@@ -213,6 +213,21 @@ function FieldInput({ field, index, linkOptions, names, update }: {
     const selected = field.targetType && field.targetId ? `${field.targetType}:${field.targetId}` : "";
     const modules = [...new Set(linkOptions.map(({ module }) => module))];
     const selectedOption = linkOptions.find((option) => `${option.type}:${option.id}` === selected);
+    if (selectedOption) {
+      return (
+        <div>
+          <input type="hidden" name={names.value} value="" />
+          <input type="hidden" name={names.target} value={selected} />
+          <Link
+            href={selectedOption.href}
+            className={`${inputClass} flex items-center justify-between gap-3 text-zinc-700 hover:border-zinc-400 hover:text-zinc-950`}
+          >
+            <span className="min-w-0 truncate">{selectedOption.module} → {selectedOption.name}</span>
+            <ExternalLink className="h-4 w-4 shrink-0 text-zinc-400" />
+          </Link>
+        </div>
+      );
+    }
     return (
       <div>
         <input type="hidden" name={names.value} value="" />
@@ -236,7 +251,6 @@ function FieldInput({ field, index, linkOptions, names, update }: {
             </optgroup>
           ))}
         </select>
-        {selectedOption && <Link href={selectedOption.href} className="mt-1 block truncate text-xs font-medium text-blue-700 hover:underline">Open {selectedOption.module} → {selectedOption.name}</Link>}
       </div>
     );
   }
