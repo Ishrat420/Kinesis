@@ -69,10 +69,10 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
       {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {milestoneTimingLabel(milestone.dueDate, now)}</p>}
-      {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-medium text-emerald-800 shadow-lg shadow-emerald-950/10 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
-        <span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" />Completed automatically</span>
-        <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-emerald-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
-        <button type="button" onClick={(event) => { event.stopPropagation(); dismissAutoCompletionFeedback(); }} aria-label="Dismiss automatic completion message" className="rounded-md p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-3.5 w-3.5" /></button>
+      {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
+        <span className="inline-flex items-center gap-2"><span className="h-2 w-2 bg-amber-400" />Completed automatically</span>
+        <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-amber-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
+        <button type="button" onClick={(event) => { event.stopPropagation(); dismissAutoCompletionFeedback(); }} aria-label="Dismiss automatic completion message" className="p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"><X className="h-3.5 w-3.5" /></button>
       </div>}
     </div>
     <details className="relative" onClick={(event) => event.stopPropagation()}>
