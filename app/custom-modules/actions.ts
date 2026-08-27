@@ -7,10 +7,26 @@ import { prisma } from "@/lib/data/prisma";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
+import { CUSTOM_FIELD_TYPES, parseKinesisTarget, type CustomFieldType } from "@/lib/custom-fields/types";
+import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/custom-modules/${moduleId}`); };
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
+
+function customFields(data: FormData) {
+  const labels = data.getAll("fieldLabel").map(String);
+  const values = data.getAll("fieldValue").map(String);
+  const types = data.getAll("fieldType").map(String);
+  const targets = data.getAll("fieldTarget").map(String);
+  const validTypes = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
+  return labels.map((label, position) => {
+    const requested = types[position] as CustomFieldType;
+    const type = validTypes.has(requested) ? requested : "TEXT";
+    const target = type === "KINESIS_LINK" ? parseKinesisTarget(targets[position] ?? "") : null;
+    return { id: crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null, position };
+  }).filter((field) => field.label);
+}
 
 export async function createCustomModuleAction(_: CreateModuleState, data: FormData): Promise<CreateModuleState> {
   const user = await requireKinesisUser();
@@ -34,15 +50,15 @@ export async function createCustomItemAction(moduleId: string, data: FormData) {
   const user = await requireKinesisUser();
   const name = getValue(data, "name");
   if (!name) return;
-  const labels = data.getAll("fieldLabel").map(String);
-  const values = data.getAll("fieldValue").map(String);
+  const fields = customFields(data);
   const reminder = getValue(data, "reminder");
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true } });
   if (!ownedModule) throw new Error("Module not found");
+  await validateKinesisTargets(fields);
   await prisma.customItem.create({ data: {
     id: crypto.randomUUID(), moduleId, name, notes: getValue(data, "notes") || null,
     reminder: reminder ? new Date(`${reminder}T12:00:00.000Z`) : null, link: getValue(data, "link") || null,
-    fields: { create: labels.map((label, position) => ({ id: crypto.randomUUID(), label: label.trim(), value: (values[position] ?? "").trim(), position })).filter((field) => field.label) },
+    fields: { create: fields },
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
@@ -53,10 +69,9 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, d
   const user = await requireKinesisUser();
   const name = getValue(data, "name");
   if (!name) return;
-  const labels = data.getAll("fieldLabel").map(String);
-  const values = data.getAll("fieldValue").map(String);
   const reminder = getValue(data, "reminder");
-  const fields = labels.map((label, position) => ({ id: crypto.randomUUID(), label: label.trim(), value: (values[position] ?? "").trim(), position })).filter((field) => field.label);
+  const fields = customFields(data);
+  await validateKinesisTargets(fields);
   await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
     if (!ownedItem) throw new Error("Item not found");

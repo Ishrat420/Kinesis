@@ -4,6 +4,7 @@ import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } fro
 import { getCurrentUser, getUserDisplayName } from "./user";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
+import type { CustomFieldValue } from "@/lib/custom-fields/types";
 
 export type DocumentInput = {
   name: string;
@@ -22,7 +23,7 @@ export type DocumentInput = {
   countryLabel?: string;
   notesLabel?: string;
   linkLabel?: string;
-  customFields?: Array<{ label: string; value: string }>;
+  customFields?: CustomFieldValue[];
 };
 
 export async function getDocuments() {
