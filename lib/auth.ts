@@ -1,6 +1,6 @@
 import "server-only";
 
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser, reverificationError, reverificationErrorResponse } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { prisma } from "@/lib/data/prisma";
 
@@ -10,6 +10,23 @@ function getConfiguredOwnerId() {
     throw new Error("Kinesis owner authentication is not configured.");
   }
   return ownerId;
+}
+
+export const SENSITIVE_OPERATION_REVERIFICATION = {
+  level: "first_factor",
+  afterMinutes: 10,
+} as const;
+
+export async function requireRecentVerification() {
+  const authState = await auth();
+  if (!authState.userId) throw new Error("Unauthenticated");
+  if (authState.has({ reverification: SENSITIVE_OPERATION_REVERIFICATION })) return true;
+  return reverificationError(SENSITIVE_OPERATION_REVERIFICATION);
+}
+
+export async function requireRecentVerificationResponse() {
+  const verification = await requireRecentVerification();
+  return verification === true ? true : reverificationErrorResponse(SENSITIVE_OPERATION_REVERIFICATION);
 }
 
 export const getAuthenticatedClerkUser = cache(async () => {
