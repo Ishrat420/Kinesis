@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   currentUser: vi.fn(),
   prisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
+    userInvitation: { findUnique: vi.fn(), update: vi.fn() },
     document: { updateMany: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -34,6 +35,12 @@ describe("requireKinesisUser", () => {
     mocks.auth.mockResolvedValue({ userId: "user_owner", has: vi.fn().mockReturnValue(true) });
     mocks.currentUser.mockResolvedValue(clerkUser());
     mocks.prisma.user.findUnique.mockResolvedValue(null);
+    mocks.prisma.userInvitation.findUnique.mockResolvedValue(null);
+    mocks.prisma.$transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({
+      $executeRawUnsafe: vi.fn(),
+      user: { findUnique: mocks.prisma.user.findUnique },
+      userInvitation: mocks.prisma.userInvitation,
+    }));
   });
 
   it("requires a first-factor verification no more than ten minutes old", async () => {
@@ -67,7 +74,7 @@ describe("requireKinesisUser", () => {
     const requireKinesisUser = await loadSubject();
 
     await expect(requireKinesisUser()).rejects.toThrow("Unauthorized");
-    expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mocks.prisma.userInvitation.findUnique).toHaveBeenCalledWith({ where: { email: "kira@example.com" } });
   });
 
   it("rejects expired or inconsistent Clerk sessions", async () => {
@@ -88,6 +95,8 @@ describe("requireKinesisUser", () => {
       lastName: "Owner",
       preferredName: null,
       email: "kira@example.com",
+      role: "OWNER",
+      status: "ACTIVE",
     };
     mocks.prisma.user.findUnique.mockResolvedValue(owner);
     const requireKinesisUser = await loadSubject();
@@ -110,6 +119,7 @@ describe("requireKinesisUser", () => {
           create: vi.fn(async () => (provisioned = owner)),
           update: vi.fn(),
         },
+        userInvitation: { findUnique: vi.fn(), update: vi.fn() },
         document: { updateMany: vi.fn() },
       }));
       queue = result.then(() => undefined);

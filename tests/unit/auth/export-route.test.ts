@@ -30,11 +30,11 @@ describe("settings export isolation", () => {
     const response = await GET();
     expect(response.status).toBe(200);
 
-    for (const [name, model] of Object.entries(mocks.prisma)) {
+    for (const [name, model] of Object.entries(mocks.prisma) as [string, { findMany?: ReturnType<typeof vi.fn> }][]) {
       if (name === "securityEvent") continue;
       expect(model.findMany).toHaveBeenCalledOnce();
       if (name !== "user") {
-        expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { userId: "owner-id" } });
+        expect(model.findMany!.mock.calls[0][0]).toMatchObject({ where: { userId: "owner-id" } });
       }
     }
     expect(mocks.prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({

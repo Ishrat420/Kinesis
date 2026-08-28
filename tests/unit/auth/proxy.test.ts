@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const clerk = vi.hoisted(() => ({ auth: vi.fn() }));
+const clerk = vi.hoisted(() => ({ auth: vi.fn(), currentUser: vi.fn() }));
+const database = vi.hoisted(() => ({
+  user: { findUnique: vi.fn() },
+  userInvitation: { findUnique: vi.fn() },
+}));
 vi.mock("@clerk/nextjs/server", () => ({
   clerkMiddleware: (handler: unknown) => handler,
   createRouteMatcher: (patterns: string[]) => (request: Request) => {
@@ -13,17 +17,22 @@ vi.mock("@clerk/nextjs/server", () => ({
       return false;
     });
   },
+  currentUser: clerk.currentUser,
 }));
+vi.mock("@/lib/data/prisma", () => ({ prisma: database }));
 
 import proxy from "@/proxy";
 
-const invoke = (path: string) => proxy(clerk.auth, new Request(`https://kinesis.test${path}`), {} as never);
+const invoke = (path: string) => (proxy as unknown as (auth: typeof clerk.auth, request: Request) => Promise<Response | undefined>)(clerk.auth, new Request(`https://kinesis.test${path}`));
 
 describe("authentication proxy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.KINESIS_OWNER_CLERK_USER_ID;
     clerk.auth.mockResolvedValue({ userId: null });
+    clerk.currentUser.mockResolvedValue(null);
+    database.user.findUnique.mockResolvedValue(null);
+    database.userInvitation.findUnique.mockResolvedValue(null);
   });
 
   it("redirects an unauthenticated page request to sign-in", async () => {
@@ -58,6 +67,13 @@ describe("authentication proxy", () => {
   it("allows only the configured owner through", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
     clerk.auth.mockResolvedValue({ userId: "user_owner" });
+    await expect(invoke("/goals")).resolves.toBeUndefined();
+  });
+
+  it("allows an active invited member through", async () => {
+    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
+    clerk.auth.mockResolvedValue({ userId: "user_member" });
+    database.user.findUnique.mockResolvedValue({ status: "ACTIVE" });
     await expect(invoke("/goals")).resolves.toBeUndefined();
   });
 });

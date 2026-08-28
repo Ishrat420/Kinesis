@@ -2,9 +2,9 @@
 
 ## Authentication setup
 
-Kinesis is a single-owner application. Before starting or deploying it, create the
-owner in Clerk and configure the server-only owner ID alongside the standard Clerk
-keys:
+Kinesis is an invite-only, multi-user application with one deployment owner.
+Before starting or deploying it, create the owner in Clerk and configure the
+server-only owner ID alongside the standard Clerk keys:
 
 ```bash
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
@@ -12,11 +12,25 @@ CLERK_SECRET_KEY=sk_...
 KINESIS_OWNER_CLERK_USER_ID=user_...
 ```
 
-Find the `user_...` value on the owner's Clerk dashboard profile. Only that exact
-Clerk identity can open the application or claim the existing Kinesis data. A
-different authenticated Clerk user is denied, including on a brand-new
-database. Keep public sign-up disabled in the Clerk dashboard unless it is needed
-for another application sharing the same Clerk instance.
+Find the `user_...` value on the owner's Clerk dashboard profile. That identity
+bootstraps the deployment and manages access from **Settings → Users &
+invitations**. Keep public sign-up disabled in the Clerk dashboard: members must
+use the invitation email sent by Kinesis. An authenticated Clerk account without
+an active Kinesis membership or pending invitation receives HTTP 403.
+
+### Inviting and managing users
+
+1. In the Clerk dashboard, disable public sign-up and keep application invitations
+   enabled. Kinesis remains the source of truth for application access even if the
+   Clerk setting is changed accidentally.
+2. Sign in as the configured owner and open **Settings → Users & invitations**.
+3. Enter an email address and send the invitation. The recipient follows Clerk's
+   email link and signs in; Kinesis creates an isolated local user on first access.
+4. Use the same panel to revoke a pending invitation or disable/restore a member.
+
+Each user sees only records owned by their generated local user ID. Disabling a
+member blocks access without deleting their data. Adding users requires the
+server-only `CLERK_SECRET_KEY`, which must never be exposed to the browser.
 
 ### Replacing or recovering the owner account
 
@@ -36,24 +50,19 @@ value during a rotation.
 
 ### Product and data-model decision
 
-Kinesis is currently a **single-user product with a multi-user-capable schema**.
-This distinction is intentional:
+Kinesis is an **invite-only multi-user product with isolated user data**:
 
-- Product access remains limited to one pre-approved Clerk identity.
-- Public sign-up, a second user, invitations, organizations, and data sharing are
-  not supported yet.
+- The configured owner is the only user who can invite or manage members.
+- Public registration, organizations, and cross-user data sharing are not
+  supported.
 - Kinesis users have normal generated local IDs rather than a hardcoded
   `"current"` ID.
 - Every top-level personal-data record remains associated with its owning Kinesis
   user through `userId`, and reads and mutations must enforce that ownership.
 
-The configured `KINESIS_OWNER_CLERK_USER_ID` controls who may use and provision
-this deployment; it is deliberately separate from the generated local database ID.
-
-If additional users are supported later, that will be an explicit product change
-with provisioning and cross-user authorization tests. It must not be implemented
-by adding one Vercel environment variable per user or by removing ownership filters
-from database queries.
+`KINESIS_OWNER_CLERK_USER_ID` identifies the administrator; database-backed
+members and invitations control all additional access. It is deliberately
+separate from every generated local database ID.
 
 ## Testing expiry notifications
 

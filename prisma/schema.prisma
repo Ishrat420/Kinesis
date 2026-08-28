@@ -14,6 +14,8 @@ model User {
   preferredName  String?
   email          String
   clerkUserId    String?              @unique
+  role           UserRole             @default(MEMBER)
+  status         UserStatus           @default(ACTIVE)
   settings       UserSettings?
   financeItems   FinanceItem[]
   documents      Document[]
@@ -29,6 +31,29 @@ model User {
   securityEvents SecurityEvent[]
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
+}
+
+enum UserRole {
+  OWNER
+  MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  REVOKED
+}
+
+model UserInvitation {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  clerkInvitationId String   @unique
+  invitedById       String
+  acceptedAt        DateTime?
+  revokedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([revokedAt, acceptedAt])
 }
 
 model UserSettings {

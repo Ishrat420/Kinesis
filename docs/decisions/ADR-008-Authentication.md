@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded in part by ADR-009. The Clerk/local identity separation and
+owner-scoped authorization remain accepted; the single-user product limit does
+not.
 
 ## Context
 

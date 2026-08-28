@@ -50,7 +50,7 @@ verification.
 
 ## Authorization
 
-Kinesis currently operates as a single-owner deployment.
+Kinesis operates as an invite-only multi-user deployment with one owner.
 
 Authentication and authorization are deliberately separate:
 
@@ -68,11 +68,14 @@ Expected behaviour:
 |----------------------------------------------------------|-----------------------------------------|
 | No authenticated Clerk session                           | Access denied / authentication required |
 | Owner configuration missing                              | Fail closed with HTTP 503               |
-| Authenticated Clerk user does not match configured owner | HTTP 403                                |
-| Authenticated Clerk user matches configured owner        | Access permitted                        |
+| Authenticated identity has no active membership/invite   | HTTP 403                                |
+| Active member or pending invited identity                | Access permitted                        |
+| Authenticated Clerk user matches configured owner        | Owner/admin access permitted            |
 
-The owner check is performed server-side and must not rely solely on client-side
-route protection.
+The membership check is performed server-side and must not rely solely on
+client-side route protection. Public sign-up must be disabled in Clerk. The owner
+sends and revokes Clerk application invitations from the Kinesis Settings page;
+accepted identities are mapped transactionally to isolated local users.
 
 
 ## Sessions
