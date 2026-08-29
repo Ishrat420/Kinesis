@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
 const isCronRoute = createRouteMatcher(["/api/notifications/evaluate"]);
 const isApiRoute = createRouteMatcher(["/api(.*)", "/trpc(.*)"]);
+const frontendApiProxyEnabled = process.env.CLERK_FRONTEND_API_PROXY_ENABLED === "true";
 
 export default clerkMiddleware(
   async (auth, request) => {
@@ -21,7 +22,7 @@ export default clerkMiddleware(
     if (userId !== configuredOwner) return new NextResponse("Forbidden", { status: 403 });
   },
   {
-    frontendApiProxy: { enabled: true },
+    frontendApiProxy: { enabled: frontendApiProxyEnabled },
   },
 );
 
@@ -31,7 +32,8 @@ export const config = {
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     // Always run for API routes
     '/(api|trpc)(.*)',
-    // Forward Clerk Frontend API proxy requests in production
+    // Match Clerk Frontend API proxy requests when the Clerk option above is enabled.
+    // Matcher values must remain static so Next.js can analyze them at build time.
     '/__clerk/(.*)',
   ],
 };

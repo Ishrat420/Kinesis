@@ -19,6 +19,20 @@ implementation is merged into the production branch.
 Development configuration must not be assumed to represent the final production
 security configuration.
 
+### Clerk Frontend API proxying
+
+Frontend API proxying is opt-in and controlled by
+`CLERK_FRONTEND_API_PROXY_ENABLED`. Set it to the exact value `true` only for the
+personal production deployment that uses Clerk production (`pk_live_...` /
+`sk_live_...`) keys. Local development, custtest, `main`, and preview deployments
+use Clerk development keys and must leave the variable unset or set it to
+`false`. Missing values default to disabled.
+
+The `/__clerk/(.*)` Next.js proxy matcher remains in the static matcher list
+because Next.js requires matcher values to be statically analyzable. Clerk only
+handles those Frontend API proxy requests when the environment variable enables
+the `frontendApiProxy` middleware option.
+
 
 ## Authentication
 
@@ -129,6 +143,7 @@ Before authentication is deployed to production:
 
 - Create/configure the Clerk production instance.
 - Configure production Clerk API keys in Vercel.
+- Set CLERK_FRONTEND_API_PROXY_ENABLED=true for personal production only.
 - Configure KINESIS_OWNER_CLERK_USER_ID for production.
 - Configure the production domain.
 - Review allowed/trusted origins.
