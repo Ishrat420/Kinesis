@@ -5,6 +5,7 @@ import { EditDocumentForm } from "./EditDocumentForm";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { formatDateInput } from "@/lib/dates";
 
 const timeline = [
   { title: "Document uploaded", date: "2 Jul 2026" },
@@ -115,5 +116,5 @@ export default async function DocumentDetailPage({
 }
 
 function toDateInput(date: Date | null) {
-  return date ? date.toISOString().slice(0, 10) : "";
+  return date ? formatDateInput(date) : "";
 }
