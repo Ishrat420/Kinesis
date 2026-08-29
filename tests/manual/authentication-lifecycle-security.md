@@ -112,6 +112,12 @@ baseline (no active session) between cases.
    curl -sS -D - -o /dev/null "${BASE_URL}${PROTECTED_API}"
    ```
 
+
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
 **Expected results:**
 
 - Protected pages redirect to a same-site `/sign-in` URL and never render Kinesis
@@ -147,6 +153,13 @@ password is available; do not record it.
 - Clerk's configured rate-limit/bot/lockout control activates as documented, or
   the lack of that control is recorded as a security configuration finding.
 
+
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
+
 ### AUTH-M03 — Owner login establishes only a protected session
 
 **Preconditions:** Owner A is signed out. The test device can complete any required
@@ -180,6 +193,12 @@ device verification.
 - Only Owner A's data is rendered/exported, and the export response uses
   `Cache-Control: no-store`.
 
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
+
 ### AUTH-M04 — Authenticated non-owner is denied server-side
 
 **Preconditions:** A separate clean private profile is signed out. User B exists
@@ -203,6 +222,11 @@ in the test Clerk instance.
 - User B is not provisioned as the Kinesis owner and cannot alter Owner A's data.
 - Repeating the request or signing out/in does not convert the denial into access.
 
+Results:
+[Date 29/08/26]: 
+Case 1 -> User B tries to sign-in by putting a random password, and it says password it incorrect. 
+Case 2 -> User B tries to sign-in by putting User A's password, then a sign in code is sent to User A's email, if User B puts an incorrect code then User B gets invalid code message. However, if the correct code is entered then it also gets an 403 Forbidden anyway. Confirmed that in the database/admin view that User B did not claim, rotate, or create the local Kinesis owner and that Owner A's binding is unchanged.
+
 ### AUTH-M05 — Missing owner configuration fails closed
 
 **Preconditions:** An isolated staging deployment or temporary preview can safely
@@ -224,6 +248,12 @@ have `KINESIS_OWNER_CLERK_USER_ID` removed. Owner A can authenticate with Clerk.
   user ID, key, token, database detail, or stack trace.
 - Restoring the setting restores Owner A access without changing the local owner
   or losing data.
+
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
 
 ### AUTH-M06 — Logout invalidates access in every tab and browser history
 
@@ -256,6 +286,12 @@ one containing the synthetic marker. DevTools preserves the network log.
   permit data access or actions.
 - Closing/reopening the private window does not restore the logged-out session.
 
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
+
 ### AUTH-M07 — Server-side revocation and expiry reject an open browser
 
 **Preconditions:** Owner A is signed in on the test browser. A Clerk administrator
@@ -281,6 +317,12 @@ can identify that test session without sharing its token.
   session valid again.
 - No raw token or account detail is disclosed in errors or logs.
 
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
+
 ### AUTH-M08 — Concurrent-window and session-boundary checks
 
 **Preconditions:** Clerk multi-session handling is disabled as documented. Owner A
@@ -302,6 +344,12 @@ is signed in in private window 1; private window 2 starts clean.
 - Signing out or revoking a session never causes identity confusion, owner
   reassignment, or access under a different Clerk identity.
 - A session that should be invalid cannot make a successful protected request.
+
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
 
 ### AUTH-M09 — Login and logout destinations resist open redirects
 
@@ -327,6 +375,13 @@ destinations; do not send credentials to a third party.
   destinations are rejected or replaced with a safe default.
 - No session token, ticket, password, or verification code is sent to
   `example.invalid` or placed in the URL.
+
+
+Results:
+[Date 29/08/26]: 
+Case 1 -> 
+Case 2 -> 
+
 
 ## Completion and evidence checklist
 
