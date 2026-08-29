@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
-import { displayNumber, milestoneTimingLabel } from "@/lib/goals/format";
+import { displayNumber } from "@/lib/goals/format";
+import { formatDate, formatDeadline } from "@/lib/dates";
 
 type FormAction = (formData: FormData) => Promise<void>;
 const AUTO_COMPLETION_FEEDBACK_MS = 15_000;
@@ -29,8 +30,8 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
   const now = new Date();
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
-  const date = milestone.dueDate?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  const completedDate = milestone.completedAt?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const date = milestone.dueDate ? formatDate(milestone.dueDate) : undefined;
+  const completedDate = milestone.completedAt ? formatDate(milestone.completedAt) : undefined;
   const latestDueDate = goalTargetDate ? new Date(goalTargetDate.getTime() - 86_400_000).toISOString().slice(0, 10) : undefined;
   const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit)}`}`;
 
@@ -68,7 +69,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
     <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button aria-label={milestone.completed ? "Reopen milestone" : "Complete milestone"} className="mt-0.5 text-zinc-400">{milestone.completed ? <Check className="h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle className="h-6 w-6"/>}</button></form>
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
-      {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {milestoneTimingLabel(milestone.dueDate, now)}</p>}
+      {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, now)}</p>}
       {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
         <span className="inline-flex items-center gap-2"><span className="h-2 w-2 bg-amber-400" />Completed automatically</span>
         <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-amber-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
