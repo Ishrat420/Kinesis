@@ -12,6 +12,18 @@ CLERK_SECRET_KEY=sk_...
 KINESIS_OWNER_CLERK_USER_ID=user_...
 ```
 
+Clerk Frontend API proxying is disabled by default. The personal production
+deployment, which uses Clerk production (`pk_live_...` / `sk_live_...`) keys,
+must additionally set:
+
+```bash
+CLERK_FRONTEND_API_PROXY_ENABLED=true
+```
+
+Leave this variable unset (or set it to `false`) in local development, custtest,
+`main`, and preview deployments that use Clerk development (`pk_test_...` /
+`sk_test_...`) keys. Only the exact lowercase value `true` enables proxying.
+
 Find the `user_...` value on the owner's Clerk dashboard profile. Only that exact
 Clerk identity can open the application or claim the existing Kinesis data. A
 different authenticated Clerk user is denied, including on a brand-new
