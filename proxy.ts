@@ -17,14 +17,6 @@ export default clerkMiddleware(
 
     const configuredOwner = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
 
-    console.log("Kinesis auth diagnostic", {
-      authenticated: Boolean(userId),
-      ownerConfigured: Boolean(configuredOwner),
-      authenticatedUserSuffix: userId.slice(-8),
-      configuredOwnerSuffix: configuredOwner?.slice(-8),
-      ownerMatch: userId === configuredOwner,
-    });
-
     if (!configuredOwner) return new NextResponse("Kinesis owner authentication is not configured.", { status: 503 });
     if (userId !== configuredOwner) return new NextResponse("Forbidden", { status: 403 });
   },
