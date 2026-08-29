@@ -29,9 +29,19 @@ describe("authentication proxy", () => {
     clerk.auth.mockResolvedValue({ userId: null });
   });
 
-  it("enables and matches Clerk Frontend API proxy requests", () => {
-    expect(clerk.middlewareOptions).toEqual({ frontendApiProxy: { enabled: true } });
+  it("disables Clerk Frontend API proxying by default while retaining its static matcher", () => {
+    expect(clerk.middlewareOptions).toEqual({ frontendApiProxy: { enabled: false } });
     expect(config.matcher).toContain("/__clerk/(.*)");
+  });
+
+  it("enables Clerk Frontend API proxying only when explicitly configured", async () => {
+    vi.stubEnv("CLERK_FRONTEND_API_PROXY_ENABLED", "true");
+    vi.resetModules();
+
+    await import("@/proxy");
+
+    expect(clerk.middlewareOptions).toEqual({ frontendApiProxy: { enabled: true } });
+    vi.unstubAllEnvs();
   });
 
   it("redirects an unauthenticated page request to sign-in", async () => {
