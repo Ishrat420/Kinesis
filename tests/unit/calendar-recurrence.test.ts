@@ -12,4 +12,9 @@ describe("calendar recurrence", () => {
     expect(dates).toHaveLength(1);
     expect(dates[0].toISOString().slice(0, 10)).toBe("2026-08-12");
   });
+
+  it("does not generate daily occurrences before the anchor date", () => {
+    const dates = occurrencesForCadence("Daily", new Date("2026-08-15T00:00:00Z"), new Date("2026-08-01T00:00:00Z"), new Date("2026-08-17T23:59:59Z"));
+    expect(dates.map((date) => date.toISOString().slice(0, 10))).toEqual(["2026-08-15", "2026-08-16", "2026-08-17"]);
+  });
 });
