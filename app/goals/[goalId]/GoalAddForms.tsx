@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CalendarDays, Gauge, Plus, X } from "lucide-react";
+import { formatDate } from "@/lib/dates";
 
 type FormAction = (formData: FormData) => Promise<void>;
 
@@ -53,7 +54,7 @@ export function AddMilestoneForm({
 
 export function MilestoneDueDateForm({ action, removeAction, dueDate, goalTargetDate, overdue }: { action: FormAction; removeAction: () => Promise<void>; dueDate: Date | null; goalTargetDate: Date | null; overdue: boolean }) {
   const [editing, setEditing] = useState(false);
-  const formatted = dueDate?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const formatted = dueDate ? formatDate(dueDate) : undefined;
   const latestDueDate = goalTargetDate ? new Date(goalTargetDate.getTime() - 86_400_000).toISOString().slice(0, 10) : undefined;
 
   if (!editing) return <button type="button" onClick={() => setEditing(true)} className={`mt-1 inline-flex items-center gap-1.5 text-xs font-medium hover:text-violet-700 ${overdue ? "text-red-600" : "text-zinc-500"}`}><CalendarDays className="h-3.5 w-3.5" />{formatted ? `Due ${formatted} · Edit` : "Add due date"}</button>;
