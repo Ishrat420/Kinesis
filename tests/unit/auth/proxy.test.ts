@@ -51,8 +51,17 @@ describe("authentication proxy", () => {
   it("rejects a signed-in user other than the configured owner", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
     clerk.auth.mockResolvedValue({ userId: "user_intruder" });
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const response = await invoke("/goals");
     expect(response?.status).toBe(403);
+    expect(log).toHaveBeenCalledWith("Kinesis auth diagnostic", {
+      authenticated: true,
+      ownerConfigured: true,
+      authenticatedUserSuffix: "intruder",
+      configuredOwnerSuffix: "er_owner",
+      ownerMatch: false,
+    });
+    log.mockRestore();
   });
 
   it("allows only the configured owner through", async () => {
