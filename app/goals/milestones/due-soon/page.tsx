@@ -1,29 +1,21 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CalendarDays, CheckSquare, Target } from "lucide-react";
 import { getActiveIncompleteMilestones } from "@/lib/data/goals";
+import { formatDate, formatDeadline, startOfUtcDay } from "@/lib/dates";
 
 type MilestoneList = Awaited<ReturnType<typeof getActiveIncompleteMilestones>>;
-
-const dateFormatter = new Intl.DateTimeFormat("en-AU", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-function startOfUtcDay(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-}
 
 function MilestoneSection({
   title,
   emptyMessage,
   milestones,
+  now,
   overdue = false,
 }: {
   title: string;
   emptyMessage: string;
   milestones: MilestoneList;
+  now: Date;
   overdue?: boolean;
 }) {
   const Icon = overdue ? AlertTriangle : CalendarDays;
@@ -58,7 +50,7 @@ function MilestoneSection({
                   className={`shrink-0 text-sm font-medium ${overdue ? "text-rose-600" : "text-zinc-600"}`}
                   dateTime={milestone.dueDate.toISOString()}
                 >
-                  {dateFormatter.format(milestone.dueDate)}
+                  {formatDate(milestone.dueDate)} · {formatDeadline(milestone.dueDate, now)}
                 </time>
               ) : (
                 <span className="shrink-0 text-sm text-zinc-400">No due date</span>
@@ -78,7 +70,7 @@ function MilestoneSection({
 
 export default async function MilestonesPage() {
   const milestones = await getActiveIncompleteMilestones();
-  const today = startOfUtcDay(new Date());
+  const today = startOfUtcDay(new Date())!;
   const overdue = milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < today);
   const upcoming = milestones.filter((milestone) => !milestone.dueDate || milestone.dueDate >= today);
 
@@ -99,8 +91,8 @@ export default async function MilestonesPage() {
         </div>
 
         <div className="mt-9 space-y-5">
-          <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} />
-          <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} overdue />
+          <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} now={today} />
+          <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} now={today} overdue />
         </div>
       </div>
     </main>
