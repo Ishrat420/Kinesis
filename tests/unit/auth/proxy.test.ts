@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const clerk = vi.hoisted(() => ({ auth: vi.fn() }));
+const clerk = vi.hoisted(() => ({ auth: vi.fn(), middlewareOptions: undefined as unknown }));
 vi.mock("@clerk/nextjs/server", () => ({
-  clerkMiddleware: (handler: unknown) => handler,
+  clerkMiddleware: (handler: unknown, options: unknown) => {
+    clerk.middlewareOptions = options;
+    return handler;
+  },
   createRouteMatcher: (patterns: string[]) => (request: Request) => {
     const pathname = new URL(request.url).pathname;
     return patterns.some((pattern) => {
@@ -15,15 +18,20 @@ vi.mock("@clerk/nextjs/server", () => ({
   },
 }));
 
-import proxy from "@/proxy";
+import proxy, { config } from "@/proxy";
 
-const invoke = (path: string) => proxy(clerk.auth, new Request(`https://kinesis.test${path}`), {} as never);
+const invoke = (path: string) => proxy(clerk.auth, new Request(`https://kinesis.test${path}`));
 
 describe("authentication proxy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.KINESIS_OWNER_CLERK_USER_ID;
     clerk.auth.mockResolvedValue({ userId: null });
+  });
+
+  it("enables and matches Clerk Frontend API proxy requests", () => {
+    expect(clerk.middlewareOptions).toEqual({ frontendApiProxy: { enabled: true } });
+    expect(config.matcher).toContain("/__clerk/(.*)");
   });
 
   it("redirects an unauthenticated page request to sign-in", async () => {
