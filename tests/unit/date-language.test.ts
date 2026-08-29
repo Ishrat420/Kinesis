@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  addUtcDays,
   formatActivityTime,
   formatAgendaDate,
   formatCalendarDate,
   formatDate,
+  formatDateInput,
   formatDeadline,
   formatExpiry,
   formatFutureDate,
@@ -21,6 +23,13 @@ describe("universal date language", () => {
   it("rejects invalid date-only values", () => {
     expect(parseDateOnly("2026-02-29")).toBeNull();
     expect(() => formatDate("not-a-date")).toThrow(RangeError);
+  });
+
+  it("provides stable date values for forms and date keys", () => {
+    expect(formatDateInput("2026-02-03")).toBe("2026-02-03");
+    expect(formatDateInput(new Date("2026-02-03T23:59:59.000Z"))).toBe("2026-02-03");
+    expect(formatDateInput(addUtcDays("2026-03-01", -1))).toBe("2026-02-28");
+    expect(() => addUtcDays("2026-03-01", 0.5)).toThrow(RangeError);
   });
 
   it("uses consistent deadline language", () => {
