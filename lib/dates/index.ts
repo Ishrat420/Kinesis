@@ -66,6 +66,25 @@ export function startOfUtcDay(value: DateInput) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
+/** Serialize a calendar date for native date inputs and stable date keys. */
+export function formatDateInput(value: DateInput) {
+  const date = startOfUtcDay(value);
+  if (!date) throw new RangeError("Invalid date value");
+  const year = String(date.getUTCFullYear()).padStart(4, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Add whole calendar days without introducing local-time or DST shifts. */
+export function addUtcDays(value: DateInput, amount: number) {
+  if (!Number.isInteger(amount)) throw new RangeError("Day amount must be an integer");
+  const date = startOfUtcDay(value);
+  if (!date) throw new RangeError("Invalid date value");
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date;
+}
+
 function requiredDate(value: DateInput) {
   const date = toDate(value);
   if (!date) throw new RangeError("Invalid date value");
