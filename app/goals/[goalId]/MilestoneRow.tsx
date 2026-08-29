@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { displayNumber } from "@/lib/goals/format";
-import { formatDate, formatDeadline } from "@/lib/dates";
+import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 
 type FormAction = (formData: FormData) => Promise<void>;
 const AUTO_COMPLETION_FEEDBACK_MS = 15_000;
@@ -32,7 +32,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
   const date = milestone.dueDate ? formatDate(milestone.dueDate) : undefined;
   const completedDate = milestone.completedAt ? formatDate(milestone.completedAt) : undefined;
-  const latestDueDate = goalTargetDate ? new Date(goalTargetDate.getTime() - 86_400_000).toISOString().slice(0, 10) : undefined;
+  const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
   const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit)}`}`;
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
       <input name="value" type="number" step="any" min="0" defaultValue={milestone.value ?? ""} placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />
       {unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
       <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
-      <input name="dueDate" type="date" max={latestDueDate} defaultValue={milestone.dueDate?.toISOString().slice(0, 10) ?? ""} aria-label="Optional due date" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
+      <input name="dueDate" type="date" max={latestDueDate} defaultValue={milestone.dueDate ? formatDateInput(milestone.dueDate) : ""} aria-label="Optional due date" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
       <button className="h-11 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button>
       <button type="button" onClick={() => setEditing(false)} aria-label="Cancel editing" className="rounded-lg p-2 text-zinc-400 hover:bg-white"><X className="h-5 w-5" /></button>
     </div>
