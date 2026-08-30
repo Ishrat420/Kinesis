@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { displayNumber } from "@/lib/goals/format";
 import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
+import { useFormatPreferences } from "@/lib/format/context";
 
 type FormAction = (formData: FormData) => Promise<void>;
 const AUTO_COMPLETION_FEEDBACK_MS = 15_000;
@@ -30,10 +31,11 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
   const now = new Date();
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
-  const date = milestone.dueDate ? formatDate(milestone.dueDate) : undefined;
-  const completedDate = milestone.completedAt ? formatDate(milestone.completedAt) : undefined;
+  const { locale } = useFormatPreferences();
+  const date = milestone.dueDate ? formatDate(milestone.dueDate, locale) : undefined;
+  const completedDate = milestone.completedAt ? formatDate(milestone.completedAt, locale) : undefined;
   const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
-  const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit)}`}`;
+  const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit, locale)}`}`;
 
   useEffect(() => {
     const nextState = autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt);

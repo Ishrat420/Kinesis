@@ -5,6 +5,7 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { formatDate } from "@/lib/dates";
+import { getFormatPreferences } from "@/lib/format/server";
 
 type DocumentList = Awaited<ReturnType<typeof getExpiringDocuments>>["upcoming"];
 
@@ -12,11 +13,13 @@ function DocumentSection({
   title,
   documents,
   now,
+  locale,
   expired = false,
 }: {
   title: string;
   documents: DocumentList;
   now: Date;
+  locale: string;
   expired?: boolean;
 }) {
   const Icon = expired ? AlertTriangle : CalendarDays;
@@ -52,7 +55,7 @@ function DocumentSection({
                   className={`shrink-0 text-sm font-medium ${expired ? "text-rose-600" : "text-zinc-600"}`}
                   dateTime={document.expiryDate!.toISOString()}
                 >
-                  {formatDate(document.expiryDate!)}
+                  {formatDate(document.expiryDate!, locale)}
                 </time>
                 <span className="text-xl text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-700">→</span>
               </Link>
@@ -70,7 +73,10 @@ function DocumentSection({
 
 export default async function ExpiringDocumentsPage() {
   const now = new Date();
-  const { upcoming, expired } = await getExpiringDocuments(now);
+  const [{ upcoming, expired }, { locale }] = await Promise.all([
+    getExpiringDocuments(now),
+    getFormatPreferences(),
+  ]);
 
   return (
     <ModuleContent width="standard">
@@ -85,8 +91,8 @@ export default async function ExpiringDocumentsPage() {
       />
 
       <div className="mt-9 space-y-5">
-        <DocumentSection title="Upcoming" documents={upcoming} now={now} />
-        <DocumentSection title="Expired" documents={expired} now={now} expired />
+        <DocumentSection title="Upcoming" documents={upcoming} now={now} locale={locale} />
+        <DocumentSection title="Expired" documents={expired} now={now} locale={locale} expired />
       </div>
     </ModuleContent>
   );

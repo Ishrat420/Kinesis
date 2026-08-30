@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalUnits } from "@/lib/data/goals";
 import { displayNumber } from "@/lib/goals/format";
 import { formatFutureDate, formatShortMonthYear } from "@/lib/dates";
+import { getFormatPreferences } from "@/lib/format/server";
 import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalStatusAction, updateMilestoneAction } from "../actions";
 import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
@@ -14,7 +15,7 @@ import { calculateGoalHealth } from "@/lib/goals/health";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
-  const [goal, units] = await Promise.all([getGoal(goalId), getGoalUnits()]);
+  const [goal, units, { locale }] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences()]);
   if (!goal) notFound();
   const completed = goal.milestones.filter((item) => item.completed).length;
   const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
@@ -23,7 +24,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   const targetAction = addTargetAction.bind(null, goal.id);
   const milestoneAction = addMilestoneAction.bind(null, goal.id);
   const health = goal.targetValue !== null && goal.currentValue !== null && goal.targetDate
-    ? calculateGoalHealth({ targetValue: goal.targetValue, currentValue: goal.currentValue, targetDate: goal.targetDate, unit: goal.unit, history: goal.metricHistory })
+    ? calculateGoalHealth({ targetValue: goal.targetValue, currentValue: goal.currentValue, targetDate: goal.targetDate, unit: goal.unit, history: goal.metricHistory, locale })
     : null;
   const now = new Date();
   const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now);
@@ -32,7 +33,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
 
-    <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 flex items-center gap-2 text-sm text-zinc-300"><CalendarDays className="h-4 w-4"/>{goal.targetDate ? <><span>Target · {formatShortMonthYear(goal.targetDate)}</span><span className="text-zinc-600">•</span><strong className="font-medium text-violet-300">{formatFutureDate(goal.targetDate, now)}</strong></> : <span>No target date</span>}</div></div></div></header>
+    <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 flex items-center gap-2 text-sm text-zinc-300"><CalendarDays className="h-4 w-4"/>{goal.targetDate ? <><span>Target · {formatShortMonthYear(goal.targetDate, locale)}</span><span className="text-zinc-600">•</span><strong className="font-medium text-violet-300">{formatFutureDate(goal.targetDate, now)}</strong></> : <span>No target date</span>}</div></div></div></header>
 
     <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"><div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Milestones</h2><p className="mt-1 text-sm text-zinc-500">Your current understanding of the path forward.</p></div><Flag className="h-5 w-5 text-violet-500"/></div>
@@ -50,7 +51,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
 
     <aside><section className="sticky top-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-semibold">Progress</h2><p className="mt-1 text-sm text-zinc-500">Use one or both views.</p><div className="mt-6 space-y-7">
       <Progress title="Milestones" percent={milestonePercent} detail={`${completed} of ${goal.milestones.length} complete`} shown={goal.showMilestoneProgress} toggle={toggleProgressAction.bind(null, goal.id, "showMilestoneProgress", !goal.showMilestoneProgress)} />
-      {goal.targetValue !== null && <Progress title={goal.unit || "Target unit"} percent={targetPercent} detail={`${displayNumber(goal.currentValue ?? 0, goal.unit)} of ${displayNumber(goal.targetValue, goal.unit)} · ${targetPercent}%`} shown={goal.showTargetProgress} toggle={toggleProgressAction.bind(null, goal.id, "showTargetProgress", !goal.showTargetProgress)} />}
+      {goal.targetValue !== null && <Progress title={goal.unit || "Target unit"} percent={targetPercent} detail={`${displayNumber(goal.currentValue ?? 0, goal.unit, locale)} of ${displayNumber(goal.targetValue, goal.unit, locale)} · ${targetPercent}%`} shown={goal.showTargetProgress} toggle={toggleProgressAction.bind(null, goal.id, "showTargetProgress", !goal.showTargetProgress)} />}
     </div></section></aside></div>
   </ModuleContent>;
 }
