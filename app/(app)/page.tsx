@@ -26,7 +26,7 @@ export default async function Home() {
   ]);
   return (
     <ModuleContent>
-      <ModuleHeader title={`Good morning, ${getUserDisplayName(user)}`} />
+      <ModuleHeader title={`Welcome, ${getUserDisplayName(user)}`} />
 
       <div className="mt-4 max-w-2xl" aria-live="polite">
         {attentionItems.length === 0 ? (
