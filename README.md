@@ -20,8 +20,8 @@ must additionally set:
 CLERK_FRONTEND_API_PROXY_ENABLED=true
 ```
 
-Leave this variable unset (or set it to `false`) in local development, custtest,
-`main`, and preview deployments that use Clerk development (`pk_test_...` /
+Leave this variable unset (or set it to `false`) in local development 
+and preview deployments that use Clerk development (`pk_test_...` /
 `sk_test_...`) keys. Only the exact lowercase value `true` enables proxying.
 
 Find the `user_...` value on the owner's Clerk dashboard profile. Only that exact
