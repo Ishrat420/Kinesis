@@ -36,7 +36,7 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { saveRelationshipMap } from "./actions";
-import { connectPairStatus, emptySelfRelationship, hasRelationshipBetween, isSelfPerson, toggleMultiSelect, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
+import { emptySelfRelationship, hasRelationshipBetween, isSelfPerson, toggleMultiSelect, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
 type PersonIcon = "user" | "heart" | "baby" | "cat" | "home";
 type Selection = { kind: "person" | "relationship"; id: string } | null;
@@ -76,8 +76,11 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   const selectedPerson = selection?.kind === "person" ? people.find((person) => person.id === selection.id) ?? null : null;
   const selectedRelationship = selection?.kind === "relationship" ? relationships.find((relationship) => relationship.id === selection.id) ?? null : null;
   const peopleById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
-  const pair = multiSelection.map((id) => peopleById.get(id)).filter((person): person is Person => Boolean(person));
-  const pairStatus = connectPairStatus(multiSelection, relationships);
+  const pendingRelationship = pendingConnection
+    ? relationships.find((relationship) =>
+        (relationship.from === pendingConnection.from && relationship.to === pendingConnection.to)
+        || (relationship.from === pendingConnection.to && relationship.to === pendingConnection.from)) ?? null
+    : null;
 
   const pointerMove = useCallback((event: PointerEvent) => {
     if (!action.current) return;
@@ -118,10 +121,22 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     setSelection({ kind: "person", id: person.id });
   }
   function multiSelect(personId: string) {
-    const current = multiSelection.length ? multiSelection : selection?.kind === "person" ? [selection.id] : [];
-    const next = toggleMultiSelect(current, personId);
-    setMultiSelection(next.length > 1 ? next : []);
+    const next = toggleMultiSelect(multiSelection, personId);
+    setMultiSelection(next);
     setSelection(next.length ? { kind: "person", id: next[0] } : null);
+    if (next.length === 2) {
+      const existing = relationships.find((relationship) =>
+        (relationship.from === next[0] && relationship.to === next[1])
+        || (relationship.from === next[1] && relationship.to === next[0]));
+      const secondPerson = peopleById.get(next[1]);
+      setPendingConnection({
+        from: next[0],
+        to: next[1],
+        type: existing?.type ?? (secondPerson?.detail === "Friend" ? "Friend" : "Relationship"),
+      });
+    } else {
+      setPendingConnection(null);
+    }
   }
   function createConnection() {
     if (!pendingConnection || relationshipExists(pendingConnection.from, pendingConnection.to)) return;
@@ -132,6 +147,13 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     setPendingConnection(null);
     setLinkFrom(null);
     setMultiSelection([]);
+  }
+  function removePendingConnection() {
+    if (!pendingRelationship) return;
+    setRelationships((current) => current.filter((relationship) => relationship.id !== pendingRelationship.id));
+    setPendingConnection(null);
+    setMultiSelection([]);
+    setSelection({ kind: "person", id: pendingConnection?.from ?? pendingRelationship.from });
   }
   function startPan(event: ReactPointerEvent) {
     if (event.target !== canvas.current) return;
@@ -190,13 +212,6 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
             <span className="px-2 text-xs font-semibold text-zinc-600">My constellation</span><ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
           </div>
           {linkFrom && <div className="absolute left-1/2 top-5 z-30 -translate-x-1/2 rounded-2xl bg-zinc-900 px-5 py-3 text-white shadow-lg"><div className="flex items-start gap-4"><div><p className="text-xs font-semibold">Connect {peopleById.get(linkFrom)?.name} to...</p><p className="mt-0.5 text-[10px] text-zinc-400">Select another person</p></div><button onClick={() => setLinkFrom(null)} aria-label="Cancel connection mode"><X className="h-3.5 w-3.5" /></button></div></div>}
-          {!linkFrom && pair.length === 2 && <div className="absolute left-1/2 top-5 z-30 -translate-x-1/2 rounded-2xl bg-zinc-900 px-5 py-3 text-white shadow-lg"><div className="flex items-center gap-4">
-            {pairStatus === "ready"
-              ? <button onClick={() => setPendingConnection({ from: pair[0].id, to: pair[1].id, type: pair[1].detail === "Friend" ? "Friend" : "Relationship" })} className="flex items-center gap-2 text-xs font-semibold"><Link2 className="h-3.5 w-3.5" />Connect {pair[0].name} and {pair[1].name}</button>
-              : <div><p className="text-xs font-semibold">{pair[0].name} and {pair[1].name}</p><p className="mt-0.5 text-[10px] text-zinc-400">{pairStatus === "already-connected" ? "These two are already connected" : "These two cannot be connected"}</p></div>}
-            <button onClick={() => setMultiSelection([])} aria-label="Clear selection"><X className="h-3.5 w-3.5" /></button>
-          </div></div>}
-
           <div ref={canvas} onPointerDown={startPan} className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none">
             <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }} className="absolute inset-0">
               <svg className="absolute inset-0 h-full w-full overflow-visible">
@@ -228,10 +243,10 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
           <div className="absolute bottom-5 left-5 z-20 flex items-center overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
             <button onClick={() => setScale((v) => Math.max(.45, v - .1))} className="map-icon"><Minus /></button><span className="w-14 text-center text-xs font-semibold text-zinc-500">{Math.round(scale * 100)}%</span><button onClick={() => setScale((v) => Math.min(1.6, v + .1))} className="map-icon"><Plus /></button><button onClick={() => { setScale(.9); setOffset({x:0,y:0}); }} className="map-icon border-l"><Maximize2 /></button>
           </div>
-          <div className="absolute bottom-5 right-5 z-20 rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm">Drag to move · Ctrl/Cmd-click two people to connect</div>
+          <div className="absolute bottom-5 right-5 z-20 rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm">Drag to move · Ctrl/Cmd-click two people to link or unlink</div>
         </div>
 
-        {pendingConnection && <ConnectionDialog pending={pendingConnection} people={people} onChange={(type) => setPendingConnection((current) => current ? { ...current, type } : null)} onCancel={() => { setPendingConnection(null); setLinkFrom(null); }} onConnect={createConnection} />}
+        {pendingConnection && <ConnectionDialog pending={pendingConnection} relationship={pendingRelationship} people={people} onChange={(type) => setPendingConnection((current) => current ? { ...current, type } : null)} onCancel={() => { setPendingConnection(null); setLinkFrom(null); setMultiSelection([]); }} onConnect={createConnection} onDisconnect={removePendingConnection} />}
 
         <aside style={{ width: inspectorWidth }} className="absolute inset-y-0 right-0 z-30 hidden max-w-[calc(100%-2rem)] shrink-0 overflow-y-auto border-l border-zinc-200 bg-white shadow-[-12px_0_32px_rgba(24,24,27,0.08)] sm:block lg:relative lg:max-w-[55%] lg:shadow-none">
           <button onPointerDown={startInspectorResize} className="absolute inset-y-0 left-0 z-40 w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400" aria-label="Resize relationship details" title="Drag to resize details" />
@@ -338,15 +353,14 @@ function RelationshipSection({ icon: Icon, title, addLabel, onAdd, children }: {
   return <section className="mb-5 border-t border-zinc-100 pt-4"><div className="mb-2.5 flex items-center justify-between"><div className="flex items-center gap-2"><Icon className="h-3.5 w-3.5 text-zinc-400"/><p className="text-[11px] font-semibold text-zinc-700">{title}</p></div>{addLabel && <button onClick={onAdd} className="flex items-center gap-1 text-[10px] font-semibold text-zinc-500"><Plus className="h-3 w-3"/>{addLabel}</button>}</div>{children}</section>;
 }
 
-function ConnectionDialog({ pending, people, onChange, onCancel, onConnect }: { pending: PendingConnection; people: Person[]; onChange: (type: string) => void; onCancel: () => void; onConnect: () => void }) {
+function ConnectionDialog({ pending, relationship, people, onChange, onCancel, onConnect, onDisconnect }: { pending: PendingConnection; relationship: Relationship | null; people: Person[]; onChange: (type: string) => void; onCancel: () => void; onConnect: () => void; onDisconnect: () => void }) {
   const from = people.find((person) => person.id === pending.from);
   const to = people.find((person) => person.id === pending.to);
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/15 p-4 backdrop-blur-[2px]" onPointerDown={onCancel}>
     <div role="dialog" aria-modal="true" aria-labelledby="connect-dialog-title" onPointerDown={(event) => event.stopPropagation()} className="w-full max-w-sm rounded-[22px] border border-zinc-200 bg-white p-5 shadow-[0_24px_80px_rgba(24,24,27,0.18)]">
-      <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1"><p id="connect-dialog-title" className="truncate text-base font-semibold">Connect {from?.name} and {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">Create a relationship between these people</p></div><PersonDot person={to} /></div>
-      <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400" htmlFor="new-relationship-type">Relationship type</label>
-      <select id="new-relationship-type" value={pending.type} onChange={(event) => onChange(event.target.value)} className="input mb-5 appearance-none !py-2.5"><option>Friend</option><option>Partner</option><option>Family</option><option>Parent & child</option><option>Sibling</option><option>Colleague</option><option>Relationship</option></select>
-      <div className="flex justify-end gap-2"><button onClick={onCancel} className="map-button">Cancel</button><button onClick={onConnect} className="map-button map-button-dark"><Link2 />Connect</button></div>
+      <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1 text-center"><p id="connect-dialog-title" className="truncate text-base font-semibold">{from?.name} <span className="font-normal text-zinc-300">↔</span> {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">{relationship ? "These people are currently connected" : "Choose how these people are connected"}</p></div><PersonDot person={to} /></div>
+      {relationship ? <div className="mb-5 rounded-xl bg-zinc-50 px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400">Relationship type</p><p className="mt-1 text-sm font-semibold text-zinc-700">{relationship.type || "Relationship"}</p></div> : <><label className="mb-2 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400" htmlFor="new-relationship-type">Relationship type</label><select autoFocus id="new-relationship-type" value={pending.type} onChange={(event) => onChange(event.target.value)} className="input mb-5 appearance-none !py-2.5"><option>Friend</option><option>Partner</option><option>Family</option><option>Parent & child</option><option>Sibling</option><option>Colleague</option><option>Relationship</option></select></>}
+      <div className="flex items-center justify-between gap-2">{relationship ? <button onClick={onDisconnect} className="map-button !border-red-100 !text-red-600 hover:!bg-red-50"><Trash2 />Unlink people</button> : <span />}<div className="flex gap-2"><button onClick={onCancel} className="map-button">Cancel</button>{!relationship && <button onClick={onConnect} className="map-button map-button-dark"><Link2 />Link people</button>}</div></div>
     </div>
   </div>;
 }
