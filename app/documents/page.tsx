@@ -11,6 +11,7 @@ import { UploadDocumentButton } from "./UploadDocumentButton";
 import { ManualDocumentButton } from "./ManualDocumentButton";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { formatDate } from "@/lib/dates";
 
 
 export default async function DocumentsPage() {
@@ -83,13 +84,7 @@ export default async function DocumentsPage() {
               </div>
 
               <p className="text-sm text-zinc-500">
-                {document.expiryDate
-                  ? document.expiryDate.toLocaleDateString("en-AU", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : "No expiry"}
+                {document.expiryDate ? formatDate(document.expiryDate) : "No expiry"}
               </p>
 
               <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">

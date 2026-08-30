@@ -91,7 +91,7 @@ Worth trying, cool idea but solution/value isn't proven
 Changes or affects fundamental Kinesis architecture
 
 ### Integration
-Changes or affects fundamental Kinesis architecture
+External Integration related 
 
 ### UX / UI
 Primarily interaction or visual design work
@@ -162,6 +162,10 @@ KD-016-automated-document-field-extraction
 ## Accepted — Needs Planning
 
 KD-011-unified-todo-view
+KD-017-turn-dashboard-into-decision-surface
+KD-018-standardise-module-navigation
+KD-019-sidebar-route-aware
+KD-020-mobile-navigation-and-responsive-app
 
 ## ⛔ Blocked
 

@@ -33,6 +33,7 @@ import {
   useState,
 } from "react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
+import { formatDate } from "@/lib/dates";
 import { saveRelationshipMap } from "./actions";
 import type { RelationshipMapData, RelationshipPerson as Person, RelationshipRecord as Relationship } from "@/lib/relationships";
 
@@ -362,8 +363,6 @@ function GoalStatus({ status }: { status: string }) {
 function FormActions({ onCancel }: { onCancel: () => void }) { return <div className="flex justify-end gap-2"><button type="button" onClick={onCancel} className="rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-zinc-500 hover:bg-white">Cancel</button><button type="submit" className="rounded-lg bg-zinc-900 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-zinc-800">Save</button></div>; }
 function DeleteItemButton({ onClick }: { onClick: () => void }) { return <button type="button" onClick={onClick} className="absolute right-2.5 top-2.5 rounded-md p-1 text-zinc-300 opacity-0 transition hover:bg-white hover:text-red-500 group-hover:opacity-100 focus:opacity-100" aria-label="Delete item"><Trash2 className="h-3 w-3" /></button>; }
 function DetailItem({ title, detail, onDelete }: { title: string; detail: string; onDelete: () => void }) { return <div className="group relative rounded-xl bg-zinc-50 px-3 py-2.5 pr-9"><p className="text-[11px] font-semibold text-zinc-700">{title}</p><p className="mt-0.5 text-[10px] text-zinc-400">{detail}</p><DeleteItemButton onClick={onDelete} /></div>; }
-function formatDate(value: string) { const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : null; return parsed && !Number.isNaN(parsed.valueOf()) ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(parsed) : value; }
-
 function EmptyDetail({ children }: { children: React.ReactNode }) { return <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2.5 text-[10px] leading-4 text-zinc-400">{children}</p>; }
 function PersonDot({ person }: { person?: Person }) { if (!person) return null; const Icon = icons[person.icon]; return <span style={{ backgroundColor: person.color }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"><Icon className="h-4 w-4" /></span>; }
 

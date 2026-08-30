@@ -4,6 +4,7 @@ import { Bell, CalendarClock, CheckCheck, Clock3, Flag, TriangleAlert, X } from 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-actions";
+import { formatDate } from "@/lib/dates";
 
 type NotificationItem = {
   id: string;
@@ -46,8 +47,6 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
     void markAllNotificationsReadAction();
   }
 
-  const dateFormatter = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-
   return (
     <div ref={container} className="relative">
       <button type="button" aria-label={`${unreadCount} unread notifications`} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="relative flex h-11 min-w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white px-3 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
@@ -76,7 +75,7 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readIds.has(notification.id) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
-                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{notification.type === "MILESTONE_DUE" ? "Due" : "Expires"} {dateFormatter.format(notification.expiryDate)}</span>}</span>
+                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{notification.type === "MILESTONE_DUE" ? "Due" : "Expires"} {formatDate(notification.expiryDate)}</span>}</span>
                 </span>
               </Link>
             ))}
