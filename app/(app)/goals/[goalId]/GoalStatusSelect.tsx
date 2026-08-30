@@ -2,25 +2,35 @@
 
 import { GOAL_STATUSES } from "@/lib/goals/format";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useActionState, useCallback, useState } from "react";
+import type { GoalActionState } from "../actions";
+
+const initialState: GoalActionState = {};
 
 export function GoalStatusSelect({
   status,
   action,
 }: {
   status: string;
-  action: (formData: FormData) => Promise<void>;
+  action: (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
 }) {
   const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState(status);
 
-  async function updateStatus(formData: FormData) {
-    await action(formData);
-    router.refresh();
-  }
+  const updateStatus = useCallback(
+    async (state: GoalActionState, formData: FormData) => {
+      const result = await action(state, formData);
+      if (result.error) setSelectedStatus(status);
+      else router.refresh();
+      return result;
+    },
+    [action, router, status],
+  );
+
+  const [state, formAction] = useActionState(updateStatus, initialState);
 
   return (
-    <form action={updateStatus}>
+    <form action={formAction}>
       <select
         name="status"
         value={selectedStatus}
@@ -35,6 +45,7 @@ export function GoalStatusSelect({
           <option key={option}>{option}</option>
         ))}
       </select>
+      {state.error && <p role="alert" className="mt-1 text-sm font-medium text-red-600">{state.error}</p>}
     </form>
   );
 }

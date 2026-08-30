@@ -43,25 +43,25 @@ describe.sequential("cross-user authorization contract", () => {
   });
 
   it("keeps every foreign top-level goal mutation inert and creates no side effects", async () => {
-    await updateGoalStatusAction(ids.goalA, form({ status: "Completed" }));
-    await addTargetAction(ids.goalA, form({ targetValue: "150", currentValue: "25", unit: "items" }));
+    await updateGoalStatusAction(ids.goalA, {}, form({ status: "Completed" }));
+    await addTargetAction(ids.goalA, {}, form({ targetValue: "150", currentValue: "25", unit: "items" }));
     await toggleProgressAction(ids.goalA, "showTargetProgress", false);
-    await addMilestoneAction(ids.goalA, form({ name: "owner-a-added-milestone" }));
+    await addMilestoneAction(ids.goalA, {}, form({ name: "owner-a-added-milestone" }));
     await removeTargetAction(ids.goalA);
     expect((await ownerState("ownerA")).goals[0].milestones).toHaveLength(2);
 
     const before = await ownerState("ownerB");
-    await updateGoalStatusAction(ids.goalB, form({ status: "Completed" }));
-    await expect(addTargetAction(ids.goalB, form({ targetValue: "999", currentValue: "999", unit: "items" }))).rejects.toThrow("Goal not found");
+    await updateGoalStatusAction(ids.goalB, {}, form({ status: "Completed" }));
+    await expect(addTargetAction(ids.goalB, {}, form({ targetValue: "999", currentValue: "999", unit: "items" }))).rejects.toThrow("Goal not found");
     await removeTargetAction(ids.goalB);
     await toggleProgressAction(ids.goalB, "showTargetProgress", false);
-    await addMilestoneAction(ids.goalB, form({ name: "intrusion" }));
+    await addMilestoneAction(ids.goalB, {}, form({ name: "intrusion" }));
     await deleteGoalAction(ids.goalB);
     expect(await ownerState("ownerB")).toEqual(before);
   });
 
   const milestoneMutations = [
-    ["due-date update", (parent: string, child: string) => updateMilestoneDueDateAction(parent, child, form({ dueDate: "2029-01-01" }))],
+    ["due-date update", (parent: string, child: string) => updateMilestoneDueDateAction(parent, child, {}, form({ dueDate: "2029-01-01" }))],
     ["due-date removal", (parent: string, child: string) => removeMilestoneDueDateAction(parent, child)],
     ["completion toggle", (parent: string, child: string) => toggleMilestoneAction(parent, child, true)],
     ["deletion", (parent: string, child: string) => deleteMilestoneAction(parent, child)],
@@ -94,16 +94,16 @@ describe.sequential("cross-user authorization contract", () => {
   });
 
   it("rejects foreign custom-module creation and deletion", async () => {
-    await createCustomItemAction(ids.moduleA, form({ name: "owner-a-added-item" }));
+    await createCustomItemAction(ids.moduleA, {}, form({ name: "owner-a-added-item" }));
     expect((await ownerState("ownerA")).customModules[0].items).toHaveLength(2);
     const before = await ownerState("ownerB");
-    await expect(createCustomItemAction(ids.moduleB, form({ name: "intrusion" }))).rejects.toThrow("Module not found");
+    await expect(createCustomItemAction(ids.moduleB, {}, form({ name: "intrusion" }))).rejects.toThrow("Module not found");
     await deleteCustomModuleAction(ids.moduleB);
     expect(await ownerState("ownerB")).toEqual(before);
   });
 
   const customItemMutations = [
-    ["update/field replacement", (parent: string, child: string) => updateCustomItemAction(parent, child, form({ name: "changed", fieldLabel: ["replacement"], fieldValue: ["replacement"] }))],
+    ["update/field replacement", (parent: string, child: string) => updateCustomItemAction(parent, child, {}, form({ name: "changed", fieldLabel: ["replacement"], fieldValue: ["replacement"] }))],
     ["archive toggle", (parent: string, child: string) => toggleCustomItemArchivedAction(parent, child, true)],
     ["deletion", (parent: string, child: string) => deleteCustomItemAction(parent, child)],
   ] as const;

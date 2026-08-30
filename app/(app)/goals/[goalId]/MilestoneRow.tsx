@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { displayNumber } from "@/lib/goals/format";
 import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
+import type { GoalActionState } from "../actions";
 
-type FormAction = (formData: FormData) => Promise<void>;
+type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
+const initialState: GoalActionState = {};
 const AUTO_COMPLETION_FEEDBACK_MS = 15_000;
 const AUTO_COMPLETION_FADE_MS = 500;
 type FeedbackState = "visible" | "fading" | "hidden";
@@ -28,6 +30,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   deleteAction: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [state, formAction] = useActionState(updateAction, initialState);
   const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
   const now = new Date();
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
@@ -55,7 +58,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
     window.setTimeout(() => setAutoCompletionFeedback("hidden"), AUTO_COMPLETION_FADE_MS);
   }
 
-  if (editing) return <form action={updateAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
+  if (editing) return <form action={formAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <input name="name" required autoFocus defaultValue={milestone.name} aria-label="Milestone title" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
       <input name="value" type="number" step="any" min="0" defaultValue={milestone.value ?? ""} placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />
@@ -65,6 +68,7 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
       <button className="h-11 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button>
       <button type="button" onClick={() => setEditing(false)} aria-label="Cancel editing" className="rounded-lg p-2 text-zinc-400 hover:bg-white"><X className="h-5 w-5" /></button>
     </div>
+    {state.error && <p role="alert" className="mt-3 text-sm font-medium text-red-600">{state.error}</p>}
   </form>;
 
   return <div role="button" tabIndex={0} onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setEditing(true); }} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition hover:border-violet-200 hover:bg-violet-50/30 ${milestone.completed ? "border-emerald-100 bg-emerald-50/60" : "border-zinc-200"}`}>
