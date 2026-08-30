@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser, requireRecentVerification } from "@/lib/auth";
+import { isSupportedCurrency, isSupportedLocale } from "@/lib/format/preferences";
 import { DELETE_ALL_CONFIRMATION } from "./constants";
 
 export type SettingsActionState = { error?: string; message?: string };
@@ -13,11 +14,19 @@ export async function updateSettingsAction(
 ): Promise<SettingsActionState> {
   const user = await requireKinesisUser();
   const appearance = String(formData.get("appearance") ?? "system");
+  const locale = String(formData.get("locale") ?? "");
+  const currency = String(formData.get("currency") ?? "");
 
   if (!["light", "dark", "system"].includes(appearance)) return { error: "Choose a valid appearance." };
+  // An unrecognised tag makes every Intl constructor throw, so regional values
+  // are checked against the supported list rather than stored as submitted.
+  if (!isSupportedLocale(locale)) return { error: "Choose a valid region." };
+  if (!isSupportedCurrency(currency)) return { error: "Choose a valid currency." };
 
   const data = {
     appearance,
+    locale,
+    currency,
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     remindersEnabled: formData.get("remindersEnabled") === "on",
   };
@@ -26,7 +35,8 @@ export async function updateSettingsAction(
     create: { userId: user.id, ...data },
     update: data,
   });
-  revalidatePath("/settings");
+  // Dates and amounts appear on every page, so the whole tree is stale.
+  revalidatePath("/", "layout");
   return { message: "Settings saved." };
 }
 

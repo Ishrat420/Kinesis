@@ -1,19 +1,31 @@
 "use client";
 
-import { useActionState } from "react";
-import { Bell, Check, Clock3, Moon, Save, Sun } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Bell, Check, Clock3, Coins, Globe, Moon, Save, Sun } from "lucide-react";
+import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format/numbers";
+import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES } from "@/lib/format/preferences";
 import { updateSettingsAction, type SettingsActionState } from "./actions";
 
 type Settings = {
   appearance: string;
+  locale: string;
+  currency: string;
   notificationsEnabled: boolean;
   remindersEnabled: boolean;
 };
+
+// A day past the twelfth would not reveal whether the day or the month leads,
+// so the preview uses one that reads differently from region to region.
+const SAMPLE_DATE = new Date(Date.UTC(2026, 2, 9));
+const SAMPLE_AMOUNT = 1234.5;
 
 const initialState: SettingsActionState = {};
 
 export function SettingsForm({ settings }: { settings: Settings }) {
   const [state, action, pending] = useActionState(updateSettingsAction, initialState);
+  const [locale, setLocale] = useState(settings.locale);
+  const [currency, setCurrency] = useState(settings.currency);
 
   return (
     <form action={action} className="space-y-6">
@@ -33,6 +45,28 @@ export function SettingsForm({ settings }: { settings: Settings }) {
               </span>
             </label>
           ))}
+        </div>
+      </section>
+
+      <section id="regional" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <h2 className="text-lg font-semibold">Region &amp; formatting</h2>
+        <p className="mt-1 text-sm text-zinc-500">Set how Kinesis writes dates and amounts everywhere in the app.</p>
+        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+          <label className="block">
+            <span className="flex items-center gap-2 text-sm font-medium text-zinc-800"><Globe className="h-4 w-4" /> Region</span>
+            <select name="locale" value={locale} onChange={(event) => setLocale(event.target.value)} className="input mt-2 appearance-none">
+              {SUPPORTED_LOCALES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <span className="mt-2 block text-xs text-zinc-500">Dates appear as <strong className="font-semibold text-zinc-700">{formatDate(SAMPLE_DATE, locale)}</strong></span>
+          </label>
+
+          <label className="block">
+            <span className="flex items-center gap-2 text-sm font-medium text-zinc-800"><Coins className="h-4 w-4" /> Currency</span>
+            <select name="currency" value={currency} onChange={(event) => setCurrency(event.target.value)} className="input mt-2 appearance-none">
+              {SUPPORTED_CURRENCIES.map((option) => <option key={option.value} value={option.value}>{option.value} · {option.label}</option>)}
+            </select>
+            <span className="mt-2 block text-xs text-zinc-500">Amounts appear as <strong className="font-semibold text-zinc-700">{formatMoney(SAMPLE_AMOUNT, locale, currency)}</strong></span>
+          </label>
         </div>
       </section>
 
