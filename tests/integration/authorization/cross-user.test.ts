@@ -5,10 +5,10 @@ import { getDocument, updateDocument, deleteDocument, deleteUnusedDocumentType }
 import { getGoal } from "@/lib/data/goals";
 import { getCustomItem, getCustomModule } from "@/lib/data/custom-modules";
 import { markNotificationRead } from "@/lib/data/notifications";
-import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, removeMilestoneDueDateAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalStatusAction, updateMilestoneDueDateAction } from "@/app/goals/actions";
-import { deleteFinanceItem, saveFinanceItem } from "@/app/finance/actions";
-import { createCustomItemAction, deleteCustomItemAction, deleteCustomModuleAction, toggleCustomItemArchivedAction, updateCustomItemAction } from "@/app/custom-modules/actions";
-import { saveRelationshipMap } from "@/app/relationships/actions";
+import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, removeMilestoneDueDateAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalStatusAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
+import { deleteFinanceItem, saveFinanceItem } from "@/app/(app)/finance/actions";
+import { createCustomItemAction, deleteCustomItemAction, deleteCustomModuleAction, toggleCustomItemArchivedAction, updateCustomItemAction } from "@/app/(app)/custom-modules/actions";
+import { saveRelationshipMap } from "@/app/(app)/relationships/actions";
 
 const form = (values: Record<string, string | string[]>) => {
   const data = new FormData();
