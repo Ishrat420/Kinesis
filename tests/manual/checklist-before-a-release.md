@@ -26,6 +26,8 @@ These checks complement automated and unit testing and are intended to verify th
 - [ ] Add a person and create a relationship.
 - [ ] Add an important date to a relationship.
 - [ ] Link a goal to a relationship.
+- [ ] Ctrl/Cmd-click two people on the constellation and create the connection from the prompt.
+- [ ] Add a practice, reflection, important date and note under "Relationship with myself", reload, and verify they persist.
 
 ## Custom Modules & Fields
 

@@ -1,6 +1,6 @@
 # KD-021 — Relationship Inspector Cleanup & Multi-Select Connect
 
-**Status:** Accepted — Needs Planning  
+**Status:** Done  
 **Priority:** High
 **Tags:** UX/UI
 
@@ -66,4 +66,34 @@ Because modifier-key selection is desktop-specific, this must **not be the only 
 
 ---
 
+## Implementation Notes
 
+**Relationship with myself**
+
+* The placeholder card in Person details has been removed.
+* For the self (`isSelf`) bubble the second inspector tab is now labelled
+  `Relationship with myself` and holds the relationship elements — connection
+  practices, reflections, important dates and notes — but no linked goals.
+  Relationship type and "remove connection" are also absent: there is only ever
+  one of these and it cannot be disconnected.
+* The self bubble's relationships with other people are unchanged and are still
+  edited from the other person's inspector or by selecting the connection line.
+* Storage reuses the `selfPersonId` columns that already existed on
+  `ConnectionPractice`, `RelationshipReflection` and `RelationshipImportantDate`,
+  so self practices and dates flow into the Calendar like any other. Notes
+  needed a new `Person.selfNotes` column.
+
+**Ctrl/Cmd multi-select to connect**
+
+* `Ctrl` (Windows/Linux) or `Cmd` (macOS) plus a click on a second bubble selects
+  a pair; both bubbles show the selection ring and a prompt offers
+  `Connect Person1 and Person2`, which opens the existing connection dialog with
+  both people preselected.
+* A modifier-click never starts a drag, so moving bubbles is unaffected.
+* Selection is capped at two people, clears on `Escape`, on clicking empty space,
+  and on starting the inspector's `Connect` flow. Re-picking a selected person
+  deselects them, so a person can never be paired with themselves.
+* Already-connected pairs are named in the prompt but offer no action, so no
+  duplicate or reversed relationship can be created.
+* The inspector's `Connect` button is untouched and remains the way to connect
+  people on touch devices.

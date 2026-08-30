@@ -9,6 +9,7 @@ import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneA
 import { deleteFinanceItem, saveFinanceItem } from "@/app/(app)/finance/actions";
 import { createCustomItemAction, deleteCustomItemAction, deleteCustomModuleAction, toggleCustomItemArchivedAction, updateCustomItemAction } from "@/app/(app)/custom-modules/actions";
 import { saveRelationshipMap } from "@/app/(app)/relationships/actions";
+import { emptySelfRelationship } from "@/lib/relationships";
 
 const form = (values: Record<string, string | string[]>) => {
   const data = new FormData();
@@ -134,8 +135,8 @@ describe.sequential("cross-user authorization contract", () => {
     const beforeB = await ownerState("ownerB");
     await expect(saveRelationshipMap({
       people: [
-        { id: "replacement-self", name: "Replacement", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user" },
-        { id: "replacement-person", name: "Replacement person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart" },
+        { id: "replacement-self", name: "Replacement", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship() },
+        { id: "replacement-person", name: "Replacement person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship() },
       ],
       relationships: [{
         id: "replacement-relationship", from: "replacement-self", to: "replacement-person", type: "Friend", notes: "must not be inserted",
