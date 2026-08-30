@@ -4,6 +4,11 @@
 **Priority:** High  
 **Tags:** UX/UI
 
+> **Note:** the mobile drawer below was implemented as part of KD-018, because
+> that change removed the "Back to dashboard" links mobile users were relying
+> on. See `components/navigation/MobileNavDrawer.tsx`. The remaining responsive
+> layout work is still open.
+
 ## Summary
 
 Add proper mobile navigation and standardise responsive layout behaviour across Kinesis.

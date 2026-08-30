@@ -16,7 +16,7 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/prisma", () => ({ prisma: mocks.prisma }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { saveRelationshipMap } from "@/app/relationships/actions";
+import { saveRelationshipMap } from "@/app/(app)/relationships/actions";
 
 describe("saveRelationshipMap authorization", () => {
   beforeEach(() => {

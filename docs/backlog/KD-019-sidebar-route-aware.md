@@ -1,6 +1,6 @@
 # KD-019 — Route-Aware Sidebar State
 
-**Status:** Accepted — Needs Planning  
+**Status:** Done  
 **Priority:** Medium  
 **Tags:** Navigation, UX/UI, Cross-Module
 
@@ -62,11 +62,43 @@ Use an exact match for Dashboard where appropriate.
 
 ## Acceptance Criteria
 
-* [ ] Active sidebar item correctly follows the current route.
-* [ ] Nested routes retain their parent module's active state.
-* [ ] Custom modules highlight correctly, including nested routes.
-* [ ] Dashboard is no longer hardcoded as active.
-* [ ] Existing sidebar navigation and styling remain unchanged.
-* [ ] The main Sidebar/app shell remains server-rendered where possible.
+* [x] Active sidebar item correctly follows the current route.
+* [x] Nested routes retain their parent module's active state.
+* [x] Custom modules highlight correctly, including nested routes.
+* [x] Dashboard is no longer hardcoded as active.
+* [x] Existing sidebar navigation and styling remain unchanged.
+* [x] The main Sidebar/app shell remains server-rendered where possible.
 
 
+
+---
+
+## Implementation
+
+`lib/navigation/active-route.ts` holds the matching, as specified:
+
+```ts
+isRouteActive(pathname, href)
+```
+
+* an entry is active on its own route and on everything nested under it;
+* `/` matches only itself, so the dashboard does not light up everywhere;
+* trailing slashes, query strings, and fragments are ignored, so
+  `/calendar?month=2026-08` still highlights Calendar;
+* a shared prefix that is not a path boundary does not match, so
+  `/documents-archive` does not activate `/documents`.
+
+`components/navigation/SidebarNavLink.tsx` is the only new client boundary: it
+reads `usePathname()`, applies the existing active styling, and sets
+`aria-current="page"`. `Sidebar.tsx` stays a server component and still loads
+custom modules server-side; `DraggableCustomModuleLink` uses the same helper, so
+custom modules highlight like built-in ones and stay draggable.
+
+Both entries share `navItemClassName` in `components/navigation/nav-item.ts`, so
+there is one definition of what an active navigation item looks like.
+
+## Testing
+
+`tests/unit/navigation-active-route.test.ts` covers exact matches, nested
+routes, prefix near-misses, the dashboard special case, query/fragment
+handling, and a missing pathname.

@@ -25,8 +25,8 @@ vi.mock("@/lib/data/prisma", () => ({
   },
 }));
 
-import { deleteAllDataAction } from "@/app/settings/actions";
-import { DELETE_ALL_CONFIRMATION } from "@/app/settings/constants";
+import { deleteAllDataAction } from "@/app/(app)/settings/actions";
+import { DELETE_ALL_CONFIRMATION } from "@/app/(app)/settings/constants";
 
 describe("delete all data security", () => {
   beforeEach(() => {
