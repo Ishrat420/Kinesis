@@ -229,6 +229,12 @@ rules; never log session tokens, bearer secrets, or exported personal data.
 Status: Export and bulk-deletion success events are recorded; webhook synchronization
 and a comprehensive, durable security audit trail remain open.
 
+### P2 — Prisma logs every query in production
+
+lib/data/prisma.ts:10 — log: ["query", "error", "warn"]. Query logs include parameters, 
+so document numbers, notes, and relationship reflections land in Vercel logs. 
+This probably is one-line fix, and it's a privacy issue.
+
 ## Suggested delivery order
 
 1. **Maintain isolation coverage:** keep provisioning/rotation, IDOR attempts, and
