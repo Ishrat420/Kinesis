@@ -36,7 +36,7 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { saveRelationshipMap } from "./actions";
-import type { RelationshipMapData, RelationshipPerson as Person, RelationshipRecord as Relationship } from "@/lib/relationships";
+import { connectPairStatus, emptySelfRelationship, hasRelationshipBetween, isSelfPerson, toggleMultiSelect, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
 type PersonIcon = "user" | "heart" | "baby" | "cat" | "home";
 type Selection = { kind: "person" | "relationship"; id: string } | null;
@@ -44,7 +44,7 @@ type PendingConnection = { from: string; to: string; type: string };
 type GoalOption = { id: string; name: string; status: string };
 
 const initialPeople: Person[] = [
-  { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user" },
+  { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user", selfRelationship: emptySelfRelationship() },
 ];
 
 const initialRelationships: Relationship[] = [];
@@ -60,6 +60,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   const [scale, setScale] = useState(0.9);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [linkFrom, setLinkFrom] = useState<string | null>(null);
+  const [multiSelection, setMultiSelection] = useState<string[]>([]);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [inspectorWidth, setInspectorWidth] = useState(360);
   const canvas = useRef<HTMLDivElement>(null);
@@ -75,6 +76,8 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   const selectedPerson = selection?.kind === "person" ? people.find((person) => person.id === selection.id) ?? null : null;
   const selectedRelationship = selection?.kind === "relationship" ? relationships.find((relationship) => relationship.id === selection.id) ?? null : null;
   const peopleById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
+  const pair = multiSelection.map((id) => peopleById.get(id)).filter((person): person is Person => Boolean(person));
+  const pairStatus = connectPairStatus(multiSelection, relationships);
 
   const pointerMove = useCallback((event: PointerEvent) => {
     if (!action.current) return;
@@ -91,18 +94,14 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   }, [pointerMove]);
   useEffect(() => {
     function cancelOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") { setLinkFrom(null); setPendingConnection(null); }
+      if (event.key === "Escape") { setLinkFrom(null); setPendingConnection(null); setMultiSelection([]); }
     }
     window.addEventListener("keydown", cancelOnEscape);
     return () => window.removeEventListener("keydown", cancelOnEscape);
   }, []);
 
   function relationshipExists(personAId: string, personBId: string) {
-    const [firstPersonId, secondPersonId] = [personAId, personBId].sort();
-    return relationships.some((relationship) => {
-      const [existingFirst, existingSecond] = [relationship.from, relationship.to].sort();
-      return existingFirst === firstPersonId && existingSecond === secondPersonId;
-    });
+    return hasRelationshipBetween(relationships, personAId, personBId);
   }
 
   function startNodeDrag(event: ReactPointerEvent, person: Person) {
@@ -113,8 +112,16 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
       }
       return;
     }
+    if (event.ctrlKey || event.metaKey) { multiSelect(person.id); return; }
+    setMultiSelection([]);
     action.current = { kind: "node", id: person.id, x: event.clientX, y: event.clientY, ox: person.x, oy: person.y };
     setSelection({ kind: "person", id: person.id });
+  }
+  function multiSelect(personId: string) {
+    const current = multiSelection.length ? multiSelection : selection?.kind === "person" ? [selection.id] : [];
+    const next = toggleMultiSelect(current, personId);
+    setMultiSelection(next.length > 1 ? next : []);
+    setSelection(next.length ? { kind: "person", id: next[0] } : null);
   }
   function createConnection() {
     if (!pendingConnection || relationshipExists(pendingConnection.from, pendingConnection.to)) return;
@@ -124,11 +131,13 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     setSelection({ kind: "relationship", id: relationship.id });
     setPendingConnection(null);
     setLinkFrom(null);
+    setMultiSelection([]);
   }
   function startPan(event: ReactPointerEvent) {
     if (event.target !== canvas.current) return;
     action.current = { kind: "pan", x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y };
     setSelection(null);
+    setMultiSelection([]);
   }
   function updateSelected(patch: Partial<Person>) {
     if (selection?.kind !== "person") return;
@@ -136,7 +145,8 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   }
   function addPerson() {
     const id = crypto.randomUUID();
-    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: "#aa7866", icon: "user" }]);
+    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: "#aa7866", icon: "user", selfRelationship: emptySelfRelationship() }]);
+    setMultiSelection([]);
     setSelection({ kind: "person", id });
   }
   function reset() {
@@ -144,6 +154,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     setRelationships(initialRelationships);
     setOffset({ x: 0, y: 0 });
     setScale(0.9);
+    setMultiSelection([]);
     setSelection({ kind: "person", id: "self" });
   }
   function startInspectorResize(event: ReactPointerEvent) {
@@ -179,6 +190,12 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
             <span className="px-2 text-xs font-semibold text-zinc-600">My constellation</span><ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
           </div>
           {linkFrom && <div className="absolute left-1/2 top-5 z-30 -translate-x-1/2 rounded-2xl bg-zinc-900 px-5 py-3 text-white shadow-lg"><div className="flex items-start gap-4"><div><p className="text-xs font-semibold">Connect {peopleById.get(linkFrom)?.name} to...</p><p className="mt-0.5 text-[10px] text-zinc-400">Select another person</p></div><button onClick={() => setLinkFrom(null)} aria-label="Cancel connection mode"><X className="h-3.5 w-3.5" /></button></div></div>}
+          {!linkFrom && pair.length === 2 && <div className="absolute left-1/2 top-5 z-30 -translate-x-1/2 rounded-2xl bg-zinc-900 px-5 py-3 text-white shadow-lg"><div className="flex items-center gap-4">
+            {pairStatus === "ready"
+              ? <button onClick={() => setPendingConnection({ from: pair[0].id, to: pair[1].id, type: pair[1].detail === "Friend" ? "Friend" : "Relationship" })} className="flex items-center gap-2 text-xs font-semibold"><Link2 className="h-3.5 w-3.5" />Connect {pair[0].name} and {pair[1].name}</button>
+              : <div><p className="text-xs font-semibold">{pair[0].name} and {pair[1].name}</p><p className="mt-0.5 text-[10px] text-zinc-400">{pairStatus === "already-connected" ? "These two are already connected" : "These two cannot be connected"}</p></div>}
+            <button onClick={() => setMultiSelection([])} aria-label="Clear selection"><X className="h-3.5 w-3.5" /></button>
+          </div></div>}
 
           <div ref={canvas} onPointerDown={startPan} className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none">
             <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }} className="absolute inset-0">
@@ -198,7 +215,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
                 })}
               </svg>
               {people.map((person) => {
-                const Icon = icons[person.icon]; const chosen = selection?.kind === "person" && selection.id === person.id;
+                const Icon = icons[person.icon]; const chosen = (selection?.kind === "person" && selection.id === person.id) || multiSelection.includes(person.id);
                 const validTarget = Boolean(linkFrom && linkFrom !== person.id && !relationshipExists(linkFrom, person.id));
                 return <button key={person.id} onPointerDown={(event) => startNodeDrag(event, person)} style={{ left: person.x, top: person.y, width: person.size, height: person.size, backgroundColor: person.color }} className={`group absolute z-10 flex touch-none select-none flex-col items-center justify-center rounded-full text-white shadow-[0_12px_30px_rgba(55,45,38,0.16)] transition-all ${chosen ? "ring-[5px] ring-white outline outline-2 outline-zinc-800" : "hover:shadow-[0_16px_35px_rgba(55,45,38,0.24)]"} ${validTarget ? "cursor-pointer ring-4 ring-white/90 outline outline-2 outline-emerald-500/60" : ""} ${linkFrom && !validTarget && linkFrom !== person.id ? "opacity-55" : ""}`} aria-label={`${person.name}, ${person.detail}`}>
                   <Icon style={{ width: Math.max(18, person.size * .24), height: Math.max(18, person.size * .24) }} strokeWidth={1.5} />
@@ -211,14 +228,14 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
           <div className="absolute bottom-5 left-5 z-20 flex items-center overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
             <button onClick={() => setScale((v) => Math.max(.45, v - .1))} className="map-icon"><Minus /></button><span className="w-14 text-center text-xs font-semibold text-zinc-500">{Math.round(scale * 100)}%</span><button onClick={() => setScale((v) => Math.min(1.6, v + .1))} className="map-icon"><Plus /></button><button onClick={() => { setScale(.9); setOffset({x:0,y:0}); }} className="map-icon border-l"><Maximize2 /></button>
           </div>
-          <div className="absolute bottom-5 right-5 z-20 rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm">Drag to move · Scroll to explore</div>
+          <div className="absolute bottom-5 right-5 z-20 rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm">Drag to move · Ctrl/Cmd-click two people to connect</div>
         </div>
 
         {pendingConnection && <ConnectionDialog pending={pendingConnection} people={people} onChange={(type) => setPendingConnection((current) => current ? { ...current, type } : null)} onCancel={() => { setPendingConnection(null); setLinkFrom(null); }} onConnect={createConnection} />}
 
         <aside style={{ width: inspectorWidth }} className="absolute inset-y-0 right-0 z-30 hidden max-w-[calc(100%-2rem)] shrink-0 overflow-y-auto border-l border-zinc-200 bg-white shadow-[-12px_0_32px_rgba(24,24,27,0.08)] sm:block lg:relative lg:max-w-[55%] lg:shadow-none">
           <button onPointerDown={startInspectorResize} className="absolute inset-y-0 left-0 z-40 w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400" aria-label="Resize relationship details" title="Drag to resize details" />
-          {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => setLinkFrom(selectedPerson.id)} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
+          {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => { setMultiSelection([]); setLinkFrom(selectedPerson.id); }} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setMultiSelection([]); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
         </aside>
       </div>
     </>
@@ -227,17 +244,41 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
 
 function PersonInspectorTabs({ person, relationships, people, goals, onChangePerson, onChangeRelationship, onLink, onRemoveRelationship, onDeletePerson }: { person: Person; relationships: Relationship[]; people: Person[]; goals: GoalOption[]; onChangePerson: (patch: Partial<Person>) => void; onChangeRelationship: (id: string, patch: Partial<Relationship>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDeletePerson: () => void }) {
   const related = relationships.filter((relationship) => relationship.from === person.id || relationship.to === person.id);
-  const self = people.find((item) => item.detail === "You");
+  const self = people.find(isSelfPerson);
   const preferred = related.find((relationship) => relationship.from === self?.id || relationship.to === self?.id) ?? related[0];
   const [tab, setTab] = useState<"person" | "relationship">("person");
   const [relationshipId, setRelationshipId] = useState(preferred?.id ?? "");
   const relationship = related.find((item) => item.id === relationshipId) ?? preferred;
+  const viewingSelf = isSelfPerson(person);
   return <div>
     <div className="sticky top-0 z-20 grid grid-cols-2 border-b border-zinc-200 bg-white px-4 pt-3">
       <InspectorTab active={tab === "person"} onClick={() => setTab("person")}>Person details</InspectorTab>
-      <InspectorTab active={tab === "relationship"} disabled={!related.length} onClick={() => setTab("relationship")}>Relationship details</InspectorTab>
+      <InspectorTab active={tab === "relationship"} disabled={!viewingSelf && !related.length} onClick={() => setTab("relationship")}>{viewingSelf ? "Relationship with myself" : "Relationship details"}</InspectorTab>
     </div>
-    {tab === "person" ? <PersonInspector person={person} relationships={relationships} people={people} onChange={onChangePerson} onLink={onLink} onRemoveRelationship={onRemoveRelationship} onDelete={onDeletePerson} /> : relationship ? <><RelationshipChoice person={person} relationship={relationship} relationships={related} people={people} onChange={setRelationshipId} /><RelationshipInspector relationship={relationship} people={people} goals={goals} onChange={(patch) => onChangeRelationship(relationship.id, patch)} onDelete={() => { onRemoveRelationship(relationship.id); setTab("person"); }} /></> : <div className="px-5 py-10 text-center text-xs text-zinc-400">Connect this person to someone to add relationship details.</div>}
+    {tab === "person" ? <PersonInspector person={person} relationships={relationships} people={people} onChange={onChangePerson} onLink={onLink} onRemoveRelationship={onRemoveRelationship} onDelete={onDeletePerson} />
+      : viewingSelf ? <SelfRelationshipInspector selfRelationship={person.selfRelationship} onChange={(patch) => onChangePerson({ selfRelationship: { ...person.selfRelationship, ...patch } })} />
+      : relationship ? <><RelationshipChoice person={person} relationship={relationship} relationships={related} people={people} onChange={setRelationshipId} /><RelationshipInspector relationship={relationship} people={people} goals={goals} onChange={(patch) => onChangeRelationship(relationship.id, patch)} onDelete={() => { onRemoveRelationship(relationship.id); setTab("person"); }} /></>
+      : <div className="px-5 py-10 text-center text-xs text-zinc-400">Connect this person to someone to add relationship details.</div>}
+  </div>;
+}
+
+/**
+ * The relationship you have with yourself (KD-021). It carries the same elements as any
+ * other relationship — practices, reflections, important dates and notes — but no linked
+ * goals, and nothing to name or disconnect, because there is only ever one of these.
+ */
+function SelfRelationshipInspector({ selfRelationship, onChange }: { selfRelationship: SelfRelationship; onChange: (patch: Partial<SelfRelationship>) => void }) {
+  const { locale } = useFormatPreferences();
+  const [adding, setAdding] = useState<"practice" | "reflection" | "date" | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+  return <div>
+    <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship with myself</p><p className="mt-0.5 text-[11px] text-zinc-400">A private space for the relationship you have with yourself</p></div><UserRound className="h-4 w-4 text-zinc-400" /></div>
+    <div className="px-5 py-5">
+      <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that keep you connected to yourself.</p>{adding === "practice" && <PracticeForm onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...selfRelationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.practices.map((practice, index) => <DetailItem key={index} title={practice.title} detail={practice.cadence} onDelete={() => onChange({ practices: selfRelationship.practices.filter((_, itemIndex) => itemIndex !== index) })} />)}{selfRelationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...selfRelationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.reflections.map((reflection, index) => <div key={index} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: selfRelationship.reflections.filter((_, itemIndex) => itemIndex !== index) })} /></div>)}{selfRelationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are not sent.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...selfRelationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.importantDates.map((date, index) => <DetailItem key={index} title={date.label} detail={formatDate(date.date, locale)} onDelete={() => onChange({ importantDates: selfRelationship.importantDates.filter((_, itemIndex) => itemIndex !== index) })} />)}{selfRelationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={selfRelationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about the relationship you have with yourself…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
+    </div>
   </div>;
 }
 
@@ -262,7 +303,6 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
       <div className="mb-5"><div className="mb-2 flex items-center justify-between"><InspectorLabel>Bubble size</InspectorLabel><span className="text-[11px] font-medium text-zinc-400">{person.size}px</span></div><input type="range" min="64" max="148" value={person.size} onChange={(e) => onChange({size:Number(e.target.value)})} className="w-full accent-zinc-800" /></div>
       <div className="mb-3 flex items-center justify-between"><InspectorLabel>Connections</InspectorLabel><button onClick={onLink} className="flex items-center gap-1 text-[11px] font-semibold text-zinc-700"><Link2 className="h-3 w-3"/> Connect</button></div>
       <div className="space-y-2">{related.map((relationship) => { const otherId = relationship.from === person.id ? relationship.to : relationship.from; const other = people.find((p) => p.id === otherId); return <div key={relationship.id} className="flex items-center gap-2 rounded-xl bg-zinc-50 p-2.5"><span style={{backgroundColor:other?.color}} className="h-7 w-7 rounded-full"/><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{other?.name}</p><p className="text-[10px] text-zinc-400">{relationship.type}</p></div><button onClick={() => onRemoveRelationship(relationship.id)} className="text-zinc-300 hover:text-red-500" aria-label="Remove relationship"><X className="h-3.5 w-3.5"/></button></div>})}</div>
-      {person.detail === "You" && <div className="mt-5 rounded-2xl border border-zinc-200 p-3.5"><p className="text-xs font-semibold">Relationship with myself</p><p className="mt-1 text-[10px] leading-4 text-zinc-400">A private space for the relationship you have with yourself.</p><div className="mt-3 space-y-2">{["Connection practices", "Reflections", "Linked goals"].map((item) => <button key={item} className="flex w-full items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 text-[11px] font-medium text-zinc-600"><span>{item}</span><Plus className="h-3 w-3 text-zinc-400" /></button>)}</div></div>}
       <button onClick={onDelete} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove person</button>
       <div className="mt-5 rounded-xl bg-[#f7f5f1] p-3 text-[10px] leading-4 text-zinc-400"><Sparkles className="mr-1 inline h-3 w-3"/> Size and position are yours to define—they don&apos;t imply importance.</div>
     </div>
@@ -273,7 +313,7 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
   const { locale } = useFormatPreferences();
   const first = people.find((person) => person.id === relationship.from);
   const second = people.find((person) => person.id === relationship.to);
-  const [from, to] = second?.detail === "You" ? [second, first] : [first, second];
+  const [from, to] = second && isSelfPerson(second) ? [second, first] : [first, second];
   const [adding, setAdding] = useState<"practice" | "reflection" | "date" | "goal" | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   return <div>

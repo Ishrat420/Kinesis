@@ -176,6 +176,7 @@ model Person {
   positionX             Float                       @default(0)
   positionY             Float                       @default(0)
   isSelf                Boolean                     @default(false)
+  selfNotes             String?
   userId                String
   user                  User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   relationshipsAsFirst  Relationship[]              @relation("RelationshipFirstPerson")
