@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
+import { formatDate } from "@/lib/dates";
+import { getFormatPreferences } from "@/lib/format/server";
+
+export type GoalActionState = { error?: string };
 
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const numeric = (data: FormData, key: string) => {
@@ -19,25 +23,33 @@ const optionalDate = (data: FormData, key: string) => {
   const date = new Date(`${raw}T23:59:59.999Z`);
   return Number.isNaN(date.getTime()) ? undefined : date;
 };
+/** Names the date it clashes with, in the owner's own locale. */
+const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) => {
+  if (!dueDate || !targetDate || dueDate < targetDate) return null;
+  const { locale } = await getFormatPreferences();
+  return `The due date must be before the goal target date of ${formatDate(targetDate, locale)}.`;
+};
 const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
 
-export async function createGoalAction(data: FormData) {
+export async function createGoalAction(_previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const name = value(data, "name");
-  if (!name) return;
-  const date = value(data, "targetDate");
-  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), userId: user.id, name, targetDate: date ? new Date(`${date}T23:59:59.999Z`) : null, note: value(data, "note") || null } });
+  if (!name) return { error: "Enter a goal name." };
+  const targetDate = optionalDate(data, "targetDate");
+  if (targetDate === undefined) return { error: "Enter a valid target date." };
+  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), userId: user.id, name, targetDate, note: value(data, "note") || null } });
   await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   revalidatePath("/");
   revalidatePath("/goals");
   redirect(`/goals/${goal.id}`);
 }
 
-export async function updateGoalStatusAction(id: string, data: FormData) {
+export async function updateGoalStatusAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const status = value(data, "status");
-  if (!GOAL_STATUSES.includes(status as typeof GOAL_STATUSES[number])) return;
+  if (!GOAL_STATUSES.includes(status as typeof GOAL_STATUSES[number])) return { error: `Choose one of ${GOAL_STATUSES.join(", ")}.` };
   await prisma.goal.updateMany({ where: { id, userId: user.id }, data: { status } }); refresh(id);
+  return {};
 }
 
 export async function deleteGoalAction(id: string) {
@@ -48,10 +60,13 @@ export async function deleteGoalAction(id: string) {
   redirect("/goals");
 }
 
-export async function addTargetAction(id: string, data: FormData) {
+export async function addTargetAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const targetValue = numeric(data, "targetValue"); const currentValue = numeric(data, "currentValue"); const unit = value(data, "unit");
-  if (targetValue === null || !Number.isFinite(targetValue) || currentValue === null || !Number.isFinite(currentValue) || !unit) return;
+  if (targetValue === null || !Number.isFinite(targetValue)) return { error: "Enter a target value as a number." };
+  if (currentValue === null || !Number.isFinite(currentValue)) return { error: "Enter a current value as a number." };
+  if (targetValue < 0 || currentValue < 0) return { error: "Target and current values cannot be negative." };
+  if (!unit) return { error: "Enter a unit, such as $AUD or Books." };
   if (!DEFAULT_GOAL_UNITS.some((item) => item.toLowerCase() === unit.toLowerCase())) await prisma.goalUnit.upsert({ where: { userId_name: { userId: user.id, name: unit } }, update: {}, create: { id: crypto.randomUUID(), userId: user.id, name: unit } });
   await prisma.$transaction(async (tx) => {
     const previous = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true } });
@@ -60,6 +75,7 @@ export async function addTargetAction(id: string, data: FormData) {
     if (previous?.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
     await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, completedAt: new Date(), autoCompleted: true } });
   }); refresh(id);
+  return {};
 }
 
 export async function removeTargetAction(id: string) {
@@ -68,22 +84,34 @@ export async function removeTargetAction(id: string) {
   refresh(id);
 }
 
-export async function addMilestoneAction(id: string, data: FormData) {
-  const user = await requireKinesisUser();
-  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate"); if (!name || dueDate === undefined) return;
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true, targetDate: true, _count: { select: { milestones: true } } } }); if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
-  const auto = milestoneValue !== null && goal.currentValue !== null && goal.currentValue >= milestoneValue;
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
-}
-
-export async function updateMilestoneAction(id: string, milestoneId: string, data: FormData) {
+export async function addMilestoneAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate");
-  if (!name || dueDate === undefined || (milestoneValue !== null && !Number.isFinite(milestoneValue))) return;
+  if (!name) return { error: "Enter a milestone name." };
+  if (dueDate === undefined) return { error: "Enter a valid due date." };
+  if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true, targetDate: true, _count: { select: { milestones: true } } } });
+  if (!goal) return {};
+  const conflict = await beforeTargetDate(dueDate, goal.targetDate);
+  if (conflict) return { error: conflict };
+  const auto = milestoneValue !== null && goal.currentValue !== null && goal.currentValue >= milestoneValue;
+  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+  return {};
+}
+
+export async function updateMilestoneAction(id: string, milestoneId: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
+  const user = await requireKinesisUser();
+  const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate");
+  if (!name) return { error: "Enter a milestone name." };
+  if (dueDate === undefined) return { error: "Enter a valid due date." };
+  if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetDate: true } });
-  if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
+  if (!goal) return {};
+  const conflict = await beforeTargetDate(dueDate, goal.targetDate);
+  if (conflict) return { error: conflict };
   await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { name, value: milestoneValue, dueDate } });
   refresh(id);
+  return {};
 }
 
 export async function duplicateMilestoneAction(id: string, milestoneId: string) {
@@ -95,14 +123,17 @@ export async function duplicateMilestoneAction(id: string, milestoneId: string) 
   refresh(id);
 }
 
-export async function updateMilestoneDueDateAction(id: string, milestoneId: string, data: FormData) {
+export async function updateMilestoneDueDateAction(id: string, milestoneId: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const dueDate = optionalDate(data, "dueDate");
-  if (dueDate === undefined) return;
+  if (dueDate === undefined) return { error: "Enter a valid due date." };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetDate: true } });
-  if (!goal || (dueDate && goal.targetDate && dueDate >= goal.targetDate)) return;
+  if (!goal) return {};
+  const conflict = await beforeTargetDate(dueDate, goal.targetDate);
+  if (conflict) return { error: conflict };
   await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { dueDate } });
   refresh(id);
+  return {};
 }
 
 export async function removeMilestoneDueDateAction(id: string, milestoneId: string) {

@@ -1,5 +1,10 @@
-export type FinanceKind = "asset" | "liability" | "income" | "expense";
-export type FinanceFrequency = "Weekly" | "Fortnightly" | "Monthly" | "Quarterly" | "Yearly";
+export const FINANCE_KINDS = ["asset", "liability", "income", "expense"] as const;
+export const FINANCE_FREQUENCIES = ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"] as const;
+export const ASSET_CATEGORIES = ["Cash", "Savings", "Property", "Investment", "Vehicle", "Superannuation", "Other"];
+export const LIABILITY_CATEGORIES = ["Credit Card", "Mortgage", "Personal Loan", "Car Loan", "Student Loan", "Other"];
+
+export type FinanceKind = (typeof FINANCE_KINDS)[number];
+export type FinanceFrequency = (typeof FINANCE_FREQUENCIES)[number];
 
 export type FinanceItem = {
   id: string;
@@ -13,6 +18,13 @@ export type FinanceItem = {
   endDate?: string;
   notes?: string;
 };
+
+export const isFinanceKind = (value: unknown): value is FinanceKind =>
+  FINANCE_KINDS.includes(value as FinanceKind);
+export const isFinanceFrequency = (value: unknown): value is FinanceFrequency =>
+  FINANCE_FREQUENCIES.includes(value as FinanceFrequency);
+export const isCalendarDate = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00.000Z`).getTime());
 
 const monthlyFactor: Record<FinanceFrequency, number> = {
   Weekly: 52 / 12,

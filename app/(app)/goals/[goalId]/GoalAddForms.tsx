@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { CalendarDays, Gauge, Plus, X } from "lucide-react";
 import { addUtcDays, formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
+import type { GoalActionState } from "../actions";
 
-type FormAction = (formData: FormData) => Promise<void>;
+type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
+const initialState: GoalActionState = {};
+
+function ActionError({ error }: { error?: string }) {
+  if (!error) return null;
+  return <p role="alert" className="mt-3 text-sm font-medium text-red-600">{error}</p>;
+}
 
 export function AddMilestoneForm({
   action,
@@ -19,6 +26,7 @@ export function AddMilestoneForm({
   goalTargetDate: Date | null;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [state, formAction] = useActionState(action, initialState);
   const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
 
   if (!expanded) {
@@ -34,7 +42,7 @@ export function AddMilestoneForm({
   }
 
   return (
-    <form action={action} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
+    <form action={formAction} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-semibold text-zinc-800">New milestone</p>
         <button type="button" onClick={() => setExpanded(false)} aria-label="Cancel adding milestone" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700">
@@ -48,6 +56,7 @@ export function AddMilestoneForm({
         <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
         <input name="dueDate" type="date" max={latestDueDate} aria-label="Optional milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
       </div>
+      <ActionError error={state.error} />
       <div className="mt-3 flex justify-end"><button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Save milestone</button></div>
     </form>
   );
@@ -55,17 +64,19 @@ export function AddMilestoneForm({
 
 export function MilestoneDueDateForm({ action, removeAction, dueDate, goalTargetDate, overdue }: { action: FormAction; removeAction: () => Promise<void>; dueDate: Date | null; goalTargetDate: Date | null; overdue: boolean }) {
   const [editing, setEditing] = useState(false);
+  const [state, formAction] = useActionState(action, initialState);
   const { locale } = useFormatPreferences();
   const formatted = dueDate ? formatDate(dueDate, locale) : undefined;
   const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
 
   if (!editing) return <button type="button" onClick={() => setEditing(true)} className={`mt-1 inline-flex items-center gap-1.5 text-xs font-medium hover:text-violet-700 ${overdue ? "text-red-600" : "text-zinc-500"}`}><CalendarDays className="h-3.5 w-3.5" />{formatted ? `Due ${formatted} · Edit` : "Add due date"}</button>;
 
-  return <form action={action} className="mt-2 flex flex-wrap items-center gap-2">
+  return <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
     <input name="dueDate" type="date" max={latestDueDate} aria-label="Milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} defaultValue={dueDate ? formatDateInput(dueDate) : ""} className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-xs outline-none focus:border-violet-400" />
     <button className="h-9 rounded-lg bg-zinc-900 px-3 text-xs font-semibold text-white">Save date</button>
     {dueDate && <button formAction={removeAction} className="h-9 px-2 text-xs font-semibold text-red-500">Remove</button>}
     <button type="button" onClick={() => setEditing(false)} className="h-9 px-2 text-xs font-medium text-zinc-500">Cancel</button>
+    {state.error && <p role="alert" className="w-full text-xs font-medium text-red-600">{state.error}</p>}
   </form>;
 }
 
@@ -78,13 +89,14 @@ export function MeasurableTargetForm({
   unit,
 }: {
   action: FormAction;
-  removeAction: FormAction;
+  removeAction: () => Promise<void>;
   units: string[];
   targetValue: number | null;
   currentValue: number | null;
   unit: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [state, formAction] = useActionState(action, initialState);
   const hasTarget = targetValue !== null;
 
   if (!expanded) {
@@ -100,7 +112,7 @@ export function MeasurableTargetForm({
   }
 
   return (
-    <form action={action} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
+    <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
       <div className="flex items-center justify-between sm:col-span-3">
         <p className="text-sm font-semibold text-zinc-800">{hasTarget ? "Update measurable target" : "New measurable target"}</p>
         <button type="button" onClick={() => setExpanded(false)} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
@@ -108,6 +120,7 @@ export function MeasurableTargetForm({
       <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
       <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
       <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Current value<input name="currentValue" type="number" min="0" step="any" required defaultValue={currentValue ?? ""} placeholder="2,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
+      {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
       <div className="flex gap-2 sm:col-span-3"><button className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">{hasTarget ? "Update values" : "Add target"}</button>{hasTarget && <button formAction={removeAction} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50">Remove</button>}</div>
     </form>
   );

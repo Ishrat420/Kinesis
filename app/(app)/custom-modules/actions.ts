@@ -13,6 +13,14 @@ import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/custom-modules/${moduleId}`); };
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
+export type CustomItemState = { error?: string };
+
+const reminderDate = (raw: string) => {
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  const date = new Date(`${raw}T12:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
 
 function customFields(data: FormData) {
   const ids = data.getAll("fieldId").map(String);
@@ -48,30 +56,35 @@ export async function createCustomModuleAction(_: CreateModuleState, data: FormD
   }
 }
 
-export async function createCustomItemAction(moduleId: string, data: FormData) {
+export async function createCustomItemAction(moduleId: string, _previousState: CustomItemState, data: FormData): Promise<CustomItemState> {
   const user = await requireKinesisUser();
   const name = getValue(data, "name");
-  if (!name) return;
+  if (!name) return { error: "Enter an item name." };
+  if (name.length > 100) return { error: "Keep the item name under 100 characters." };
+  const reminder = reminderDate(getValue(data, "reminder"));
+  if (reminder === undefined) return { error: "Enter a valid reminder date." };
   const fields = customFields(data);
-  const reminder = getValue(data, "reminder");
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true } });
   if (!ownedModule) throw new Error("Module not found");
   await validateKinesisTargets(fields);
   await prisma.customItem.create({ data: {
     id: crypto.randomUUID(), moduleId, name, notes: getValue(data, "notes") || null,
-    reminder: reminder ? new Date(`${reminder}T12:00:00.000Z`) : null, link: getValue(data, "link") || null,
+    reminder, link: getValue(data, "link") || null,
     fields: { create: fields },
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
+  return {};
 }
 
-export async function updateCustomItemAction(moduleId: string, itemId: string, data: FormData) {
+export async function updateCustomItemAction(moduleId: string, itemId: string, _previousState: CustomItemState, data: FormData): Promise<CustomItemState> {
   const user = await requireKinesisUser();
   const name = getValue(data, "name");
-  if (!name) return;
-  const reminder = getValue(data, "reminder");
+  if (!name) return { error: "Enter an item name." };
+  if (name.length > 100) return { error: "Keep the item name under 100 characters." };
+  const reminder = reminderDate(getValue(data, "reminder"));
+  if (reminder === undefined) return { error: "Enter a valid reminder date." };
   const fields = customFields(data);
   await validateKinesisTargets(fields);
   await prisma.$transaction(async (tx) => {
@@ -81,8 +94,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, d
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) throw new Error("A custom field's type cannot be changed");
     await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
-      name, notes: getValue(data, "notes") || null,
-      reminder: reminder ? new Date(`${reminder}T12:00:00.000Z`) : null,
+      name, notes: getValue(data, "notes") || null, reminder,
       link: getValue(data, "link") || null, archived: data.get("archived") === "true",
     } });
     await tx.customItemField.deleteMany({ where: { itemId } });
@@ -92,6 +104,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, d
   if (customModule) await addActivity({ action: "Updated", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
   revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
+  return {};
 }
 
 export async function toggleCustomItemArchivedAction(moduleId: string, itemId: string, archived: boolean) {
