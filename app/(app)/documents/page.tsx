@@ -12,15 +12,17 @@ import { ManualDocumentButton } from "./ManualDocumentButton";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 import { formatDate } from "@/lib/dates";
+import { getFormatPreferences } from "@/lib/format/server";
 
 
 export default async function DocumentsPage() {
-  const [documents, documentTypes, documentSummary, user, linkOptions] = await Promise.all([
+  const [documents, documentTypes, documentSummary, user, linkOptions, { locale }] = await Promise.all([
     getDocuments(),
     getDocumentTypes(),
     getDocumentSummary(),
     getCurrentUser(),
     getKinesisLinkOptions(),
+    getFormatPreferences(),
   ]);
 
   return (
@@ -84,7 +86,7 @@ export default async function DocumentsPage() {
               </div>
 
               <p className="text-sm text-zinc-500">
-                {document.expiryDate ? formatDate(document.expiryDate) : "No expiry"}
+                {document.expiryDate ? formatDate(document.expiryDate, locale) : "No expiry"}
               </p>
 
               <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">

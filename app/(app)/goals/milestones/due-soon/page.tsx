@@ -4,6 +4,7 @@ import { ModuleContent } from "@/components/layout/ModuleContent";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getActiveIncompleteMilestones } from "@/lib/data/goals";
 import { formatDate, formatDeadline, startOfUtcDay } from "@/lib/dates";
+import { getFormatPreferences } from "@/lib/format/server";
 
 type MilestoneList = Awaited<ReturnType<typeof getActiveIncompleteMilestones>>;
 
@@ -12,12 +13,14 @@ function MilestoneSection({
   emptyMessage,
   milestones,
   now,
+  locale,
   overdue = false,
 }: {
   title: string;
   emptyMessage: string;
   milestones: MilestoneList;
   now: Date;
+  locale: string;
   overdue?: boolean;
 }) {
   const Icon = overdue ? AlertTriangle : CalendarDays;
@@ -52,7 +55,7 @@ function MilestoneSection({
                   className={`shrink-0 text-sm font-medium ${overdue ? "text-rose-600" : "text-zinc-600"}`}
                   dateTime={milestone.dueDate.toISOString()}
                 >
-                  {formatDate(milestone.dueDate)} · {formatDeadline(milestone.dueDate, now)}
+                  {formatDate(milestone.dueDate, locale)} · {formatDeadline(milestone.dueDate, now)}
                 </time>
               ) : (
                 <span className="shrink-0 text-sm text-zinc-400">No due date</span>
@@ -71,7 +74,10 @@ function MilestoneSection({
 }
 
 export default async function MilestonesPage() {
-  const milestones = await getActiveIncompleteMilestones();
+  const [milestones, { locale }] = await Promise.all([
+    getActiveIncompleteMilestones(),
+    getFormatPreferences(),
+  ]);
   const today = startOfUtcDay(new Date())!;
   const overdue = milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < today);
   const upcoming = milestones.filter((milestone) => !milestone.dueDate || milestone.dueDate >= today);
@@ -89,8 +95,8 @@ export default async function MilestonesPage() {
       />
 
       <div className="mt-9 space-y-5">
-        <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} now={today} />
-        <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} now={today} overdue />
+        <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} now={today} locale={locale} />
+        <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} now={today} locale={locale} overdue />
       </div>
     </ModuleContent>
   );

@@ -34,6 +34,8 @@ model User {
 model UserSettings {
   id                   String   @id @default(uuid())
   appearance           String   @default("system")
+  locale               String   @default("en-AU")
+  currency             String   @default("AUD")
   notificationsEnabled Boolean  @default(true)
   remindersEnabled     Boolean  @default(true)
   userId               String   @unique

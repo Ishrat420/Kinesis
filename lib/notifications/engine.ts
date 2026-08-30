@@ -2,6 +2,7 @@ import type { Document, Milestone, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatCalendarDuration, startOfUtcDay } from "@/lib/dates";
+import { resolveFormatPreferences } from "@/lib/format/preferences";
 
 type NotificationCandidate = {
   type: NotificationType;
@@ -19,6 +20,7 @@ export function getDocumentNotificationCandidate(
   document: Pick<Document, "id" | "name" | "type" | "expiryDate" | "prompt">,
   now = new Date(),
   remindersEnabled = true,
+  locale?: string,
 ): NotificationCandidate | null {
   if (!document.expiryDate) return null;
 
@@ -47,7 +49,7 @@ export function getDocumentNotificationCandidate(
     documentType: document.type || null,
     message: type === "REMINDER_DUE"
       ? `${document.name} ${daysRemaining === 0 ? "expires today" : `expires in ${timeUntilExpiry}`}`
-      : `${document.name} expired on ${formatDate(expiryDate)}`,
+      : `${document.name} expired on ${formatDate(expiryDate, locale)}`,
     actionUrl: `/documents/${document.id}`,
   };
 }
@@ -74,8 +76,8 @@ export function getMilestoneNotificationCandidate(
   };
 }
 
-async function reconcileDocument(document: Document, userId: string, now: Date, remindersEnabled: boolean) {
-  const candidate = getDocumentNotificationCandidate(document, now, remindersEnabled);
+async function reconcileDocument(document: Document, userId: string, now: Date, remindersEnabled: boolean, locale: string) {
+  const candidate = getDocumentNotificationCandidate(document, now, remindersEnabled, locale);
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, documentId: document.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -125,8 +127,13 @@ async function reconcileMilestone(
 
 /** Reconciles every supported source so normal page loads and the cron are equally reliable. */
 export async function runNotificationEngine(userId: string, now = new Date()): Promise<{ evaluated: number; created: number; removed: number }> {
-  const settings = await prisma.userSettings.findUnique({ where: { userId } }) ?? { notificationsEnabled: true, remindersEnabled: true };
-  if (!settings.notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
+  // The cron evaluates every user in one process, so the locale is read per
+  // user here rather than from a request-scoped context.
+  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const notificationsEnabled = settings?.notificationsEnabled ?? true;
+  const remindersEnabled = settings?.remindersEnabled ?? true;
+  const { locale } = resolveFormatPreferences(settings);
+  if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
   const [documents, milestones, orphanCleanup] = await Promise.all([
     prisma.document.findMany({ where: { userId } }),
@@ -146,8 +153,8 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   ]);
 
   const results = await Promise.all([
-    ...documents.map((document) => reconcileDocument(document, userId, now, settings.remindersEnabled)),
-    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, settings.remindersEnabled)),
+    ...documents.map((document) => reconcileDocument(document, userId, now, remindersEnabled, locale)),
+    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, remindersEnabled)),
   ]);
   return {
     evaluated: documents.length + milestones.length,
