@@ -32,6 +32,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { saveRelationshipMap } from "./actions";
 import type { RelationshipMapData, RelationshipPerson as Person, RelationshipRecord as Relationship } from "@/lib/relationships";
 
@@ -157,20 +158,19 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   }
 
   return (
-    <section className="min-w-0 flex-1 px-5 py-5 lg:px-8">
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-400"><span>Relationships</span><span>/</span><span className="text-zinc-600">My constellation</span></div>
-          <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.035em]">Your people, in orbit</h1>
-          <p className="mt-1 text-sm text-zinc-500">Love them, tolerate them, call them every Sunday. Map them here.</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <>
+      <ModuleHeader
+        className="mb-5"
+        breadcrumbs={[{ label: "Relationships", href: "/relationships" }, { label: "My constellation" }]}
+        title="Your people, in orbit"
+        description="Love them, tolerate them, call them every Sunday. Map them here."
+        actions={<>
           <button onClick={reset} className="map-button"><RotateCcw /> Reset</button>
           <button onClick={addPerson} className="map-button map-button-dark"><Plus /> Add person</button>
-        </div>
-      </header>
+        </>}
+      />
 
-      <div className="relative flex h-[calc(100vh-190px)] min-h-[620px] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)]">
+      <div className="relative flex h-[calc(100vh-290px)] min-h-[620px] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#f7f8f7]">
           <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(#c9ccca_1px,transparent_1px)] [background-size:24px_24px]" />
           <div className="absolute left-5 top-5 z-20 flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white/90 p-1.5 shadow-sm backdrop-blur">
@@ -219,7 +219,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
           {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => setLinkFrom(selectedPerson.id)} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
         </aside>
       </div>
-    </section>
+    </>
   );
 }
 

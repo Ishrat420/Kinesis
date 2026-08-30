@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckSquare, Target } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckSquare, Target } from "lucide-react";
+import { ModuleLayout } from "@/components/layout/ModuleLayout";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getActiveIncompleteMilestones } from "@/lib/data/goals";
 
 type MilestoneList = Awaited<ReturnType<typeof getActiveIncompleteMilestones>>;
@@ -83,26 +85,21 @@ export default async function MilestonesPage() {
   const upcoming = milestones.filter((milestone) => !milestone.dueDate || milestone.dueDate >= today);
 
   return (
-    <main className="min-h-screen bg-[#f7f8fb] px-6 py-8 text-zinc-950 md:px-10">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50">
-          <ArrowLeft className="h-5 w-5" /> Back to dashboard
-        </Link>
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-            <CheckSquare className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-[38px] font-semibold leading-none tracking-tight">Milestones</h1>
-            <p className="mt-3 text-base leading-7 text-zinc-500">All incomplete milestones from your active goals.</p>
-          </div>
-        </div>
+    <ModuleLayout width="standard">
+      <ModuleHeader
+        backHref="/goals"
+        backLabel="Back to goals"
+        breadcrumbs={[{ label: "Goals", href: "/goals" }, { label: "Milestones" }]}
+        icon={<CheckSquare className="h-6 w-6" />}
+        iconClassName="bg-emerald-50 text-emerald-700"
+        title="Milestones"
+        description="All incomplete milestones from your active goals."
+      />
 
-        <div className="mt-9 space-y-5">
-          <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} />
-          <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} overdue />
-        </div>
+      <div className="mt-9 space-y-5">
+        <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} />
+        <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} overdue />
       </div>
-    </main>
+    </ModuleLayout>
   );
 }

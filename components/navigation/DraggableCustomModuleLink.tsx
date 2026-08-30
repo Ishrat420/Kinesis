@@ -1,21 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
+import { isRouteActive } from "@/lib/navigation/active-route";
+import { navItemClassName } from "./nav-item";
 
 const CUSTOM_MODULE_MIME = "application/x-kinesis-custom-module";
 
 export function DraggableCustomModuleLink({ id, name, icon, color }: { id: string; name: string; icon: string; color: string }) {
+  const href = `/custom-modules/${id}`;
+  const pathname = usePathname();
+  const active = isRouteActive(pathname, href);
+
   return (
     <Link
-      href={`/custom-modules/${id}`}
+      href={href}
       draggable
+      aria-current={active ? "page" : undefined}
       onDragStart={(event) => {
         event.dataTransfer.setData(CUSTOM_MODULE_MIME, id);
         event.dataTransfer.effectAllowed = "copy";
       }}
       title="Drag to Module Shortcuts"
-      className="flex w-full cursor-grab items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950 active:cursor-grabbing"
+      className={`${navItemClassName(active)} cursor-grab active:cursor-grabbing`}
     >
       <span className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, white)` }}>
         <CustomModuleIcon name={icon} className="h-4 w-4" />

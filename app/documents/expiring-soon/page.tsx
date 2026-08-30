@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, CalendarDays, FileText } from "lucide-react";
+import { AlertTriangle, CalendarDays, FileText } from "lucide-react";
+import { ModuleLayout } from "@/components/layout/ModuleLayout";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 
@@ -77,28 +79,21 @@ export default async function ExpiringDocumentsPage() {
   const { upcoming, expired } = await getExpiringDocuments(now);
 
   return (
-    <main className="min-h-screen bg-[#f7f8fb] px-6 py-8 text-zinc-950 md:px-10">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50">
-          <ArrowLeft className="h-5 w-5" /> Back to dashboard
-        </Link>
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-            <CalendarDays className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-[38px] font-semibold leading-none tracking-tight">Expiring documents</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
-              A document appears in Upcoming when its reminder period begins.
-            </p>
-          </div>
-        </div>
+    <ModuleLayout width="standard">
+      <ModuleHeader
+        backHref="/documents"
+        backLabel="Back to documents"
+        breadcrumbs={[{ label: "Documents", href: "/documents" }, { label: "Expiring" }]}
+        icon={<CalendarDays className="h-6 w-6" />}
+        iconClassName="bg-blue-50 text-blue-700"
+        title="Expiring documents"
+        description="A document appears in Upcoming when its reminder period begins."
+      />
 
-        <div className="mt-9 space-y-5">
-          <DocumentSection title="Upcoming" documents={upcoming} now={now} />
-          <DocumentSection title="Expired" documents={expired} now={now} expired />
-        </div>
+      <div className="mt-9 space-y-5">
+        <DocumentSection title="Upcoming" documents={upcoming} now={now} />
+        <DocumentSection title="Expired" documents={expired} now={now} expired />
       </div>
-    </main>
+    </ModuleLayout>
   );
 }
