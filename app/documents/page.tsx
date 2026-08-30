@@ -4,7 +4,9 @@ import {
   getDocumentTypes,
 } from "@/lib/data/documents";
 import Link from "next/link";
-import { ArrowLeft, FileText, Plus, Search, ShieldCheck } from "lucide-react";
+import { FileText, Plus, Search, ShieldCheck } from "lucide-react";
+import { ModuleLayout } from "@/components/layout/ModuleLayout";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { UploadDocumentButton } from "./UploadDocumentButton";
 import { ManualDocumentButton } from "./ManualDocumentButton";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
@@ -21,94 +23,83 @@ export default async function DocumentsPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#f7f8fb] px-10 py-8 text-zinc-950">
-      <div className="max-w-7xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-base font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-950 hover:shadow-md">
-              <ArrowLeft className="h-5 w-5" /> Back to dashboard
-            </Link>
-            <h1 className="text-[38px] font-semibold leading-none tracking-tight">
-              Documents
-            </h1>
-
-            <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">
-              Store, track, and connect important documents.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
+    <ModuleLayout>
+      <ModuleHeader
+        title="Documents"
+        description="Store, track, and connect important documents."
+        actions={
+          <>
             <ManualDocumentButton documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} />
             <UploadDocumentButton />
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <StatCard
-            icon={FileText}
-            title="Tracked documents"
-            value={documentSummary.tracked}
-          />
-          <StatCard
-            icon={ShieldCheck}
-            title="Active documents"
-            value={documentSummary.active}
-          />
-          <StatCard
-            icon={Plus}
-            title="Expiring soon"
-            value={documentSummary.expiringSoon}
-          />
-        </div>
-
-        <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">All documents</h2>
-
-            <div className="flex h-11 w-80 items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 text-zinc-400">
-              <Search className="h-[18px] w-[18px]" />
-              <input
-                className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
-                placeholder="Search documents..."
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {documents.map((document) => (
-              <Link
-                key={document.id}
-                href={`/documents/${document.id}`}
-                className="grid grid-cols-[44px_1fr_180px_160px] items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md"
-              >
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50">
-                  <FileText className="h-[18px] w-[18px] text-zinc-700" />
-                </div>
-
-                <div>
-                  <p className="font-semibold">{document.name}</p>
-                  <p className="text-sm text-zinc-500">{document.type}</p>
-                </div>
-
-                <p className="text-sm text-zinc-500">
-                  {document.expiryDate
-                    ? document.expiryDate.toLocaleDateString("en-AU", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "No expiry"}
-                </p>
-
-                <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">
-                  {document.status}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <StatCard
+          icon={FileText}
+          title="Tracked documents"
+          value={documentSummary.tracked}
+        />
+        <StatCard
+          icon={ShieldCheck}
+          title="Active documents"
+          value={documentSummary.active}
+        />
+        <StatCard
+          icon={Plus}
+          title="Expiring soon"
+          value={documentSummary.expiringSoon}
+        />
       </div>
-    </main>
+
+      <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">All documents</h2>
+
+          <div className="flex h-11 w-80 items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 text-zinc-400">
+            <Search className="h-[18px] w-[18px]" />
+            <input
+              className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+              placeholder="Search documents..."
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {documents.map((document) => (
+            <Link
+              key={document.id}
+              href={`/documents/${document.id}`}
+              className="grid grid-cols-[44px_1fr_180px_160px] items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50">
+                <FileText className="h-[18px] w-[18px] text-zinc-700" />
+              </div>
+
+              <div>
+                <p className="font-semibold">{document.name}</p>
+                <p className="text-sm text-zinc-500">{document.type}</p>
+              </div>
+
+              <p className="text-sm text-zinc-500">
+                {document.expiryDate
+                  ? document.expiryDate.toLocaleDateString("en-AU", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "No expiry"}
+              </p>
+
+              <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">
+                {document.status}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </ModuleLayout>
   );
 }
 

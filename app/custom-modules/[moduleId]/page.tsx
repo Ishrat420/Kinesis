@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { Sidebar } from "@/components/navigation/Sidebar";
-import { Topbar } from "@/components/navigation/Topbar";
+import { ModuleLayout } from "@/components/layout/ModuleLayout";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { getCustomModule } from "@/lib/data/custom-modules";
 import { NewItemButton } from "./NewItemButton";
@@ -15,13 +15,13 @@ export default async function CustomModulePage({ params }: { params: Promise<{ m
   if (!customModule) notFound();
   const activeItems = customModule.items.filter((item) => !item.archived);
   const archivedItems = customModule.items.filter((item) => item.archived);
-  return <main className="min-h-screen bg-[#f7f8fb] text-zinc-950"><Topbar /><div className="flex"><Sidebar /><section className="min-w-0 flex-1 px-6 py-8 md:px-10"><div className="max-w-5xl">
-    <header className="flex flex-wrap items-start justify-between gap-5"><div><h1 className="text-[38px] font-semibold leading-none tracking-tight">{customModule.name}</h1>{customModule.description && <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">{customModule.description}</p>}</div><div className="flex items-center gap-3"><DeleteModuleButton moduleId={customModule.id} moduleName={customModule.name} itemCount={customModule.items.length} /><NewItemButton moduleId={customModule.id} linkOptions={linkOptions} /></div></header>
+  return <ModuleLayout width="standard">
+    <ModuleHeader title={customModule.name} description={customModule.description} actions={<><DeleteModuleButton moduleId={customModule.id} moduleName={customModule.name} itemCount={customModule.items.length} /><NewItemButton moduleId={customModule.id} linkOptions={linkOptions} /></>} />
     {!customModule.items.length ? <div className="mt-16 rounded-[28px] border border-dashed border-zinc-300 bg-white px-6 py-16 text-center"><span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}><CustomModuleIcon name={customModule.icon} className="h-7 w-7" /></span><h2 className="mt-5 text-xl font-semibold">Nothing here yet.</h2><p className="mt-2 text-zinc-500">Create your first object to get started.</p></div> : <div className="mt-10 space-y-8">
       <ItemSection title="Items" items={activeItems} moduleId={customModule.id} color={customModule.color} icon={customModule.icon} />
       {archivedItems.length > 0 && <ItemSection title="Archived" items={archivedItems} moduleId={customModule.id} color={customModule.color} icon={customModule.icon} />}
     </div>}
-  </div></section></div></main>;
+  </ModuleLayout>;
 }
 
 type Item = NonNullable<Awaited<ReturnType<typeof getCustomModule>>>["items"][number];

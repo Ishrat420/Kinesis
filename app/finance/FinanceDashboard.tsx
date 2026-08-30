@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import {
-  ArrowDownLeft, ArrowLeft, ArrowUpRight, Banknote, Building2,
+  ArrowDownLeft, ArrowUpRight, Banknote, Building2,
   CreditCard, Landmark, Pencil, Plus, Trash2, WalletCards, X,
 } from "lucide-react";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { FormEvent, useMemo, useState } from "react";
 import {
   type FinanceFrequency as Frequency,
@@ -49,29 +49,28 @@ export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[]
   const assets = items.filter((item) => item.kind === "asset");
   const liabilities = items.filter((item) => item.kind === "liability");
   const recurring = items.filter((item) => item.kind === "income" || item.kind === "expense");
-  return <main className="min-h-screen bg-[#f7f8fb] px-5 py-7 text-zinc-950 sm:px-8 lg:px-10">
-    <div className="mx-auto max-w-7xl">
-      <header className="flex items-start justify-between gap-5">
-        <div><Link href="/" className="mb-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50"><ArrowLeft className="h-4 w-4"/>Back to dashboard</Link><h1 className="text-[38px] font-semibold leading-none tracking-tight">Finance</h1><p className="mt-3 text-base leading-7 text-zinc-500">Money in, money out, the whole situation.<br/>See what you own, owe, earn and spend.</p></div>
-        <button onClick={() => setModal("choose")} className="mt-14 flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgb(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:bg-zinc-800"><Plus className="h-[18px] w-[18px]"/>Add</button>
-      </header>
+  return <>
+    <ModuleHeader
+      title="Finance"
+      description={<>Money in, money out, the whole situation.<br/>See what you own, owe, earn and spend.</>}
+      actions={<button onClick={() => setModal("choose")} className="flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgb(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:bg-zinc-800"><Plus className="h-[18px] w-[18px]"/>Add</button>}
+    />
 
-      <section className="mt-9 overflow-hidden rounded-[28px] bg-zinc-950 p-6 text-white shadow-[0_18px_50px_rgb(0,0,0,0.12)] sm:p-8">
-        <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end"><div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400"><Landmark className="h-4 w-4"/>Net worth</div><p className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">{money.format(totals.netWorth)}</p><p className="mt-3 text-sm text-zinc-400">The difference between everything you own and owe.</p></div><div className="grid grid-cols-2 gap-3"><DarkStat label="Total assets" value={totals.assets}/><DarkStat label="Total liabilities" value={totals.liabilities}/></div></div>
-      </section>
+    <section className="mt-9 overflow-hidden rounded-[28px] bg-zinc-950 p-6 text-white shadow-[0_18px_50px_rgb(0,0,0,0.12)] sm:p-8">
+      <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end"><div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400"><Landmark className="h-4 w-4"/>Net worth</div><p className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">{money.format(totals.netWorth)}</p><p className="mt-3 text-sm text-zinc-400">The difference between everything you own and owe.</p></div><div className="grid grid-cols-2 gap-3"><DarkStat label="Total assets" value={totals.assets}/><DarkStat label="Total liabilities" value={totals.liabilities}/></div></div>
+    </section>
 
-      <section className="mt-5 grid gap-5 md:grid-cols-3"><FlowCard icon={ArrowDownLeft} label="Monthly income" value={totals.income} tone="emerald"/><FlowCard icon={ArrowUpRight} label="Monthly expenses" value={totals.expenses} tone="rose"/><FlowCard icon={Banknote} label="Net monthly cash flow" value={totals.flow} tone={totals.flow >= 0 ? "emerald" : "rose"} signed/></section>
+    <section className="mt-5 grid gap-5 md:grid-cols-3"><FlowCard icon={ArrowDownLeft} label="Monthly income" value={totals.income} tone="emerald"/><FlowCard icon={ArrowUpRight} label="Monthly expenses" value={totals.expenses} tone="rose"/><FlowCard icon={Banknote} label="Net monthly cash flow" value={totals.flow} tone={totals.flow >= 0 ? "emerald" : "rose"} signed/></section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-2"><ItemSection title="Assets" subtitle={`${assets.length} things you own`} icon={Building2} items={assets} onEdit={openForm} onDelete={setDeleting}/><ItemSection title="Liabilities" subtitle={`${liabilities.length} things you owe`} icon={CreditCard} items={liabilities} onEdit={openForm} onDelete={setDeleting}/></div>
-      <div className="mt-5"><ItemSection title="Recurring income & expenses" subtitle="Your regular money in and out" icon={WalletCards} items={recurring} onEdit={openForm} onDelete={setDeleting} recurring/></div>
-    </div>
+    <div className="mt-5 grid gap-5 xl:grid-cols-2"><ItemSection title="Assets" subtitle={`${assets.length} things you own`} icon={Building2} items={assets} onEdit={openForm} onDelete={setDeleting}/><ItemSection title="Liabilities" subtitle={`${liabilities.length} things you owe`} icon={CreditCard} items={liabilities} onEdit={openForm} onDelete={setDeleting}/></div>
+    <div className="mt-5"><ItemSection title="Recurring income & expenses" subtitle="Your regular money in and out" icon={WalletCards} items={recurring} onEdit={openForm} onDelete={setDeleting} recurring/></div>
 
     {modal && <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/35 p-0 backdrop-blur-sm sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setModal(null); }}><div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:max-w-lg sm:rounded-[28px] sm:p-7">
       <div className="flex items-start justify-between"><div><p className="text-xl font-semibold">{modal === "choose" ? "What would you like to add?" : `${editing ? "Edit" : "Add"} ${kindLabels[formKind]}`}</p><p className="mt-1 text-sm text-zinc-500">{modal === "choose" ? "Choose the type of financial item." : "Keep it high-level — you can update this anytime."}</p></div><button aria-label="Close" onClick={() => setModal(null)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5"/></button></div>
       {modal === "choose" ? <div className="mt-6 grid grid-cols-2 gap-3">{(["asset", "liability", "income", "expense"] as Kind[]).map((kind) => <button key={kind} onClick={() => openForm(kind)} className="group rounded-2xl border border-zinc-200 p-5 text-left transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${kind === "asset" || kind === "income" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{kind === "income" ? <ArrowDownLeft className="h-5 w-5"/> : kind === "expense" ? <ArrowUpRight className="h-5 w-5"/> : kind === "asset" ? <Building2 className="h-5 w-5"/> : <CreditCard className="h-5 w-5"/>}</span><span className="mt-4 block font-semibold">Add {kindLabels[kind]}</span><span className="mt-1 block text-xs text-zinc-500">{kind === "asset" ? "Something you own" : kind === "liability" ? "A balance you owe" : kind === "income" ? "Recurring money in" : "Recurring money out"}</span></button>)}</div> : <FinanceForm kind={formKind} item={editing} onSubmit={save}/>} 
     </div></div>}
     {deleting && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/40 p-5 backdrop-blur-sm"><div className="w-full max-w-sm rounded-[28px] bg-white p-7 shadow-2xl"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 className="h-5 w-5"/></div><h2 className="mt-5 text-xl font-semibold">Delete {deleting.name}?</h2><p className="mt-2 text-sm leading-6 text-zinc-500">This will remove the item and immediately update your totals. This action cannot be undone.</p><div className="mt-6 flex justify-end gap-3"><button onClick={() => setDeleting(null)} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold">Cancel</button><button onClick={remove} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700">Delete item</button></div></div></div>}
-  </main>;
+  </>;
 }
 
 function DarkStat({ label, value }: { label: string; value: number }) { return <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><p className="text-xs font-medium text-zinc-400">{label}</p><p className="mt-2 text-xl font-semibold">{money.format(value)}</p></div>; }

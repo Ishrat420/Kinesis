@@ -167,6 +167,8 @@ KD-011-unified-todo-view
 
 
 ## ✅ Done
+KD-018-standardise-module-navigation
+KD-019-sidebar-route-aware
 KD-009-implement-authetication-system
 KD-014-kinesis-calendar
 KD-001-improve-milestones

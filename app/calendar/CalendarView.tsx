@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarClock, ChevronLeft, ChevronRight, Clock3, Filter, Repeat2, X } from "lucide-react";
+import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { useMemo, useState } from "react";
 import type { CalendarItemKind, CalendarSourceType, KinesisCalendarItem } from "@/lib/calendar/types";
 
@@ -40,15 +41,15 @@ export function CalendarView({ items, month }: { items: KinesisCalendarItem[]; m
   const navigate = (offset: number) => { const next = new Date(selectedMonth); next.setUTCMonth(next.getUTCMonth() + offset); router.push(`/calendar?month=${monthParam(next)}`); };
   const toggle = <T extends string>(current: Set<T>, value: T, setter: (next: Set<T>) => void) => { const next = new Set(current); if (next.has(value)) next.delete(value); else next.add(value); setter(next); };
 
-  return <div className="min-h-screen bg-[#f7f8fb] px-4 py-7 text-zinc-950 md:px-8 xl:px-10">
-    <div className="mx-auto max-w-[1720px]">
-      <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div><Link href="/" className="mb-4 inline-flex text-sm font-semibold text-zinc-500 hover:text-zinc-950">← Back to dashboard</Link><h1 className="text-[38px] font-semibold leading-none tracking-tight">Calendar</h1><p className="mt-3 text-zinc-500">Things will come up. Might as well see what’s coming.</p></div>
-        <div className="flex flex-wrap items-center gap-2">
+  return <>
+      <ModuleHeader
+        title="Calendar"
+        description="Things will come up. Might as well see what’s coming."
+        actions={<>
           <div className="flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-sm"><button onClick={() => setView("month")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === "month" ? "bg-zinc-950 text-white" : "text-zinc-500"}`}>Month</button><button onClick={() => setView("agenda")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${view === "agenda" ? "bg-zinc-950 text-white" : "text-zinc-500"}`}>Agenda</button></div>
           <button onClick={() => setFilterOpen(!filterOpen)} className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm"><Filter className="h-4 w-4"/> Filters {(kinds.size < 2 || sources.size < 6) && <span className="h-2 w-2 rounded-full bg-violet-500"/>}</button>
-        </div>
-      </header>
+        </>}
+      />
       <div className="relative mt-7">
         <div className="mb-4 grid grid-cols-[44px_1fr_44px] items-center rounded-2xl border border-zinc-200/80 bg-white px-3 py-3 shadow-sm md:mx-auto md:max-w-xl">
           <button aria-label="Previous month" onClick={() => navigate(-1)} className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100"><ChevronLeft className="h-5 w-5"/></button>
@@ -63,10 +64,9 @@ export function CalendarView({ items, month }: { items: KinesisCalendarItem[]; m
         <div className="grid grid-cols-7">{days.map((day) => { const key = dateKey(day); const dayItems = byDate.get(key) || []; const inMonth = day.getUTCMonth() === selectedMonth.getUTCMonth(); return <div key={key} className={`min-h-36 border-b border-r border-zinc-100 p-1.5 md:min-h-40 md:p-2 ${inMonth ? "bg-white" : "bg-zinc-50/60"}`}><button onClick={() => setOverviewDate(key)} className={`mb-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${key === today ? "bg-zinc-950 text-white" : inMonth ? "text-zinc-700 hover:bg-zinc-100" : "text-zinc-300"}`}>{day.getUTCDate()}</button><div className="space-y-1">{dayItems.slice(0, 3).map((item) => <ItemPill key={item.id} item={item} onClick={() => setPreview(item)}/>)}{dayItems.length > 3 && <button onClick={() => setOverviewDate(key)} className="w-full px-1 py-1 text-left text-xs font-semibold text-violet-600 hover:text-violet-800">+{dayItems.length - 3} more</button>}</div></div>})}</div>
       </section> : <Agenda items={filtered} onSelect={setPreview}/>} 
       <div className="mt-4 flex flex-wrap gap-5 text-xs text-zinc-500"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded bg-violet-100 ring-1 ring-violet-200"/> Dated</span><span className="flex items-center gap-2"><span className="h-3 w-3 rounded bg-teal-100 ring-1 ring-teal-200"/> Scheduled</span></div>
-    </div>
     {preview && <Preview item={preview} close={() => setPreview(null)}/>} 
     {overviewDate && <DayOverview date={overviewDate} items={byDate.get(overviewDate) || []} close={() => setOverviewDate(null)} onSelect={(item) => { setOverviewDate(null); setPreview(item); }}/>} 
-  </div>;
+  </>;
 }
 
 function ItemPill({ item, onClick }: { item: KinesisCalendarItem; onClick: () => void }) { return <button onClick={onClick} title={item.title} className={`flex w-full items-center gap-1 overflow-hidden rounded-md px-1.5 py-1 text-left text-[11px] font-semibold leading-4 ring-1 ${item.kind === "SCHEDULED" ? "bg-teal-50 text-teal-900 ring-teal-200" : "bg-violet-50 text-violet-900 ring-violet-200"}`}>{item.kind === "SCHEDULED" && <Clock3 className="h-3 w-3 shrink-0"/>}{item.startTime && <span className="shrink-0">{displayTime(item.startTime)}</span>}<span className="truncate">{item.title}</span>{item.recurring && <Repeat2 className="ml-auto h-3 w-3 shrink-0"/>}</button>; }
