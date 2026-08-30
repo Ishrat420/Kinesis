@@ -1,30 +1,7 @@
 import type { Document, Milestone, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
-
-const DAY = 86_400_000;
-
-function startOfUtcDay(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-}
-
-function formatRemainingTime(days: number) {
-  if (days >= 365 && days % 365 === 0) {
-    const years = days / 365;
-    return `${years} ${years === 1 ? "year" : "years"}`;
-  }
-  if (days >= 30) {
-    const months = Math.floor(days / 30);
-    return `${months} ${months === 1 ? "month" : "months"}`;
-  }
-  return `${days} ${days === 1 ? "day" : "days"}`;
-}
-
-function formatDate(value: Date) {
-  return value.toLocaleDateString("en-AU", {
-    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
-  });
-}
+import { differenceInCalendarDays, formatDate, formatDeadline, formatCalendarDuration, startOfUtcDay } from "@/lib/dates";
 
 type NotificationCandidate = {
   type: NotificationType;
@@ -45,10 +22,10 @@ export function getDocumentNotificationCandidate(
 ): NotificationCandidate | null {
   if (!document.expiryDate) return null;
 
-  const today = startOfUtcDay(now);
-  const expiryDate = startOfUtcDay(document.expiryDate);
+  const today = startOfUtcDay(now)!;
+  const expiryDate = startOfUtcDay(document.expiryDate)!;
   const reminderAt = getExpiryReminderDate(expiryDate, document.prompt);
-  const daysRemaining = Math.max(0, Math.round((expiryDate.getTime() - today.getTime()) / DAY));
+  const daysRemaining = Math.max(0, differenceInCalendarDays(expiryDate, today));
   // A document remains valid for its full expiry date; it is expired the following day.
   const type = today > expiryDate
     ? "EXPIRED"
@@ -57,7 +34,9 @@ export function getDocumentNotificationCandidate(
       : null;
 
   if (!type) return null;
-  const timeUntilExpiry = type === "REMINDER_DUE" ? formatRemainingTime(daysRemaining) : null;
+  const timeUntilExpiry = type === "REMINDER_DUE"
+    ? daysRemaining < 60 ? `${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}` : formatCalendarDuration(today, expiryDate)
+    : null;
 
   return {
     type,
@@ -67,7 +46,7 @@ export function getDocumentNotificationCandidate(
     documentName: document.name,
     documentType: document.type || null,
     message: type === "REMINDER_DUE"
-      ? daysRemaining === 0 ? `${document.name} expires today` : `${document.name} expires in ${timeUntilExpiry}`
+      ? `${document.name} ${daysRemaining === 0 ? "expires today" : `expires in ${timeUntilExpiry}`}`
       : `${document.name} expired on ${formatDate(expiryDate)}`,
     actionUrl: `/documents/${document.id}`,
   };
@@ -79,11 +58,10 @@ export function getMilestoneNotificationCandidate(
   now = new Date(),
 ): NotificationCandidate | null {
   if (!milestone.dueDate) return null;
-  const today = startOfUtcDay(now);
-  const dueDate = startOfUtcDay(milestone.dueDate);
+  const today = startOfUtcDay(now)!;
+  const dueDate = startOfUtcDay(milestone.dueDate)!;
   if (today < dueDate) return null;
 
-  const daysOverdue = Math.round((today.getTime() - dueDate.getTime()) / DAY);
   return {
     type: "MILESTONE_DUE",
     reminderAt: dueDate,
@@ -91,9 +69,7 @@ export function getMilestoneNotificationCandidate(
     expiryDate: dueDate,
     documentName: milestone.name,
     documentType: `Milestone · ${milestone.goal.name}`,
-    message: daysOverdue === 0
-      ? `${milestone.name} is due today`
-      : `${milestone.name} was due ${daysOverdue} ${daysOverdue === 1 ? "day" : "days"} ago`,
+    message: `${milestone.name} is ${formatDeadline(dueDate, today)}`,
     actionUrl: `/goals/${milestone.goal.id}`,
   };
 }

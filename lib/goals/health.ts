@@ -72,6 +72,7 @@ export function calculateGoalHealth({ targetValue, currentValue, targetDate, uni
   }
 
   const projected = currentValue + rawDailyPace * daysRemaining;
-  const date = targetDate.toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
+  const date = formatMonthHeading(targetDate);
   return { status: "AT RISK", message: `At your current pace, you're projected to reach about ${valueLabel(projected, unit)} by ${date}.`, tone: "risk", requiredPace, actualPace, period: period.name };
 }
+import { formatMonthHeading } from "@/lib/dates";

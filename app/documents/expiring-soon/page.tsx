@@ -4,15 +4,9 @@ import { ModuleLayout } from "@/components/layout/ModuleLayout";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getExpiryDetails } from "@/lib/documents/expiry";
+import { formatDate } from "@/lib/dates";
 
 type DocumentList = Awaited<ReturnType<typeof getExpiringDocuments>>["upcoming"];
-
-const dateFormatter = new Intl.DateTimeFormat("en-AU", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 function DocumentSection({
   title,
@@ -58,7 +52,7 @@ function DocumentSection({
                   className={`shrink-0 text-sm font-medium ${expired ? "text-rose-600" : "text-zinc-600"}`}
                   dateTime={document.expiryDate!.toISOString()}
                 >
-                  {dateFormatter.format(document.expiryDate!)}
+                  {formatDate(document.expiryDate!)}
                 </time>
                 <span className="text-xl text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-700">→</span>
               </Link>
