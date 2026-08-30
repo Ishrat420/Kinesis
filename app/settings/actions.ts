@@ -12,12 +12,8 @@ export async function updateSettingsAction(
   formData: FormData,
 ): Promise<SettingsActionState> {
   const user = await requireKinesisUser();
-  const appearance = String(formData.get("appearance") ?? "system");
-
-  if (!["light", "dark", "system"].includes(appearance)) return { error: "Choose a valid appearance." };
 
   const data = {
-    appearance,
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     remindersEnabled: formData.get("remindersEnabled") === "on",
   };

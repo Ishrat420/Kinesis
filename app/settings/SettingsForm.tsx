@@ -1,11 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { Bell, Check, Clock3, Moon, Save, Sun } from "lucide-react";
+import { Bell, Clock3, Save } from "lucide-react";
 import { updateSettingsAction, type SettingsActionState } from "./actions";
 
 type Settings = {
-  appearance: string;
   notificationsEnabled: boolean;
   remindersEnabled: boolean;
 };
@@ -17,25 +16,6 @@ export function SettingsForm({ settings }: { settings: Settings }) {
 
   return (
     <form action={action} className="space-y-6">
-      <section id="appearance" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h2 className="text-lg font-semibold">Preferences &amp; appearance</h2>
-        <p className="mt-1 text-sm text-zinc-500">Choose how Kinesis looks on this device.</p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          {[
-            { value: "light", label: "Light", Icon: Sun },
-            { value: "dark", label: "Dark", Icon: Moon },
-            { value: "system", label: "System", Icon: Check },
-          ].map(({ value, label, Icon }) => (
-            <label key={value} className="cursor-pointer">
-              <input className="peer sr-only" type="radio" name="appearance" value={value} defaultChecked={settings.appearance === value} />
-              <span className="flex items-center gap-3 rounded-2xl border border-zinc-200 p-4 text-sm font-medium transition hover:bg-zinc-50 peer-checked:border-zinc-950 peer-checked:ring-1 peer-checked:ring-zinc-950">
-                <Icon className="h-4 w-4" /> {label}
-              </span>
-            </label>
-          ))}
-        </div>
-      </section>
-
       <section id="notifications" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h2 className="text-lg font-semibold">Notifications &amp; reminders</h2>
         <p className="mt-1 text-sm text-zinc-500">Decide when Kinesis should bring something to your attention.</p>

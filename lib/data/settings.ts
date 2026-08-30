@@ -2,7 +2,6 @@ import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 
 export const defaultSettings = {
-  appearance: "system",
   notificationsEnabled: true,
   remindersEnabled: true,
 };
