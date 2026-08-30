@@ -10,11 +10,12 @@ security control can be tested before additional controls are enabled.
 | Environment             | Clerk environment | Status             |
 |-------------------------|-------------------|--------------------|
 | Local development       | Development       | Active             |
-| Vercel Preview branches | Development       | Active             |
-| Main / Production       | Production        | Not configured yet |
+| Vercel Preview / `main` | Development       | Active             |
+| Personal production     | Production        | Active             |
 
-The production Clerk configuration will be established when the authentication
-implementation is merged into the production branch.
+The production Clerk instance is configured for `https://thekinesis.com` and
+uses Google as its social SSO provider. The production sign-in flow has been
+tested successfully.
 
 Development configuration must not be assumed to represent the final production
 security configuration.
@@ -56,7 +57,8 @@ Current authentication methods:
 | Web3 wallet authentication    | Disabled              |
 | Enterprise accounts           | Disabled              |
 | Two-step verification         | Disabled              |
-| Social login / SSO            | Disabled              |
+| Social login / SSO            | Google enabled in production |
+| Block email subaddresses      | Enabled in production |
 
 Device Trust is currently enabled. New-device sign-ins require additional
 verification.
@@ -117,17 +119,19 @@ tests are implemented.
 
 ## Redirects and Origins
 
-No explicit Kinesis redirect/origin policy has been configured yet.
+The production domain is `https://thekinesis.com`. The Google Cloud OAuth client
+named `Kinesis dev production`, used by the production Clerk SSO connection, has
+the following allowlist:
 
-Current development usage includes:
+| Google OAuth setting         | Production value |
+|------------------------------|------------------|
+| Authorized JavaScript origin | `https://thekinesis.com` |
+| Authorized redirect URI      | `https://clerk.thekinesis.com/v1/oauth_callback` |
 
-- localhost;
-- Vercel Preview deployments.
-
-Redirect and trusted-origin configuration must be reviewed and explicitly
-documented before production deployment.
-
-Production domain: NOT YET CONFIGURED.
+The OAuth client ID and client secret are deliberately not recorded in this
+public repository. Localhost and Vercel Preview deployments remain development
+usage and must use the development Clerk environment rather than expanding the
+production OAuth allowlist.
 
 
 ## Webhooks
@@ -139,15 +143,20 @@ No Clerk webhook signing secret is therefore required.
 
 ## Production Requirements
 
-Before authentication is deployed to production:
+The following production configuration is complete:
 
-- Create/configure the Clerk production instance.
-- Configure production Clerk API keys in Vercel.
-- Set CLERK_FRONTEND_API_PROXY_ENABLED=true for personal production only.
-- Configure KINESIS_OWNER_CLERK_USER_ID for production.
-- Configure the production domain.
-- Review allowed/trusted origins.
-- Review redirect URLs.
+- The Clerk production instance and production API keys are configured.
+- `CLERK_FRONTEND_API_PROXY_ENABLED=true` is set for personal production only.
+- `KINESIS_OWNER_CLERK_USER_ID` is configured for production.
+- The production domain, Google OAuth origin, and Clerk callback URI are
+  allowlisted as recorded above.
+- Google SSO is enabled and has been tested successfully in production.
+- Email subaddress blocking is enabled for the production SSO connection, so
+  aliases such as `owner+alias@example.com` cannot be used to access the
+  application.
+
+The remaining security review items are:
+
 - Review session lifetime.
 - Decide whether MFA/two-step verification will be required.
 - Review password policy.
