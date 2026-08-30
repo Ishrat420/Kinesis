@@ -2,6 +2,8 @@ import { Settings, User } from "lucide-react";
 import { getRecentNotifications } from "@/lib/data/notifications";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { NotificationBell } from "./NotificationBell";
+import { MobileNavDrawer } from "./MobileNavDrawer";
+import { SidebarBrand, SidebarNav } from "./Sidebar";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getGlobalSearchIndex } from "@/lib/search/engine";
 import { UserButton } from "@clerk/nextjs";
@@ -16,7 +18,14 @@ export async function Topbar() {
   return (
     <header className="sticky top-0 z-30 h-[72px] border-b border-zinc-200/80 bg-white/90 backdrop-blur">
       <div className="relative flex h-full items-center justify-end px-4 sm:px-8">
-        <div className="absolute left-4 right-32 flex justify-center sm:left-8 sm:right-40">
+        <div className="absolute left-4 md:hidden">
+          <MobileNavDrawer>
+            <SidebarBrand />
+            <SidebarNav />
+          </MobileNavDrawer>
+        </div>
+
+        <div className="absolute left-20 right-32 flex justify-center sm:right-40 md:left-8">
           <SearchBar entries={searchEntries.map((entry) => entry.id === "person:self" ? { ...entry, title: getUserDisplayName(user) } : entry)} />
         </div>
 

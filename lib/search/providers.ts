@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/data/prisma";
 import type { SearchProvider } from "./types";
 import { requireKinesisUser } from "@/lib/auth";
+import { getFormatPreferences } from "@/lib/format/server";
+import { formatMoney } from "@/lib/format/numbers";
 
 const text = (...values: unknown[]) => values.flat(Infinity).filter((value) => value !== null && value !== undefined && value !== "").map(String);
 
@@ -34,10 +36,13 @@ const finance: SearchProvider = {
   id: "finance",
   async getEntries() {
     const user = await requireKinesisUser();
-    const rows = await prisma.financeItem.findMany({ where: { userId: user.id } });
+    const [rows, { locale, currency }] = await Promise.all([
+      prisma.financeItem.findMany({ where: { userId: user.id } }),
+      getFormatPreferences(),
+    ]);
     return rows.map((item) => ({
       id: `finance:${item.id}`, title: item.name,
-      subtitle: `${item.category || item.kind} · $${item.amount.toLocaleString("en-AU")}`,
+      subtitle: `${item.category || item.kind} · ${formatMoney(item.amount, locale, currency)}`,
       href: "/finance", kind: "Finance" as const,
       keywords: text(item.name, item.kind, item.category, item.notes, item.amount, item.rate, item.frequency),
     }));
