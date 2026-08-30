@@ -164,6 +164,7 @@ KD-016-automated-document-field-extraction
 KD-011-unified-todo-view
 KD-017-turn-dashboard-into-decision-surface
 KD-020-mobile-navigation-and-responsive-app
+KD-021-relationship-with-oneself
 
 ## ⛔ Blocked
 
