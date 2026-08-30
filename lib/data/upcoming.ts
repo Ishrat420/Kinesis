@@ -4,6 +4,7 @@ import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { requireKinesisUser } from "@/lib/auth";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
+import { startOfUtcDay } from "@/lib/dates";
 
 const DAY = 86_400_000;
 
@@ -16,23 +17,10 @@ export type UpcomingItem = {
   href: string;
 };
 
-function startOfUtcDay(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-}
-
-function formatDate(value: Date) {
-  return value.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
   const user = await requireKinesisUser();
-  const today = startOfUtcDay(now);
+  const today = startOfUtcDay(now)!;
   const [documents, milestones, importantDates, settings] = await Promise.all([
     prisma.document.findMany({
       where: { userId: user.id, expiryDate: { not: null } },
@@ -51,7 +39,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   ]);
 
   const documentItems = documents.flatMap((document): UpcomingItem[] => {
-    const expiry = startOfUtcDay(document.expiryDate!);
+    const expiry = startOfUtcDay(document.expiryDate!)!;
     const reminderDate = getExpiryReminderDate(expiry, document.prompt);
     const expired = expiry < today;
     if (!expired && (!settings.remindersEnabled || today < reminderDate)) return [];
@@ -59,7 +47,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       id: `document-${document.id}`,
       kind: "document",
       title: `${document.name} is ${expired ? "expired" : "expiring"}`,
-      date: formatDate(expiry),
+      date: expiry.toISOString(),
       timestamp: expiry.getTime(),
       href: `/documents/${document.id}`,
     }];
@@ -69,7 +57,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     id: `milestone-${milestone.id}`,
     kind: "milestone",
     title: `${milestone.name} is over its due date`,
-    date: formatDate(milestone.dueDate!),
+    date: milestone.dueDate!.toISOString(),
     timestamp: milestone.dueDate!.getTime(),
     href: `/goals/${milestone.goalId}`,
   })) : [];
@@ -81,7 +69,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     if (occurrence.getTime() > today.getTime() + 31 * DAY) return [];
     const relationship = importantDate.relationship;
     const other = relationship.firstPerson.isSelf ? relationship.secondPerson : relationship.firstPerson;
-    return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${other.name}${other.name.toLowerCase().endsWith("s") ? "'" : "'s"} ${importantDate.label} is coming`, date: formatDate(occurrence), timestamp: occurrence.getTime(), href: "/relationships" }];
+    return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${other.name}${other.name.toLowerCase().endsWith("s") ? "'" : "'s"} ${importantDate.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" }];
   });
   return [...documentItems, ...milestoneItems, ...relationshipItems].sort((a, b) => a.timestamp - b.timestamp);
 }

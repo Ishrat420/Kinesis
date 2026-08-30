@@ -7,13 +7,11 @@ import {
 } from "@/lib/finance";
 import type { FinanceItem } from "@/lib/finance";
 
-const money = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  maximumFractionDigits: 0,
-});
+import { useFormatPreferences } from "@/lib/format/context";
+import { formatMoney } from "@/lib/format/numbers";
 
 export function FinanceModuleCard({ items }: { items: FinanceItem[] }) {
+  const { locale, currency } = useFormatPreferences();
   const balance = getFinanceBalance(items);
 
   return (
@@ -28,8 +26,8 @@ export function FinanceModuleCard({ items }: { items: FinanceItem[] }) {
         <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label="Drag Finance" />
       </div>
       <p className="mt-4 font-semibold text-zinc-900">Finance</p>
-      <p className="mt-1 text-sm text-zinc-500">{money.format(balance.netWorth)} net worth</p>
-      <p className="text-sm text-zinc-400">{money.format(balance.liabilities)} liabilities</p>
+      <p className="mt-1 text-sm text-zinc-500">{formatMoney(balance.netWorth, locale, currency)} net worth</p>
+      <p className="text-sm text-zinc-400">{formatMoney(balance.liabilities, locale, currency)} liabilities</p>
       <span className="absolute bottom-4 right-4 text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700">→</span>
     </Link>
   );

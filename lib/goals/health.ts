@@ -1,3 +1,6 @@
+import { formatMonthHeading } from "@/lib/dates";
+import { formatSignificant } from "@/lib/format/numbers";
+
 const DAY_MS = 86_400_000;
 
 export type GoalHealth = {
@@ -17,10 +20,10 @@ function periodFor(daysRemaining: number) {
   return { name: "month" as const, days: 365.2425 / 12 };
 }
 
-function valueLabel(value: number, unit: string | null) {
+function valueLabel(value: number, unit: string | null, locale?: string) {
   // Significant digits keep small goals useful (for example, 3 books over
   // 8 months is 0.375/month) without adding noisy cents to large targets.
-  const amount = new Intl.NumberFormat("en-AU", { maximumSignificantDigits: 3 }).format(Math.abs(value));
+  const amount = formatSignificant(Math.abs(value), locale, 3);
   return unit?.startsWith("$") ? `${unit} ${amount}` : `${amount}${unit ? ` ${unit}` : ""}`;
 }
 
@@ -28,13 +31,15 @@ function monthDifference(from: Date, to: Date) {
   return Math.max(0, Math.round((to.getTime() - from.getTime()) / (DAY_MS * 365.2425 / 12)));
 }
 
-export function calculateGoalHealth({ targetValue, currentValue, targetDate, unit, history, now = new Date() }: {
+export function calculateGoalHealth({ targetValue, currentValue, targetDate, unit, history, now = new Date(), locale }: {
   targetValue: number;
   currentValue: number;
   targetDate: Date;
   unit: string | null;
   history: Snapshot[];
   now?: Date;
+  /** Only affects the human-readable message; callers reading `status` may omit it. */
+  locale?: string;
 }): GoalHealth | null {
   const daysRemaining = (targetDate.getTime() - now.getTime()) / DAY_MS;
   if (daysRemaining <= 0 || targetValue === currentValue) return null;
@@ -50,7 +55,7 @@ export function calculateGoalHealth({ targetValue, currentValue, targetDate, uni
   if (!first || !last || ordered.length < 2 || elapsedDays <= 0) {
     return {
       status: "STAY ON TRACK",
-      message: `You need to reach about ${valueLabel(requiredPace, unit)}/${period.name} to reach this goal.`,
+      message: `You need to reach about ${valueLabel(requiredPace, unit, locale)}/${period.name} to reach this goal.`,
       tone: "neutral",
       requiredPace,
       actualPace: null,
@@ -68,10 +73,10 @@ export function calculateGoalHealth({ targetValue, currentValue, targetDate, uni
     return { status: "AHEAD", message: monthsAhead > 0 ? `You're approximately ${monthsAhead} month${monthsAhead === 1 ? "" : "s"} ahead.` : "You're ahead of the pace needed to reach this goal.", tone: "good", requiredPace, actualPace, period: period.name };
   }
   if (ratio >= 0.9) {
-    return { status: "ON TRACK", message: `Your average pace of ${valueLabel(actualPace, unit)}/${period.name} is on track.`, tone: "good", requiredPace, actualPace, period: period.name };
+    return { status: "ON TRACK", message: `Your average pace of ${valueLabel(actualPace, unit, locale)}/${period.name} is on track.`, tone: "good", requiredPace, actualPace, period: period.name };
   }
 
   const projected = currentValue + rawDailyPace * daysRemaining;
-  const date = targetDate.toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
-  return { status: "AT RISK", message: `At your current pace, you're projected to reach about ${valueLabel(projected, unit)} by ${date}.`, tone: "risk", requiredPace, actualPace, period: period.name };
+  const date = formatMonthHeading(targetDate, locale);
+  return { status: "AT RISK", message: `At your current pace, you're projected to reach about ${valueLabel(projected, unit, locale)} by ${date}.`, tone: "risk", requiredPace, actualPace, period: period.name };
 }

@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Plus, X } from "lucide-react";
-import { createCustomModuleAction, type CreateModuleState } from "@/app/custom-modules/actions";
+import { createCustomModuleAction, type CreateModuleState } from "@/app/(app)/custom-modules/actions";
 import { CUSTOM_MODULE_ICONS, CustomModuleIcon, type CustomModuleIconName } from "@/lib/custom-modules/icons";
 
 const colors = ["#7c3aed", "#2563eb", "#0891b2", "#059669", "#65a30d", "#d97706", "#e11d48", "#db2777", "#52525b"];

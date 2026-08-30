@@ -1,0 +1,61 @@
+import { notFound } from "next/navigation";
+import { Activity, CalendarDays, Flag, Gauge, Target, Trash2 } from "lucide-react";
+import { ModuleContent } from "@/components/layout/ModuleContent";
+import { BackLink } from "@/components/navigation/BackLink";
+import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
+import { getGoal, getGoalUnits } from "@/lib/data/goals";
+import { displayNumber } from "@/lib/goals/format";
+import { formatFutureDate, formatShortMonthYear } from "@/lib/dates";
+import { getFormatPreferences } from "@/lib/format/server";
+import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalStatusAction, updateMilestoneAction } from "../actions";
+import { GoalStatusSelect } from "./GoalStatusSelect";
+import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
+import { MilestoneRow } from "./MilestoneRow";
+import { calculateGoalHealth } from "@/lib/goals/health";
+
+export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
+  const { goalId } = await params;
+  const [goal, units, { locale }] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences()]);
+  if (!goal) notFound();
+  const completed = goal.milestones.filter((item) => item.completed).length;
+  const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
+  const targetPercent = goal.targetValue ? Math.min(100, Math.max(0, Math.round((goal.currentValue ?? 0) / goal.targetValue * 100))) : 0;
+  const statusAction = updateGoalStatusAction.bind(null, goal.id);
+  const targetAction = addTargetAction.bind(null, goal.id);
+  const milestoneAction = addMilestoneAction.bind(null, goal.id);
+  const health = goal.targetValue !== null && goal.currentValue !== null && goal.targetDate
+    ? calculateGoalHealth({ targetValue: goal.targetValue, currentValue: goal.currentValue, targetDate: goal.targetDate, unit: goal.unit, history: goal.metricHistory, locale })
+    : null;
+  const now = new Date();
+  const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now);
+  const hasMilestoneRisk = overdueMilestones.length > 0;
+
+  return <ModuleContent>
+    <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
+
+    <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 flex items-center gap-2 text-sm text-zinc-300"><CalendarDays className="h-4 w-4"/>{goal.targetDate ? <><span>Target · {formatShortMonthYear(goal.targetDate, locale)}</span><span className="text-zinc-600">•</span><strong className="font-medium text-violet-300">{formatFutureDate(goal.targetDate, now)}</strong></> : <span>No target date</span>}</div></div></div></header>
+
+    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"><div className="space-y-6">
+      <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Milestones</h2><p className="mt-1 text-sm text-zinc-500">Your current understanding of the path forward.</p></div><Flag className="h-5 w-5 text-violet-500"/></div>
+        <div className="mt-5 space-y-2">{goal.milestones.map((milestone) => <MilestoneRow key={milestone.id} milestone={milestone} unit={goal.unit} goalTargetDate={goal.targetDate} toggleAction={toggleMilestoneAction.bind(null, goal.id, milestone.id, !milestone.completed)} updateAction={updateMilestoneAction.bind(null, goal.id, milestone.id)} duplicateAction={duplicateMilestoneAction.bind(null, goal.id, milestone.id)} deleteAction={deleteMilestoneAction.bind(null, goal.id, milestone.id)} />)}{!goal.milestones.length && <div className="rounded-2xl border border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Ambitious. We like it. Now, checkpoints.</div>}</div>
+        <AddMilestoneForm action={milestoneAction} hasTarget={goal.targetValue !== null} unit={goal.unit} goalTargetDate={goal.targetDate} />
+      </section>
+
+      <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Measurable target</h2><p className="mt-1 text-sm text-zinc-500">Track the number that defines success.</p></div><Gauge className="h-5 w-5 text-violet-500"/></div>
+        <MeasurableTargetForm action={targetAction} removeAction={removeTargetAction.bind(null, goal.id)} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} />
+      </section>
+      {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
+        <div className="flex items-start gap-4"><div className="rounded-2xl bg-white/80 p-3"><Activity className={`h-5 w-5 ${hasMilestoneRisk || health?.tone === "risk" ? "text-amber-600" : health?.tone === "good" ? "text-emerald-600" : "text-violet-600"}`}/></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-600">Goal health</p><h2 className="mt-2 text-xl font-bold">{hasMilestoneRisk ? "AT RISK" : health?.status}</h2>{health && <p className="mt-2 leading-6 text-zinc-700">{health.message}</p>}{overdueMilestones.map((milestone) => <p key={milestone.id} className="mt-2 font-medium leading-6 text-amber-800">Milestone “{milestone.name}” is past its due date.</p>)}{health?.actualPace === null && <p className="mt-3 text-xs text-zinc-500">Update your current value over time and Kinesis will average your pace automatically.</p>}</div></div>
+      </section>}
+    </div>
+
+    <aside><section className="sticky top-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-semibold">Progress</h2><p className="mt-1 text-sm text-zinc-500">Use one or both views.</p><div className="mt-6 space-y-7">
+      <Progress title="Milestones" percent={milestonePercent} detail={`${completed} of ${goal.milestones.length} complete`} shown={goal.showMilestoneProgress} toggle={toggleProgressAction.bind(null, goal.id, "showMilestoneProgress", !goal.showMilestoneProgress)} />
+      {goal.targetValue !== null && <Progress title={goal.unit || "Target unit"} percent={targetPercent} detail={`${displayNumber(goal.currentValue ?? 0, goal.unit, locale)} of ${displayNumber(goal.targetValue, goal.unit, locale)} · ${targetPercent}%`} shown={goal.showTargetProgress} toggle={toggleProgressAction.bind(null, goal.id, "showTargetProgress", !goal.showTargetProgress)} />}
+    </div></section></aside></div>
+  </ModuleContent>;
+}
+
+function Progress({ title, percent, detail, shown, toggle }: { title: string; percent: number; detail: string; shown: boolean; toggle: () => Promise<void> }) {
+  return <div className={!shown ? "opacity-50" : ""}><div className="mb-3 flex items-center justify-between"><span className="text-sm font-semibold">{title}</span><form action={toggle}><button className="text-xs font-medium text-zinc-400 hover:text-zinc-700">{shown ? "Remove" : "Add"}</button></form></div>{shown && <><div className="h-3 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-violet-500 transition-all" style={{width:`${percent}%`}}/></div><p className="mt-2 text-sm text-zinc-500">{detail}</p></>}</div>;
+}
