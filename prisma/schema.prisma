@@ -27,6 +27,7 @@ model User {
   dismissals     AttentionDismissal[]
   activityEvents ActivityEvent[]
   securityEvents SecurityEvent[]
+  objectRelationships ObjectRelationship[]
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 }
@@ -164,6 +165,32 @@ model Goal {
   relationshipLinks     RelationshipGoal[]
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
+}
+
+enum ObjectRelationshipType {
+  SUPPORTS
+  BLOCKS
+  DEPENDS_ON
+  RELATES_TO
+  ALONGSIDE
+}
+
+model ObjectRelationship {
+  id               String                 @id @default(uuid())
+  sourceObjectType KinesisObjectType
+  sourceObjectId   String
+  targetObjectType KinesisObjectType
+  targetObjectId   String
+  type             ObjectRelationshipType
+  pairKey          String
+  userId           String
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@unique([userId, pairKey])
+  @@index([userId, sourceObjectType, sourceObjectId])
+  @@index([userId, targetObjectType, targetObjectId])
 }
 
 model Person {
