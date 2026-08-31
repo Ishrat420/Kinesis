@@ -8,6 +8,7 @@ import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
+import { GOAL_RELATIONSHIP_TYPES, goalPairKey, type GoalRelationshipType } from "@/lib/goals/relationships";
 
 export type GoalActionState = { error?: string };
 
@@ -54,10 +55,50 @@ export async function updateGoalStatusAction(id: string, _previousState: GoalAct
 
 export async function deleteGoalAction(id: string) {
   const user = await requireKinesisUser();
-  await prisma.goal.deleteMany({ where: { id, userId: user.id } });
+  await prisma.$transaction([
+    prisma.objectRelationship.deleteMany({ where: { userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: id }, { targetObjectType: "GOAL", targetObjectId: id }] } }),
+    prisma.goal.deleteMany({ where: { id, userId: user.id } }),
+  ]);
   revalidatePath("/");
   revalidatePath("/goals");
   redirect("/goals");
+}
+
+export async function addGoalRelationshipAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
+  const user = await requireKinesisUser();
+  const targetId = value(data, "targetGoalId");
+  const type = value(data, "type") as GoalRelationshipType;
+  if (!targetId) return { error: "Choose a goal to link." };
+  if (targetId === id) return { error: "A goal cannot be linked to itself." };
+  if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return { error: "Choose a valid relationship type." };
+  const owned = await prisma.goal.count({ where: { userId: user.id, id: { in: [id, targetId] } } });
+  if (owned !== 2) return { error: "One or more goals were not found." };
+  try {
+    await prisma.objectRelationship.create({ data: { userId: user.id, sourceObjectType: "GOAL", sourceObjectId: id, targetObjectType: "GOAL", targetObjectId: targetId, pairKey: goalPairKey(id, targetId), type } });
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "P2002") return { error: "These goals are already linked." };
+    throw error;
+  }
+  refresh(id); refresh(targetId);
+  return {};
+}
+
+export async function updateGoalRelationshipAction(id: string, relationshipId: string, data: FormData) {
+  const user = await requireKinesisUser();
+  const type = value(data, "type") as GoalRelationshipType;
+  if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return;
+  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: id }, { targetObjectType: "GOAL", targetObjectId: id }] } });
+  if (!relationship) return;
+  await prisma.objectRelationship.update({ where: { id: relationshipId }, data: { type } });
+  refresh(relationship.sourceObjectId); refresh(relationship.targetObjectId);
+}
+
+export async function removeGoalRelationshipAction(id: string, relationshipId: string) {
+  const user = await requireKinesisUser();
+  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: id }, { targetObjectType: "GOAL", targetObjectId: id }] } });
+  if (!relationship) return;
+  await prisma.objectRelationship.delete({ where: { id: relationshipId } });
+  refresh(relationship.sourceObjectId); refresh(relationship.targetObjectId);
 }
 
 export async function addTargetAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
