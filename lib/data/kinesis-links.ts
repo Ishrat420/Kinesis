@@ -6,13 +6,13 @@ export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
   const user = await requireKinesisUser();
   const [documents, items, goals] = await Promise.all([
     prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.customItem.findMany({ where: { module: { userId: user.id } }, select: { id: true, name: true, module: { select: { id: true, name: true } } }, orderBy: { name: "asc" } }),
+    prisma.customItem.findMany({ where: { module: { userId: user.id } }, select: { id: true, name: true, module: { select: { id: true, name: true, icon: true, color: true } } }, orderBy: { name: "asc" } }),
     prisma.goal.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   return [
-    ...documents.map(({ id, name }) => ({ type: "DOCUMENT" as const, id, module: "Documents", name, href: `/documents/${id}` })),
-    ...items.map(({ id, name, module }) => ({ type: "CUSTOM_ITEM" as const, id, module: module.name, name, href: `/custom-modules/${module.id}/items/${id}` })),
-    ...goals.map(({ id, name }) => ({ type: "GOAL" as const, id, module: "Goals", name, href: `/goals/${id}` })),
+    ...documents.map(({ id, name }) => ({ type: "DOCUMENT" as const, id, module: "Documents", name, href: `/documents/${id}`, color: "#7c3aed" })),
+    ...items.map(({ id, name, module }) => ({ type: "CUSTOM_ITEM" as const, id, module: module.name, name, href: `/custom-modules/${module.id}/items/${id}`, icon: module.icon, color: module.color })),
+    ...goals.map(({ id, name }) => ({ type: "GOAL" as const, id, module: "Goals", name, href: `/goals/${id}`, color: "#059669" })),
   ];
 }
 
