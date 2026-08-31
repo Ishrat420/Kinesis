@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, ExternalLink, FileText, Link2, Pencil, Save, X } from "lucide-react";
+import { CalendarDays, Clock3, ExternalLink, FileText, Pencil, Save, X } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
@@ -90,11 +90,12 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           <Metadata label={document.linkLabel} value={document.link} link />
           {document.customFields.filter((field) => field.type !== "KINESIS_LINK").map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={field.value} />)}
         </dl>
-        {linkedFields.length > 0 && <div className="mt-6 border-t border-zinc-100 pt-6">
-          <div className="mb-3 flex items-center gap-2"><Link2 className="h-4 w-4 text-zinc-400" /><h3 className="text-sm font-semibold text-zinc-800">Linked objects</h3></div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {linkedFields.map(({ field, option }) => <KinesisLinkCard key={field.id ?? field.label} option={option} />)}
+        {linkedFields.length > 0 && <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
+          {linkedFields.map(({ field, option }) => <div key={field.id ?? field.label} className="min-w-0">
+            <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
+            <KinesisLinkCard option={option} />
           </div>
+          )}
         </div>}
       </section>
 
