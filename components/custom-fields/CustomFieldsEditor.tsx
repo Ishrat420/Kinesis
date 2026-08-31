@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { Check, ChevronDown, ExternalLink, Minus, Plus } from "lucide-react";
+import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
@@ -9,6 +8,7 @@ import {
   type CustomFieldValue,
   type KinesisLinkOption,
 } from "@/lib/custom-fields/types";
+import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
@@ -221,13 +221,7 @@ function FieldInput({ field, index, linkOptions, names, update }: {
         <div>
           <input type="hidden" name={names.value} value="" />
           <input type="hidden" name={names.target} value={selected} />
-          <Link
-            href={selectedOption.href}
-            className={`${inputClass} flex items-center justify-between gap-3 text-zinc-700 hover:border-zinc-400 hover:text-zinc-950`}
-          >
-            <span className="min-w-0 truncate">{selectedOption.name}</span>
-            <ExternalLink className="h-4 w-4 shrink-0 text-zinc-400" />
-          </Link>
+          <KinesisLinkCard option={selectedOption} />
         </div>
       );
     }

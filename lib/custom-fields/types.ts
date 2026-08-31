@@ -24,6 +24,8 @@ export type KinesisLinkOption = {
   module: string;
   name: string;
   href: string;
+  icon?: string;
+  color?: string;
 };
 
 export function parseKinesisTarget(value: string) {
