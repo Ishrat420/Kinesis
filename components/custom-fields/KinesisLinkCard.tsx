@@ -24,7 +24,7 @@ export function KinesisLinkCard({ option, className = "" }: { option: KinesisLin
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-semibold" style={{ color }}>{option.module}</span>
+        <span className="block truncate text-xs font-semibold text-zinc-500">{option.module}</span>
         <span className="mt-1 block truncate text-sm font-semibold text-zinc-800">{option.name}</span>
       </span>
       <ArrowUpRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:text-zinc-700" />
