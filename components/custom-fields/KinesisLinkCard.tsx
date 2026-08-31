@@ -15,11 +15,11 @@ export function KinesisLinkCard({ option, className = "" }: { option: KinesisLin
     <Link
       href={option.href}
       aria-label={`Open ${option.name} in ${option.module}`}
-      className={`group flex min-h-20 min-w-0 items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${className}`}
+      className={`group flex min-h-20 min-w-0 items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3.5 transition-colors hover:border-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${className}`}
     >
       <span
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-        style={{ color, backgroundColor: `color-mix(in srgb, ${color} 12%, white)` }}
+        style={{ color: "white", backgroundColor: `color-mix(in srgb, ${color} 12%, white)` }}
       >
         {icon}
       </span>
