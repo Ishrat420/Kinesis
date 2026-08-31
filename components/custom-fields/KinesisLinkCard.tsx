@@ -19,7 +19,7 @@ export function KinesisLinkCard({ option, className = "" }: { option: KinesisLin
     >
       <span
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-        style={{ color: "white", backgroundColor: `color-mix(in srgb, ${color} 12%, white)` }}
+        style={{ color: "#3f3f46", backgroundColor: `color-mix(in srgb, ${color} 12%, white)` }}
       >
         {icon}
       </span>
