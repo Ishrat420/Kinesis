@@ -8,7 +8,7 @@ import { addActivity } from "@/lib/data/activity";
 import { parseKinesisTarget, CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 
-export type DocumentActionState = { error?: string };
+export type DocumentActionState = { error?: string; success?: boolean };
 export type CreateDocumentState = DocumentActionState;
 
 function text(formData: FormData, name: string) {
@@ -92,7 +92,7 @@ export async function updateDocumentAction(
   await updateDocument(documentId, data);
   await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
   revalidatePath("/", "layout");
-  return {};
+  return { success: true };
 }
 
 export async function deleteDocumentTypeAction(name: string): Promise<DocumentActionState> {
