@@ -11,6 +11,7 @@ import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSele
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
+import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
@@ -67,6 +68,11 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
 
 function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: "neutral" | "safe" | "soon" | "expired"; locale: string; linkOptions: KinesisLinkOption[] }) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
+  const linkedFields = document.customFields.flatMap((field) => {
+    if (field.type !== "KINESIS_LINK") return [];
+    const option = linkOptions.find(({ type, id }) => type === field.targetType && id === field.targetId);
+    return option ? [{ field, option }] : [];
+  });
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
@@ -82,8 +88,15 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           <Metadata label={document.countryLabel} value={document.country} />
           <Metadata label="Owner" value={ownerName} />
           <Metadata label={document.linkLabel} value={document.link} link />
-          {document.customFields.map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={customFieldValue(field, linkOptions)} />)}
+          {document.customFields.filter((field) => field.type !== "KINESIS_LINK").map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={field.value} />)}
         </dl>
+        {linkedFields.length > 0 && <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
+          {linkedFields.map(({ field, option }) => <div key={field.id ?? field.label} className="min-w-0">
+            <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
+            <KinesisLinkCard option={option} />
+          </div>
+          )}
+        </div>}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -129,7 +142,6 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
 }
 
 function displayDate(value: string, locale: string) { return value ? formatDate(value, locale) : EMPTY_VALUE; }
-function customFieldValue(field: CustomField, options: KinesisLinkOption[]) { if (field.type !== "KINESIS_LINK") return field.value; return options.find((option) => option.type === field.targetType && option.id === field.targetId)?.name ?? "Linked record"; }
 function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: "neutral" | "safe" | "soon" | "expired" }) {
   const detailClass = detailTone ? {
     neutral: "bg-zinc-100 text-zinc-600",
