@@ -10,9 +10,9 @@ export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
     prisma.goal.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
   return [
-    ...documents.map(({ id, name }) => ({ type: "DOCUMENT" as const, id, module: "Documents", name, href: `/documents/${id}`, color: "#7c3aed" })),
+    ...documents.map(({ id, name }) => ({ type: "DOCUMENT" as const, id, module: "Documents", name, href: `/documents/${id}`, color: "#2563eb" })),
     ...items.map(({ id, name, module }) => ({ type: "CUSTOM_ITEM" as const, id, module: module.name, name, href: `/custom-modules/${module.id}/items/${id}`, icon: module.icon, color: module.color })),
-    ...goals.map(({ id, name }) => ({ type: "GOAL" as const, id, module: "Goals", name, href: `/goals/${id}`, color: "#059669" })),
+    ...goals.map(({ id, name }) => ({ type: "GOAL" as const, id, module: "Goals", name, href: `/goals/${id}`, color: "#7c3aed" })),
   ];
 }
 
