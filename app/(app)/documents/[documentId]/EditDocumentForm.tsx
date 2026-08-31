@@ -59,20 +59,20 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} locale={locale} linkOptions={linkOptions} />
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} />
       )}
     </>
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, locale, linkOptions }: { document: EditableDocument; ownerName: string; expiryLabel: string; locale: string; linkOptions: KinesisLinkOption[] }) {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: "neutral" | "safe" | "soon" | "expired"; locale: string; linkOptions: KinesisLinkOption[] }) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
         <div className="mb-5 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-zinc-400" /><h2 className="text-lg font-semibold text-zinc-900">Document information</h2></div>
         <div className="grid gap-3 md:grid-cols-2">
-          <PromotedField label="Expiry" value={displayDate(document.expiryDate, locale)} detail={expiryLabel} />
+          <PromotedField label="Expiry" value={displayDate(document.expiryDate, locale)} detail={expiryLabel} detailTone={expiryUrgency} />
           <PromotedField label="Reminder" value={document.expiryDate ? `${reminder} before expiry` : EMPTY_VALUE} detail={document.expiryDate ? "Configured reminder" : "Add an expiry date to use reminders"} />
         </div>
         <dl className="mt-6 grid gap-x-8 gap-y-5 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -130,6 +130,14 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
 
 function displayDate(value: string, locale: string) { return value ? formatDate(value, locale) : EMPTY_VALUE; }
 function customFieldValue(field: CustomField, options: KinesisLinkOption[]) { if (field.type !== "KINESIS_LINK") return field.value; return options.find((option) => option.type === field.targetType && option.id === field.targetId)?.name ?? "Linked record"; }
-function PromotedField({ label, value, detail }: { label: string; value: string; detail: string }) { return <div className="rounded-2xl bg-zinc-50 p-4"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</dt><dd className="mt-2 text-lg font-semibold text-zinc-900">{value}</dd><p className="mt-1 text-sm text-zinc-500">{detail}</p></div>; }
+function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: "neutral" | "safe" | "soon" | "expired" }) {
+  const detailClass = detailTone ? {
+    neutral: "bg-zinc-100 text-zinc-600",
+    safe: "bg-emerald-50 text-emerald-700",
+    soon: "bg-amber-50 text-amber-700",
+    expired: "bg-red-50 text-red-700",
+  }[detailTone] : "text-zinc-500";
+  return <div className="rounded-2xl bg-zinc-50 p-4"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</dt><dd className="mt-2 text-lg font-semibold text-zinc-900">{value}</dd><p className={`mt-1 inline-flex rounded-full text-sm ${detailTone ? `px-2.5 py-1 font-semibold ${detailClass}` : detailClass}`}>{detail}</p></div>;
+}
 function Metadata({ label, value, link = false }: { label: string; value?: string; link?: boolean }) { const shown = value || EMPTY_VALUE; return <div><dt className="text-xs font-medium text-zinc-400">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-zinc-700">{link && value ? <a href={value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a> : shown}</dd></div>; }
 function Field({ label, name, value, required }: { label: string; name: string; value: string; required?: boolean }) { return <label className="block text-sm font-medium text-zinc-600">{label}<input name={name} defaultValue={value} required={required} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 outline-none focus:border-zinc-400" /></label>; }
