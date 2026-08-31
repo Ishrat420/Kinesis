@@ -169,6 +169,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-022-goal-linked-relationships
 KD-021-relationship-with-oneself
 KD-018-standardise-module-navigation
 KD-019-sidebar-route-aware
