@@ -3,19 +3,20 @@ import { Activity, CalendarDays, Flag, Gauge, Target, Trash2 } from "lucide-reac
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
-import { getGoal, getGoalUnits } from "@/lib/data/goals";
+import { getGoal, getGoalRelationships, getGoalUnits } from "@/lib/data/goals";
 import { displayNumber } from "@/lib/goals/format";
 import { formatFutureDate, formatShortMonthYear } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
-import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalStatusAction, updateMilestoneAction } from "../actions";
+import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalRelationshipAction, updateGoalStatusAction, updateMilestoneAction } from "../actions";
 import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
 import { MilestoneRow } from "./MilestoneRow";
 import { calculateGoalHealth } from "@/lib/goals/health";
+import { LinkedGoals } from "./LinkedGoals";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
-  const [goal, units, { locale }] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences()]);
+  const [goal, units, { locale }, goalRelationships] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getGoalRelationships(goalId)]);
   if (!goal) notFound();
   const completed = goal.milestones.filter((item) => item.completed).length;
   const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
@@ -44,6 +45,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
       <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Measurable target</h2><p className="mt-1 text-sm text-zinc-500">Track the number that defines success.</p></div><Gauge className="h-5 w-5 text-violet-500"/></div>
         <MeasurableTargetForm action={targetAction} removeAction={removeTargetAction.bind(null, goal.id)} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} />
       </section>
+      <LinkedGoals linked={goalRelationships.linked} availableGoals={goalRelationships.availableGoals} addAction={addGoalRelationshipAction.bind(null, goal.id)} updateAction={updateGoalRelationshipAction.bind(null, goal.id)} removeAction={removeGoalRelationshipAction.bind(null, goal.id)} />
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
         <div className="flex items-start gap-4"><div className="rounded-2xl bg-white/80 p-3"><Activity className={`h-5 w-5 ${hasMilestoneRisk || health?.tone === "risk" ? "text-amber-600" : health?.tone === "good" ? "text-emerald-600" : "text-violet-600"}`}/></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-600">Goal health</p><h2 className="mt-2 text-xl font-bold">{hasMilestoneRisk ? "AT RISK" : health?.status}</h2>{health && <p className="mt-2 leading-6 text-zinc-700">{health.message}</p>}{overdueMilestones.map((milestone) => <p key={milestone.id} className="mt-2 font-medium leading-6 text-amber-800">Milestone “{milestone.name}” is past its due date.</p>)}{health?.actualPace === null && <p className="mt-3 text-xs text-zinc-500">Update your current value over time and Kinesis will average your pace automatically.</p>}</div></div>
       </section>}

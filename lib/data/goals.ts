@@ -26,6 +26,25 @@ export async function getGoal(id: string) {
   return goal;
 }
 
+export async function getGoalRelationships(goalId: string) {
+  const user = await requireKinesisUser();
+  const [relationships, goals] = await Promise.all([
+    prisma.objectRelationship.findMany({
+      where: { userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: goalId }, { targetObjectType: "GOAL", targetObjectId: goalId }] },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.goal.findMany({ where: { userId: user.id, id: { not: goalId } }, select: { id: true, name: true, status: true }, orderBy: { name: "asc" } }),
+  ]);
+  const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+  const linked = relationships.flatMap((relationship) => {
+    const inverse = relationship.targetObjectId === goalId;
+    const linkedGoal = goalById.get(inverse ? relationship.sourceObjectId : relationship.targetObjectId);
+    return linkedGoal ? [{ ...relationship, inverse, goal: linkedGoal }] : [];
+  });
+  const linkedIds = new Set(linked.map(({ goal }) => goal.id));
+  return { linked, availableGoals: goals.filter(({ id }) => !linkedIds.has(id)) };
+}
+
 export async function getGoalUnits() {
   const user = await requireKinesisUser();
   const custom = await prisma.goalUnit.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } });
