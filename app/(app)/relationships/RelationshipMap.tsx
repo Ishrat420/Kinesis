@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import {
+  ArrowUpRight,
   Baby,
   BookOpen,
   CalendarDays,
@@ -406,7 +407,7 @@ function GoalPicker({ goals, linkedGoalIds, onLink }: { goals: GoalOption[]; lin
 
 function LinkedGoal({ goal, onUnlink }: { goal: GoalOption; onUnlink: () => void }) {
   return <div className="group flex items-center gap-1 rounded-xl bg-zinc-50 p-1.5 pl-3">
-    <Link href={`/goals/${goal.id}`} className="min-w-0 flex-1 rounded-lg py-1 hover:text-violet-700"><p className="truncate text-[11px] font-semibold">{goal.name}</p><div className="mt-1"><GoalStatus status={goal.status} /></div></Link>
+    <Link href={`/goals/${goal.id}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1 hover:text-violet-700"><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{goal.name}</p><div className="mt-1"><GoalStatus status={goal.status} /></div></div><ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-violet-500" aria-hidden="true" /></Link>
     <button type="button" onClick={onUnlink} className="rounded-lg p-2 text-zinc-300 transition hover:bg-white hover:text-red-500" aria-label={`Unlink ${goal.name}`} title="Unlink goal"><X className="h-3.5 w-3.5" /></button>
   </div>;
 }
