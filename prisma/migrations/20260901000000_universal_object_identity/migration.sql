@@ -85,8 +85,8 @@ CREATE UNIQUE INDEX "FinanceItem_objectId_key" ON "FinanceItem"("objectId");
 CREATE UNIQUE INDEX "Person_objectId_key" ON "Person"("objectId");
 CREATE UNIQUE INDEX "CustomItem_objectId_key" ON "CustomItem"("objectId");
 CREATE INDEX "Object_userId_type_name_idx" ON "Object"("userId", "type", "name");
-DROP INDEX "ObjectRelationship_userId_sourceObjectType_sourceObjectId_idx";
-DROP INDEX "ObjectRelationship_userId_targetObjectType_targetObjectId_idx";
+DROP INDEX IF EXISTS "ObjectRelationship_userId_sourceObjectType_sourceObjectId_idx";
+DROP INDEX IF EXISTS "ObjectRelationship_userId_targetObjectType_targetObjectId_idx";
 CREATE INDEX "ObjectRelationship_userId_sourceObjectId_idx" ON "ObjectRelationship"("userId", "sourceObjectId");
 CREATE INDEX "ObjectRelationship_userId_targetObjectId_idx" ON "ObjectRelationship"("userId", "targetObjectId");
 
