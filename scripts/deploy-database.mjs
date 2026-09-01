@@ -68,8 +68,9 @@ async function reconcileUniversalIdentityOnExistingDatabase() {
 
     // Commit enum values before the backfill uses them. Sending these separately
     // avoids PostgreSQL's "unsafe use of new value" transaction restriction.
-    await client.query(`ALTER TYPE "KinesisObjectType" ADD VALUE IF NOT EXISTS 'FINANCE_ITEM'`);
-    await client.query(`ALTER TYPE "KinesisObjectType" ADD VALUE IF NOT EXISTS 'PERSON'`);
+    for (const objectType of ["GOAL", "FINANCE_ITEM", "PERSON"]) {
+      await client.query(`ALTER TYPE "KinesisObjectType" ADD VALUE IF NOT EXISTS '${objectType}'`);
+    }
 
     const migration = readFileSync(
       new URL("../prisma/migrations/20260901000000_universal_object_identity/migration.sql", import.meta.url),
