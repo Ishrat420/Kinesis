@@ -8,7 +8,9 @@ import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
-import { GOAL_RELATIONSHIP_TYPES, goalPairKey, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { objectPairKey } from "@/lib/objects/relationships";
+import { deleteObjects, objectFor } from "@/lib/data/objects";
 
 export type GoalActionState = { error?: string };
 
@@ -38,7 +40,7 @@ export async function createGoalAction(_previousState: GoalActionState, data: Fo
   if (!name) return { error: "Enter a goal name." };
   const targetDate = optionalDate(data, "targetDate");
   if (targetDate === undefined) return { error: "Enter a valid target date." };
-  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: { create: { type: "GOAL" as const, name, userId: user.id } } } });
+  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: objectFor.goal(name, user.id) } });
   await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   revalidatePath("/");
   revalidatePath("/goals");
@@ -56,7 +58,7 @@ export async function updateGoalStatusAction(id: string, _previousState: GoalAct
 export async function deleteGoalAction(id: string) {
   const user = await requireKinesisUser();
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
-  if (goal) await prisma.object.delete({ where: { id: goal.objectId } });
+  if (goal) await deleteObjects(prisma, [goal.objectId], user.id);
   revalidatePath("/");
   revalidatePath("/goals");
   redirect("/goals");
@@ -75,7 +77,7 @@ export async function addGoalRelationshipAction(id: string, _previousState: Goal
   const sourceObjectId = objectByGoal.get(id)!;
   const targetObjectId = objectByGoal.get(targetId)!;
   try {
-    await prisma.objectRelationship.create({ data: { userId: user.id, sourceObjectId, targetObjectId, pairKey: goalPairKey(sourceObjectId, targetObjectId), type } });
+    await prisma.objectRelationship.create({ data: { userId: user.id, sourceObjectId, targetObjectId, pairKey: objectPairKey(sourceObjectId, targetObjectId), type } });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "P2002") return { error: "These goals are already linked." };
     throw error;

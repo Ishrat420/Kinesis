@@ -1,169 +1,84 @@
+// Deployment applies migrations, and only migrations.
+//
+// Kinesis ran on `prisma db push` before it had a migration history, so databases
+// created back then carry the schema without any record of how they got it. This
+// script gives those databases the one-time baseline they need and then hands over
+// to `prisma migrate deploy` for good. Once every environment has been deployed at
+// least once, both steps below are permanent no-ops and this file can go back to
+// being a plain `prisma migrate deploy`.
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const { Client } = pg;
+
+// The last migration whose effects a db push database is guaranteed to already
+// have: object identity arrived with a migration history, so any database still
+// without one predates it. Everything after this is real work for migrate deploy.
 const BASELINE_THROUGH = "20260831010000_typed_object_relationships";
-const SUPERSEDED_FAILED_MIGRATION = "20260901000000_universal_object_identity";
+
+// The first cut of the universal identity migration put a PostgreSQL enum value
+// and its first use in one transaction, which cannot work. PostgreSQL rolls a
+// failed migration back whole, so nothing of it survives to clean up: the record
+// of the failure is all that blocks a retry.
+const SUPERSEDED_FAILURES = ["20260901000000_universal_object_identity"];
+
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
 
-function runPrisma(...args) {
-  execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, stdio: "inherit" });
-}
+const runPrisma = (...args) => execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, stdio: "inherit" });
 
-async function needsLegacyBaseline() {
+async function withDatabase(query) {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try {
-    const { rows: [state] } = await client.query(`
-      SELECT
-        to_regclass('public."User"') IS NOT NULL AS "hasDomainSchema",
-        to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasMigrationTable"
-    `);
-    if (!state.hasDomainSchema) return false;
-    if (!state.hasMigrationTable) return true;
-
-    const { rows: [history] } = await client.query(
-      'SELECT EXISTS (SELECT 1 FROM "_prisma_migrations" WHERE "finished_at" IS NOT NULL AND "rolled_back_at" IS NULL) AS "hasHistory"',
-    );
-    return !history.hasHistory;
+    return await query(client);
   } finally {
     await client.end();
   }
 }
 
-async function hasExistingDomainSchema() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
-  try {
-    const { rows: [state] } = await client.query(
-      `SELECT to_regclass('public."User"') IS NOT NULL AS "exists"`,
-    );
-    return state.exists;
-  } finally {
-    await client.end();
-  }
-}
-
-async function hasFailedUniversalIdentityMigration() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
-  try {
-    const { rows: [state] } = await client.query(
-      `SELECT to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasMigrationTable"`,
-    );
-    if (!state.hasMigrationTable) return false;
-    const { rows: [failure] } = await client.query(
-      `SELECT EXISTS (
-        SELECT 1 FROM "_prisma_migrations"
-        WHERE "migration_name" = $1 AND "finished_at" IS NULL AND "rolled_back_at" IS NULL
-      ) AS "failed"`,
-      [SUPERSEDED_FAILED_MIGRATION],
-    );
-    return failure.failed;
-  } finally {
-    await client.end();
-  }
-}
-
-async function reconcileUniversalIdentityOnExistingDatabase() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
-  try {
-    const { rows: [state] } = await client.query(`
-      SELECT
-        to_regclass('public."User"') IS NOT NULL AS "hasDomainSchema",
-        to_regclass('public."Object"') IS NOT NULL AS "hasObjectSchema"
-    `);
-    if (!state.hasDomainSchema || state.hasObjectSchema) return false;
-
-    // Commit enum values before the backfill uses them. Sending these separately
-    // avoids PostgreSQL's "unsafe use of new value" transaction restriction.
-    for (const objectType of ["GOAL", "FINANCE_ITEM", "PERSON"]) {
-      await client.query(`ALTER TYPE "KinesisObjectType" ADD VALUE IF NOT EXISTS '${objectType}'`);
-    }
-
-    const migration = readFileSync(
-      new URL("../prisma/migrations/20260901000000_universal_object_identity/migration.sql", import.meta.url),
-      "utf8",
-    );
-    console.log("Applying the universal Object identity backfill to the existing database.");
-    await client.query(migration);
-    return true;
-  } finally {
-    await client.end();
-  }
-}
-
-async function isMigrationApplied(migrationName) {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
-  try {
-    const { rows: [state] } = await client.query(
-      `SELECT to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasMigrationTable"`,
-    );
-    if (!state.hasMigrationTable) return false;
-    const { rows: [migration] } = await client.query(
-      `SELECT EXISTS (
-        SELECT 1 FROM "_prisma_migrations"
-        WHERE "migration_name" = $1 AND "finished_at" IS NOT NULL AND "rolled_back_at" IS NULL
-      ) AS "applied"`,
-      [migrationName],
-    );
-    return migration.applied;
-  } finally {
-    await client.end();
-  }
-}
+/** What the database can tell us about how it was built. */
+const readDeploymentState = () => withDatabase(async (client) => {
+  const { rows: [tables] } = await client.query(`
+    SELECT to_regclass('public."User"') IS NOT NULL AS "hasSchema",
+           to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasHistoryTable"
+  `);
+  if (!tables.hasHistoryTable) return { hasSchema: tables.hasSchema, applied: [], failed: [] };
+  const { rows } = await client.query(`
+    SELECT "migration_name" AS name, "finished_at" IS NULL AS failed
+    FROM "_prisma_migrations" WHERE "rolled_back_at" IS NULL
+  `);
+  return {
+    hasSchema: tables.hasSchema,
+    applied: rows.filter((row) => !row.failed).map((row) => row.name),
+    failed: rows.filter((row) => row.failed).map((row) => row.name),
+  };
+});
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required to deploy database migrations.");
 
-const existingDomainSchema = await hasExistingDomainSchema();
+const state = await readDeploymentState();
 
-// Older Kinesis deployments used `prisma db push`, so their schema exists without
-// migration history. Baseline only the migrations represented by that old schema;
-// `migrate deploy` will then run the universal identity migration normally.
-if (await needsLegacyBaseline()) {
+// Record the migrations a db push database demonstrably already has. This only
+// ever marks history; it never runs SQL, so a database that has not been through
+// db push is left alone and migrate deploy builds it from empty.
+if (state.hasSchema && state.applied.length === 0 && state.failed.length === 0) {
   const migrations = readdirSync(new URL("../prisma/migrations", import.meta.url), { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name <= BASELINE_THROUGH)
     .map((entry) => entry.name)
     .sort();
-
-  console.log(`Baselining ${migrations.length} existing migrations from the legacy db-push deployment.`);
+  console.log(`Baselining ${migrations.length} migrations already present in this db push database.`);
   for (const migration of migrations) runPrisma("migrate", "resolve", "--applied", migration);
 }
 
-const reconciledUniversalIdentity = await reconcileUniversalIdentityOnExistingDatabase();
-
-// The first version placed PostgreSQL enum additions in the same migration that
-// consumed them. Roll back only that known failed attempt so the split migrations
-// can be retried; unrelated migration failures remain blocked for manual review.
-if (await hasFailedUniversalIdentityMigration()) {
-  console.log(`Retrying the corrected ${SUPERSEDED_FAILED_MIGRATION} migration.`);
-  runPrisma("migrate", "resolve", "--rolled-back", SUPERSEDED_FAILED_MIGRATION);
+// Clear the record of a known-superseded failure so its replacement can run.
+// Any other failure stays put: it needs a person, not a retry.
+for (const migration of state.failed) {
+  if (!SUPERSEDED_FAILURES.includes(migration)) continue;
+  console.log(`Clearing the superseded failed migration ${migration} so the corrected one can apply.`);
+  runPrisma("migrate", "resolve", "--rolled-back", migration);
 }
 
-
-if (reconciledUniversalIdentity) {
-  for (const migration of ["20260901000000_object_type_values", SUPERSEDED_FAILED_MIGRATION]) {
-    if (!await isMigrationApplied(migration)) runPrisma("migrate", "resolve", "--applied", migration);
-  }
-}
-
-// Legacy db-push installations can contain failed/baselined migration history that
-// does not describe their real schema. The backfill above makes db push safe again;
-// do not let that historical metadata block deployment. Fresh databases continue
-// to use the normal migration chain.
-if (existingDomainSchema) {
-  console.log("Legacy database reconciled; skipping incompatible migration history.");
-} else {
-  runPrisma("migrate", "deploy");
-}
-
-// Legacy installations were created by db push and can differ from the migration
-// history they were baselined against. Now that required Object IDs are backfilled,
-// reconcile any remaining harmless schema drift so the generated Prisma client and
-// the runtime database expose the same columns, constraints, and indexes.
-runPrisma("db", "push", "--skip-generate", "--accept-data-loss");
+runPrisma("migrate", "deploy");

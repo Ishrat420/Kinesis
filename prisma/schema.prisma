@@ -128,18 +128,18 @@ model Notification {
 }
 
 model DocumentField {
-  id         String             @id
-  documentId String
-  label      String
-  value      String
-  type       CustomFieldType    @default(TEXT)
-  targetType KinesisObjectType?
-  targetId   String?
-  position   Int                @default(0)
-  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id             String          @id
+  documentId     String
+  label          String
+  value          String
+  type           CustomFieldType @default(TEXT)
+  targetObjectId String?
+  targetObject   Object?         @relation("DocumentFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
+  position       Int             @default(0)
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId, position])
-  @@index([targetType, targetId])
+  @@index([targetObjectId])
 }
 
 model DocumentType {
@@ -183,9 +183,12 @@ enum ObjectRelationshipType {
 }
 
 model Object {
-  id                    String               @id @default(uuid())
-  type                  KinesisObjectType
-  name                  String
+  id   String            @id @default(uuid())
+  type KinesisObjectType
+  /// Maintained by database triggers from the typed record's own name; never
+  /// write it directly. See 20260902000000_object_capability_layer.
+  name String
+
   userId                String
   user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   document              Document?
@@ -195,8 +198,9 @@ model Object {
   customItem            CustomItem?
   outgoingRelationships ObjectRelationship[] @relation("RelationshipSource")
   incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
+  linkedFromDocuments   DocumentField[]      @relation("DocumentFieldTarget")
+  linkedFromCustomItems CustomItemField[]    @relation("CustomItemFieldTarget")
   createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
 
   @@index([userId, type, name])
 }
@@ -390,18 +394,18 @@ model CustomItem {
 }
 
 model CustomItemField {
-  id         String             @id
-  itemId     String
-  label      String
-  value      String
-  type       CustomFieldType    @default(TEXT)
-  targetType KinesisObjectType?
-  targetId   String?
-  position   Int                @default(0)
-  item       CustomItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id             String          @id
+  itemId         String
+  label          String
+  value          String
+  type           CustomFieldType @default(TEXT)
+  targetObjectId String?
+  targetObject   Object?         @relation("CustomItemFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
+  position       Int             @default(0)
+  item           CustomItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId, position])
-  @@index([targetType, targetId])
+  @@index([targetObjectId])
 }
 
 enum CustomFieldType {

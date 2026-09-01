@@ -6,6 +6,7 @@ import { isCalendarDate, isFinanceFrequency, isFinanceKind } from "@/lib/finance
 import type { FinanceItem, FinanceKind } from "@/lib/finance";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
+import { deleteObjects, objectFor } from "@/lib/data/objects";
 
 export type FinanceActionState = { error?: string };
 
@@ -58,11 +59,8 @@ export async function saveFinanceItem(item: FinanceItem, updated: boolean): Prom
   const name = item.name.trim();
   const data = { kind: item.kind, name, amount: item.amount, category: item.category?.trim() || null, rate: item.rate ?? null, frequency: item.frequency || null, startDate: date(item.startDate), endDate: date(item.endDate), notes: item.notes?.trim() || null };
   const existing = await prisma.financeItem.findFirst({ where: { id: item.id, userId: user.id }, select: { id: true } });
-  if (existing) await prisma.$transaction(async (tx) => {
-    const financeItem = await tx.financeItem.update({ where: { id: item.id }, data });
-    await tx.object.update({ where: { id: financeItem.objectId }, data: { name } });
-  });
-  else await prisma.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: { create: { type: "FINANCE_ITEM" as const, name, userId: user.id } } } });
+  if (existing) await prisma.financeItem.update({ where: { id: item.id }, data });
+  else await prisma.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });
   await recordFinanceActivity(item.kind, updated, name);
   revalidatePath("/finance");
   return {};
@@ -71,6 +69,6 @@ export async function saveFinanceItem(item: FinanceItem, updated: boolean): Prom
 export async function deleteFinanceItem(id: string) {
   const user = await requireKinesisUser();
   const item = await prisma.financeItem.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
-  if (item) await prisma.object.delete({ where: { id: item.objectId } });
+  if (item) await deleteObjects(prisma, [item.objectId], user.id);
   revalidatePath("/", "layout");
 }

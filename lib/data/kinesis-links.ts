@@ -1,31 +1,46 @@
 import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
-import type { KinesisLinkOption, KinesisObjectType } from "@/lib/custom-fields/types";
+import { KINESIS_LINK_TARGET_TYPES, type KinesisLinkOption } from "@/lib/custom-fields/types";
 
+/**
+ * A link stores an object id and nothing else. The module a target belongs to
+ * still decides how it is presented and where it opens, so that mapping lives
+ * here rather than in the column.
+ */
 export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
   const user = await requireKinesisUser();
-  const [documents, items, goals] = await Promise.all([
-    prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.customItem.findMany({ where: { module: { userId: user.id } }, select: { id: true, name: true, module: { select: { id: true, name: true, icon: true, color: true } } }, orderBy: { name: "asc" } }),
-    prisma.goal.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-  ]);
-  return [
-    ...documents.map(({ id, name }) => ({ type: "DOCUMENT" as const, id, module: "Documents", name, href: `/documents/${id}`, color: "#2563eb" })),
-    ...items.map(({ id, name, module }) => ({ type: "CUSTOM_ITEM" as const, id, module: module.name, name, href: `/custom-modules/${module.id}/items/${id}`, icon: module.icon, color: module.color })),
-    ...goals.map(({ id, name }) => ({ type: "GOAL" as const, id, module: "Goals", name, href: `/goals/${id}`, color: "#7c3aed" })),
-  ];
+  const objects = await prisma.object.findMany({
+    where: { userId: user.id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
+    select: {
+      id: true, type: true, name: true,
+      customItem: { select: { id: true, module: { select: { id: true, name: true, icon: true, color: true } } } },
+      document: { select: { id: true } },
+      goal: { select: { id: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+  const options = objects.flatMap(({ id, type, name, document, goal, customItem }): KinesisLinkOption[] => {
+    if (type === "DOCUMENT" && document) return [{ type, objectId: id, module: "Documents", name, href: `/documents/${document.id}`, color: "#2563eb" }];
+    if (type === "GOAL" && goal) return [{ type, objectId: id, module: "Goals", name, href: `/goals/${goal.id}`, color: "#7c3aed" }];
+    if (type === "CUSTOM_ITEM" && customItem) {
+      const { module } = customItem;
+      return [{ type, objectId: id, module: module.name, name, href: `/custom-modules/${module.id}/items/${customItem.id}`, icon: module.icon, color: module.color }];
+    }
+    return [];
+  });
+  // Documents, then custom items, then goals, each already by name: the order the
+  // picker has always grouped its modules in.
+  const order = ({ type }: KinesisLinkOption) => KINESIS_LINK_TARGET_TYPES.indexOf(type);
+  return options.sort((first, second) => order(first) - order(second));
 }
 
-export async function validateKinesisTargets(targets: Array<{ targetType?: KinesisObjectType | null; targetId?: string | null }>) {
+/** The foreign key keeps links pointing at something real; this keeps them pointing at something of yours. */
+export async function validateKinesisTargets(targets: Array<{ targetObjectId?: string | null }>) {
   const user = await requireKinesisUser();
-  const documentIds = targets.filter((target) => target.targetType === "DOCUMENT" && target.targetId).map((target) => target.targetId!);
-  const itemIds = targets.filter((target) => target.targetType === "CUSTOM_ITEM" && target.targetId).map((target) => target.targetId!);
-  const goalIds = targets.filter((target) => target.targetType === "GOAL" && target.targetId).map((target) => target.targetId!);
-  const [documents, items, goals] = await Promise.all([
-    prisma.document.findMany({ where: { id: { in: documentIds }, userId: user.id }, select: { id: true } }),
-    prisma.customItem.findMany({ where: { id: { in: itemIds }, module: { userId: user.id } }, select: { id: true } }),
-    prisma.goal.findMany({ where: { id: { in: goalIds }, userId: user.id }, select: { id: true } }),
-  ]);
-  const allowed = new Set([...documents.map(({ id }) => `DOCUMENT:${id}`), ...items.map(({ id }) => `CUSTOM_ITEM:${id}`), ...goals.map(({ id }) => `GOAL:${id}`)]);
-  if (targets.some(({ targetType, targetId }) => targetType && targetId && !allowed.has(`${targetType}:${targetId}`))) throw new Error("Linked object not found");
+  const targetIds = [...new Set(targets.flatMap(({ targetObjectId }) => (targetObjectId ? [targetObjectId] : [])))];
+  if (!targetIds.length) return;
+  const owned = await prisma.object.count({
+    where: { id: { in: targetIds }, userId: user.id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
+  });
+  if (owned !== targetIds.length) throw new Error("Linked object not found");
 }
