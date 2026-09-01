@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
@@ -55,6 +55,55 @@ async function hasFailedUniversalIdentityMigration() {
   }
 }
 
+async function reconcileUniversalIdentityOnExistingDatabase() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [state] } = await client.query(`
+      SELECT
+        to_regclass('public."User"') IS NOT NULL AS "hasDomainSchema",
+        to_regclass('public."Object"') IS NOT NULL AS "hasObjectSchema"
+    `);
+    if (!state.hasDomainSchema || state.hasObjectSchema) return false;
+
+    // Commit enum values before the backfill uses them. Sending these separately
+    // avoids PostgreSQL's "unsafe use of new value" transaction restriction.
+    await client.query(`ALTER TYPE "KinesisObjectType" ADD VALUE IF NOT EXISTS 'FINANCE_ITEM'`);
+    await client.query(`ALTER TYPE "KinesisObjectType" ADD VALUE IF NOT EXISTS 'PERSON'`);
+
+    const migration = readFileSync(
+      new URL("../prisma/migrations/20260901000000_universal_object_identity/migration.sql", import.meta.url),
+      "utf8",
+    );
+    console.log("Applying the universal Object identity backfill to the existing database.");
+    await client.query(migration);
+    return true;
+  } finally {
+    await client.end();
+  }
+}
+
+async function isMigrationApplied(migrationName) {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [state] } = await client.query(
+      `SELECT to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasMigrationTable"`,
+    );
+    if (!state.hasMigrationTable) return false;
+    const { rows: [migration] } = await client.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM "_prisma_migrations"
+        WHERE "migration_name" = $1 AND "finished_at" IS NOT NULL AND "rolled_back_at" IS NULL
+      ) AS "applied"`,
+      [migrationName],
+    );
+    return migration.applied;
+  } finally {
+    await client.end();
+  }
+}
+
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required to deploy database migrations.");
 
 // Older Kinesis deployments used `prisma db push`, so their schema exists without
@@ -70,12 +119,21 @@ if (await needsLegacyBaseline()) {
   for (const migration of migrations) runPrisma("migrate", "resolve", "--applied", migration);
 }
 
+const reconciledUniversalIdentity = await reconcileUniversalIdentityOnExistingDatabase();
+
 // The first version placed PostgreSQL enum additions in the same migration that
 // consumed them. Roll back only that known failed attempt so the split migrations
 // can be retried; unrelated migration failures remain blocked for manual review.
 if (await hasFailedUniversalIdentityMigration()) {
   console.log(`Retrying the corrected ${SUPERSEDED_FAILED_MIGRATION} migration.`);
   runPrisma("migrate", "resolve", "--rolled-back", SUPERSEDED_FAILED_MIGRATION);
+}
+
+
+if (reconciledUniversalIdentity) {
+  for (const migration of ["20260901000000_object_type_values", SUPERSEDED_FAILED_MIGRATION]) {
+    if (!await isMigrationApplied(migration)) runPrisma("migrate", "resolve", "--applied", migration);
+  }
 }
 
 runPrisma("migrate", "deploy");
