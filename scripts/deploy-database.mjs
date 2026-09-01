@@ -1,0 +1,51 @@
+import { execFileSync } from "node:child_process";
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import pg from "pg";
+
+const { Client } = pg;
+const BASELINE_THROUGH = "20260831010000_typed_object_relationships";
+const projectRoot = fileURLToPath(new URL("..", import.meta.url));
+const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
+
+function runPrisma(...args) {
+  execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, stdio: "inherit" });
+}
+
+async function needsLegacyBaseline() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [state] } = await client.query(`
+      SELECT
+        to_regclass('public."User"') IS NOT NULL AS "hasDomainSchema",
+        to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasMigrationTable"
+    `);
+    if (!state.hasDomainSchema) return false;
+    if (!state.hasMigrationTable) return true;
+
+    const { rows: [history] } = await client.query(
+      'SELECT EXISTS (SELECT 1 FROM "_prisma_migrations" WHERE "finished_at" IS NOT NULL AND "rolled_back_at" IS NULL) AS "hasHistory"',
+    );
+    return !history.hasHistory;
+  } finally {
+    await client.end();
+  }
+}
+
+if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required to deploy database migrations.");
+
+// Older Kinesis deployments used `prisma db push`, so their schema exists without
+// migration history. Baseline only the migrations represented by that old schema;
+// `migrate deploy` will then run the universal identity migration normally.
+if (await needsLegacyBaseline()) {
+  const migrations = readdirSync(new URL("../prisma/migrations", import.meta.url), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name <= BASELINE_THROUGH)
+    .map((entry) => entry.name)
+    .sort();
+
+  console.log(`Baselining ${migrations.length} existing migrations from the legacy db-push deployment.`);
+  for (const migration of migrations) runPrisma("migrate", "resolve", "--applied", migration);
+}
+
+runPrisma("migrate", "deploy");
