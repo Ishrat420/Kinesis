@@ -8,31 +8,29 @@ export const CUSTOM_FIELD_TYPES = [
 ] as const;
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]["value"];
-export type KinesisObjectType = "DOCUMENT" | "CUSTOM_ITEM" | "GOAL" | "FINANCE_ITEM" | "PERSON";
+
+/**
+ * Which kinds of object a Kinesis Link offers. Narrower than the Object types
+ * Kinesis stores: every record has an identity, but only these are worth
+ * pointing a field at today.
+ */
+export const KINESIS_LINK_TARGET_TYPES = ["DOCUMENT", "CUSTOM_ITEM", "GOAL"] as const;
+export type KinesisLinkTargetType = (typeof KINESIS_LINK_TARGET_TYPES)[number];
+
 export type CustomFieldValue = {
   id?: string;
   label: string;
   value: string;
   type?: CustomFieldType;
-  targetType?: KinesisObjectType | null;
-  targetId?: string | null;
+  targetObjectId?: string | null;
 };
 
 export type KinesisLinkOption = {
-  type: KinesisObjectType;
-  id: string;
+  type: KinesisLinkTargetType;
+  objectId: string;
   module: string;
   name: string;
   href: string;
   icon?: string;
   color?: string;
 };
-
-export function parseKinesisTarget(value: string) {
-  const separator = value.indexOf(":");
-  if (separator < 1) return null;
-  const type = value.slice(0, separator);
-  const id = value.slice(separator + 1);
-  if ((type !== "DOCUMENT" && type !== "CUSTOM_ITEM" && type !== "GOAL") || !id) return null;
-  return { targetType: type as KinesisObjectType, targetId: id };
-}

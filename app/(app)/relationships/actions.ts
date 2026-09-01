@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { isSelfPerson, type RelationshipMapData } from "@/lib/relationships";
 import { requireKinesisUser } from "@/lib/auth";
+import { deleteObjects, objectFor } from "@/lib/data/objects";
 
 export async function saveRelationshipMap(data: RelationshipMapData) {
   const user = await requireKinesisUser();
@@ -25,15 +26,14 @@ export async function saveRelationshipMap(data: RelationshipMapData) {
     await tx.person.deleteMany({ where: { userId: user.id } });
     for (const person of data.people) {
       const existing = existingById.get(person.id);
-      const object = existing
-        ? { connect: { id: existing.objectId } }
-        : { create: { type: "PERSON" as const, name: person.name, userId: user.id } };
-      if (existing) await tx.object.update({ where: { id: existing.objectId }, data: { name: person.name } });
+      // A saved map rewrites every person, so reconnect the identity rather than
+      // minting a new one: an edit must not change what a person *is*.
+      const object = existing ? { connect: { id: existing.objectId } } : objectFor.person(person.name, user.id);
       await tx.person.create({ data: { id: person.id, user: { connect: { id: user.id } }, name: person.name, category: isSelfPerson(person) ? null : person.detail, isSelf: isSelfPerson(person), positionX: person.x, positionY: person.y, bubbleSize: person.size, color: person.color, icon: person.icon, selfNotes: person.selfRelationship.notes || null, object, selfPractices: { create: person.selfRelationship.practices.map((practice, position) => ({ id: crypto.randomUUID(), ...practice, position })) }, selfReflections: { create: person.selfRelationship.reflections.map((reflection) => ({ id: crypto.randomUUID(), text: reflection.text, reflectedAt: new Date(`${reflection.date}T00:00:00.000Z`) })) }, selfImportantDates: { create: person.selfRelationship.importantDates.map((date) => ({ id: crypto.randomUUID(), label: date.label, date: new Date(`${date.date}T00:00:00.000Z`) })) } } });
     }
     const retainedIds = new Set(data.people.map(({ id }) => id));
     const removedObjectIds = existingPeople.filter(({ id }) => !retainedIds.has(id)).map(({ objectId }) => objectId);
-    if (removedObjectIds.length) await tx.object.deleteMany({ where: { id: { in: removedObjectIds }, userId: user.id } });
+    if (removedObjectIds.length) await deleteObjects(tx, removedObjectIds, user.id);
     for (const relationship of data.relationships) await tx.relationship.create({ data: { id: relationship.id, userId: user.id, firstPersonId: relationship.from, secondPersonId: relationship.to, type: relationship.type, notes: relationship.notes || null, practices: { create: relationship.practices.map((practice, position) => ({ id: crypto.randomUUID(), ...practice, position })) }, reflections: { create: relationship.reflections.map((reflection) => ({ id: crypto.randomUUID(), text: reflection.text, reflectedAt: new Date(`${reflection.date}T00:00:00.000Z`) })) }, importantDates: { create: relationship.importantDates.map((date) => ({ id: crypto.randomUUID(), label: date.label, date: new Date(`${date.date}T00:00:00.000Z`) })) }, linkedGoals: { create: relationship.linkedGoals.map((goalId) => ({ goalId })) } } });
     const activity = data.people.filter((person) => !isSelfPerson(person)).flatMap((person) => {
       const previous = existingById.get(person.id);

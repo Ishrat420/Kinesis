@@ -2,12 +2,13 @@ import { connection } from "next/server";
 import { prisma } from "./prisma";
 import type { RelationshipMapData } from "@/lib/relationships";
 import { requireKinesisUser } from "@/lib/auth";
+import { objectFor } from "./objects";
 
 export async function getRelationshipMap(defaultSelfName?: string): Promise<RelationshipMapData> {
   await connection();
   const user = await requireKinesisUser();
   if (defaultSelfName && await prisma.person.count({ where: { userId: user.id } }) === 0) {
-    await prisma.person.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name: defaultSelfName, category: null, isSelf: true, positionX: 488, positionY: 250, bubbleSize: 118, object: { create: { type: "PERSON" as const, name: defaultSelfName, userId: user.id } } } });
+    await prisma.person.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name: defaultSelfName, category: null, isSelf: true, positionX: 488, positionY: 250, bubbleSize: 118, object: objectFor.person(defaultSelfName, user.id) } });
   }
   const [people, relationships] = await Promise.all([
     prisma.person.findMany({ where: { userId: user.id }, include: { selfPractices: { orderBy: { position: "asc" } }, selfReflections: { orderBy: { reflectedAt: "desc" } }, selfImportantDates: { orderBy: { date: "asc" } } }, orderBy: { createdAt: "asc" } }),
