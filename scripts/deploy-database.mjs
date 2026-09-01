@@ -34,6 +34,13 @@ const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
 
 const runPrisma = (...args) => execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, stdio: "inherit" });
+const readPrisma = (...args) => execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, encoding: "utf8" });
+
+/** The SQL still needed to turn this database into the one the schema describes. */
+function schemaDrift() {
+  const diff = readPrisma("migrate", "diff", "--from-url", process.env.DATABASE_URL, "--to-schema-datamodel", "prisma/schema.prisma", "--script");
+  return diff.split("\n").filter((line) => line.trim() && !line.startsWith("--")).join("\n");
+}
 
 const migrationNames = () => readdirSync(new URL("../prisma/migrations", import.meta.url), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
@@ -92,3 +99,19 @@ for (const migration of state.failed) {
 }
 
 runPrisma("migrate", "deploy");
+
+// Applying every migration is not the same as arriving at the schema. Baselining
+// asserts that a migration already ran, and a db push database can be behind the
+// point it is baselined to, leaving columns that no migration will ever add now.
+// That gap used to be hidden by a blanket `db push` on every deploy; it surfaces
+// here instead, as the last thing between a green build and a 500.
+let drift = schemaDrift();
+if (drift) {
+  console.log(`The migration history did not fully describe this database. Reconciling:\n${drift}`);
+  // No --accept-data-loss: this may only add what is missing. Anything that would
+  // discard data stops the deploy for a person to look at.
+  runPrisma("db", "push", "--skip-generate");
+  drift = schemaDrift();
+}
+if (drift) throw new Error(`The database still does not match the schema after deploying:\n${drift}`);
+console.log("Database matches the schema.");
