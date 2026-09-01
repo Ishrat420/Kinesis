@@ -7,7 +7,7 @@ export async function getRelationshipMap(defaultSelfName?: string): Promise<Rela
   await connection();
   const user = await requireKinesisUser();
   if (defaultSelfName && await prisma.person.count({ where: { userId: user.id } }) === 0) {
-    await prisma.person.create({ data: { id: crypto.randomUUID(), userId: user.id, name: defaultSelfName, category: null, isSelf: true, positionX: 488, positionY: 250, bubbleSize: 118 } });
+    await prisma.person.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name: defaultSelfName, category: null, isSelf: true, positionX: 488, positionY: 250, bubbleSize: 118, object: { create: { type: "PERSON" as const, name: defaultSelfName, userId: user.id } } } });
   }
   const [people, relationships] = await Promise.all([
     prisma.person.findMany({ where: { userId: user.id }, include: { selfPractices: { orderBy: { position: "asc" } }, selfReflections: { orderBy: { reflectedAt: "desc" } }, selfImportantDates: { orderBy: { date: "asc" } } }, orderBy: { createdAt: "asc" } }),

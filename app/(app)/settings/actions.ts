@@ -46,6 +46,8 @@ export async function deleteAllDataAction(confirmation: string) {
   await prisma.$transaction([
     prisma.notification.deleteMany({ where: { userId: user.id } }),
     prisma.attentionDismissal.deleteMany({ where: { userId: user.id } }),
+    // Object cascades remove user-facing domain records and every shared capability.
+    prisma.object.deleteMany({ where: { userId: user.id } }),
     prisma.document.deleteMany({ where: { userId: user.id } }),
     prisma.documentType.deleteMany({ where: { userId: user.id } }),
     prisma.relationshipGoal.deleteMany({ where: { relationship: { userId: user.id } } }),

@@ -30,15 +30,18 @@ export async function getGoalRelationships(goalId: string) {
   const user = await requireKinesisUser();
   const [relationships, goals] = await Promise.all([
     prisma.objectRelationship.findMany({
-      where: { userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: goalId }, { targetObjectType: "GOAL", targetObjectId: goalId }] },
+      where: { userId: user.id, OR: [{ sourceObject: { goal: { id: goalId } } }, { targetObject: { goal: { id: goalId } } }] },
+      include: { sourceObject: { select: { goal: { select: { id: true } } } }, targetObject: { select: { goal: { select: { id: true } } } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.goal.findMany({ where: { userId: user.id, id: { not: goalId } }, select: { id: true, name: true, status: true }, orderBy: { name: "asc" } }),
   ]);
   const goalById = new Map(goals.map((goal) => [goal.id, goal]));
   const linked = relationships.flatMap((relationship) => {
-    const inverse = relationship.targetObjectId === goalId;
-    const linkedGoal = goalById.get(inverse ? relationship.sourceObjectId : relationship.targetObjectId);
+    const sourceGoalId = relationship.sourceObject.goal?.id;
+    const targetGoalId = relationship.targetObject.goal?.id;
+    const inverse = targetGoalId === goalId;
+    const linkedGoal = goalById.get(inverse ? sourceGoalId ?? "" : targetGoalId ?? "");
     return linkedGoal ? [{ ...relationship, inverse, goal: linkedGoal }] : [];
   });
   const linkedIds = new Set(linked.map(({ goal }) => goal.id));
