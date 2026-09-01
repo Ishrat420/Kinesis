@@ -138,3 +138,9 @@ if (reconciledUniversalIdentity) {
 }
 
 runPrisma("migrate", "deploy");
+
+// Legacy installations were created by db push and can differ from the migration
+// history they were baselined against. Now that required Object IDs are backfilled,
+// reconcile any remaining harmless schema drift so the generated Prisma client and
+// the runtime database expose the same columns, constraints, and indexes.
+runPrisma("db", "push", "--skip-generate", "--accept-data-loss");
