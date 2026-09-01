@@ -132,7 +132,8 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
     data: {
       ...document,
       id: data.id ?? crypto.randomUUID(),
-      userId: user.id,
+      user: { connect: { id: user.id } },
+      object: { create: { type: "DOCUMENT" as const, name: document.name, userId: user.id } },
       owner: getUserDisplayName(user),
       customFields: {
         create: customFields.map(({ id: fieldId, ...field }, position) => ({
@@ -149,13 +150,14 @@ export async function updateDocument(id: string, data: DocumentInput) {
   const user = await requireKinesisUser();
   const { customFields = [], ...document } = data;
   return prisma.$transaction(async (transaction) => {
-    const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true } });
+    const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true, objectId: true } });
     if (!owned) throw new Error("Document not found");
     const existingFields = await transaction.documentField.findMany({ where: { documentId: id }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) throw new Error("A custom field's type cannot be changed");
     await transaction.documentField.deleteMany({ where: { documentId: id } });
     await transaction.notification.deleteMany({ where: { documentId: id, userId: user.id } });
+    await transaction.object.update({ where: { id: owned.objectId }, data: { name: document.name } });
     return transaction.document.update({
       where: { id },
       data: {
@@ -174,5 +176,8 @@ export async function updateDocument(id: string, data: DocumentInput) {
 
 export async function deleteDocument(id: string) {
   const user = await requireKinesisUser();
-  return prisma.document.deleteMany({ where: { id, userId: user.id } });
+  const document = await prisma.document.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+  if (!document) return { count: 0 };
+  await prisma.object.delete({ where: { id: document.objectId } });
+  return { count: 1 };
 }

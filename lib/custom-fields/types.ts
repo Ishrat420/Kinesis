@@ -8,7 +8,7 @@ export const CUSTOM_FIELD_TYPES = [
 ] as const;
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]["value"];
-export type KinesisObjectType = "DOCUMENT" | "CUSTOM_ITEM" | "GOAL";
+export type KinesisObjectType = "DOCUMENT" | "CUSTOM_ITEM" | "GOAL" | "FINANCE_ITEM" | "PERSON";
 export type CustomFieldValue = {
   id?: string;
   label: string;

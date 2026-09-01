@@ -68,8 +68,9 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (!ownedModule) throw new Error("Module not found");
   await validateKinesisTargets(fields);
   await prisma.customItem.create({ data: {
-    id: crypto.randomUUID(), moduleId, name, notes: getValue(data, "notes") || null,
+    id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
     reminder, link: getValue(data, "link") || null,
+    object: { create: { type: "CUSTOM_ITEM" as const, name, userId: user.id } },
     fields: { create: fields },
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
@@ -88,7 +89,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   const fields = customFields(data);
   await validateKinesisTargets(fields);
   await prisma.$transaction(async (tx) => {
-    const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
+    const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true, objectId: true } });
     if (!ownedItem) throw new Error("Item not found");
     const existingFields = await tx.customItemField.findMany({ where: { itemId }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
@@ -97,6 +98,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
       name, notes: getValue(data, "notes") || null, reminder,
       link: getValue(data, "link") || null, archived: data.get("archived") === "true",
     } });
+    await tx.object.update({ where: { id: ownedItem.objectId }, data: { name } });
     await tx.customItemField.deleteMany({ where: { itemId } });
     if (fields.length) await tx.customItemField.createMany({ data: fields.map((field) => ({ ...field, itemId })) });
   });
@@ -115,14 +117,20 @@ export async function toggleCustomItemArchivedAction(moduleId: string, itemId: s
 
 export async function deleteCustomItemAction(moduleId: string, itemId: string) {
   const user = await requireKinesisUser();
-  await prisma.customItem.deleteMany({ where: { id: itemId, moduleId, module: { userId: user.id } } });
+  const item = await prisma.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { objectId: true } });
+  if (item) await prisma.object.delete({ where: { id: item.objectId } });
   refresh(moduleId);
   redirect(`/custom-modules/${moduleId}`);
 }
 
 export async function deleteCustomModuleAction(moduleId: string) {
   const user = await requireKinesisUser();
-  await prisma.customModule.deleteMany({ where: { id: moduleId, userId: user.id } });
+  await prisma.$transaction(async (tx) => {
+    const customModule = await tx.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { items: { select: { objectId: true } } } });
+    if (!customModule) return;
+    await tx.object.deleteMany({ where: { id: { in: customModule.items.map(({ objectId }) => objectId) }, userId: user.id } });
+    await tx.customModule.delete({ where: { id: moduleId } });
+  });
   revalidatePath("/");
   redirect("/");
 }
