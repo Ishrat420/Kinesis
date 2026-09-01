@@ -37,6 +37,34 @@ SELECT 'custom-item:' || i."id", 'CUSTOM_ITEM', i."name", m."userId", i."created
 FROM "CustomItem" i JOIN "CustomModule" m ON m."id" = i."moduleId";
 UPDATE "CustomItem" SET "objectId" = 'custom-item:' || "id";
 
+-- Some legacy db-push deployments predate typed object relationships even though
+-- they are being baselined at the latest legacy migration. Create the empty legacy
+-- shape when necessary so the conversion below works for both database histories.
+DO $$
+BEGIN
+    CREATE TYPE "ObjectRelationshipType" AS ENUM ('SUPPORTS', 'BLOCKS', 'DEPENDS_ON', 'RELATES_TO', 'ALONGSIDE');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "ObjectRelationship" (
+    "id" TEXT NOT NULL,
+    "sourceObjectType" "KinesisObjectType" NOT NULL,
+    "sourceObjectId" TEXT NOT NULL,
+    "targetObjectType" "KinesisObjectType" NOT NULL,
+    "targetObjectId" TEXT NOT NULL,
+    "type" "ObjectRelationshipType" NOT NULL,
+    "pairKey" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "ObjectRelationship_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "ObjectRelationship_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "ObjectRelationship_userId_pairKey_key" ON "ObjectRelationship"("userId", "pairKey");
+CREATE INDEX IF NOT EXISTS "ObjectRelationship_userId_sourceObjectType_sourceObjectId_idx" ON "ObjectRelationship"("userId", "sourceObjectType", "sourceObjectId");
+CREATE INDEX IF NOT EXISTS "ObjectRelationship_userId_targetObjectType_targetObjectId_idx" ON "ObjectRelationship"("userId", "targetObjectType", "targetObjectId");
+
 -- Convert existing polymorphic goal links to real Object foreign keys.
 UPDATE "ObjectRelationship" r SET "sourceObjectId" = g."objectId"
 FROM "Goal" g WHERE r."sourceObjectType" = 'GOAL' AND r."sourceObjectId" = g."id";
