@@ -169,14 +169,20 @@ describe("finance value guards used when reading untrusted form input", () => {
     expect(isCalendarDate("")).toBe(false);
   });
 
-  it("rejects an impossible month, but accepts an impossible day of the month", () => {
-    // Known gap, pinned deliberately: `Date` rejects month 13 but silently
-    // rolls an out-of-range day over into the next month (2026-02-30 becomes
-    // 2 March), so the guard lets that value through. `parseDateOnly` in
-    // `@/lib/dates` is the strict parser if this ever needs tightening.
+  it("rejects a date that is correctly shaped but does not exist on the calendar", () => {
+    // A plain `Date` rolls an out-of-range day into the next month rather than
+    // failing, so 2026-02-30 has to be rejected by validating the parts.
+    expect(isCalendarDate("2026-02-30")).toBe(false);
+    expect(isCalendarDate("2026-04-31")).toBe(false);
+    expect(isCalendarDate("2025-02-29")).toBe(false);
     expect(isCalendarDate("2026-13-01")).toBe(false);
     expect(isCalendarDate("2026-00-10")).toBe(false);
     expect(isCalendarDate("2026-01-32")).toBe(false);
-    expect(isCalendarDate("2026-02-30")).toBe(true);
+  });
+
+  it("still accepts the leap day in a year that has one", () => {
+    expect(isCalendarDate("2024-02-29")).toBe(true);
+    expect(isCalendarDate("2026-02-28")).toBe(true);
+    expect(isCalendarDate("2026-12-31")).toBe(true);
   });
 });
