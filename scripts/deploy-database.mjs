@@ -5,6 +5,7 @@ import pg from "pg";
 
 const { Client } = pg;
 const BASELINE_THROUGH = "20260831010000_typed_object_relationships";
+const SUPERSEDED_FAILED_MIGRATION = "20260901000000_universal_object_identity";
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
 
@@ -33,6 +34,27 @@ async function needsLegacyBaseline() {
   }
 }
 
+async function hasFailedUniversalIdentityMigration() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [state] } = await client.query(
+      `SELECT to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasMigrationTable"`,
+    );
+    if (!state.hasMigrationTable) return false;
+    const { rows: [failure] } = await client.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM "_prisma_migrations"
+        WHERE "migration_name" = $1 AND "finished_at" IS NULL AND "rolled_back_at" IS NULL
+      ) AS "failed"`,
+      [SUPERSEDED_FAILED_MIGRATION],
+    );
+    return failure.failed;
+  } finally {
+    await client.end();
+  }
+}
+
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required to deploy database migrations.");
 
 // Older Kinesis deployments used `prisma db push`, so their schema exists without
@@ -46,6 +68,14 @@ if (await needsLegacyBaseline()) {
 
   console.log(`Baselining ${migrations.length} existing migrations from the legacy db-push deployment.`);
   for (const migration of migrations) runPrisma("migrate", "resolve", "--applied", migration);
+}
+
+// The first version placed PostgreSQL enum additions in the same migration that
+// consumed them. Roll back only that known failed attempt so the split migrations
+// can be retried; unrelated migration failures remain blocked for manual review.
+if (await hasFailedUniversalIdentityMigration()) {
+  console.log(`Retrying the corrected ${SUPERSEDED_FAILED_MIGRATION} migration.`);
+  runPrisma("migrate", "resolve", "--rolled-back", SUPERSEDED_FAILED_MIGRATION);
 }
 
 runPrisma("migrate", "deploy");

@@ -1,7 +1,4 @@
 -- Establish a stable, user-facing identity without replacing the typed domain records.
-ALTER TYPE "KinesisObjectType" ADD VALUE 'FINANCE_ITEM';
-ALTER TYPE "KinesisObjectType" ADD VALUE 'PERSON';
-
 CREATE TABLE "Object" (
     "id" TEXT NOT NULL,
     "type" "KinesisObjectType" NOT NULL,
