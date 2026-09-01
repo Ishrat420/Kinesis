@@ -5,7 +5,7 @@
 "scripts": {
   "dev": "next dev",
   "build": "prisma generate && next build",
-  "db:deploy": "prisma db push --skip-generate --accept-data-loss",
+  "db:deploy": "node scripts/deploy-database.mjs",
   "start": "next start",
   "lint": "eslint",
 
