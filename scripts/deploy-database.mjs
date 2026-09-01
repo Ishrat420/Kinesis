@@ -34,6 +34,19 @@ async function needsLegacyBaseline() {
   }
 }
 
+async function hasExistingDomainSchema() {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [state] } = await client.query(
+      `SELECT to_regclass('public."User"') IS NOT NULL AS "exists"`,
+    );
+    return state.exists;
+  } finally {
+    await client.end();
+  }
+}
+
 async function hasFailedUniversalIdentityMigration() {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
@@ -107,6 +120,8 @@ async function isMigrationApplied(migrationName) {
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required to deploy database migrations.");
 
+const existingDomainSchema = await hasExistingDomainSchema();
+
 // Older Kinesis deployments used `prisma db push`, so their schema exists without
 // migration history. Baseline only the migrations represented by that old schema;
 // `migrate deploy` will then run the universal identity migration normally.
@@ -137,7 +152,15 @@ if (reconciledUniversalIdentity) {
   }
 }
 
-runPrisma("migrate", "deploy");
+// Legacy db-push installations can contain failed/baselined migration history that
+// does not describe their real schema. The backfill above makes db push safe again;
+// do not let that historical metadata block deployment. Fresh databases continue
+// to use the normal migration chain.
+if (existingDomainSchema) {
+  console.log("Legacy database reconciled; skipping incompatible migration history.");
+} else {
+  runPrisma("migrate", "deploy");
+}
 
 // Legacy installations were created by db push and can differ from the migration
 // history they were baselined against. Now that required Object IDs are backfilled,
