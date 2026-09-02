@@ -70,7 +70,8 @@ describe.sequential("cross-user authorization contract", () => {
   it.each(milestoneMutations)("enforces the full parent/child matrix for milestone %s", async (_name, invoke) => {
     await invoke(ids.goalA, ids.milestoneA);
     const changedA = await ownerState("ownerA");
-    expect(changedA).not.toEqual(await (resetAuthorizationDatabase(), ownerState("ownerA")));
+    await resetAuthorizationDatabase();
+    expect(changedA).not.toEqual(await ownerState("ownerA"));
 
     const combinations = [
       [ids.goalA, ids.milestoneB], [ids.goalB, ids.milestoneB], [ids.goalB, ids.milestoneA],
@@ -111,7 +112,8 @@ describe.sequential("cross-user authorization contract", () => {
   it.each(customItemMutations)("enforces the full parent/child matrix for custom-item %s", async (_name, invoke) => {
     await invoke(ids.moduleA, ids.itemA);
     const changedA = await ownerState("ownerA");
-    expect(changedA).not.toEqual(await (resetAuthorizationDatabase(), ownerState("ownerA")));
+    await resetAuthorizationDatabase();
+    expect(changedA).not.toEqual(await ownerState("ownerA"));
     const combinations = [[ids.moduleA, ids.itemB], [ids.moduleB, ids.itemB], [ids.moduleB, ids.itemA], [ids.moduleA, "missing-item"], ["missing-module", ids.itemB]];
     for (const [parent, child] of combinations) {
       const beforeA = await ownerState("ownerA"); const beforeB = await ownerState("ownerB");
