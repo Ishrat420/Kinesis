@@ -43,22 +43,36 @@ export async function deleteAllDataAction(confirmation: string) {
   if (confirmation !== DELETE_ALL_CONFIRMATION) return { error: "Enter the confirmation phrase exactly as shown." };
 
   const user = await requireKinesisUser();
+  const owned = { userId: user.id };
+
+  // Everything the account owns falls into one of three groups, and each row
+  // below states which. The statements are independent of one another: every
+  // record is removed by its own root, not by the order these happen to run in.
   await prisma.$transaction([
-    prisma.notification.deleteMany({ where: { userId: user.id } }),
-    prisma.attentionDismissal.deleteMany({ where: { userId: user.id } }),
-    // Object cascades remove user-facing domain records and every shared capability.
-    prisma.object.deleteMany({ where: { userId: user.id } }),
-    prisma.document.deleteMany({ where: { userId: user.id } }),
-    prisma.documentType.deleteMany({ where: { userId: user.id } }),
-    prisma.relationshipGoal.deleteMany({ where: { relationship: { userId: user.id } } }),
-    prisma.relationship.deleteMany({ where: { userId: user.id } }),
-    prisma.person.deleteMany({ where: { userId: user.id } }),
-    prisma.goal.deleteMany({ where: { userId: user.id } }),
-    prisma.goalUnit.deleteMany({ where: { userId: user.id } }),
-    prisma.customModule.deleteMany({ where: { userId: user.id } }),
-    prisma.financeItem.deleteMany({ where: { userId: user.id } }),
-    prisma.userSettings.deleteMany({ where: { userId: user.id } }),
-    prisma.activityEvent.deleteMany({ where: { userId: user.id } }),
+    // 1. Object-backed records, removed through their identity.
+    //    Deleting an Object cascades to the typed record that carries it --
+    //    Document, Goal, FinanceItem, Person, CustomItem -- and onward to
+    //    everything hanging off those: DocumentField, CustomItemField,
+    //    Milestone, GoalMetricSnapshot, Relationship and its ConnectionPractice,
+    //    RelationshipReflection, RelationshipImportantDate and RelationshipGoal
+    //    rows, plus the shared capabilities keyed on identity: every
+    //    ObjectRelationship, and the Notifications tied to a document or
+    //    milestone. Sixteen tables, one root.
+    prisma.object.deleteMany({ where: owned }),
+
+    // 2. Owned directly by the account and outside the identity layer, so
+    //    nothing above reaches them. A Notification need not belong to a
+    //    document or milestone, so this clears the ones that do not.
+    prisma.notification.deleteMany({ where: owned }),
+    prisma.attentionDismissal.deleteMany({ where: owned }),
+    prisma.documentType.deleteMany({ where: owned }),
+    prisma.goalUnit.deleteMany({ where: owned }),
+    prisma.customModule.deleteMany({ where: owned }),
+    prisma.userSettings.deleteMany({ where: owned }),
+    prisma.activityEvent.deleteMany({ where: owned }),
+
+    // 3. Deliberately kept: SecurityEvent is the account's audit trail, so it
+    //    outlives the data it describes and records this deletion too.
     prisma.securityEvent.create({ data: { event: "ALL_DATA_DELETED", userId: user.id } }),
   ]);
   revalidatePath("/", "layout");
