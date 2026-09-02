@@ -11,6 +11,7 @@ import { getFormatPreferences } from "@/lib/format/server";
 import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
+import { completeCaptureConversion } from "@/lib/data/capture";
 
 export type GoalActionState = { error?: string };
 
@@ -61,6 +62,8 @@ export async function createGoalAction(_previousState: GoalActionState, data: Fo
   if (targetDate === undefined) return { error: "Enter a valid target date." };
   const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: objectFor.goal(name, user.id) } });
   await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
+  // No-op unless quick capture sent the user here to turn a To-Do into this goal.
+  await completeCaptureConversion(data, { moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   revalidatePath("/");
   revalidatePath("/goals");
   redirect(`/goals/${goal.id}`);

@@ -13,8 +13,8 @@ const userId = "object-integrity-owner";
 const moduleId = "object-integrity-module";
 
 /**
- * One creator per Object-backed model, so every case below runs against all
- * five rather than standing in for the others with Goal.
+ * One creator per Object-backed model, so every case below runs against all of
+ * them rather than standing in for the others with Goal.
  */
 const models = [
   {
@@ -48,6 +48,12 @@ const models = [
     type: "CUSTOM_ITEM" as KinesisObjectType,
     create: (id: string, name: string, objectId: string) => prisma.customItem.create({ data: { id, name, objectId, moduleId } }),
     rename: (id: string, name: string) => prisma.customItem.update({ where: { id }, data: { name } }),
+  },
+  {
+    model: "Todo" as const,
+    type: "TODO" as KinesisObjectType,
+    create: (id: string, name: string, objectId: string) => prisma.todo.create({ data: { id, name, objectId, userId } }),
+    rename: (id: string, name: string) => prisma.todo.update({ where: { id }, data: { name } }),
   },
 ];
 

@@ -3,6 +3,7 @@ import type { SearchProvider } from "./types";
 import { requireKinesisUser } from "@/lib/auth";
 import { getFormatPreferences } from "@/lib/format/server";
 import { formatMoney } from "@/lib/format/numbers";
+import { todoStatusLabel } from "@/lib/todos/status";
 
 const text = (...values: unknown[]) => values.flat(Infinity).filter((value) => value !== null && value !== undefined && value !== "").map(String);
 
@@ -93,5 +94,19 @@ const customModules: SearchProvider = {
   },
 };
 
+/** Captured To-Dos are searchable from the moment they exist, title only. */
+const todos: SearchProvider = {
+  id: "todos",
+  async getEntries() {
+    const user = await requireKinesisUser();
+    const rows = await prisma.todo.findMany({ where: { userId: user.id } });
+    return rows.map((todo) => ({
+      id: `todo:${todo.id}`, title: todo.name, subtitle: `${todoStatusLabel(todo.status)} · To-Do`,
+      href: `/todos#todo-${todo.id}`, kind: "Todo" as const,
+      keywords: text(todo.name, todoStatusLabel(todo.status), "to-do", "todo", "task"),
+    }));
+  },
+};
+
 /** Add a provider here when introducing a new first-party module. */
-export const searchProviders: readonly SearchProvider[] = [documents, goals, finance, relationships, customModules];
+export const searchProviders: readonly SearchProvider[] = [documents, goals, finance, relationships, customModules, todos];

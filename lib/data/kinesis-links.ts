@@ -1,36 +1,29 @@
 import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
-import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOption } from "@/lib/custom-fields/types";
+import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOption, type KinesisLinkTargetType } from "@/lib/custom-fields/types";
+import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
+
+/** Narrows a located object to one a Kinesis Link is allowed to point at. */
+const isLinkTarget = (location: ObjectLocation): location is ObjectLocation & { type: KinesisLinkTargetType } =>
+  KINESIS_LINK_TARGET_TYPES.some((type) => type === location.type);
 
 /**
  * A link stores an object id and nothing else. The module a target belongs to
  * still decides how it is presented and where it opens, so that mapping lives
- * here rather than in the column.
+ * in lib/objects/locations rather than in the column -- and is shared with every
+ * other surface that offers objects to point at.
  */
 export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
-  const user = await requireKinesisUser();
   const objects = await prisma.object.findMany({
-    where: { userId: user.id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
-    select: {
-      id: true, type: true, name: true,
-      customItem: { select: { id: true, module: { select: { id: true, name: true, icon: true, color: true } } } },
-      document: { select: { id: true } },
-      goal: { select: { id: true } },
-    },
+    where: { userId: (await requireKinesisUser()).id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
+    select: objectLocationSelect,
     orderBy: { name: "asc" },
-  });
-  const options = objects.flatMap(({ id, type, name, document, goal, customItem }): KinesisLinkOption[] => {
-    if (type === "DOCUMENT" && document) return [{ type, objectId: id, module: "Documents", name, href: `/documents/${document.id}`, color: "#2563eb" }];
-    if (type === "GOAL" && goal) return [{ type, objectId: id, module: "Goals", name, href: `/goals/${goal.id}`, color: "#7c3aed" }];
-    if (type === "CUSTOM_ITEM" && customItem) {
-      const { module } = customItem;
-      return [{ type, objectId: id, module: module.name, name, href: `/custom-modules/${module.id}/items/${customItem.id}`, icon: module.icon, color: module.color }];
-    }
-    return [];
   });
   // Documents, then custom items, then goals, each already by name: the order the
   // picker has always grouped its modules in, read from each type's own `order`.
-  return options.sort((first, second) => kinesisLinkTargetOrder(first.type) - kinesisLinkTargetOrder(second.type));
+  return locateObjects(objects)
+    .filter(isLinkTarget)
+    .sort((first, second) => kinesisLinkTargetOrder(first.type) - kinesisLinkTargetOrder(second.type));
 }
 
 /** The foreign key keeps links pointing at something real; this keeps them pointing at something of yours. */

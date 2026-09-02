@@ -51,13 +51,13 @@ export async function deleteAllDataAction(confirmation: string) {
   await prisma.$transaction([
     // 1. Object-backed records, removed through their identity.
     //    Deleting an Object cascades to the typed record that carries it --
-    //    Document, Goal, FinanceItem, Person, CustomItem -- and onward to
-    //    everything hanging off those: DocumentField, CustomItemField,
+    //    Document, Goal, FinanceItem, Person, CustomItem, Todo -- and onward
+    //    to everything hanging off those: DocumentField, CustomItemField,
     //    Milestone, GoalMetricSnapshot, Relationship and its ConnectionPractice,
     //    RelationshipReflection, RelationshipImportantDate and RelationshipGoal
     //    rows, plus the shared capabilities keyed on identity: every
     //    ObjectRelationship, and the Notifications tied to a document or
-    //    milestone. Sixteen tables, one root.
+    //    milestone. Seventeen tables, one root.
     prisma.object.deleteMany({ where: owned }),
 
     // 2. Owned directly by the account and outside the identity layer, so

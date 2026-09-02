@@ -1,6 +1,6 @@
 import { Settings, User } from "lucide-react";
 import { getRecentNotifications } from "@/lib/data/notifications";
-import { SearchBar } from "@/components/ui/SearchBar";
+import { CommandBar } from "@/components/capture/CommandBar";
 import { NotificationBell } from "./NotificationBell";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { SidebarBrand, SidebarNav } from "./Sidebar";
@@ -26,7 +26,7 @@ export async function Topbar() {
         </div>
 
         <div className="absolute left-20 right-32 flex justify-center sm:right-40 md:left-8">
-          <SearchBar entries={searchEntries.map((entry) => entry.id === "person:self" ? { ...entry, title: getUserDisplayName(user) } : entry)} />
+          <CommandBar entries={searchEntries.map((entry) => entry.id === "person:self" ? { ...entry, title: getUserDisplayName(user) } : entry)} />
         </div>
 
         <div className="relative flex items-center gap-3">

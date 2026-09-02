@@ -5,6 +5,7 @@ import {
   FileText,
   Home,
   Landmark,
+  ListTodo,
   Settings,
   Target,
   Users,
@@ -60,8 +61,14 @@ export async function SidebarNav() {
 
   return (
     <nav aria-label="Main navigation" className="space-y-5 text-sm">
+      {/*
+        To-Dos sit beside the Dashboard rather than among the Modules: ADR-009
+        is explicit that modules answer "what do I have?" while actions answer
+        "what needs me now?", and those are different questions.
+      */}
       <NavSection label="Main">
         <SidebarNavLink href="/" label="Dashboard" icon={<Home className="h-[18px] w-[18px]" />} />
+        <SidebarNavLink href="/todos" label="To-Dos" icon={<ListTodo className="h-[18px] w-[18px]" />} />
       </NavSection>
 
       <NavSection label="Modules">

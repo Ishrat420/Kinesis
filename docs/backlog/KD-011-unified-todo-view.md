@@ -50,5 +50,11 @@ Consider whether this should replace or expand the existing **Upcoming & Due** d
 
 ## Related
 
-- KD-008 Add a quick capture 
+- KD-008 Add a quick capture — **delivered**, and it left this ticket the whole
+  aggregation question. Standalone To-Dos, the All/Standalone/Connected filters
+  over them, and dated To-Dos in Needs Attention and Upcoming & Due are already
+  in place (`/todos`, `lib/data/todos.ts`). What remains here is gathering the
+  *other* sources — milestones, expiries, reminders, practices — into one view,
+  and deciding whether that replaces Upcoming & Due rather than competing with it.
+  KD-008C was deliberately not built separately to avoid exactly that competition.
 ---

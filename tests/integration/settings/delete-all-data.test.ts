@@ -48,7 +48,7 @@ async function tableCounts(): Promise<Record<string, number>> {
 
 /** Populates every table a user can own, so nothing is missed by omission. */
 async function seedEverything(userId: string, tag: string) {
-  const object = (suffix: string, type: "DOCUMENT" | "GOAL" | "FINANCE_ITEM" | "PERSON" | "CUSTOM_ITEM", name: string) =>
+  const object = (suffix: string, type: "DOCUMENT" | "GOAL" | "FINANCE_ITEM" | "PERSON" | "CUSTOM_ITEM" | "TODO", name: string) =>
     prisma.object.create({ data: { id: `${tag}-object-${suffix}`, type, name, userId } });
 
   await prisma.userSettings.create({ data: { userId } });
@@ -130,6 +130,11 @@ async function seedEverything(userId: string, tag: string) {
       id: `${tag}-item`, name: "Item", moduleId: `${tag}-module`, objectId: `${tag}-object-item`,
       fields: { create: { id: `${tag}-itemfield`, label: "L", value: "V" } },
     },
+  });
+
+  await object("todo", "TODO", "Renew passport");
+  await prisma.todo.create({
+    data: { id: `${tag}-todo`, name: "Renew passport", userId, objectId: `${tag}-object-todo`, dueDate: new Date() },
   });
 }
 

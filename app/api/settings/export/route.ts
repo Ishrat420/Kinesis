@@ -6,7 +6,7 @@ export async function GET() {
   if (verification !== true) return verification;
   const kinesisUser = await requireKinesisUser();
   const userId = kinesisUser.id;
-  const [user, settings, objects, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, attentionDismissals] = await Promise.all([
+  const [user, settings, objects, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, todos, attentionDismissals] = await Promise.all([
     prisma.user.findMany({ where: { id: userId }, omit: { clerkUserId: true } }),
     prisma.userSettings.findMany({ where: { userId } }),
     prisma.object.findMany({ where: { userId } }),
@@ -19,11 +19,12 @@ export async function GET() {
     prisma.relationship.findMany({ where: { userId }, include: { practices: true, reflections: true, importantDates: true, linkedGoals: true } }),
     prisma.financeItem.findMany({ where: { userId } }),
     prisma.customModule.findMany({ where: { userId }, include: { items: { include: { fields: true } } } }),
+    prisma.todo.findMany({ where: { userId } }),
     prisma.attentionDismissal.findMany({ where: { userId } }),
   ]);
   await prisma.securityEvent.create({ data: { event: "DATA_EXPORT_COMPLETED", userId } });
   const exportedAt = new Date().toISOString();
-  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, attentionDismissals }, null, 2), {
+  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, todos, attentionDismissals }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="kinesis-export-${exportedAt.slice(0, 10)}.json"`, "Cache-Control": "no-store" },
   });
 }

@@ -7,11 +7,18 @@ import { DocumentFields } from "./DocumentFields";
 import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
+import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
 
 const initialState: CreateDocumentState = {};
 
-export function ManualDocumentButton({ documentTypes, ownerName, linkOptions }: { documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[] }) {
-  const [open, setOpen] = useState(false);
+/**
+ * `capture` arrives when quick capture sent the user here to turn something they
+ * wrote into a real document (KD-008D). The dialog opens with the title already
+ * in place; the source To-Do travels back with the form so the create action can
+ * retire the To-Do once the document exists.
+ */
+export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, capture }: { documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; capture?: { title: string; from?: string } }) {
+  const [open, setOpen] = useState(Boolean(capture));
   const [state, formAction, pending] = useActionState(
     createDocumentAction,
     initialState,
@@ -73,8 +80,9 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions }: 
             </div>
 
             <form action={formAction}>
+              {capture?.from && <input type="hidden" name={CAPTURE_SOURCE_PARAM} value={capture.from} />}
               <div className="space-y-5 p-8">
-                <Field label="Document name" name="name" placeholder="e.g. Australian passport" autoFocus />
+                <Field label="Document name" name="name" placeholder="e.g. Australian passport" defaultValue={capture?.title} autoFocus />
                 <DocumentTypeSelect types={documentTypes} />
 
                 <label className="block text-sm font-medium text-zinc-700">
@@ -131,11 +139,13 @@ function Field({
   label,
   name,
   placeholder,
+  defaultValue,
   autoFocus = false,
 }: {
   label: string;
   name: string;
   placeholder: string;
+  defaultValue?: string;
   autoFocus?: boolean;
 }) {
   return (
@@ -144,6 +154,7 @@ function Field({
       <input
         name={name}
         required
+        defaultValue={defaultValue}
         autoFocus={autoFocus}
         placeholder={placeholder}
         className="mt-2 h-12 w-full rounded-xl border border-zinc-200 px-4 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400"
