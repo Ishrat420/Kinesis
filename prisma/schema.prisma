@@ -47,6 +47,7 @@ model UserSettings {
   // disturbing the others -- see lib/reminders/policy.ts.
   milestoneReminderLeadDays    Int      @default(30)
   relationshipReminderLeadDays Int      @default(30)
+  customItemReminderLeadDays   Int      @default(30)
   userId                       String   @unique
   user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt                    DateTime @default(now())
@@ -107,6 +108,7 @@ enum NotificationType {
   REMINDER_DUE
   EXPIRED
   MILESTONE_DUE
+  CUSTOM_ITEM_DUE
 }
 
 model Notification {
@@ -115,6 +117,7 @@ model Notification {
   documentId         String?
   milestoneId        String?
   relationshipDateId String?
+  customItemId       String?
   reminderAt         DateTime?
   timeUntilExpiry    String?
   expiryDate         DateTime?
@@ -129,13 +132,16 @@ model Notification {
   document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
   milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
+  customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
 
   @@unique([userId, documentId, type, expiryDate])
   @@unique([userId, milestoneId, type, expiryDate])
   @@unique([userId, relationshipDateId, type, expiryDate])
+  @@unique([userId, customItemId, type, expiryDate])
   @@index([userId, createdAt])
   @@index([milestoneId])
   @@index([relationshipDateId])
+  @@index([customItemId])
 }
 
 model DocumentField {
@@ -389,19 +395,23 @@ model CustomModule {
 }
 
 model CustomItem {
-  id        String            @id
-  moduleId  String
-  name      String
-  notes     String?
-  reminder  DateTime?
-  link      String?
-  archived  Boolean           @default(false)
-  module    CustomModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  objectId  String            @unique
-  object    Object            @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  fields    CustomItemField[]
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id            String            @id
+  moduleId      String
+  name          String
+  notes         String?
+  // What this item is due, if anything -- named for what it functionally is,
+  // not "reminder": Needs Attention, the notification engine, Upcoming & Due
+  // and the Calendar all treat it as a due date, not a bare alert time.
+  dueDate       DateTime?
+  link          String?
+  archived      Boolean           @default(false)
+  module        CustomModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  objectId      String            @unique
+  object        Object            @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  fields        CustomItemField[]
+  notifications Notification[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([moduleId, archived, createdAt])
 }
