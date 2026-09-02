@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-export const auth = vi.hoisted(() => ({
+const auth = vi.hoisted(() => ({
   current: null as null | { id: string; firstName: string; lastName: string; preferredName: string | null; email: string },
   requireKinesisUser: vi.fn(),
 }));
