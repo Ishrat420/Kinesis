@@ -54,6 +54,13 @@ const models = [
     reown: (id: string, userId: string) => prisma.customItem.update({ where: { id }, data: { moduleId: moduleFor(userId) } }),
     count: (userId: string) => prisma.customItem.count({ where: { module: { userId } } }),
   },
+  {
+    model: "Todo" as const,
+    type: "TODO" as KinesisObjectType,
+    create: (id: string, objectId: string, userId: string) => prisma.todo.create({ data: { id, name: "N", objectId, userId } }),
+    reown: (id: string, userId: string) => prisma.todo.update({ where: { id }, data: { userId } }),
+    count: (userId: string) => prisma.todo.count({ where: { userId } }),
+  },
 ];
 
 const makeObject = (id: string, type: KinesisObjectType, userId: string) =>

@@ -1,4 +1,4 @@
-export type SearchResultKind = "Document" | "Goal" | "Finance" | "Relationship" | "Custom";
+export type SearchResultKind = "Document" | "Goal" | "Finance" | "Relationship" | "Custom" | "Todo";
 
 export type SearchEntry = {
   id: string;

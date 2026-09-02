@@ -24,6 +24,7 @@ export const objectFor = {
   financeItem: (name: string, userId: string) => identity("FINANCE_ITEM", name, userId),
   person: (name: string, userId: string) => identity("PERSON", name, userId),
   customItem: (name: string, userId: string) => identity("CUSTOM_ITEM", name, userId),
+  todo: (name: string, userId: string) => identity("TODO", name, userId),
 };
 
 /**

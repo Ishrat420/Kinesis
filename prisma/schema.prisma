@@ -29,6 +29,7 @@ model User {
   securityEvents      SecurityEvent[]
   objects             Object[]
   objectRelationships ObjectRelationship[]
+  todos               Todo[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -196,6 +197,7 @@ model Object {
   financeItem           FinanceItem?
   person                Person?
   customItem            CustomItem?
+  todo                  Todo?
   outgoingRelationships ObjectRelationship[] @relation("RelationshipSource")
   incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
   linkedFromDocuments   DocumentField[]      @relation("DocumentFieldTarget")
@@ -423,6 +425,36 @@ enum KinesisObjectType {
   GOAL
   FINANCE_ITEM
   PERSON
+  TODO
+}
+
+enum TodoStatus {
+  TODO
+  WAITING
+  DONE
+}
+
+/// A standalone action the user wants to record before deciding where it belongs
+/// (ADR-009). It is an Object-backed record like every other module's, so it can
+/// be linked to a Document, Goal, Person or Finance Item through the shared
+/// ObjectRelationship layer rather than carrying a foreign key of its own.
+///
+/// `name` rather than `title`: Object.name is projected from this column by the
+/// kinesis_sync_object_name trigger, which reads NEW."name" for every model.
+model Todo {
+  id          String     @id
+  name        String
+  status      TodoStatus @default(TODO)
+  dueDate     DateTime?
+  completedAt DateTime?
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId    String     @unique
+  object      Object     @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId, status, dueDate])
 }
 
 model AttentionDismissal {

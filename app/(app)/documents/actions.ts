@@ -7,6 +7,7 @@ import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
+import { completeCaptureConversion } from "@/lib/data/capture";
 
 export type DocumentActionState = { error?: string; success?: boolean };
 export type CreateDocumentState = DocumentActionState;
@@ -76,6 +77,9 @@ export async function createDocumentAction(
   await validateKinesisTargets(data.customFields);
   const document = await createDocument(data);
   await addActivity({ action: "Added", moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
+  // No-op unless quick capture sent the user here to turn a To-Do into this
+  // document, in which case the To-Do retires now that the richer record exists.
+  await completeCaptureConversion(formData, { moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
   revalidatePath("/", "layout");
   redirect(`/documents/${document.id}`);
 }

@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 
-export type ActivityAction = "Added" | "Updated" | "Completed";
+/** "Converted" records a quick capture becoming a richer object (KD-008D). */
+export type ActivityAction = "Added" | "Updated" | "Completed" | "Converted";
 
 export type ActivityItem = {
   id: string;
