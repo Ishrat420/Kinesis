@@ -6,9 +6,8 @@ import { requireKinesisUser } from "@/lib/auth";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { startOfUtcDay } from "@/lib/dates";
 import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
+import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
-
-const DAY = 86_400_000;
 
 export type UpcomingItem = {
   id: string;
@@ -25,6 +24,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   const today = startOfUtcDay(now)!;
   const settings = await getSettings();
   const milestoneWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
+  const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const [documents, milestones, importantDates, todos] = await Promise.all([
     prisma.document.findMany({
       where: { userId: user.id, expiryDate: { not: null } },
@@ -40,7 +40,10 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
-    prisma.relationshipImportantDate.findMany({ where: { relationship: { userId: user.id } }, include: { relationship: { include: { firstPerson: true, secondPerson: true } } } }),
+    prisma.relationshipImportantDate.findMany({
+      where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] },
+      include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
+    }),
     prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, status: true, dueDate: true } }),
   ]);
 
@@ -82,14 +85,14 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     return [{ id: `todo-${todo.id}`, kind: "todo", title: `${todo.name} is due`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" }];
   });
 
-  const relationshipItems = importantDates.flatMap((importantDate): UpcomingItem[] => {
-    if (!importantDate.relationship) return [];
-    let occurrence = new Date(Date.UTC(today.getUTCFullYear(), importantDate.date.getUTCMonth(), importantDate.date.getUTCDate()));
-    if (occurrence < today) occurrence = new Date(Date.UTC(today.getUTCFullYear() + 1, importantDate.date.getUTCMonth(), importantDate.date.getUTCDate()));
-    if (occurrence.getTime() > today.getTime() + 31 * DAY) return [];
-    const relationship = importantDate.relationship;
-    const other = relationship.firstPerson.isSelf ? relationship.secondPerson : relationship.firstPerson;
-    return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${other.name}${other.name.toLowerCase().endsWith("s") ? "'" : "'s"} ${importantDate.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" }];
-  });
+  const relationshipWindowEnd = getReminderWindowEnd(today, relationshipLeadDays);
+  const relationshipItems = settings.remindersEnabled ? importantDates.flatMap((importantDate): UpcomingItem[] => {
+    const occurrence = getNextOccurrence(importantDate, today);
+    if (!occurrence || occurrence.getTime() > relationshipWindowEnd.getTime()) return [];
+    const personName = importantDate.relationship
+      ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson.name : importantDate.relationship.firstPerson.name)
+      : importantDate.selfPerson!.name;
+    return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${possessiveName(personName)} ${importantDate.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" }];
+  }) : [];
   return [...documentItems, ...milestoneItems, ...todoItems, ...relationshipItems].sort((a, b) => a.timestamp - b.timestamp);
 }

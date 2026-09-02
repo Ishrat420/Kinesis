@@ -28,6 +28,23 @@ describe("getReminderLeadDays: resolving a per-object-type lead time", () => {
   });
 });
 
+describe("getReminderLeadDays: milestone and relationship are independent settings", () => {
+  it("resolves the relationship default the same way as milestone's, from its own field", () => {
+    expect(getReminderLeadDays(undefined, "relationship")).toBe(REMINDER_LEAD_DEFAULTS.relationship);
+    expect(getReminderLeadDays({ relationshipReminderLeadDays: 14 }, "relationship")).toBe(14);
+  });
+
+  it("a value configured for one object type does not leak into the other", () => {
+    const settings = { milestoneReminderLeadDays: 7, relationshipReminderLeadDays: 60 };
+    expect(getReminderLeadDays(settings, "milestone")).toBe(7);
+    expect(getReminderLeadDays(settings, "relationship")).toBe(60);
+  });
+
+  it("an unset relationship field falls back to its own default even when milestone is configured", () => {
+    expect(getReminderLeadDays({ milestoneReminderLeadDays: 7 }, "relationship")).toBe(REMINDER_LEAD_DEFAULTS.relationship);
+  });
+});
+
 describe("getReminderWindowStart / getReminderWindowEnd: the shared window math", () => {
   it("opens the window that many calendar days before the due date", () => {
     expect(getReminderWindowStart(at("2026-07-01"), 30).toISOString()).toBe("2026-06-01T00:00:00.000Z");

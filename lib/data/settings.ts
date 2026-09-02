@@ -9,6 +9,7 @@ export const defaultSettings = {
   notificationsEnabled: true,
   remindersEnabled: true,
   milestoneReminderLeadDays: REMINDER_LEAD_DEFAULTS.milestone,
+  relationshipReminderLeadDays: REMINDER_LEAD_DEFAULTS.relationship,
 };
 
 export async function getSettings() {

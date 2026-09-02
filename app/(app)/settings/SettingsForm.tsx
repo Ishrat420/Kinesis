@@ -13,6 +13,7 @@ type Settings = {
   notificationsEnabled: boolean;
   remindersEnabled: boolean;
   milestoneReminderLeadDays: number;
+  relationshipReminderLeadDays: number;
 };
 
 // A day past the twelfth would not reveal whether the day or the month leads,
@@ -68,6 +69,22 @@ export function SettingsForm({ settings }: { settings: Settings }) {
                 step={1}
                 defaultValue={settings.milestoneReminderLeadDays}
                 aria-label="Days before a milestone's due date to start reminding"
+                className="input h-10 w-20 px-3 text-right"
+              />
+              <span className="text-zinc-500">days before</span>
+            </span>
+          </label>
+          <label className="flex items-center justify-between gap-5 py-4 text-sm">
+            <span><span className="font-medium text-zinc-800">Remind me about important dates</span><span className="mt-1 block text-zinc-500">How far ahead of a birthday, anniversary or other important date to start reminding you.</span></span>
+            <span className="flex items-center gap-2">
+              <input
+                name="relationshipReminderLeadDays"
+                type="number"
+                min={0}
+                max={365}
+                step={1}
+                defaultValue={settings.relationshipReminderLeadDays}
+                aria-label="Days before an important date to start reminding"
                 className="input h-10 w-20 px-3 text-right"
               />
               <span className="text-zinc-500">days before</span>
