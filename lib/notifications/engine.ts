@@ -1,7 +1,7 @@
 import type { Document, Milestone, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
-import { differenceInCalendarDays, formatDate, formatDeadline, formatCalendarDuration, startOfUtcDay } from "@/lib/dates";
+import { differenceInCalendarDays, formatDate, formatDeadline, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
 
@@ -38,7 +38,7 @@ export function getDocumentNotificationCandidate(
 
   if (!type) return null;
   const timeUntilExpiry = type === "REMINDER_DUE"
-    ? daysRemaining < 60 ? `${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}` : formatCalendarDuration(today, expiryDate)
+    ? daysRemaining < DAY_COUNT_DISPLAY_LIMIT_DAYS ? `${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}` : formatCalendarDuration(today, expiryDate)
     : null;
 
   return {

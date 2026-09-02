@@ -121,6 +121,16 @@ function unit(value: number, name: string) {
   return `${value} ${name}${value === 1 ? "" : "s"}`;
 }
 
+/**
+ * The point past which a plain day count (e.g. "83 days left") stops being a
+ * useful way to read a countdown and a calendar breakdown (e.g. "2 months, 23
+ * days left") reads better instead. `formatDeadline`, `formatFutureDate` and
+ * `formatExpiry` below all switch at this one value, and the notification
+ * engine reuses it for the equivalent "expires in N days" wording -- change
+ * it here and every one of those follows.
+ */
+export const DAY_COUNT_DISPLAY_LIMIT_DAYS = 60;
+
 /** Calendar-aware duration used by future dates and document expiry labels. */
 export function formatCalendarDuration(from: DateInput, to: DateInput) {
   const start = startOfUtcDay(from);
@@ -141,7 +151,7 @@ export function formatDeadline(target: DateInput, now: DateInput = new Date()) {
   const days = differenceInCalendarDays(target, now);
   if (days < 0) return `${unit(Math.abs(days), "day")} overdue`;
   if (days === 0) return "due today";
-  if (days < 60) return `${unit(days, "day")} left`;
+  if (days < DAY_COUNT_DISPLAY_LIMIT_DAYS) return `${unit(days, "day")} left`;
   return `${formatCalendarDuration(now, target)} left`;
 }
 
@@ -149,14 +159,14 @@ export function formatFutureDate(target: DateInput, now: DateInput = new Date())
   const days = differenceInCalendarDays(target, now);
   if (days < 0) return `${unit(Math.abs(days), "day")} ago`;
   if (days === 0) return "today";
-  return `in ${days < 60 ? unit(days, "day") : formatCalendarDuration(now, target)}`;
+  return `in ${days < DAY_COUNT_DISPLAY_LIMIT_DAYS ? unit(days, "day") : formatCalendarDuration(now, target)}`;
 }
 
 export function formatExpiry(target: DateInput, now: DateInput = new Date()) {
   const days = differenceInCalendarDays(target, now);
   if (days < 0) return `${unit(Math.abs(days), "day")} expired`;
   if (days === 0) return "expires today";
-  return `${days < 60 ? unit(days, "day") : formatCalendarDuration(now, target)} left`;
+  return `${days < DAY_COUNT_DISPLAY_LIMIT_DAYS ? unit(days, "day") : formatCalendarDuration(now, target)} left`;
 }
 
 export function formatActivityTime(value: DateInput, now: DateInput = new Date(), locale = DEFAULT_LOCALE) {
