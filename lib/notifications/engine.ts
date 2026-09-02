@@ -1,4 +1,4 @@
-import type { Document, Milestone, RelationshipImportantDate, NotificationType } from "@prisma/client";
+import type { CustomItem, Document, Milestone, RelationshipImportantDate, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
@@ -113,6 +113,37 @@ export function getRelationshipDateNotificationCandidate(
   };
 }
 
+/**
+ * Opens a reminder `leadDays` before the due date, naming the date itself
+ * rather than counting down, and keeps it current while the item is
+ * overdue -- the same shape as a milestone, since a custom item's due date
+ * behaves exactly like one once it stops being merely a bare alert time.
+ */
+export function getCustomItemNotificationCandidate(
+  item: Pick<CustomItem, "id" | "name" | "dueDate" | "moduleId">,
+  now = new Date(),
+  leadDays = 0,
+  locale?: string,
+): NotificationCandidate | null {
+  if (!item.dueDate) return null;
+  const today = startOfUtcDay(now)!;
+  const dueDate = startOfUtcDay(item.dueDate)!;
+  const reminderAt = getReminderWindowStart(dueDate, leadDays);
+  if (today < reminderAt) return null;
+
+  const dueSoon = today < dueDate;
+  return {
+    type: dueSoon ? "REMINDER_DUE" : "CUSTOM_ITEM_DUE",
+    reminderAt,
+    timeUntilExpiry: null,
+    expiryDate: dueDate,
+    documentName: item.name,
+    documentType: "Custom item",
+    message: dueSoon ? `${item.name} is due on ${formatDate(dueDate, locale)}` : `${item.name} is ${formatDeadline(dueDate, today)}`,
+    actionUrl: `/custom-modules/${item.moduleId}/items/${item.id}`,
+  };
+}
+
 async function reconcileDocument(document: Document, userId: string, now: Date, remindersEnabled: boolean, locale: string) {
   const candidate = getDocumentNotificationCandidate(document, now, remindersEnabled, locale);
   const stale = await prisma.notification.deleteMany({
@@ -191,6 +222,35 @@ async function reconcileRelationshipDate(
   return { created: inserted.count, removed: stale.count };
 }
 
+async function reconcileCustomItem(
+  item: Pick<CustomItem, "id" | "name" | "dueDate" | "moduleId">,
+  userId: string,
+  now: Date,
+  remindersEnabled: boolean,
+  leadDays: number,
+  locale: string,
+) {
+  const candidate = remindersEnabled ? getCustomItemNotificationCandidate(item, now, leadDays, locale) : null;
+  const stale = await prisma.notification.deleteMany({
+    where: candidate
+      ? { userId, customItemId: item.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
+      : { userId, customItemId: item.id },
+  });
+  if (!candidate) return { created: 0, removed: stale.count };
+
+  const inserted = await prisma.notification.createMany({
+    data: [{ id: crypto.randomUUID(), userId, customItemId: item.id, ...candidate }],
+    skipDuplicates: true,
+  });
+  if (!inserted.count) {
+    await prisma.notification.updateMany({
+      where: { userId, customItemId: item.id, type: candidate.type, expiryDate: candidate.expiryDate },
+      data: candidate,
+    });
+  }
+  return { created: inserted.count, removed: stale.count };
+}
+
 /** Reconciles every supported source so normal page loads and the cron are equally reliable. */
 export async function runNotificationEngine(userId: string, now = new Date()): Promise<{ evaluated: number; created: number; removed: number }> {
   // The cron evaluates every user in one process, so the locale is read per
@@ -200,10 +260,11 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   const remindersEnabled = settings?.remindersEnabled ?? true;
   const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
+  const customItemLeadDays = getReminderLeadDays(settings, "customItem");
   const { locale } = resolveFormatPreferences(settings);
   if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
-  const [documents, milestones, relationshipDates, orphanCleanup] = await Promise.all([
+  const [documents, milestones, relationshipDates, customItems, orphanCleanup] = await Promise.all([
     prisma.document.findMany({ where: { userId } }),
     prisma.milestone.findMany({
       where: { completed: false, goal: { userId, status: "Active" } },
@@ -213,12 +274,14 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
       where: { OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
+    prisma.customItem.findMany({ where: { archived: false, module: { userId } } }),
     prisma.notification.deleteMany({
       where: {
         userId,
         OR: [
-          { documentId: null, milestoneId: null, relationshipDateId: null },
+          { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null },
           { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { status: { not: "Active" } } }] } } },
+          { customItemId: { not: null }, customItem: { is: { archived: true } } },
         ],
       },
     }),
@@ -242,9 +305,10 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
     ...documents.map((document) => reconcileDocument(document, userId, now, remindersEnabled, locale)),
     ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, remindersEnabled, milestoneLeadDays)),
     ...relationshipDateInputs.map((importantDate) => reconcileRelationshipDate(importantDate, userId, now, remindersEnabled, relationshipLeadDays)),
+    ...customItems.map((item) => reconcileCustomItem(item, userId, now, remindersEnabled, customItemLeadDays, locale)),
   ]);
   return {
-    evaluated: documents.length + milestones.length + relationshipDateInputs.length,
+    evaluated: documents.length + milestones.length + relationshipDateInputs.length + customItems.length,
     created: results.reduce((total, result) => total + result.created, 0),
     removed: orphanCleanup.count + results.reduce((total, result) => total + result.removed, 0),
   };

@@ -11,7 +11,7 @@ import { isOpenTodoStatus } from "@/lib/todos/status";
 
 export type UpcomingItem = {
   id: string;
-  kind: "document" | "milestone" | "relationship" | "todo";
+  kind: "document" | "milestone" | "relationship" | "todo" | "custom";
   title: string;
   date: string;
   timestamp: number;
@@ -25,7 +25,8 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   const settings = await getSettings();
   const milestoneWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
-  const [documents, milestones, importantDates, todos] = await Promise.all([
+  const customItemWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "customItem"));
+  const [documents, milestones, importantDates, todos, customItems] = await Promise.all([
     prisma.document.findMany({
       where: { userId: user.id, expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
@@ -45,6 +46,16 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
     prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, status: true, dueDate: true } }),
+    prisma.customItem.findMany({
+      where: {
+        archived: false,
+        // The upper bound is moot once mapped below when reminders are off, but
+        // narrowing here keeps the query from fetching every future item.
+        dueDate: { lte: customItemWindowEnd },
+        module: { userId: user.id },
+      },
+      select: { id: true, name: true, dueDate: true, moduleId: true },
+    }),
   ]);
 
   const documentItems = documents.flatMap((document): UpcomingItem[] => {
@@ -94,5 +105,17 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       : importantDate.selfPerson!.name;
     return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${possessiveName(personName)} ${importantDate.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" }];
   }) : [];
-  return [...documentItems, ...milestoneItems, ...todoItems, ...relationshipItems].sort((a, b) => a.timestamp - b.timestamp);
+
+  const customItemItems = settings.remindersEnabled ? customItems.map((item): UpcomingItem => {
+    const dueDate = startOfUtcDay(item.dueDate!)!;
+    return {
+      id: `custom-${item.id}`,
+      kind: "custom",
+      title: `${item.name} is ${dueDate < today ? "over its due date" : "due soon"}`,
+      date: dueDate.toISOString(),
+      timestamp: dueDate.getTime(),
+      href: `/custom-modules/${item.moduleId}/items/${item.id}`,
+    };
+  }) : [];
+  return [...documentItems, ...milestoneItems, ...todoItems, ...relationshipItems, ...customItemItems].sort((a, b) => a.timestamp - b.timestamp);
 }

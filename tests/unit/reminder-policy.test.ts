@@ -43,6 +43,14 @@ describe("getReminderLeadDays: milestone and relationship are independent settin
   it("an unset relationship field falls back to its own default even when milestone is configured", () => {
     expect(getReminderLeadDays({ milestoneReminderLeadDays: 7 }, "relationship")).toBe(REMINDER_LEAD_DEFAULTS.relationship);
   });
+
+  it("resolves the custom item default the same way, from its own field, independent of the other two", () => {
+    expect(getReminderLeadDays(undefined, "customItem")).toBe(REMINDER_LEAD_DEFAULTS.customItem);
+    const settings = { milestoneReminderLeadDays: 7, relationshipReminderLeadDays: 60, customItemReminderLeadDays: 14 };
+    expect(getReminderLeadDays(settings, "customItem")).toBe(14);
+    expect(getReminderLeadDays(settings, "milestone")).toBe(7);
+    expect(getReminderLeadDays(settings, "relationship")).toBe(60);
+  });
 });
 
 describe("getReminderWindowStart / getReminderWindowEnd: the shared window math", () => {

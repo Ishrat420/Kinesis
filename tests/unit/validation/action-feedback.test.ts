@@ -179,8 +179,8 @@ describe("invalid submissions report an error instead of silently doing nothing"
       noWrites();
     });
 
-    it("rejects a malformed reminder date", async () => {
-      await expect(createCustomItemAction(MODULE, {}, form({ name: "Passport", reminder: "next week" }))).resolves.toEqual({ error: "Enter a valid reminder date." });
+    it("rejects a malformed due date", async () => {
+      await expect(createCustomItemAction(MODULE, {}, form({ name: "Passport", dueDate: "next week" }))).resolves.toEqual({ error: "Enter a valid due date." });
       noWrites();
     });
   });

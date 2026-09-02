@@ -16,7 +16,7 @@ const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/cu
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
 export type CustomItemState = { error?: string };
 
-const reminderDate = (raw: string) => {
+const dueDateValue = (raw: string) => {
   if (!raw) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
   const date = new Date(`${raw}T12:00:00.000Z`);
@@ -62,15 +62,15 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   const name = getValue(data, "name");
   if (!name) return { error: "Enter an item name." };
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
-  const reminder = reminderDate(getValue(data, "reminder"));
-  if (reminder === undefined) return { error: "Enter a valid reminder date." };
+  const dueDate = dueDateValue(getValue(data, "dueDate"));
+  if (dueDate === undefined) return { error: "Enter a valid due date." };
   const fields = customFields(data);
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true } });
   if (!ownedModule) throw new Error("Module not found");
   await validateKinesisTargets(fields);
   await prisma.customItem.create({ data: {
     id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
-    reminder, link: getValue(data, "link") || null,
+    dueDate, link: getValue(data, "link") || null,
     object: objectFor.customItem(name, user.id),
     fields: { create: fields },
   } });
@@ -85,8 +85,8 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   const name = getValue(data, "name");
   if (!name) return { error: "Enter an item name." };
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
-  const reminder = reminderDate(getValue(data, "reminder"));
-  if (reminder === undefined) return { error: "Enter a valid reminder date." };
+  const dueDate = dueDateValue(getValue(data, "dueDate"));
+  if (dueDate === undefined) return { error: "Enter a valid due date." };
   const fields = customFields(data);
   await validateKinesisTargets(fields);
   await prisma.$transaction(async (tx) => {
@@ -96,7 +96,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) throw new Error("A custom field's type cannot be changed");
     await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
-      name, notes: getValue(data, "notes") || null, reminder,
+      name, notes: getValue(data, "notes") || null, dueDate,
       link: getValue(data, "link") || null, archived: data.get("archived") === "true",
     } });
     await tx.customItemField.deleteMany({ where: { itemId } });

@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import { occurrencesForCadence } from "@/lib/calendar/recurrence";
+import { resolveDatedFields } from "@/lib/calendar/dated-fields";
 import type { KinesisCalendarItem } from "@/lib/calendar/types";
 import { prisma } from "./prisma";
 
@@ -12,12 +13,13 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   await connection();
   const user = await requireKinesisUser();
   const reminderWindow = { where: { reminderAt: { gte: start, lte: end } }, select: { id: true, reminderAt: true, message: true } } as const;
+  const dateFields = { where: { type: "DATE" as const }, select: { id: true, label: true, value: true, type: true } } as const;
   const [goals, documents, importantDates, practices, customItems] = await Promise.all([
     prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: { include: { notifications: reminderWindow } } } }),
-    prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true, type: true, expiryDate: true, notifications: reminderWindow } }),
+    prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true, type: true, expiryDate: true, notifications: reminderWindow, customFields: dateFields } }),
     prisma.relationshipImportantDate.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { notifications: reminderWindow } }),
     prisma.connectionPractice.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true } }),
-    prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, fields: true } }),
+    prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, notifications: reminderWindow, fields: dateFields } }),
   ]);
   const items: KinesisCalendarItem[] = [];
   const add = (item: Omit<KinesisCalendarItem, "date"> & { date: Date }) => {
@@ -34,6 +36,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   for (const document of documents) {
     if (document.expiryDate) add({ id: `document-${document.id}`, title: `${document.name} expires`, kind: "DATED", date: document.expiryDate, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, priority: "HIGH", href: `/documents/${document.id}`, detail: "Document expiry date" });
     for (const reminder of document.notifications) if (reminder.reminderAt) add({ id: `reminder-${reminder.id}`, title: reminder.message || `${document.name} reminder`, kind: hasTime(reminder.reminderAt) ? "SCHEDULED" : "DATED", date: reminder.reminderAt, startTime: hasTime(reminder.reminderAt) ? timeValue(reminder.reminderAt) : undefined, sourceType: "REMINDER", sourceObjectId: document.id, sourceModule: "Documents", href: `/documents/${document.id}`, detail: `Reminder for ${document.name}` });
+    for (const field of resolveDatedFields(document.customFields)) add({ id: `document-field-${field.id}`, title: `${document.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, href: `/documents/${document.id}`, detail: `${field.label} from ${document.name}` });
   }
   for (const important of importantDates) {
     const occurrences = important.repeatsYearly
@@ -47,11 +50,10 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
     for (const date of occurrencesForCadence(practice.cadence, practice.createdAt, start, end)) add({ id: `practice-${practice.id}-${dateKey(date)}`, title: practice.title, kind: "SCHEDULED", date, sourceType: "RELATIONSHIP", sourceObjectId: practice.relationshipId || practice.selfPersonId || practice.id, sourceModule: people || "Relationships", recurring: true, href: "/relationships", detail: practice.cadence || "Recurring relationship practice" });
   }
   for (const custom of customItems) {
-    if (custom.reminder) add({ id: `custom-reminder-${custom.id}`, title: custom.name, kind: hasTime(custom.reminder) ? "SCHEDULED" : "DATED", date: custom.reminder, startTime: hasTime(custom.reminder) ? timeValue(custom.reminder) : undefined, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: `/custom-modules/${custom.moduleId}`, detail: "Custom module reminder" });
-    for (const field of custom.fields) if (/date|expiry|expires|due|reminder/i.test(field.label)) {
-      const value = new Date(field.value);
-      if (!Number.isNaN(value.getTime())) add({ id: `custom-field-${field.id}`, title: `${custom.name}: ${field.label}`, kind: "DATED", date: value, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: `/custom-modules/${custom.moduleId}`, detail: `${field.label} from ${custom.module.name}` });
-    }
+    const itemHref = `/custom-modules/${custom.moduleId}/items/${custom.id}`;
+    if (custom.dueDate) add({ id: `custom-due-${custom.id}`, title: `${custom.name} due`, kind: hasTime(custom.dueDate) ? "SCHEDULED" : "DATED", date: custom.dueDate, startTime: hasTime(custom.dueDate) ? timeValue(custom.dueDate) : undefined, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: "Custom item due date" });
+    for (const reminder of custom.notifications) if (reminder.reminderAt) add({ id: `custom-reminder-${reminder.id}`, title: reminder.message || `${custom.name} reminder`, kind: hasTime(reminder.reminderAt) ? "SCHEDULED" : "DATED", date: reminder.reminderAt, startTime: hasTime(reminder.reminderAt) ? timeValue(reminder.reminderAt) : undefined, sourceType: "REMINDER", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: `Reminder for ${custom.name}` });
+    for (const field of resolveDatedFields(custom.fields)) add({ id: `custom-field-${field.id}`, title: `${custom.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: `${field.label} from ${custom.module.name}` });
   }
   return items.sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || "") || a.title.localeCompare(b.title));
 }

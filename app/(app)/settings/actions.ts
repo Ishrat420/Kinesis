@@ -29,6 +29,10 @@ export async function updateSettingsAction(
   if (!Number.isInteger(relationshipReminderLeadDays) || relationshipReminderLeadDays < 0 || relationshipReminderLeadDays > 365) {
     return { error: "Enter a number of days between 0 and 365 for important dates." };
   }
+  const customItemReminderLeadDays = Number(formData.get("customItemReminderLeadDays"));
+  if (!Number.isInteger(customItemReminderLeadDays) || customItemReminderLeadDays < 0 || customItemReminderLeadDays > 365) {
+    return { error: "Enter a number of days between 0 and 365 for custom item due dates." };
+  }
 
   const data = {
     locale,
@@ -37,6 +41,7 @@ export async function updateSettingsAction(
     remindersEnabled: formData.get("remindersEnabled") === "on",
     milestoneReminderLeadDays,
     relationshipReminderLeadDays,
+    customItemReminderLeadDays,
   };
   await prisma.userSettings.upsert({
     where: { userId: user.id },
@@ -68,13 +73,14 @@ export async function deleteAllDataAction(confirmation: string) {
     //    RelationshipReflection, RelationshipImportantDate and RelationshipGoal
     //    rows, plus the shared capabilities keyed on identity: every
     //    ObjectRelationship, and the Notifications tied to a document, a
-    //    milestone, or a relationship's important date. Seventeen tables, one root.
+    //    milestone, a relationship's important date, or a custom item's due
+    //    date. Seventeen tables, one root.
     prisma.object.deleteMany({ where: owned }),
 
     // 2. Owned directly by the account and outside the identity layer, so
     //    nothing above reaches them. A Notification need not belong to a
-    //    document, milestone, or important date, so this clears the ones that
-    //    do not.
+    //    document, milestone, important date, or custom item, so this clears
+    //    the ones that do not.
     prisma.notification.deleteMany({ where: owned }),
     prisma.attentionDismissal.deleteMany({ where: owned }),
     prisma.documentType.deleteMany({ where: owned }),
