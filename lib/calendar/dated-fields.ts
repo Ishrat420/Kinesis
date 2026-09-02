@@ -10,14 +10,16 @@
 export type DatedField = { id: string; label: string; value: string; type: string };
 
 /**
- * A DATE-type field's editor stores its value as a plain "dd/mm/yyyy" string
- * (see CustomFieldsEditor's `pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"`), not an
- * ISO date -- `new Date()` does not understand that format. Worse than
- * simply failing: for a day-of-month of 12 or less, `new Date("dd/mm/yyyy")`
- * still parses, silently as the wrong date, by reading it as mm/dd/yyyy (e.g.
- * "01/02/2026" becomes 2 January, not 1 February). Parse the real format
- * explicitly first, so this can only either read the day the field actually
- * holds or reject it -- never quietly swap day and month.
+ * A DATE-type field's editor now stores its value in the yyyy-mm-dd a native
+ * `<input type="date">` submits, which `new Date()` already understands. But
+ * a field saved before that editor existed can still hold a plain
+ * "dd/mm/yyyy" string from the old free-text input -- and `new Date()` does
+ * not parse that format. Worse than simply failing on it: for a day-of-month
+ * of 12 or less, `new Date("dd/mm/yyyy")` still parses, silently as the
+ * wrong date, by reading it as mm/dd/yyyy (e.g. "01/02/2026" becomes
+ * 2 January, not 1 February). Parsing that legacy shape explicitly first
+ * means this can only either read the day such a field actually holds or
+ * reject it -- never quietly swap day and month.
  */
 const DD_MM_YYYY = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 

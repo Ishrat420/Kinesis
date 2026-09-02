@@ -12,6 +12,7 @@ import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
+import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
@@ -90,7 +91,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           <Metadata label={document.countryLabel} value={document.country} />
           <Metadata label="Owner" value={ownerName} />
           <Metadata label={document.linkLabel} value={document.link} link />
-          {document.customFields.filter((field) => field.type !== "KINESIS_LINK").map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={field.value} />)}
+          {document.customFields.filter((field) => field.type !== "KINESIS_LINK").map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={displayFieldValue(field, locale)} />)}
         </dl>
         {linkedFields.length > 0 && <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
           {linkedFields.map(({ field, option }) => <div key={field.id ?? field.label} className="min-w-0">
@@ -154,6 +155,12 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
 }
 
 function displayDate(value: string, locale: string) { return value ? formatDate(value, locale) : EMPTY_VALUE; }
+/** A DATE-type custom field's raw value may still be a legacy dd/mm/yyyy string, so it is parsed rather than formatted directly. */
+function displayFieldValue(field: { type?: string; value: string }, locale: string) {
+  if (field.type !== "DATE") return field.value;
+  const date = parseDatedFieldValue(field.value);
+  return date ? formatDate(date, locale) : field.value;
+}
 function historyLabel(action: string) { return action === "Added" ? "Document added" : action === "Updated" ? "Document updated" : `Document ${action.toLowerCase()}`; }
 function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: "neutral" | "safe" | "soon" | "expired" }) {
   const detailClass = detailTone ? {
