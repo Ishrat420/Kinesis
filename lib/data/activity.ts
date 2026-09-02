@@ -24,3 +24,8 @@ export async function getRecentActivity(limit = 8) {
   const user = await requireKinesisUser();
   return prisma.activityEvent.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: limit });
 }
+
+export async function getActivityForHref(href: string, limit = 20) {
+  const user = await requireKinesisUser();
+  return prisma.activityEvent.findMany({ where: { userId: user.id, href }, orderBy: { createdAt: "desc" }, take: limit });
+}
