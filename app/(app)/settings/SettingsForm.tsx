@@ -12,6 +12,7 @@ type Settings = {
   currency: string;
   notificationsEnabled: boolean;
   remindersEnabled: boolean;
+  milestoneReminderLeadDays: number;
 };
 
 // A day past the twelfth would not reveal whether the day or the month leads,
@@ -57,8 +58,20 @@ export function SettingsForm({ settings }: { settings: Settings }) {
           <Toggle name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} icon={Bell} title="In-app notifications" description="Show updates and alerts in Kinesis." />
           <Toggle name="remindersEnabled" defaultChecked={settings.remindersEnabled} icon={Clock3} title="Reminders" description="Get advance notice for upcoming dates." />
           <label className="flex items-center justify-between gap-5 py-4 text-sm">
-            <span><span className="font-medium text-zinc-800">Remind me before</span><span className="mt-1 block text-zinc-500">Default notice for upcoming items.</span></span>
-            <span className="flex items-center gap-2"><input disabled type="number" value="7" readOnly aria-label="Default reminder notice (unavailable)" className="h-10 w-20 rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-right text-zinc-400" /><span className="text-zinc-400">days</span><span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Unavailable</span></span>
+            <span><span className="font-medium text-zinc-800">Remind me about milestones</span><span className="mt-1 block text-zinc-500">How far ahead of a milestone&rsquo;s due date to start reminding you.</span></span>
+            <span className="flex items-center gap-2">
+              <input
+                name="milestoneReminderLeadDays"
+                type="number"
+                min={0}
+                max={365}
+                step={1}
+                defaultValue={settings.milestoneReminderLeadDays}
+                aria-label="Days before a milestone's due date to start reminding"
+                className="input h-10 w-20 px-3 text-right"
+              />
+              <span className="text-zinc-500">days before</span>
+            </span>
           </label>
         </div>
       </section>

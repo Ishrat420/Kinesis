@@ -35,16 +35,21 @@ model User {
 }
 
 model UserSettings {
-  id                   String   @id @default(uuid())
-  appearance           String   @default("system")
-  locale               String   @default("en-AU")
-  currency             String   @default("AUD")
-  notificationsEnabled Boolean  @default(true)
-  remindersEnabled     Boolean  @default(true)
-  userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                        String   @id @default(uuid())
+  appearance                String   @default("system")
+  locale                    String   @default("en-AU")
+  currency                  String   @default("AUD")
+  notificationsEnabled      Boolean  @default(true)
+  remindersEnabled          Boolean  @default(true)
+  // How many days before a milestone's due date its reminder window opens.
+  // Named per object type so later objects (documents already have their own
+  // per-record setting; relationships, todos, ...) can each get a column of
+  // their own without disturbing this one -- see lib/reminders/policy.ts.
+  milestoneReminderLeadDays Int      @default(30)
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 }
 
 model FinanceItem {

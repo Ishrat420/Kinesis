@@ -69,18 +69,21 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
           <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto p-2 sm:max-h-[480px]">
             {notifications.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-zinc-500"><Bell className="mx-auto mb-3 h-6 w-6 text-zinc-300" />No notifications yet</div>
-            ) : notifications.map((notification) => (
+            ) : notifications.map((notification) => {
+              const isMilestone = notification.type === "MILESTONE_DUE" || notification.actionUrl.startsWith("/goals/");
+              return (
               <Link key={notification.id} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readIds.has(notification.id) ? "opacity-70" : "bg-zinc-50/70"}`}>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : notification.type === "MILESTONE_DUE" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-700"}`}>
-                  {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : notification.type === "MILESTONE_DUE" ? <Flag className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-700"}`}>
+                  {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readIds.has(notification.id) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
-                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{notification.type === "MILESTONE_DUE" ? "Due" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
+                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isMilestone ? "Due" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
                 </span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
