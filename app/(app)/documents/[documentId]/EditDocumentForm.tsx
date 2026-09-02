@@ -41,8 +41,8 @@ export type EditableDocument = {
   customFields: CustomField[];
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, history }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[] }) {
-  const [editing, setEditing] = useState(false);
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
+  const [editing, setEditing] = useState(initialEditing);
   const expiry = getExpiryDetails(document.expiryDate ? new Date(`${document.expiryDate}T00:00:00.000Z`) : null, document.prompt);
   const statusClass = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
   const { locale } = useFormatPreferences();
