@@ -7,11 +7,11 @@ import { NeedsAttentionCard } from "./NeedsAttentionCard";
 import { useFormatPreferences } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
 
-export function StatsGrid({ milestonesDueSoon, expiringSoon, attentionItems, goalsAtRisk, netCashFlow }: { milestonesDueSoon: number; expiringSoon: number; attentionItems: AttentionItem[]; goalsAtRisk: number; netCashFlow: number }) {
+export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, attentionItems, goalsAtRisk, netCashFlow }: { milestonesDueSoon: number; milestoneLeadDays: number; expiringSoon: number; attentionItems: AttentionItem[]; goalsAtRisk: number; netCashFlow: number }) {
   const { locale, currency } = useFormatPreferences();
   const stats = [
     { icon: Calendar, title: "Expiring soon", value: String(expiringSoon), label: "documents", tone: "bg-blue-50", href: "/documents/expiring-soon" },
-    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: "due within one month", tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
+    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: `due within ${milestoneLeadDays} ${milestoneLeadDays === 1 ? "day" : "days"}`, tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
     { icon: Target, title: "Goals at risk", value: String(goalsAtRisk), label: "on risk", tone: "bg-violet-50", href: "/goals?filter=at-risk" },
     { icon: TrendingUp, title: "This month", value: formatMoney(netCashFlow, locale, currency), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
   ];
