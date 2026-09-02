@@ -5,28 +5,10 @@ import { useState, useTransition } from "react";
 import { Check, Link2, Pencil, Trash2 } from "lucide-react";
 import type { TodoRecord } from "@/lib/data/todos";
 import { TODO_STATUSES, isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/status";
+import { TODO_SCOPES, DEFAULT_TODO_SCOPE, type TodoScope } from "@/lib/todos/scopes";
 import { formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { CaptureDetailsDialog } from "@/components/capture/CaptureDetailsDialog";
 import { deleteTodoAction, setTodoStatusAction } from "./actions";
-
-/**
- * The three ways of looking at captures asked for in KD-008C/KD-011.
- *
- * "Standalone" and "Connected" are the question ADR-009 cares about: has this
- * action been tied to something Kinesis understands yet, or is it still just a
- * note to self? A capture starts standalone by design, and moving it across is
- * the "organise later" half of the promise.
- */
-export const TODO_SCOPES = [
-  { value: "all", label: "All" },
-  { value: "standalone", label: "Standalone" },
-  { value: "connected", label: "Connected" },
-] as const;
-
-export type TodoScope = (typeof TODO_SCOPES)[number]["value"];
-
-export const isTodoScope = (value: unknown): value is TodoScope =>
-  TODO_SCOPES.some((scope) => scope.value === value);
 
 const inScope = (todo: TodoRecord, scope: TodoScope) =>
   scope === "all" || (scope === "connected" ? todo.links.length > 0 : todo.links.length === 0);
@@ -40,7 +22,7 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
       <nav aria-label="Filter to-dos" className="mb-5 flex flex-wrap gap-2">
         {TODO_SCOPES.map((option) => (
           <Link
-            key={option.value} href={option.value === "all" ? "/todos" : `/todos?scope=${option.value}`} scroll={false}
+            key={option.value} href={option.value === DEFAULT_TODO_SCOPE ? "/todos" : `/todos?scope=${option.value}`} scroll={false}
             aria-current={option.value === scope ? "page" : undefined}
             className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${option.value === scope ? "bg-zinc-950 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
           >{option.label}</Link>
@@ -53,9 +35,9 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
         </ul>
       ) : (
         <div className="rounded-2xl border border-dashed border-zinc-200 py-14 text-center">
-          <p className="font-semibold text-zinc-700">{scope === "all" ? "Nothing captured yet" : `No ${scope} to-dos`}</p>
+          <p className="font-semibold text-zinc-700">{scope === DEFAULT_TODO_SCOPE ? "Nothing captured yet" : `No ${scope} to-dos`}</p>
           <p className="mt-1 text-sm text-zinc-400">
-            {scope === "all" ? "Press ⌘K or Ctrl+K anywhere, type what you need to do, and press Enter." : "Change the filter to see the rest."}
+            {scope === DEFAULT_TODO_SCOPE ? "Press ⌘K or Ctrl+K anywhere, type what you need to do, and press Enter." : "Change the filter to see the rest."}
           </p>
         </div>
       )}

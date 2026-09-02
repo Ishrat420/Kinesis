@@ -3,7 +3,8 @@ import { ModuleContent } from "@/components/layout/ModuleContent";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getTodos, getTodoSummary } from "@/lib/data/todos";
 import { getFormatPreferences } from "@/lib/format/server";
-import { TodoBoard, TODO_SCOPES, isTodoScope, type TodoScope } from "./TodoBoard";
+import { DEFAULT_TODO_SCOPE, isTodoScope, type TodoScope } from "@/lib/todos/scopes";
+import { TodoBoard } from "./TodoBoard";
 
 /**
  * Where captures land (KD-008B).
@@ -20,7 +21,7 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
     getFormatPreferences(),
   ]);
   const requested = Array.isArray(scope) ? scope[0] : scope;
-  const activeScope: TodoScope = isTodoScope(requested) ? requested : TODO_SCOPES[0].value;
+  const activeScope: TodoScope = isTodoScope(requested) ? requested : DEFAULT_TODO_SCOPE;
 
   return (
     <ModuleContent>
