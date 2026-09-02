@@ -1,6 +1,6 @@
 import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
-import { KINESIS_LINK_TARGET_TYPES, type KinesisLinkOption } from "@/lib/custom-fields/types";
+import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOption } from "@/lib/custom-fields/types";
 
 /**
  * A link stores an object id and nothing else. The module a target belongs to
@@ -29,9 +29,8 @@ export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
     return [];
   });
   // Documents, then custom items, then goals, each already by name: the order the
-  // picker has always grouped its modules in.
-  const order = ({ type }: KinesisLinkOption) => KINESIS_LINK_TARGET_TYPES.indexOf(type);
-  return options.sort((first, second) => order(first) - order(second));
+  // picker has always grouped its modules in, read from each type's own `order`.
+  return options.sort((first, second) => kinesisLinkTargetOrder(first.type) - kinesisLinkTargetOrder(second.type));
 }
 
 /** The foreign key keeps links pointing at something real; this keeps them pointing at something of yours. */
