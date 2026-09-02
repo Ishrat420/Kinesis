@@ -1,6 +1,6 @@
 export type ConnectionPracticeEntry = { title: string; cadence: string };
 export type ReflectionEntry = { text: string; date: string };
-export type ImportantDateEntry = { label: string; date: string };
+export type ImportantDateEntry = { label: string; date: string; repeatsYearly: boolean };
 /** The private space a person keeps for the relationship they have with themselves (KD-021). Deliberately has no linked goals. */
 export type SelfRelationship = { practices: ConnectionPracticeEntry[]; reflections: ReflectionEntry[]; importantDates: ImportantDateEntry[]; notes: string };
 export type RelationshipPerson = { id: string; name: string; detail: string; x: number; y: number; size: number; color: string; icon: "user" | "heart" | "baby" | "cat" | "home"; selfRelationship: SelfRelationship };
