@@ -1,4 +1,4 @@
--- KD-024 follow-up. 20260901000000_universal_object_identity established the
+-- KD-024 follow-up. 20260901000100_universal_object_identity established the
 -- Object identity; this migration makes that identity safe to build capabilities
 -- on. It must run after it, and after 20260901000000_object_type_values.
 --
