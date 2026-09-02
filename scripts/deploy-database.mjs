@@ -33,7 +33,24 @@ const SUPERSEDED_FAILURES = ["20260901000100_universal_object_identity"];
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
 
-const runPrisma = (...args) => execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, stdio: "inherit" });
+/**
+ * Prisma prints the real reason for a failure -- the migration that failed and
+ * the PostgreSQL error underneath it -- straight to this log, because its output
+ * is inherited rather than captured. Node's default handling of a failed
+ * execFileSync then dumps an Error object whose `stdout` and `stderr` are both
+ * null, which reads as though the command failed silently and pushes the actual
+ * message far enough up the log to be missed entirely. Fail with one line
+ * instead, so the last thing printed points at the thing that went wrong.
+ */
+const runPrisma = (...args) => {
+  try {
+    return execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, stdio: "inherit" });
+  } catch (error) {
+    console.error(`\nDatabase deployment failed: \`prisma ${args.join(" ")}\` exited with ${error.status ?? "no status"}.`);
+    console.error("The Prisma error printed above this line is the reason; everything after it is just this command reporting the failure.");
+    process.exit(typeof error.status === "number" ? error.status : 1);
+  }
+};
 const readPrisma = (...args) => execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, encoding: "utf8" });
 
 /** The SQL still needed to turn this database into the one the schema describes. */
