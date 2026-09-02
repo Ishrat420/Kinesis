@@ -1,6 +1,6 @@
 ## KD-024 — Universal Object Capability Layer
 
-**Status:** Accepted — Needs Planning
+**Status:** Done 
 **Priority:** High
 **Tags:** Architecture, Data Model, Technical Debt
 
