@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState } from "react";
-import { X } from "lucide-react";
+import { useActionState, useEffect, useState } from "react";
 import type { TodoStatus } from "@prisma/client";
+import { Modal } from "@/components/overlay/Modal";
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusLabel } from "@/lib/todos/status";
 import { captureTargets, captureTargetCarries, DEFAULT_CAPTURE_TARGET, splitCaptureDetails, type CaptureDetail, type CaptureTargetType } from "@/lib/capture/targets";
@@ -39,7 +39,6 @@ export function CaptureDetailsDialog({
   const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
   const [linkObjectId, setLinkObjectId] = useState(defaults.linkObjectId ?? "");
   const [state, formAction, pending] = useActionState(saveTodoDetailsAction.bind(null, todo.id), initialState);
-  const titleId = useId();
 
   const { dropped } = splitCaptureDetails(target, { status: status === "TODO" ? "" : status, dueDate, link: linkObjectId });
   const stayingATodo = target === DEFAULT_CAPTURE_TARGET;
@@ -52,98 +51,82 @@ export function CaptureDetailsDialog({
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
   useEffect(() => { if (state.saved) onClose(); }, [state.saved, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/35 backdrop-blur-sm sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-white p-7 shadow-2xl sm:max-w-lg sm:rounded-3xl">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-400">To-Do</p>
-            <h2 id={titleId} className="mt-2 break-words text-2xl font-semibold">{todo.name}</h2>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5" /></button>
-        </div>
+    <Modal eyebrow="To-Do" title={todo.name} onClose={onClose}>
+      <form action={formAction} className="space-y-5">
+        <input type="hidden" name="name" value={todo.name} />
+        <input type="hidden" name="target" value={target} />
 
-        <form action={formAction} className="mt-7 space-y-5">
-          <input type="hidden" name="name" value={todo.name} />
-          <input type="hidden" name="target" value={target} />
+        <label className="block text-sm font-semibold">
+          Turn into
+          <select
+            value={target} onChange={(event) => setTarget(event.target.value as CaptureTargetType)}
+            className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400"
+          >
+            {captureTargets.map((option) => <option key={option.type} value={option.type}>{option.label}</option>)}
+          </select>
+        </label>
 
+        {captureTargetCarries(target, "link") && (
           <label className="block text-sm font-semibold">
-            Turn into
+            Link to <span className="font-normal text-zinc-400">(optional)</span>
             <select
-              value={target} onChange={(event) => setTarget(event.target.value as CaptureTargetType)}
-              className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400"
+              name="linkObjectId" value={linkObjectId} disabled={linkOptions === null}
+              onChange={(event) => setLinkObjectId(event.target.value)}
+              className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400 disabled:text-zinc-400"
             >
-              {captureTargets.map((option) => <option key={option.type} value={option.type}>{option.label}</option>)}
+              <option value="">{linkOptions === null ? "Loading…" : "Nothing yet"}</option>
+              {(linkOptions ?? []).map((option) => <option key={option.objectId} value={option.objectId}>{option.name} — {option.module}</option>)}
             </select>
           </label>
+        )}
 
-          {captureTargetCarries(target, "link") && (
-            <label className="block text-sm font-semibold">
-              Link to <span className="font-normal text-zinc-400">(optional)</span>
-              <select
-                name="linkObjectId" value={linkObjectId} disabled={linkOptions === null}
-                onChange={(event) => setLinkObjectId(event.target.value)}
-                className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400 disabled:text-zinc-400"
-              >
-                <option value="">{linkOptions === null ? "Loading…" : "Nothing yet"}</option>
-                {(linkOptions ?? []).map((option) => <option key={option.objectId} value={option.objectId}>{option.name} — {option.module}</option>)}
-              </select>
-            </label>
-          )}
+        {captureTargetCarries(target, "status") && (
+          <label className="block text-sm font-semibold">
+            Status
+            <select
+              name="status" value={status} onChange={(event) => setStatus(event.target.value as TodoStatus)}
+              className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400"
+            >
+              {TODO_STATUSES.map((option) => <option key={option} value={option}>{todoStatusLabel(option)}</option>)}
+            </select>
+          </label>
+        )}
 
-          {captureTargetCarries(target, "status") && (
-            <label className="block text-sm font-semibold">
-              Status
-              <select
-                name="status" value={status} onChange={(event) => setStatus(event.target.value as TodoStatus)}
-                className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400"
-              >
-                {TODO_STATUSES.map((option) => <option key={option} value={option}>{todoStatusLabel(option)}</option>)}
-              </select>
-            </label>
-          )}
+        {captureTargetCarries(target, "dueDate") && (
+          <label className="block text-sm font-semibold">
+            {stayingATodo ? "Due" : "Target date"} <span className="font-normal text-zinc-400">(optional)</span>
+            <input
+              type="date" name="dueDate" value={dueDate} onChange={(event) => setDueDate(event.target.value)}
+              className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none transition focus:border-zinc-400"
+            />
+          </label>
+        )}
 
-          {captureTargetCarries(target, "dueDate") && (
-            <label className="block text-sm font-semibold">
-              {stayingATodo ? "Due" : "Target date"} <span className="font-normal text-zinc-400">(optional)</span>
-              <input
-                type="date" name="dueDate" value={dueDate} onChange={(event) => setDueDate(event.target.value)}
-                className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none transition focus:border-zinc-400"
-              />
-            </label>
-          )}
+        {dropped.length > 0 && (
+          <p role="status" className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            A {captureTargets.find((option) => option.type === target)?.label} has no {dropped.map((detail) => DETAIL_LABELS[detail]).join(" or ")}, so
+            {dropped.length === 1 ? " that will not" : " those will not"} carry over.
+          </p>
+        )}
 
-          {dropped.length > 0 && (
-            <p role="status" className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              A {captureTargets.find((option) => option.type === target)?.label} has no {dropped.map((detail) => DETAIL_LABELS[detail]).join(" or ")}, so
-              {dropped.length === 1 ? " that will not" : " those will not"} carry over.
-            </p>
-          )}
+        {!stayingATodo && (
+          <p className="text-sm text-zinc-500">
+            Continuing opens the {captureTargets.find((option) => option.type === target)?.label.toLowerCase()} form with this title filled in. The To-Do stays until that record is created.
+          </p>
+        )}
 
-          {!stayingATodo && (
-            <p className="text-sm text-zinc-500">
-              Continuing opens the {captureTargets.find((option) => option.type === target)?.label.toLowerCase()} form with this title filled in. The To-Do stays until that record is created.
-            </p>
-          )}
+        {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
 
-          {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
-
-          <div className="flex justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 transition hover:bg-zinc-100">Cancel</button>
-            <button type="submit" disabled={pending} className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
-              {pending ? "Saving…" : stayingATodo ? "Save changes" : "Continue"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end gap-3 pt-1">
+          <button type="button" onClick={onClose} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 transition hover:bg-zinc-100">Cancel</button>
+          <button type="submit" disabled={pending} className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
+            {pending ? "Saving…" : stayingATodo ? "Save changes" : "Continue"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
