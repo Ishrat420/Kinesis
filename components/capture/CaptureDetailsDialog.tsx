@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import type { TodoStatus } from "@prisma/client";
 import { Modal } from "@/components/overlay/Modal";
-import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
+import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusLabel } from "@/lib/todos/status";
 import { captureTargets, captureTargetCarries, DEFAULT_CAPTURE_TARGET, splitCaptureDetails, type CaptureDetail, type CaptureTargetType } from "@/lib/capture/targets";
@@ -14,7 +14,7 @@ const initialState: TodoDetailsState = {};
 /** How a dropped detail is described to the user, in the terms they entered it. */
 const DETAIL_LABELS: Record<CaptureDetail, string> = { status: "status", dueDate: "due date", link: "link" };
 
-export type CaptureDetailsDefaults = { status?: TodoStatus; dueDate?: string; linkObjectId?: string };
+export type CaptureDetailsDefaults = { status?: TodoStatus; dueDate?: string; linkObjectIds?: string[] };
 
 /**
  * The optional second step of a capture (KD-008).
@@ -38,10 +38,10 @@ export function CaptureDetailsDialog({
   const [target, setTarget] = useState<CaptureTargetType>(DEFAULT_CAPTURE_TARGET);
   const [status, setStatus] = useState<TodoStatus>(defaults.status ?? "TODO");
   const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
-  const [linkObjectId, setLinkObjectId] = useState(defaults.linkObjectId ?? "");
+  const [linkObjectIds, setLinkObjectIds] = useState<string[]>(defaults.linkObjectIds ?? []);
   const [state, formAction, pending] = useActionState(saveTodoDetailsAction.bind(null, todo.id), initialState);
 
-  const { dropped } = splitCaptureDetails(target, { status: status === "TODO" ? "" : status, dueDate, link: linkObjectId });
+  const { dropped } = splitCaptureDetails(target, { status: status === "TODO" ? "" : status, dueDate, link: linkObjectIds.length ? "linked" : "" });
   const stayingATodo = target === DEFAULT_CAPTURE_TARGET;
 
   // Loaded on open rather than passed in, so no page pays for a picker it never
@@ -80,15 +80,15 @@ export function CaptureDetailsDialog({
           <div className="text-sm font-semibold">
             Link to <span className="font-normal text-zinc-400">(optional)</span>
             <div className="mt-2">
-              <KinesisLinkField
+              <KinesisLinkList
                 name="linkObjectId"
                 options={linkOptions ?? []}
-                value={linkObjectId}
-                onChange={setLinkObjectId}
+                values={linkObjectIds}
+                onChange={setLinkObjectIds}
                 ariaLabel="Link this to"
                 placeholder="Nothing yet"
+                addPlaceholder="Link something else"
                 loading={linkOptions === null}
-                onClear={() => setLinkObjectId("")}
               />
             </div>
           </div>

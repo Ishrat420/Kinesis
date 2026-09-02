@@ -24,9 +24,11 @@ import { completeCaptureConversion } from "@/lib/data/capture";
 const owner = "quick-capture-owner";
 const stranger = "quick-capture-stranger";
 
-const form = (values: Record<string, string>) => {
+const form = (values: Record<string, string | string[]>) => {
   const data = new FormData();
-  for (const [key, value] of Object.entries(values)) data.append(key, value);
+  for (const [key, value] of Object.entries(values)) {
+    for (const entry of Array.isArray(value) ? value : [value]) data.append(key, entry);
+  }
   return data;
 };
 
@@ -101,6 +103,68 @@ describe.sequential("quick capture", () => {
 
     await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", status: "TODO" }));
     expect((await prisma.todo.findUniqueOrThrow({ where: { id: captured!.id } })).completedAt).toBeNull();
+  });
+
+  it("links a To-Do to everything it concerns, not just one thing", async () => {
+    // ADR-009's own example: applying for a replacement passport relates to the
+    // passport and depends on the police report.
+    await prisma.object.create({ data: { id: "capture-report-object", type: "GOAL", name: "Police report", userId: owner } });
+    await prisma.goal.create({ data: { id: "capture-report", name: "Police report", userId: owner, objectId: "capture-report-object" } });
+    const { captured } = await captureTodoAction("Apply for replacement passport");
+
+    await saveTodoDetailsAction(captured!.id, {}, form({
+      target: "TODO", linkObjectId: ["capture-passport-object", "capture-report-object"],
+    }));
+
+    const [todo] = await getTodos();
+    expect(todo.links.map(({ name }) => name)).toEqual(["Passport Somalia", "Police report"]);
+  });
+
+  it("replaces the whole set, so unlinking one leaves the others alone", async () => {
+    await prisma.object.create({ data: { id: "capture-report-object", type: "GOAL", name: "Police report", userId: owner } });
+    await prisma.goal.create({ data: { id: "capture-report", name: "Police report", userId: owner, objectId: "capture-report-object" } });
+    const { captured } = await captureTodoAction("Apply for replacement passport");
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", linkObjectId: ["capture-passport-object", "capture-report-object"] }));
+
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", linkObjectId: ["capture-report-object"] }));
+
+    const [todo] = await getTodos();
+    expect(todo.links.map(({ name }) => name)).toEqual(["Police report"]);
+  });
+
+  it("clears every link when the form comes back with none", async () => {
+    const { captured } = await captureTodoAction("Update new passport details");
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", linkObjectId: "capture-passport-object" }));
+
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO" }));
+
+    expect((await getTodos())[0].links).toEqual([]);
+    expect(await prisma.objectRelationship.count({ where: { userId: owner } })).toBe(0);
+  });
+
+  it("links the same object once however many times it is submitted", async () => {
+    const { captured } = await captureTodoAction("Update new passport details");
+
+    await saveTodoDetailsAction(captured!.id, {}, form({
+      target: "TODO", linkObjectId: ["capture-passport-object", "capture-passport-object"],
+    }));
+
+    expect((await getTodos())[0].links).toHaveLength(1);
+  });
+
+  it("refuses the whole save when one of several targets is not the owner's, keeping what was there", async () => {
+    const { captured } = await captureTodoAction("Snoop");
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", linkObjectId: "capture-passport-object" }));
+    await prisma.object.create({ data: { id: "stranger-mixed-object", type: "GOAL", name: "Theirs", userId: stranger } });
+    await prisma.goal.create({ data: { id: "stranger-mixed-goal", name: "Theirs", userId: stranger, objectId: "stranger-mixed-object" } });
+
+    await expect(saveTodoDetailsAction(captured!.id, {}, form({
+      target: "TODO", linkObjectId: ["capture-passport-object", "stranger-mixed-object"],
+    }))).rejects.toThrow(/Linked object not found/);
+
+    // The set is replaced by deleting first, so a rejected save must roll back
+    // rather than leave the To-Do with nothing.
+    expect((await getTodos())[0].links.map(({ name }) => name)).toEqual(["Passport Somalia"]);
   });
 
   it("refuses to link a To-Do to an object another account owns", async () => {
