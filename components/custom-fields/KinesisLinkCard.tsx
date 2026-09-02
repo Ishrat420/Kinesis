@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { ArrowUpRight, FileText, Target } from "lucide-react";
-import type { KinesisLinkOption } from "@/lib/custom-fields/types";
+import { ArrowUpRight, FileText, Landmark, ListTodo, Target, UsersRound } from "lucide-react";
+import type { LinkableObject } from "@/lib/objects/locations";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 
-export function KinesisLinkCard({ option, className = "" }: { option: KinesisLinkOption; className?: string }) {
+/**
+ * A linked object, shown as the thing it is: its module, its name, and a way to
+ * open it. Anything a link can point at gets an icon here; a custom item has no
+ * fixed one, so it borrows the icon of the module holding it.
+ */
+const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, FINANCE_ITEM: Landmark, TODO: ListTodo };
+
+export function KinesisLinkCard({ option, className = "" }: { option: LinkableObject; className?: string }) {
   const color = option.color ?? "#52525b";
-  const icon = option.type === "DOCUMENT"
-    ? <FileText className="h-5 w-5" />
-    : option.type === "GOAL"
-      ? <Target className="h-5 w-5" />
-      : <CustomModuleIcon name={option.icon ?? "package"} className="h-5 w-5" />;
+  const BuiltIn = BUILT_IN_ICONS[option.type as keyof typeof BUILT_IN_ICONS];
+  const icon = BuiltIn ? <BuiltIn className="h-5 w-5" /> : <CustomModuleIcon name={option.icon ?? "package"} className="h-5 w-5" />;
 
   return (
     <Link

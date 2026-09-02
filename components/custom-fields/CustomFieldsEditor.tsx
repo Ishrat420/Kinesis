@@ -8,13 +8,14 @@ import {
   type CustomFieldValue,
   type KinesisLinkOption,
 } from "@/lib/custom-fields/types";
-import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
+import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
+import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
 type FieldNames = { id: string; label: string; type: string; value: string; target: string };
 
-const inputClass = "h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100";
+const inputClass = FIELD_INPUT_CLASS;
 const defaultNames: FieldNames = {
   id: "fieldId",
   label: "fieldLabel",
@@ -213,41 +214,17 @@ function FieldInput({ field, index, linkOptions, names, update }: {
   }
 
   if (field.type === "KINESIS_LINK") {
-    const selected = field.targetObjectId ?? "";
-    const modules = [...new Set(linkOptions.map(({ module }) => module))];
-    const selectedOption = linkOptions.find((option) => option.objectId === selected);
-    if (selectedOption) {
-      return (
-        <div>
-          <input type="hidden" name={names.value} value="" />
-          <input type="hidden" name={names.target} value={selected} />
-          <KinesisLinkCard option={selectedOption} />
-        </div>
-      );
-    }
     return (
       <div>
         <input type="hidden" name={names.value} value="" />
-        <div className="relative">
-          <select
-            required
-            name={names.target}
-            value={selected}
-            onChange={(event) => update({ targetObjectId: event.target.value })}
-            aria-label={`Field ${index + 1} linked object`}
-            className={`${inputClass} appearance-none pr-11`}
-          >
-            <option value="">Select object ↗</option>
-            {modules.map((module) => (
-              <optgroup key={module} label={module}>
-                {linkOptions.filter((option) => option.module === module).map((option) => (
-                  <option key={option.objectId} value={option.objectId}>{option.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-        </div>
+        <KinesisLinkField
+          name={names.target}
+          options={linkOptions}
+          value={field.targetObjectId ?? ""}
+          onChange={(targetObjectId) => update({ targetObjectId })}
+          ariaLabel={`Field ${index + 1} linked object`}
+          required
+        />
       </div>
     );
   }

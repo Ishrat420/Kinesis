@@ -23,6 +23,16 @@ export type ObjectLocation = {
 };
 
 /**
+ * What a surface needs to present an object as a link target.
+ *
+ * Both `ObjectLocation` and the narrower `KinesisLinkOption` satisfy this, so
+ * one card and one picker render either -- a Kinesis Link custom field and
+ * quick capture's "Link to" are the same question about the same objects, and
+ * should not look like two different features.
+ */
+export type LinkableObject = Omit<ObjectLocation, "color"> & { color?: string };
+
+/**
  * The Object columns and relations `locateObject` reads. Callers spread this
  * into their own `select` so a query cannot forget a relation the resolver
  * needs, and adding a locatable type stays a change to this file alone.
