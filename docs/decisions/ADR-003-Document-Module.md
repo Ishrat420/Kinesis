@@ -197,6 +197,8 @@ Expiry Date - Current Date
 
 Computed values should normally be calculated when displayed rather than periodically written back to the database.
 
+`Time Remaining` reads as a day count while it is short ("12 days left") and as a calendar breakdown once it is long ("7 months left") -- the switchover point is `DAY_COUNT_DISPLAY_LIMIT_DAYS` in `lib/dates/index.ts`, one constant shared by every formatter that renders a countdown (document expiry, milestone/todo due dates, the notification engine's own expiry wording).
+
 ### AI-Assisted Extraction
 
 AI may be used to reduce manual data entry when a document is uploaded.
