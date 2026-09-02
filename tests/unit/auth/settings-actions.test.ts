@@ -14,7 +14,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth", () => ({ requireRecentVerification: mocks.requireRecentVerification, requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
-    notification: { deleteMany: mocks.deleteMany }, attentionDismissal: { deleteMany: mocks.deleteMany },
+    notification: { deleteMany: mocks.deleteMany }, object: { deleteMany: mocks.deleteMany }, attentionDismissal: { deleteMany: mocks.deleteMany },
     document: { deleteMany: mocks.deleteMany }, documentType: { deleteMany: mocks.deleteMany },
     relationshipGoal: { deleteMany: mocks.deleteMany }, relationship: { deleteMany: mocks.deleteMany },
     person: { deleteMany: mocks.deleteMany }, goal: { deleteMany: mocks.deleteMany },

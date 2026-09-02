@@ -71,9 +71,17 @@ npm run test:integration:run
 The integration database must never point to the normal Kinesis application
 database.
 
-Synchronise the Prisma schema with the test database using:
+Build the test database from the real Prisma migration history (not
+`db push`, which never runs a migration's raw SQL) using:
 
-npm run test:db:push
+npm run test:db:reset
+
+This runs `prisma migrate reset --force --skip-seed` against
+TEST_DATABASE_URL, so PostgreSQL objects defined only in migration SQL (for
+example the `kinesis_sync_object_name` trigger) exist in the test database
+exactly as they do in production. The script refuses to run if
+TEST_DATABASE_URL is missing, matches DATABASE_URL from any of the shell,
+`.env`, or `.env.local`, or if VERCEL_ENV is "production" or "preview".
 
 The integration setup validates that TEST_DATABASE_URL exists and is separate
 from DATABASE_URL.

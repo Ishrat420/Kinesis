@@ -5,6 +5,7 @@ import { getCurrentUser, getUserDisplayName } from "./user";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
+import { deleteObjects, objectFor } from "./objects";
 
 export type DocumentInput = {
   name: string;
@@ -132,7 +133,8 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
     data: {
       ...document,
       id: data.id ?? crypto.randomUUID(),
-      userId: user.id,
+      user: { connect: { id: user.id } },
+      object: objectFor.document(document.name, user.id),
       owner: getUserDisplayName(user),
       customFields: {
         create: customFields.map(({ id: fieldId, ...field }, position) => ({
@@ -174,5 +176,7 @@ export async function updateDocument(id: string, data: DocumentInput) {
 
 export async function deleteDocument(id: string) {
   const user = await requireKinesisUser();
-  return prisma.document.deleteMany({ where: { id, userId: user.id } });
+  const document = await prisma.document.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+  if (!document) return { count: 0 };
+  return deleteObjects(prisma, [document.objectId], user.id);
 }

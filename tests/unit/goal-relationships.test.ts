@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GOAL_RELATIONSHIP_TYPES, goalPairKey, relationshipLabel } from "@/lib/goals/relationships";
+import { GOAL_RELATIONSHIP_TYPES, relationshipLabel } from "@/lib/goals/relationships";
+import { objectPairKey } from "@/lib/objects/relationships";
 
 const mocks = vi.hoisted(() => ({
   requireKinesisUser: vi.fn(),
   revalidatePath: vi.fn(),
-  goalCount: vi.fn(),
+  goalFindMany: vi.fn(),
   relationshipCreate: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/prisma", () => ({ prisma: {
-  goal: { count: mocks.goalCount },
+  goal: { findMany: mocks.goalFindMany },
   objectRelationship: { create: mocks.relationshipCreate },
 } }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -24,7 +25,7 @@ describe("typed goal relationships", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue({ id: "user-one" });
-    mocks.goalCount.mockResolvedValue(2);
+    mocks.goalFindMany.mockResolvedValue([{ id: "goal-a", objectId: "object-a" }, { id: "goal-b", objectId: "object-b" }]);
     mocks.relationshipCreate.mockResolvedValue({});
   });
 
@@ -39,21 +40,21 @@ describe("typed goal relationships", () => {
   });
 
   it("uses the same pair key regardless of direction", () => {
-    expect(goalPairKey("goal-a", "goal-b")).toBe(goalPairKey("goal-b", "goal-a"));
+    expect(objectPairKey("goal-a", "goal-b")).toBe(objectPairKey("goal-b", "goal-a"));
   });
 
   it("prevents self-links before querying or writing", async () => {
     const data = new FormData(); data.set("targetGoalId", "goal-a"); data.set("type", "SUPPORTS");
     await expect(addGoalRelationshipAction("goal-a", {}, data)).resolves.toEqual({ error: "A goal cannot be linked to itself." });
-    expect(mocks.goalCount).not.toHaveBeenCalled();
+    expect(mocks.goalFindMany).not.toHaveBeenCalled();
     expect(mocks.relationshipCreate).not.toHaveBeenCalled();
   });
 
   it("stores an owned relationship with a direction-independent uniqueness key", async () => {
     const data = new FormData(); data.set("targetGoalId", "goal-b"); data.set("type", "DEPENDS_ON");
     await expect(addGoalRelationshipAction("goal-a", {}, data)).resolves.toEqual({});
-    expect(mocks.goalCount).toHaveBeenCalledWith({ where: { userId: "user-one", id: { in: ["goal-a", "goal-b"] } } });
-    expect(mocks.relationshipCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ sourceObjectId: "goal-a", targetObjectId: "goal-b", type: "DEPENDS_ON", pairKey: goalPairKey("goal-a", "goal-b") }) });
+    expect(mocks.goalFindMany).toHaveBeenCalledWith({ where: { userId: "user-one", id: { in: ["goal-a", "goal-b"] } }, select: { id: true, objectId: true } });
+    expect(mocks.relationshipCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ sourceObjectId: "object-a", targetObjectId: "object-b", type: "DEPENDS_ON", pairKey: objectPairKey("object-a", "object-b") }) });
   });
 
   it("turns the unique constraint into a duplicate-link error", async () => {

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
-import { parseKinesisTarget, CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 
 export type DocumentActionState = { error?: string; success?: boolean };
@@ -40,9 +40,9 @@ function documentData(formData: FormData) {
     const value = customValues[index];
     const requestedType = String(customTypes[index] ?? "TEXT") as CustomFieldType;
     const type = validTypes.has(requestedType) ? requestedType : "TEXT";
-    const target = type === "KINESIS_LINK" ? parseKinesisTarget(String(customTargets[index] ?? "")) : null;
-    if (type === "KINESIS_LINK" && !target) throw new Error("Select an object for every Kinesis Link field");
-    return [{ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null }];
+    const targetObjectId = type === "KINESIS_LINK" ? String(customTargets[index] ?? "").trim() : "";
+    if (type === "KINESIS_LINK" && !targetObjectId) throw new Error("Select an object for every Kinesis Link field");
+    return [{ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetObjectId: targetObjectId || null }];
   });
 
   return {

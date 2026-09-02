@@ -12,7 +12,3 @@ const labels: Record<GoalRelationshipType, { forward: string; inverse: string }>
 export function relationshipLabel(type: GoalRelationshipType, inverse = false) {
   return labels[type][inverse ? "inverse" : "forward"];
 }
-
-export function goalPairKey(firstId: string, secondId: string) {
-  return `GOAL:${[firstId, secondId].sort().join(":")}`;
-}
