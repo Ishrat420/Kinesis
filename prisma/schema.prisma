@@ -35,21 +35,22 @@ model User {
 }
 
 model UserSettings {
-  id                        String   @id @default(uuid())
-  appearance                String   @default("system")
-  locale                    String   @default("en-AU")
-  currency                  String   @default("AUD")
-  notificationsEnabled      Boolean  @default(true)
-  remindersEnabled          Boolean  @default(true)
-  // How many days before a milestone's due date its reminder window opens.
+  id                           String   @id @default(uuid())
+  appearance                   String   @default("system")
+  locale                       String   @default("en-AU")
+  currency                     String   @default("AUD")
+  notificationsEnabled         Boolean  @default(true)
+  remindersEnabled             Boolean  @default(true)
+  // How many days before a due date each object type's reminder window opens.
   // Named per object type so later objects (documents already have their own
-  // per-record setting; relationships, todos, ...) can each get a column of
-  // their own without disturbing this one -- see lib/reminders/policy.ts.
-  milestoneReminderLeadDays Int      @default(30)
-  userId                    String   @unique
-  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  // per-record setting; todos, ...) can each get a column of their own without
+  // disturbing the others -- see lib/reminders/policy.ts.
+  milestoneReminderLeadDays    Int      @default(30)
+  relationshipReminderLeadDays Int      @default(30)
+  userId                       String   @unique
+  user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 }
 
 model FinanceItem {
@@ -109,28 +110,32 @@ enum NotificationType {
 }
 
 model Notification {
-  id              String           @id
-  type            NotificationType
-  documentId      String?
-  milestoneId     String?
-  reminderAt      DateTime?
-  timeUntilExpiry String?
-  expiryDate      DateTime?
-  documentName    String
-  documentType    String?
-  message         String
-  actionUrl       String
-  readAt          DateTime?
-  userId          String
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime         @default(now())
-  document        Document?        @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  milestone       Milestone?       @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  id                 String                     @id
+  type               NotificationType
+  documentId         String?
+  milestoneId        String?
+  relationshipDateId String?
+  reminderAt         DateTime?
+  timeUntilExpiry    String?
+  expiryDate         DateTime?
+  documentName       String
+  documentType       String?
+  message            String
+  actionUrl          String
+  readAt             DateTime?
+  userId             String
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt          DateTime                   @default(now())
+  document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
 
   @@unique([userId, documentId, type, expiryDate])
   @@unique([userId, milestoneId, type, expiryDate])
+  @@unique([userId, relationshipDateId, type, expiryDate])
   @@index([userId, createdAt])
   @@index([milestoneId])
+  @@index([relationshipDateId])
 }
 
 model DocumentField {
@@ -307,14 +312,15 @@ model RelationshipReflection {
 }
 
 model RelationshipImportantDate {
-  id             String        @id
+  id             String         @id
   relationshipId String?
   selfPersonId   String?
   label          String
   date           DateTime
-  repeatsYearly  Boolean       @default(false)
-  relationship   Relationship? @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
-  selfPerson     Person?       @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
+  repeatsYearly  Boolean        @default(false)
+  relationship   Relationship?  @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
+  selfPerson     Person?        @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
+  notifications  Notification[]
 
   @@index([relationshipId, date])
   @@index([selfPersonId, date])

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // test are pure; the client is stubbed so they run without a database.
 vi.mock("@/lib/data/prisma", () => ({ prisma: {} }));
 
-const { getDocumentNotificationCandidate, getMilestoneNotificationCandidate } =
+const { getDocumentNotificationCandidate, getMilestoneNotificationCandidate, getRelationshipDateNotificationCandidate } =
   await import("@/lib/notifications/engine");
 
 const document = (expiryDate: string | null, prompt = 30) => ({
@@ -22,6 +22,14 @@ const milestone = (dueDate: string | null) => ({
   name: "Submit application",
   dueDate: dueDate ? at(dueDate) : null,
   goal: { id: "goal-1", name: "Move house" },
+});
+
+const importantDate = (date: string, repeatsYearly = true, personName = "Alice") => ({
+  id: "important-date-1",
+  label: "Birthday",
+  date: at(date),
+  repeatsYearly,
+  personName,
 });
 
 describe("getDocumentNotificationCandidate: deciding whether an alert is due", () => {
@@ -221,6 +229,67 @@ describe("getMilestoneNotificationCandidate: the configurable lead time", () => 
 
   it("dedupes a not-yet-due reminder on the due date, same as an overdue one", () => {
     const candidate = getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-06-15"), 30);
+
+    expect(candidate?.expiryDate.toISOString()).toBe("2026-07-01T00:00:00.000Z");
+  });
+});
+
+describe("getRelationshipDateNotificationCandidate: alerting on an upcoming important date", () => {
+  it("raises nothing while today is still outside the lead window", () => {
+    // A 30-day lead on a 1 July birthday opens on 1 June.
+    expect(getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-05-31"), 30)).toBeNull();
+  });
+
+  it("raises a reminder on the first day of the lead window", () => {
+    const candidate = getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-06-01"), 30);
+
+    expect(candidate?.type).toBe("REMINDER_DUE");
+    expect(candidate?.message).toBe("Alice's Birthday is in 30 days");
+    expect(candidate?.reminderAt?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+  });
+
+  it("keeps reminding right up to and including the day itself", () => {
+    expect(getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-06-20"), 30)?.type)
+      .toBe("REMINDER_DUE");
+    const onTheDay = getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-07-01"), 30);
+    expect(onTheDay?.message).toBe("Alice's Birthday is today");
+  });
+
+  it("has no overdue state: a yearly date simply has no candidate the day after, since it already rolled to next year", () => {
+    // Next year's occurrence (1 July 2027) is far outside a 30-day lead from 2 July 2026.
+    expect(getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-07-02"), 30)).toBeNull();
+  });
+
+  it("has no candidate at all for a one-off date once it has passed, even within the lead window's reach", () => {
+    expect(getRelationshipDateNotificationCandidate(importantDate("2026-07-01", false), at("2026-07-02"), 30)).toBeNull();
+  });
+
+  it("still reminds for a one-off date that has not yet happened", () => {
+    expect(getRelationshipDateNotificationCandidate(importantDate("2026-07-01", false), at("2026-06-15"), 30)?.type)
+      .toBe("REMINDER_DUE");
+  });
+
+  it("treats a zero lead time as reminding only on the day itself", () => {
+    expect(getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-06-30"), 0)).toBeNull();
+    expect(getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-07-01"), 0)?.type)
+      .toBe("REMINDER_DUE");
+  });
+
+  it("uses the possessive form of the person's name and carries no expiry countdown", () => {
+    const candidate = getRelationshipDateNotificationCandidate(importantDate("2020-07-01", true, "Chris"), at("2026-07-01"), 30);
+
+    expect(candidate?.documentName).toBe("Chris' Birthday");
+    expect(candidate?.timeUntilExpiry).toBeNull();
+  });
+
+  it("links to the relationships module and names the person in its category", () => {
+    const candidate = getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-07-01"), 30);
+
+    expect(candidate).toMatchObject({ actionUrl: "/relationships", documentType: "Important date · Alice" });
+  });
+
+  it("dedupes on the resolved occurrence date, which rolls forward year to year", () => {
+    const candidate = getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-06-15"), 30);
 
     expect(candidate?.expiryDate.toISOString()).toBe("2026-07-01T00:00:00.000Z");
   });

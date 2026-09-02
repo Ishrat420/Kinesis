@@ -8,14 +8,16 @@ import { addUtcDays } from "@/lib/dates";
  * through `getReminderLeadDays` / `getReminderWindowStart` below, so nothing
  * else needs to change per object type.
  */
-export type ReminderObjectType = "milestone";
+export type ReminderObjectType = "milestone" | "relationship";
 
 export const REMINDER_LEAD_DEFAULTS: Record<ReminderObjectType, number> = {
   milestone: 30,
+  relationship: 30,
 };
 
 const LEAD_DAYS_FIELD = {
   milestone: "milestoneReminderLeadDays",
+  relationship: "relationshipReminderLeadDays",
 } as const satisfies Record<ReminderObjectType, string>;
 
 type LeadDaysSettings = { [K in ReminderObjectType as (typeof LEAD_DAYS_FIELD)[K]]?: number | null };
