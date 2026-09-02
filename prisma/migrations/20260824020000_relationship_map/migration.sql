@@ -6,7 +6,7 @@
 --
 -- This restores the missing history at the point it belongs, in the shape it had
 -- then: userId arrives in 20260825090000, selfNotes in 20260831000000 and
--- objectId in 20260901000000_universal_object_identity. Every statement is
+-- objectId in 20260901000100_universal_object_identity. Every statement is
 -- guarded so databases that already carry these tables see a no-op.
 
 CREATE TABLE IF NOT EXISTS "Person" (

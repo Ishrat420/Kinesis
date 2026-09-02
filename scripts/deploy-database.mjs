@@ -21,14 +21,14 @@ const { Client } = pg;
 // least to most advanced; the furthest match wins.
 const BASELINES = [
   { through: "20260831010000_typed_object_relationships", evidence: (state) => state.hasUserTable },
-  { through: "20260901000000_universal_object_identity", evidence: (state) => state.hasObjectTable },
+  { through: "20260901000100_universal_object_identity", evidence: (state) => state.hasObjectTable },
 ];
 
 // The first cut of the universal identity migration put a PostgreSQL enum value
 // and its first use in one transaction, which cannot work. PostgreSQL rolls a
 // failed migration back whole, so nothing of it survives to clean up: the record
 // of the failure is all that blocks the corrected migration from applying.
-const SUPERSEDED_FAILURES = ["20260901000000_universal_object_identity"];
+const SUPERSEDED_FAILURES = ["20260901000100_universal_object_identity"];
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
