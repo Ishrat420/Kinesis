@@ -53,6 +53,50 @@ const runPrisma = (...args) => {
 };
 const readPrisma = (...args) => execFileSync(prismaBinary, args, { cwd: projectRoot, env: process.env, encoding: "utf8" });
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * P1002 ("Timed out trying to acquire a postgres advisory lock") is `migrate
+ * deploy` failing to get the session-level lock it takes before applying
+ * anything -- not a bad migration. Against a database that scales to zero
+ * (this one is Neon), the very first connection of a deploy can spend most of
+ * the engine's fixed 10s lock-acquisition budget just waking the compute up,
+ * which times out the lock wait itself rather than the connection. That is
+ * transient: the compute is awake moments later, so a retry succeeds without
+ * anyone touching anything. Every other failure -- a bad migration, a real
+ * connectivity problem -- is not transient and must not be retried into
+ * looking like success; only this specific error gets a second chance.
+ */
+async function runMigrateDeployWithRetry(maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const output = execFileSync(prismaBinary, ["migrate", "deploy"], {
+        cwd: projectRoot,
+        env: process.env,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      process.stdout.write(output);
+      return;
+    } catch (error) {
+      const output = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+      process.stdout.write(output);
+
+      const isLockTimeout = output.includes("P1002");
+      if (isLockTimeout && attempt < maxAttempts) {
+        const delayMs = attempt * 5_000;
+        console.log(`\n\`prisma migrate deploy\` timed out acquiring its advisory lock (attempt ${attempt}/${maxAttempts}). Retrying in ${delayMs / 1000}s.`);
+        await sleep(delayMs);
+        continue;
+      }
+
+      console.error(`\nDatabase deployment failed: \`prisma migrate deploy\` exited with ${error.status ?? "no status"}.`);
+      console.error("The Prisma error printed above this line is the reason; everything after it is just this command reporting the failure.");
+      process.exit(typeof error.status === "number" ? error.status : 1);
+    }
+  }
+}
+
 /** The SQL still needed to turn this database into the one the schema describes. */
 function schemaDrift() {
   const diff = readPrisma("migrate", "diff", "--from-url", process.env.DATABASE_URL, "--to-schema-datamodel", "prisma/schema.prisma", "--script");
@@ -115,7 +159,7 @@ for (const migration of state.failed) {
   runPrisma("migrate", "resolve", "--rolled-back", migration);
 }
 
-runPrisma("migrate", "deploy");
+await runMigrateDeployWithRetry();
 
 // Applying every migration is not the same as arriving at the schema. Baselining
 // asserts that a migration already ran, and a db push database can be behind the
