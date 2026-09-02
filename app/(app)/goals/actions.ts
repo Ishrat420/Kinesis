@@ -8,7 +8,9 @@ import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
-import { GOAL_RELATIONSHIP_TYPES, goalPairKey, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { objectPairKey } from "@/lib/objects/relationships";
+import { deleteObjects, objectFor } from "@/lib/data/objects";
 
 export type GoalActionState = { error?: string };
 
@@ -32,13 +34,32 @@ const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) =
 };
 const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
 
+/** A goal's identity in the shared Object layer, resolved once and scoped to its owner. */
+const goalObjectId = async (userId: string, goalId: string) =>
+  (await prisma.goal.findFirst({ where: { id: goalId, userId }, select: { objectId: true } }))?.objectId;
+
+/**
+ * Both ends of a link show it, so both goal pages are revalidated. Endpoints are
+ * matched on object id; these goal ids only say which routes that means.
+ */
+const endpointGoals = {
+  sourceObject: { select: { goal: { select: { id: true } } } },
+  targetObject: { select: { goal: { select: { id: true } } } },
+} as const;
+
+type RelationshipEndpoints = { sourceObject: { goal: { id: string } | null }; targetObject: { goal: { id: string } | null } };
+const refreshEndpoints = ({ sourceObject, targetObject }: RelationshipEndpoints) => {
+  if (sourceObject.goal) refresh(sourceObject.goal.id);
+  if (targetObject.goal) refresh(targetObject.goal.id);
+};
+
 export async function createGoalAction(_previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const name = value(data, "name");
   if (!name) return { error: "Enter a goal name." };
   const targetDate = optionalDate(data, "targetDate");
   if (targetDate === undefined) return { error: "Enter a valid target date." };
-  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), userId: user.id, name, targetDate, note: value(data, "note") || null } });
+  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: objectFor.goal(name, user.id) } });
   await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   revalidatePath("/");
   revalidatePath("/goals");
@@ -55,10 +76,8 @@ export async function updateGoalStatusAction(id: string, _previousState: GoalAct
 
 export async function deleteGoalAction(id: string) {
   const user = await requireKinesisUser();
-  await prisma.$transaction([
-    prisma.objectRelationship.deleteMany({ where: { userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: id }, { targetObjectType: "GOAL", targetObjectId: id }] } }),
-    prisma.goal.deleteMany({ where: { id, userId: user.id } }),
-  ]);
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+  if (goal) await deleteObjects(prisma, [goal.objectId], user.id);
   revalidatePath("/");
   revalidatePath("/goals");
   redirect("/goals");
@@ -71,10 +90,13 @@ export async function addGoalRelationshipAction(id: string, _previousState: Goal
   if (!targetId) return { error: "Choose a goal to link." };
   if (targetId === id) return { error: "A goal cannot be linked to itself." };
   if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return { error: "Choose a valid relationship type." };
-  const owned = await prisma.goal.count({ where: { userId: user.id, id: { in: [id, targetId] } } });
-  if (owned !== 2) return { error: "One or more goals were not found." };
+  const owned = await prisma.goal.findMany({ where: { userId: user.id, id: { in: [id, targetId] } }, select: { id: true, objectId: true } });
+  if (owned.length !== 2) return { error: "One or more goals were not found." };
+  const objectByGoal = new Map(owned.map((goal) => [goal.id, goal.objectId]));
+  const sourceObjectId = objectByGoal.get(id)!;
+  const targetObjectId = objectByGoal.get(targetId)!;
   try {
-    await prisma.objectRelationship.create({ data: { userId: user.id, sourceObjectType: "GOAL", sourceObjectId: id, targetObjectType: "GOAL", targetObjectId: targetId, pairKey: goalPairKey(id, targetId), type } });
+    await prisma.objectRelationship.create({ data: { userId: user.id, sourceObjectId, targetObjectId, pairKey: objectPairKey(sourceObjectId, targetObjectId), type } });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "P2002") return { error: "These goals are already linked." };
     throw error;
@@ -87,18 +109,22 @@ export async function updateGoalRelationshipAction(id: string, relationshipId: s
   const user = await requireKinesisUser();
   const type = value(data, "type") as GoalRelationshipType;
   if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return;
-  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: id }, { targetObjectType: "GOAL", targetObjectId: id }] } });
+  const objectId = await goalObjectId(user.id, id);
+  if (!objectId) return;
+  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] }, select: endpointGoals });
   if (!relationship) return;
   await prisma.objectRelationship.update({ where: { id: relationshipId }, data: { type } });
-  refresh(relationship.sourceObjectId); refresh(relationship.targetObjectId);
+  refreshEndpoints(relationship);
 }
 
 export async function removeGoalRelationshipAction(id: string, relationshipId: string) {
   const user = await requireKinesisUser();
-  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectType: "GOAL", sourceObjectId: id }, { targetObjectType: "GOAL", targetObjectId: id }] } });
+  const objectId = await goalObjectId(user.id, id);
+  if (!objectId) return;
+  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] }, select: endpointGoals });
   if (!relationship) return;
   await prisma.objectRelationship.delete({ where: { id: relationshipId } });
-  refresh(relationship.sourceObjectId); refresh(relationship.targetObjectId);
+  refreshEndpoints(relationship);
 }
 
 export async function addTargetAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {

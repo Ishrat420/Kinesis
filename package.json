@@ -5,7 +5,7 @@
 "scripts": {
   "dev": "next dev",
   "build": "prisma generate && next build",
-  "db:deploy": "prisma db push --skip-generate --accept-data-loss",
+  "db:deploy": "node scripts/deploy-database.mjs",
   "start": "next start",
   "lint": "eslint",
 
@@ -15,7 +15,7 @@
   "test:integration": "vitest --config vitest.integration.config.mts",
   "test:integration:run": "vitest run --config vitest.integration.config.mts",
 
-  "test:db:push": "set -a && source .env.test && set +a && DATABASE_URL=\"$TEST_DATABASE_URL\" prisma db push"
+  "test:db:reset": "node scripts/reset-test-database.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.2",

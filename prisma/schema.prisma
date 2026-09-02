@@ -8,28 +8,29 @@ datasource db {
 }
 
 model User {
-  id             String               @id @default(uuid())
-  firstName      String
-  lastName       String
-  preferredName  String?
-  email          String
-  clerkUserId    String?              @unique
-  settings       UserSettings?
-  financeItems   FinanceItem[]
-  documents      Document[]
-  notifications  Notification[]
-  documentTypes  DocumentType[]
-  goals          Goal[]
-  people         Person[]
-  relationships  Relationship[]
-  goalUnits      GoalUnit[]
-  customModules  CustomModule[]
-  dismissals     AttentionDismissal[]
-  activityEvents ActivityEvent[]
-  securityEvents SecurityEvent[]
+  id                  String               @id @default(uuid())
+  firstName           String
+  lastName            String
+  preferredName       String?
+  email               String
+  clerkUserId         String?              @unique
+  settings            UserSettings?
+  financeItems        FinanceItem[]
+  documents           Document[]
+  notifications       Notification[]
+  documentTypes       DocumentType[]
+  goals               Goal[]
+  people              Person[]
+  relationships       Relationship[]
+  goalUnits           GoalUnit[]
+  customModules       CustomModule[]
+  dismissals          AttentionDismissal[]
+  activityEvents      ActivityEvent[]
+  securityEvents      SecurityEvent[]
+  objects             Object[]
   objectRelationships ObjectRelationship[]
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model UserSettings {
@@ -58,6 +59,8 @@ model FinanceItem {
   notes     String?
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId  String    @unique
+  object    Object    @relation(fields: [objectId], references: [id], onDelete: Cascade)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -78,6 +81,8 @@ model Document {
   link                String?
   userId              String
   user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId            String          @unique
+  object              Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
   prompt              Int             @default(180)
   expiryDateLabel     String          @default("Expiry date")
   issueDateLabel      String          @default("Issue date")
@@ -123,18 +128,18 @@ model Notification {
 }
 
 model DocumentField {
-  id         String             @id
-  documentId String
-  label      String
-  value      String
-  type       CustomFieldType    @default(TEXT)
-  targetType KinesisObjectType?
-  targetId   String?
-  position   Int                @default(0)
-  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id             String          @id
+  documentId     String
+  label          String
+  value          String
+  type           CustomFieldType @default(TEXT)
+  targetObjectId String?
+  targetObject   Object?         @relation("DocumentFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
+  position       Int             @default(0)
+  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId, position])
-  @@index([targetType, targetId])
+  @@index([targetObjectId])
 }
 
 model DocumentType {
@@ -160,6 +165,8 @@ model Goal {
   showTargetProgress    Boolean              @default(true)
   userId                String
   user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId              String               @unique
+  object                Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
   milestones            Milestone[]
   metricHistory         GoalMetricSnapshot[]
   relationshipLinks     RelationshipGoal[]
@@ -175,22 +182,45 @@ enum ObjectRelationshipType {
   ALONGSIDE
 }
 
+model Object {
+  id   String            @id @default(uuid())
+  type KinesisObjectType
+  /// Maintained by database triggers from the typed record's own name; never
+  /// write it directly. See 20260902000000_object_capability_layer.
+  name String
+
+  userId                String
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document              Document?
+  goal                  Goal?
+  financeItem           FinanceItem?
+  person                Person?
+  customItem            CustomItem?
+  outgoingRelationships ObjectRelationship[] @relation("RelationshipSource")
+  incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
+  linkedFromDocuments   DocumentField[]      @relation("DocumentFieldTarget")
+  linkedFromCustomItems CustomItemField[]    @relation("CustomItemFieldTarget")
+  createdAt             DateTime             @default(now())
+
+  @@index([userId, type, name])
+}
+
 model ObjectRelationship {
-  id               String                 @id @default(uuid())
-  sourceObjectType KinesisObjectType
-  sourceObjectId   String
-  targetObjectType KinesisObjectType
-  targetObjectId   String
-  type             ObjectRelationshipType
-  pairKey          String
-  userId           String
-  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id             String                 @id @default(uuid())
+  sourceObjectId String
+  targetObjectId String
+  sourceObject   Object                 @relation("RelationshipSource", fields: [sourceObjectId], references: [id], onDelete: Cascade)
+  targetObject   Object                 @relation("RelationshipTarget", fields: [targetObjectId], references: [id], onDelete: Cascade)
+  type           ObjectRelationshipType
+  pairKey        String
+  userId         String
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   @@unique([userId, pairKey])
-  @@index([userId, sourceObjectType, sourceObjectId])
-  @@index([userId, targetObjectType, targetObjectId])
+  @@index([userId, sourceObjectId])
+  @@index([userId, targetObjectId])
 }
 
 model Person {
@@ -206,6 +236,8 @@ model Person {
   selfNotes             String?
   userId                String
   user                  User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId              String                      @unique
+  object                Object                      @relation(fields: [objectId], references: [id], onDelete: Cascade)
   relationshipsAsFirst  Relationship[]              @relation("RelationshipFirstPerson")
   relationshipsAsSecond Relationship[]              @relation("RelationshipSecondPerson")
   selfPractices         ConnectionPractice[]
@@ -352,6 +384,8 @@ model CustomItem {
   link      String?
   archived  Boolean           @default(false)
   module    CustomModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  objectId  String            @unique
+  object    Object            @relation(fields: [objectId], references: [id], onDelete: Cascade)
   fields    CustomItemField[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
@@ -360,18 +394,18 @@ model CustomItem {
 }
 
 model CustomItemField {
-  id         String             @id
-  itemId     String
-  label      String
-  value      String
-  type       CustomFieldType    @default(TEXT)
-  targetType KinesisObjectType?
-  targetId   String?
-  position   Int                @default(0)
-  item       CustomItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id             String          @id
+  itemId         String
+  label          String
+  value          String
+  type           CustomFieldType @default(TEXT)
+  targetObjectId String?
+  targetObject   Object?         @relation("CustomItemFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
+  position       Int             @default(0)
+  item           CustomItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId, position])
-  @@index([targetType, targetId])
+  @@index([targetObjectId])
 }
 
 enum CustomFieldType {
@@ -387,6 +421,8 @@ enum KinesisObjectType {
   DOCUMENT
   CUSTOM_ITEM
   GOAL
+  FINANCE_ITEM
+  PERSON
 }
 
 model AttentionDismissal {

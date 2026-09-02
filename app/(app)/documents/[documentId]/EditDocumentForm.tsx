@@ -70,7 +70,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   const linkedFields = document.customFields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
-    const option = linkOptions.find(({ type, id }) => type === field.targetType && id === field.targetId);
+    const option = linkOptions.find(({ objectId }) => objectId === field.targetObjectId);
     return option ? [{ field, option }] : [];
   });
   return (

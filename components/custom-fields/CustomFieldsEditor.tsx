@@ -213,9 +213,9 @@ function FieldInput({ field, index, linkOptions, names, update }: {
   }
 
   if (field.type === "KINESIS_LINK") {
-    const selected = field.targetType && field.targetId ? `${field.targetType}:${field.targetId}` : "";
+    const selected = field.targetObjectId ?? "";
     const modules = [...new Set(linkOptions.map(({ module }) => module))];
-    const selectedOption = linkOptions.find((option) => `${option.type}:${option.id}` === selected);
+    const selectedOption = linkOptions.find((option) => option.objectId === selected);
     if (selectedOption) {
       return (
         <div>
@@ -233,10 +233,7 @@ function FieldInput({ field, index, linkOptions, names, update }: {
             required
             name={names.target}
             value={selected}
-            onChange={(event) => {
-              const [targetType, ...id] = event.target.value.split(":");
-              update({ targetType: targetType as CustomFieldValue["targetType"], targetId: id.join(":") });
-            }}
+            onChange={(event) => update({ targetObjectId: event.target.value })}
             aria-label={`Field ${index + 1} linked object`}
             className={`${inputClass} appearance-none pr-11`}
           >
@@ -244,7 +241,7 @@ function FieldInput({ field, index, linkOptions, names, update }: {
             {modules.map((module) => (
               <optgroup key={module} label={module}>
                 {linkOptions.filter((option) => option.module === module).map((option) => (
-                  <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>
+                  <option key={option.objectId} value={option.objectId}>{option.name}</option>
                 ))}
               </optgroup>
             ))}

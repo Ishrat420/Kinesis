@@ -7,7 +7,8 @@ import { prisma } from "@/lib/data/prisma";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
-import { CUSTOM_FIELD_TYPES, parseKinesisTarget, type CustomFieldType } from "@/lib/custom-fields/types";
+import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
@@ -32,9 +33,9 @@ function customFields(data: FormData) {
   return labels.map((label, position) => {
     const requested = types[position] as CustomFieldType;
     const type = validTypes.has(requested) ? requested : "TEXT";
-    const target = type === "KINESIS_LINK" ? parseKinesisTarget(targets[position] ?? "") : null;
-    if (type === "KINESIS_LINK" && !target) throw new Error("Select an object for every Kinesis Link field");
-    return { id: ids[position] || crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetType: target?.targetType ?? null, targetId: target?.targetId ?? null, position };
+    const targetObjectId = type === "KINESIS_LINK" ? (targets[position] ?? "").trim() : "";
+    if (type === "KINESIS_LINK" && !targetObjectId) throw new Error("Select an object for every Kinesis Link field");
+    return { id: ids[position] || crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetObjectId: targetObjectId || null, position };
   }).filter((field) => field.label);
 }
 
@@ -68,8 +69,9 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (!ownedModule) throw new Error("Module not found");
   await validateKinesisTargets(fields);
   await prisma.customItem.create({ data: {
-    id: crypto.randomUUID(), moduleId, name, notes: getValue(data, "notes") || null,
+    id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
     reminder, link: getValue(data, "link") || null,
+    object: objectFor.customItem(name, user.id),
     fields: { create: fields },
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
@@ -115,14 +117,20 @@ export async function toggleCustomItemArchivedAction(moduleId: string, itemId: s
 
 export async function deleteCustomItemAction(moduleId: string, itemId: string) {
   const user = await requireKinesisUser();
-  await prisma.customItem.deleteMany({ where: { id: itemId, moduleId, module: { userId: user.id } } });
+  const item = await prisma.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { objectId: true } });
+  if (item) await deleteObjects(prisma, [item.objectId], user.id);
   refresh(moduleId);
   redirect(`/custom-modules/${moduleId}`);
 }
 
 export async function deleteCustomModuleAction(moduleId: string) {
   const user = await requireKinesisUser();
-  await prisma.customModule.deleteMany({ where: { id: moduleId, userId: user.id } });
+  await prisma.$transaction(async (tx) => {
+    const customModule = await tx.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { items: { select: { objectId: true } } } });
+    if (!customModule) return;
+    await deleteObjects(tx, customModule.items.map(({ objectId }) => objectId), user.id);
+    await tx.customModule.delete({ where: { id: moduleId } });
+  });
   revalidatePath("/");
   redirect("/");
 }
