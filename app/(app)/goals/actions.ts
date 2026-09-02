@@ -34,6 +34,25 @@ const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) =
 };
 const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
 
+/** A goal's identity in the shared Object layer, resolved once and scoped to its owner. */
+const goalObjectId = async (userId: string, goalId: string) =>
+  (await prisma.goal.findFirst({ where: { id: goalId, userId }, select: { objectId: true } }))?.objectId;
+
+/**
+ * Both ends of a link show it, so both goal pages are revalidated. Endpoints are
+ * matched on object id; these goal ids only say which routes that means.
+ */
+const endpointGoals = {
+  sourceObject: { select: { goal: { select: { id: true } } } },
+  targetObject: { select: { goal: { select: { id: true } } } },
+} as const;
+
+type RelationshipEndpoints = { sourceObject: { goal: { id: string } | null }; targetObject: { goal: { id: string } | null } };
+const refreshEndpoints = ({ sourceObject, targetObject }: RelationshipEndpoints) => {
+  if (sourceObject.goal) refresh(sourceObject.goal.id);
+  if (targetObject.goal) refresh(targetObject.goal.id);
+};
+
 export async function createGoalAction(_previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const name = value(data, "name");
@@ -90,20 +109,22 @@ export async function updateGoalRelationshipAction(id: string, relationshipId: s
   const user = await requireKinesisUser();
   const type = value(data, "type") as GoalRelationshipType;
   if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return;
-  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObject: { goal: { id } } }, { targetObject: { goal: { id } } }] }, include: { sourceObject: { select: { goal: { select: { id: true } } } }, targetObject: { select: { goal: { select: { id: true } } } } } });
+  const objectId = await goalObjectId(user.id, id);
+  if (!objectId) return;
+  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] }, select: endpointGoals });
   if (!relationship) return;
   await prisma.objectRelationship.update({ where: { id: relationshipId }, data: { type } });
-  if (relationship.sourceObject.goal) refresh(relationship.sourceObject.goal.id);
-  if (relationship.targetObject.goal) refresh(relationship.targetObject.goal.id);
+  refreshEndpoints(relationship);
 }
 
 export async function removeGoalRelationshipAction(id: string, relationshipId: string) {
   const user = await requireKinesisUser();
-  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObject: { goal: { id } } }, { targetObject: { goal: { id } } }] }, include: { sourceObject: { select: { goal: { select: { id: true } } } }, targetObject: { select: { goal: { select: { id: true } } } } } });
+  const objectId = await goalObjectId(user.id, id);
+  if (!objectId) return;
+  const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] }, select: endpointGoals });
   if (!relationship) return;
   await prisma.objectRelationship.delete({ where: { id: relationshipId } });
-  if (relationship.sourceObject.goal) refresh(relationship.sourceObject.goal.id);
-  if (relationship.targetObject.goal) refresh(relationship.targetObject.goal.id);
+  refreshEndpoints(relationship);
 }
 
 export async function addTargetAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {

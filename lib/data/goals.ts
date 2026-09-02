@@ -28,24 +28,36 @@ export async function getGoal(id: string) {
 
 export async function getGoalRelationships(goalId: string) {
   const user = await requireKinesisUser();
-  const [relationships, goals] = await Promise.all([
-    prisma.objectRelationship.findMany({
-      where: { userId: user.id, OR: [{ sourceObject: { goal: { id: goalId } } }, { targetObject: { goal: { id: goalId } } }] },
-      include: { sourceObject: { select: { goal: { select: { id: true } } } }, targetObject: { select: { goal: { select: { id: true } } } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.goal.findMany({ where: { userId: user.id, id: { not: goalId } }, select: { id: true, name: true, status: true }, orderBy: { name: "asc" } }),
-  ]);
-  const goalById = new Map(goals.map((goal) => [goal.id, goal]));
+  // Every goal this user owns, including the one being viewed. The list already
+  // had to be fetched to offer the picker, so letting it carry objectId makes it
+  // the Object -> Goal lookup too, and the far end of a link resolves from data
+  // in hand instead of a nested relation on every relationship row.
+  const goals = await prisma.goal.findMany({
+    where: { userId: user.id },
+    select: { id: true, name: true, status: true, objectId: true },
+    orderBy: { name: "asc" },
+  });
+  const objectId = goals.find((goal) => goal.id === goalId)?.objectId;
+  if (!objectId) return { linked: [], availableGoals: [] };
+
+  // Addressed by object id: that is what the shared capability stores, and what
+  // @@index([userId, sourceObjectId]) and ([userId, targetObjectId]) cover.
+  const relationships = await prisma.objectRelationship.findMany({
+    where: { userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+    orderBy: { createdAt: "asc" },
+  });
+
+  // Keyed by identity and without the goal being viewed, so it answers both
+  // "which goal is the other end" and "which goals may still be linked".
+  const goalByObjectId = new Map(goals.flatMap(({ objectId: linkedObjectId, ...goal }) =>
+    goal.id === goalId ? [] : [[linkedObjectId, goal] as const]));
   const linked = relationships.flatMap((relationship) => {
-    const sourceGoalId = relationship.sourceObject.goal?.id;
-    const targetGoalId = relationship.targetObject.goal?.id;
-    const inverse = targetGoalId === goalId;
-    const linkedGoal = goalById.get(inverse ? sourceGoalId ?? "" : targetGoalId ?? "");
-    return linkedGoal ? [{ ...relationship, inverse, goal: linkedGoal }] : [];
+    const inverse = relationship.targetObjectId === objectId;
+    const goal = goalByObjectId.get(inverse ? relationship.sourceObjectId : relationship.targetObjectId);
+    return goal ? [{ ...relationship, inverse, goal }] : [];
   });
   const linkedIds = new Set(linked.map(({ goal }) => goal.id));
-  return { linked, availableGoals: goals.filter(({ id }) => !linkedIds.has(id)) };
+  return { linked, availableGoals: [...goalByObjectId.values()].filter(({ id }) => !linkedIds.has(id)) };
 }
 
 export async function getGoalUnits() {
