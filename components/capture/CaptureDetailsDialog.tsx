@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import type { TodoStatus } from "@prisma/client";
 import { Modal } from "@/components/overlay/Modal";
+import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusLabel } from "@/lib/todos/status";
 import { captureTargets, captureTargetCarries, DEFAULT_CAPTURE_TARGET, splitCaptureDetails, type CaptureDetail, type CaptureTargetType } from "@/lib/capture/targets";
@@ -69,18 +70,28 @@ export function CaptureDetailsDialog({
           </select>
         </label>
 
+        {/*
+          Not a select of its own: pointing at another record is the same act as
+          a Kinesis Link custom field, so it uses the same control and the same
+          card. A div rather than a label because the chosen state renders a
+          link, which does not belong inside one.
+        */}
         {captureTargetCarries(target, "link") && (
-          <label className="block text-sm font-semibold">
+          <div className="text-sm font-semibold">
             Link to <span className="font-normal text-zinc-400">(optional)</span>
-            <select
-              name="linkObjectId" value={linkObjectId} disabled={linkOptions === null}
-              onChange={(event) => setLinkObjectId(event.target.value)}
-              className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none transition focus:border-zinc-400 disabled:text-zinc-400"
-            >
-              <option value="">{linkOptions === null ? "Loading…" : "Nothing yet"}</option>
-              {(linkOptions ?? []).map((option) => <option key={option.objectId} value={option.objectId}>{option.name} — {option.module}</option>)}
-            </select>
-          </label>
+            <div className="mt-2">
+              <KinesisLinkField
+                name="linkObjectId"
+                options={linkOptions ?? []}
+                value={linkObjectId}
+                onChange={setLinkObjectId}
+                ariaLabel="Link this to"
+                placeholder="Nothing yet"
+                loading={linkOptions === null}
+                onClear={() => setLinkObjectId("")}
+              />
+            </div>
+          </div>
         )}
 
         {captureTargetCarries(target, "status") && (
