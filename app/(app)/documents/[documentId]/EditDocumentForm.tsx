@@ -16,6 +16,8 @@ import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
 
+export type DocumentHistoryEntry = { id: string; action: string; createdAt: string };
+
 export type EditableDocument = {
   id: string;
   name: string;
@@ -38,7 +40,7 @@ export type EditableDocument = {
   customFields: CustomField[];
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[] }) {
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, history }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[] }) {
   const [editing, setEditing] = useState(false);
   const expiry = getExpiryDetails(document.expiryDate ? new Date(`${document.expiryDate}T00:00:00.000Z`) : null, document.prompt);
   const statusClass = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
@@ -60,13 +62,13 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} />
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} history={history} />
       )}
     </>
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: "neutral" | "safe" | "soon" | "expired"; locale: string; linkOptions: KinesisLinkOption[] }) {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, history }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: "neutral" | "safe" | "soon" | "expired"; locale: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[] }) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   const linkedFields = document.customFields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
@@ -115,7 +117,17 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
 
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
         <h2 className="text-lg font-semibold">History</h2>
-        <div className="mt-4 flex items-start gap-3"><span className="mt-1.5 h-2 w-2 rounded-full bg-zinc-300" /><div><p className="text-sm font-medium text-zinc-700">Document added</p><p className="mt-0.5 text-xs text-zinc-400">{formatDate(document.createdAt, locale)}</p></div></div>
+        <div className="mt-4 space-y-4">
+          {(history.length > 0 ? history : [{ id: "created", action: "Added", createdAt: document.createdAt }]).map((entry) => (
+            <div key={entry.id} className="flex items-start gap-3">
+              <span className="mt-1.5 h-2 w-2 rounded-full bg-zinc-300" />
+              <div>
+                <p className="text-sm font-medium text-zinc-700">{historyLabel(entry.action)}</p>
+                <p className="mt-0.5 text-xs text-zinc-400">{formatDate(entry.createdAt, locale)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );
@@ -142,6 +154,7 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
 }
 
 function displayDate(value: string, locale: string) { return value ? formatDate(value, locale) : EMPTY_VALUE; }
+function historyLabel(action: string) { return action === "Added" ? "Document added" : action === "Updated" ? "Document updated" : `Document ${action.toLowerCase()}`; }
 function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: "neutral" | "safe" | "soon" | "expired" }) {
   const detailClass = detailTone ? {
     neutral: "bg-zinc-100 text-zinc-600",
