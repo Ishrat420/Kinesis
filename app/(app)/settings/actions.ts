@@ -21,11 +21,17 @@ export async function updateSettingsAction(
   if (!isSupportedLocale(locale)) return { error: "Choose a valid region." };
   if (!isSupportedCurrency(currency)) return { error: "Choose a valid currency." };
 
+  const milestoneReminderLeadDays = Number(formData.get("milestoneReminderLeadDays"));
+  if (!Number.isInteger(milestoneReminderLeadDays) || milestoneReminderLeadDays < 0 || milestoneReminderLeadDays > 365) {
+    return { error: "Enter a number of days between 0 and 365." };
+  }
+
   const data = {
     locale,
     currency,
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     remindersEnabled: formData.get("remindersEnabled") === "on",
+    milestoneReminderLeadDays,
   };
   await prisma.userSettings.upsert({
     where: { userId: user.id },

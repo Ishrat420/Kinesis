@@ -3,6 +3,7 @@ import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatCalendarDuration, startOfUtcDay } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
+import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
 
 type NotificationCandidate = {
   type: NotificationType;
@@ -54,19 +55,21 @@ export function getDocumentNotificationCandidate(
   };
 }
 
-/** Creates an alert on the due date and keeps it current while the milestone is overdue. */
+/** Opens a reminder `leadDays` before the due date and keeps it current while the milestone is overdue. */
 export function getMilestoneNotificationCandidate(
   milestone: Pick<Milestone, "id" | "name" | "dueDate"> & { goal: { id: string; name: string } },
   now = new Date(),
+  leadDays = 0,
 ): NotificationCandidate | null {
   if (!milestone.dueDate) return null;
   const today = startOfUtcDay(now)!;
   const dueDate = startOfUtcDay(milestone.dueDate)!;
-  if (today < dueDate) return null;
+  const reminderAt = getReminderWindowStart(dueDate, leadDays);
+  if (today < reminderAt) return null;
 
   return {
-    type: "MILESTONE_DUE",
-    reminderAt: dueDate,
+    type: today < dueDate ? "REMINDER_DUE" : "MILESTONE_DUE",
+    reminderAt,
     timeUntilExpiry: null,
     expiryDate: dueDate,
     documentName: milestone.name,
@@ -103,8 +106,9 @@ async function reconcileMilestone(
   userId: string,
   now: Date,
   remindersEnabled: boolean,
+  leadDays: number,
 ) {
-  const candidate = remindersEnabled ? getMilestoneNotificationCandidate(milestone, now) : null;
+  const candidate = remindersEnabled ? getMilestoneNotificationCandidate(milestone, now, leadDays) : null;
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, milestoneId: milestone.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -132,6 +136,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const notificationsEnabled = settings?.notificationsEnabled ?? true;
   const remindersEnabled = settings?.remindersEnabled ?? true;
+  const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   const { locale } = resolveFormatPreferences(settings);
   if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
@@ -154,7 +159,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
 
   const results = await Promise.all([
     ...documents.map((document) => reconcileDocument(document, userId, now, remindersEnabled, locale)),
-    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, remindersEnabled)),
+    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, remindersEnabled, milestoneLeadDays)),
   ]);
   return {
     evaluated: documents.length + milestones.length,

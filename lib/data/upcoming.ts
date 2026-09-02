@@ -5,6 +5,7 @@ import { getSettings } from "./settings";
 import { requireKinesisUser } from "@/lib/auth";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { startOfUtcDay } from "@/lib/dates";
+import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
 const DAY = 86_400_000;
@@ -22,7 +23,9 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   await connection();
   const user = await requireKinesisUser();
   const today = startOfUtcDay(now)!;
-  const [documents, milestones, importantDates, todos, settings] = await Promise.all([
+  const settings = await getSettings();
+  const milestoneWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
+  const [documents, milestones, importantDates, todos] = await Promise.all([
     prisma.document.findMany({
       where: { userId: user.id, expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
@@ -30,14 +33,15 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     prisma.milestone.findMany({
       where: {
         completed: false,
-        dueDate: { lt: today },
+        // The upper bound is moot once mapped below when reminders are off, but
+        // narrowing here keeps the query from fetching every future milestone.
+        dueDate: { lte: milestoneWindowEnd },
         goal: { userId: user.id, status: "Active" },
       },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
     prisma.relationshipImportantDate.findMany({ where: { relationship: { userId: user.id } }, include: { relationship: { include: { firstPerson: true, secondPerson: true } } } }),
     prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, status: true, dueDate: true } }),
-    getSettings(),
   ]);
 
   const documentItems = documents.flatMap((document): UpcomingItem[] => {
@@ -55,14 +59,17 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     }];
   });
 
-  const milestoneItems = settings.remindersEnabled ? milestones.map((milestone): UpcomingItem => ({
-    id: `milestone-${milestone.id}`,
-    kind: "milestone",
-    title: `${milestone.name} is over its due date`,
-    date: milestone.dueDate!.toISOString(),
-    timestamp: milestone.dueDate!.getTime(),
-    href: `/goals/${milestone.goalId}`,
-  })) : [];
+  const milestoneItems = settings.remindersEnabled ? milestones.map((milestone): UpcomingItem => {
+    const dueDate = startOfUtcDay(milestone.dueDate!)!;
+    return {
+      id: `milestone-${milestone.id}`,
+      kind: "milestone",
+      title: `${milestone.name} is ${dueDate < today ? "over its due date" : "due soon"}`,
+      date: dueDate.toISOString(),
+      timestamp: dueDate.getTime(),
+      href: `/goals/${milestone.goalId}`,
+    };
+  }) : [];
 
   /**
    * A dated To-Do appears here once it is due or overdue. Undated captures never

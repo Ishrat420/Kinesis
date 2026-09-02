@@ -139,7 +139,7 @@ describe("getMilestoneNotificationCandidate: alerting on due and overdue milesto
     expect(getMilestoneNotificationCandidate(milestone(null), at("2026-06-01"))).toBeNull();
   });
 
-  it("raises nothing before the due date, however close it is", () => {
+  it("raises nothing before the due date when no lead time is given, however close it is", () => {
     expect(getMilestoneNotificationCandidate(milestone("2026-06-02"), at("2026-06-01"))).toBeNull();
   });
 
@@ -179,5 +179,49 @@ describe("getMilestoneNotificationCandidate: alerting on due and overdue milesto
     expect(candidate?.reminderAt?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
     expect(candidate?.expiryDate.toISOString()).toBe("2026-06-01T00:00:00.000Z");
     expect(candidate?.timeUntilExpiry).toBeNull();
+  });
+});
+
+describe("getMilestoneNotificationCandidate: the configurable lead time", () => {
+  it("raises nothing while today is still outside the lead window", () => {
+    // A 30-day lead on a 1 July due date opens on 1 June.
+    expect(getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-05-31"), 30)).toBeNull();
+  });
+
+  it("raises a reminder on the first day of the lead window", () => {
+    const candidate = getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-06-01"), 30);
+
+    expect(candidate?.type).toBe("REMINDER_DUE");
+    expect(candidate?.message).toBe("Submit application is 30 days left");
+    expect(candidate?.reminderAt?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+  });
+
+  it("keeps reminding every day between the window opening and the due date", () => {
+    expect(getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-06-20"), 30)?.type)
+      .toBe("REMINDER_DUE");
+  });
+
+  it("switches from REMINDER_DUE to MILESTONE_DUE on the due date itself", () => {
+    const candidate = getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-07-01"), 30);
+
+    expect(candidate?.type).toBe("MILESTONE_DUE");
+    expect(candidate?.message).toBe("Submit application is due today");
+  });
+
+  it("stays MILESTONE_DUE, not REMINDER_DUE, once the milestone is overdue", () => {
+    expect(getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-07-05"), 30)?.type)
+      .toBe("MILESTONE_DUE");
+  });
+
+  it("treats a zero lead time exactly like the default: due date onward only", () => {
+    expect(getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-06-30"), 0)).toBeNull();
+    expect(getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-07-01"), 0)?.type)
+      .toBe("MILESTONE_DUE");
+  });
+
+  it("dedupes a not-yet-due reminder on the due date, same as an overdue one", () => {
+    const candidate = getMilestoneNotificationCandidate(milestone("2026-07-01"), at("2026-06-15"), 30);
+
+    expect(candidate?.expiryDate.toISOString()).toBe("2026-07-01T00:00:00.000Z");
   });
 });

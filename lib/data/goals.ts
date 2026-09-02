@@ -1,8 +1,11 @@
 import { prisma } from "./prisma";
+import { getSettings } from "./settings";
 import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
 import { calculateGoalHealth } from "@/lib/goals/health";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
+import { startOfUtcDay } from "@/lib/dates";
+import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
 
 export async function syncAndGetGoals() {
   await connection();
@@ -115,14 +118,14 @@ export async function getGoalDashboardSummary(now = new Date()) {
 export async function getMilestonesDueSoon(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const oneMonthFromToday = new Date(today);
-  oneMonthFromToday.setUTCMonth(oneMonthFromToday.getUTCMonth() + 1);
+  const settings = await getSettings();
+  const today = startOfUtcDay(now)!;
+  const windowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
 
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      dueDate: { gte: today, lte: oneMonthFromToday },
+      dueDate: { gte: today, lte: windowEnd },
       goal: { userId: user.id, status: "Active" },
     },
     include: { goal: { select: { id: true, name: true } } },
