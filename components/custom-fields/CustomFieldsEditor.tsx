@@ -10,12 +10,19 @@ import {
 } from "@/lib/custom-fields/types";
 import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
+import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
 type FieldNames = { id: string; label: string; type: string; value: string; target: string };
 
 const inputClass = FIELD_INPUT_CLASS;
+
+function toDateInputValue(value: string) {
+  const date = parseDatedFieldValue(value);
+  return date ? date.toISOString().slice(0, 10) : "";
+}
+
 const defaultNames: FieldNames = {
   id: "fieldId",
   label: "fieldLabel",
@@ -38,6 +45,12 @@ export function CustomFieldsEditor({
       ...field,
       key: field.id ?? crypto.randomUUID(),
       type: field.type ?? "TEXT",
+      // A date field now edits through a native <input type="date">, which
+      // only ever shows a value already in yyyy-mm-dd. A value saved before
+      // that change (dd/mm/yyyy) is parsed and reformatted here so opening
+      // an old field for editing still shows its actual date instead of a
+      // blank picker.
+      value: field.type === "DATE" ? toDateInputValue(field.value) : field.value,
       phase: "ready",
       editingName: false,
     })),
@@ -241,9 +254,7 @@ function FieldInput({ field, index, linkOptions, names, update }: {
       ) : (
         <input
           name={names.value}
-          type={field.type === "NUMBER" ? "number" : field.type === "LINK" ? "url" : "text"}
-          inputMode={field.type === "DATE" ? "numeric" : undefined}
-          pattern={field.type === "DATE" ? "[0-9]{2}/[0-9]{2}/[0-9]{4}" : undefined}
+          type={field.type === "NUMBER" ? "number" : field.type === "LINK" ? "url" : field.type === "DATE" ? "date" : "text"}
           value={field.value}
           onChange={(event) => update({ value: event.target.value })}
           aria-label={`Field ${index + 1} value`}
@@ -257,7 +268,6 @@ function FieldInput({ field, index, linkOptions, names, update }: {
 
 function valuePlaceholder(type?: CustomFieldType) {
   if (type === "NUMBER") return "Number";
-  if (type === "DATE") return "dd/mm/yyyy";
   if (type === "LINK") return "https://…";
   return "Text";
 }
