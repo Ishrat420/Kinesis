@@ -12,9 +12,11 @@ import { getNeedsAttention } from "@/lib/data/attention";
 import { getRecentActivity } from "@/lib/data/activity";
 import { getFinanceItems } from "@/lib/data/finance";
 import { getMonthlyCashFlow } from "@/lib/finance";
+import { getSettings } from "@/lib/data/settings";
+import { getReminderLeadDays } from "@/lib/reminders/policy";
 
 export default async function Home() {
-  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity, financeItems] = await Promise.all([
+  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity, financeItems, settings] = await Promise.all([
     getUpcomingAndDue(),
     getCurrentUser(),
     getMilestonesDueSoon(),
@@ -23,7 +25,9 @@ export default async function Home() {
     getGoalDashboardSummary(),
     getRecentActivity(),
     getFinanceItems(),
+    getSettings(),
   ]);
+  const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   return (
     <ModuleContent>
       <ModuleHeader title={`Welcome, ${getUserDisplayName(user)}`} />
@@ -51,6 +55,7 @@ export default async function Home() {
 
       <StatsGrid
         milestonesDueSoon={milestonesDueSoon.length}
+        milestoneLeadDays={milestoneLeadDays}
         expiringSoon={expiringDocuments.upcoming.length}
         attentionItems={attentionItems}
         goalsAtRisk={goalSummary.atRisk}
