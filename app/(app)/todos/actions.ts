@@ -82,7 +82,9 @@ export async function saveTodoDetailsAction(id: string, _previousState: TodoDeta
   await updateTodoDetails(id, {
     status: statusValue ? (statusValue as TodoStatus) : undefined,
     dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
-    linkObjectId: text(formData, "linkObjectId") || null,
+    // The form submits one entry per linked object, so the whole set arrives
+    // together and an empty set legitimately means "no longer concerns anything".
+    linkObjectIds: formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean),
   });
   refresh();
   return { saved: true };

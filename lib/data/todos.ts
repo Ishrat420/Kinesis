@@ -33,7 +33,7 @@ const todoSelect = {
   id: true, name: true, status: true, dueDate: true, completedAt: true, createdAt: true,
   object: {
     select: {
-      outgoingRelationships: { select: { targetObject: { select: objectLocationSelect } } },
+      outgoingRelationships: { select: { targetObject: { select: objectLocationSelect } }, orderBy: { createdAt: "asc" } },
     },
   },
 } as const satisfies Prisma.TodoSelect;
@@ -86,17 +86,18 @@ export async function captureTodo(name: string) {
   });
 }
 
-export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObjectId?: string | null };
+export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObjectIds?: string[] };
 
 /**
  * The "Add details" step. Every field is optional and independent: a caller
  * that only knows the status leaves the rest alone rather than clearing it.
  *
- * `linkObjectId` is the exception to that -- an explicit null means "no longer
- * concerns anything", which is a value the user can choose, so it is applied
- * while `undefined` is not.
+ * `linkObjectIds` is the exception to that. It is the complete set of objects
+ * the To-Do concerns, so an empty array means "no longer concerns anything" --
+ * a choice the user can make, and applied -- while `undefined` leaves the
+ * existing links alone.
  */
-export async function updateTodoDetails(id: string, { status, dueDate, linkObjectId }: TodoDetails) {
+export async function updateTodoDetails(id: string, { status, dueDate, linkObjectIds }: TodoDetails) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
     const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, status: true } });
@@ -116,13 +117,22 @@ export async function updateTodoDetails(id: string, { status, dueDate, linkObjec
       });
     }
 
-    if (linkObjectId !== undefined) {
+    if (linkObjectIds !== undefined) {
+      // Replace rather than reconcile: the caller submits the whole set, and a
+      // To-Do concerns few enough things that working out the difference would
+      // cost more than rewriting them.
       await transaction.objectRelationship.deleteMany({ where: { userId: user.id, sourceObjectId: todo.objectId } });
-      if (linkObjectId) {
-        const target = await transaction.object.findFirst({ where: { id: linkObjectId, userId: user.id }, select: { id: true } });
-        if (!target) throw new Error("Linked object not found");
-        await transaction.objectRelationship.create({
-          data: { userId: user.id, sourceObjectId: todo.objectId, targetObjectId: target.id, pairKey: objectPairKey(todo.objectId, target.id), type: CONCERNS },
+      const targets = [...new Set(linkObjectIds.filter(Boolean))];
+      if (targets.length) {
+        // One count, not one lookup per id: either every target is the user's
+        // or the whole save is refused.
+        const owned = await transaction.object.count({ where: { id: { in: targets }, userId: user.id } });
+        if (owned !== targets.length) throw new Error("Linked object not found");
+        await transaction.objectRelationship.createMany({
+          data: targets.map((targetObjectId) => ({
+            userId: user.id, sourceObjectId: todo.objectId, targetObjectId,
+            pairKey: objectPairKey(todo.objectId, targetObjectId), type: CONCERNS,
+          })),
         });
       }
     }
