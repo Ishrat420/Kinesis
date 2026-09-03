@@ -25,3 +25,25 @@ export function getNextOccurrence(importantDate: ImportantDateOccurrenceInput, t
 export function possessiveName(name: string) {
   return `${name}${name.toLowerCase().endsWith("s") ? "'" : "'s"}`;
 }
+
+/**
+ * Every calendar date this important date falls on within `[start, end]`.
+ *
+ * `getNextOccurrence` answers the bell's question -- "what is the one date
+ * still ahead of me?" -- which is deliberately a single date and never a past
+ * one. A calendar asks a different question: it renders a window that may sit
+ * wholly in the past or wholly in the future, and a yearly date belongs on
+ * every occurrence inside it. Asking `getNextOccurrence` instead would pin
+ * this year's birthday and leave next year's bare.
+ */
+export function occurrencesInRange(importantDate: ImportantDateOccurrenceInput, start: Date, end: Date): Date[] {
+  const date = startOfUtcDay(importantDate.date)!;
+  if (!importantDate.repeatsYearly) return date >= start && date <= end ? [date] : [];
+
+  const occurrences: Date[] = [];
+  for (let year = start.getUTCFullYear(); year <= end.getUTCFullYear(); year += 1) {
+    const occurrence = new Date(Date.UTC(year, date.getUTCMonth(), date.getUTCDate()));
+    if (occurrence >= start && occurrence <= end) occurrences.push(occurrence);
+  }
+  return occurrences;
+}
