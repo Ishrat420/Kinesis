@@ -6,12 +6,14 @@ import type { AttentionItem } from "@/lib/data/attention";
 import { NeedsAttentionCard } from "./NeedsAttentionCard";
 import { useFormatPreferences } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
+import { MILESTONES_DUE_SOON_HREF, milestoneDueSoonLabel } from "@/lib/goals/milestone-window";
 
 export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, attentionItems, goalsAtRisk, netCashFlow }: { milestonesDueSoon: number; milestoneLeadDays: number; expiringSoon: number; attentionItems: AttentionItem[]; goalsAtRisk: number; netCashFlow: number }) {
   const { locale, currency } = useFormatPreferences();
   const stats = [
     { icon: Calendar, title: "Expiring soon", value: String(expiringSoon), label: "documents", tone: "bg-blue-50", href: "/documents/expiring-soon" },
-    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: `due within ${milestoneLeadDays} ${milestoneLeadDays === 1 ? "day" : "days"}`, tone: "bg-emerald-50", href: "/goals/milestones/due-soon" },
+    // "See all" carries the same window the number was counted with, so the page lists exactly what the tile counted.
+    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: `due within ${milestoneDueSoonLabel(milestoneLeadDays)}`, tone: "bg-emerald-50", href: MILESTONES_DUE_SOON_HREF },
     { icon: Target, title: "Goals at risk", value: String(goalsAtRisk), label: "on risk", tone: "bg-violet-50", href: "/goals?filter=at-risk" },
     { icon: TrendingUp, title: "This month", value: formatMoney(netCashFlow, locale, currency), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
   ];
