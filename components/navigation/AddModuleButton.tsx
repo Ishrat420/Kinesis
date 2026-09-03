@@ -21,8 +21,10 @@ export function AddModuleButton() {
   }, [router, state.moduleId]);
 
   return <>
-    <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
-      <Plus className="h-[18px] w-[18px]" /><span className="font-medium">Add Module</span>
+    {/* Sits in the Modules heading, so it is an icon the row can absorb rather
+      than a full-width entry that reads as another module. */}
+    <button type="button" onClick={() => setOpen(true)} aria-label="Add module" title="Add module" className="-my-1 flex items-center justify-center rounded-lg p-1 text-zinc-400 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
+      <Plus className="h-[18px] w-[18px]" />
     </button>
     {open && <div role="dialog" aria-modal="true" aria-labelledby="create-module-title" className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" onMouseDown={() => setOpen(false)}>
       <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-white p-7 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
