@@ -14,11 +14,20 @@ export async function getRecentNotifications(limit = 8) {
   const settings = await getSettings();
   if (!settings.notificationsEnabled) return { notifications: [], unreadCount: 0 };
   await runNotificationEngine(user.id);
-  const notifications = await prisma.notification.findMany({
+  // A custom item's notification is shown with its own module's icon and
+  // colour, so the module is joined through rather than guessed at from the
+  // action URL.
+  const rows = await prisma.notification.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
     take: limit,
+    include: { customItem: { select: { module: { select: { icon: true, color: true } } } } },
   });
+  const notifications = rows.map(({ customItem, ...notification }) => ({
+    ...notification,
+    moduleIcon: customItem?.module.icon ?? null,
+    moduleColor: customItem?.module.color ?? null,
+  }));
   const unreadCount = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
   return { notifications, unreadCount };
 }

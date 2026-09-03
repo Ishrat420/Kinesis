@@ -9,7 +9,8 @@ type BaseAttentionItem = { key: string; title: string; context: string; date: st
 export type AttentionItem =
   | (BaseAttentionItem & { kind: "document"; editHref: string })
   | (BaseAttentionItem & { kind: "milestone"; goalId: string; milestoneId: string })
-  | (BaseAttentionItem & { kind: "custom"; editHref: string })
+  /** A custom module object is shown with its own module's icon and colour. */
+  | (BaseAttentionItem & { kind: "custom"; editHref: string; icon: string; color: string })
   | (BaseAttentionItem & { kind: "todo" });
 
 export async function getNeedsAttention(now = new Date()): Promise<AttentionItem[]> {
@@ -19,7 +20,7 @@ export async function getNeedsAttention(now = new Date()): Promise<AttentionItem
   const [documents, milestones, customItems, todos, dismissals] = await Promise.all([
     prisma.document.findMany({ where: { userId: user.id, expiryDate: { lt: today } }, select: { id: true, name: true, expiryDate: true } }),
     prisma.milestone.findMany({ where: { completed: false, dueDate: { lt: today }, goal: { userId: user.id, status: "Active" } }, select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } } }),
-    prisma.customItem.findMany({ where: { archived: false, dueDate: { lt: today }, module: { userId: user.id } }, select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { name: true } } } }),
+    prisma.customItem.findMany({ where: { archived: false, dueDate: { lt: today }, module: { userId: user.id } }, select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { name: true, icon: true, color: true } } } }),
     // A To-Do without a due date is not overdue, it is just undated: capture
     // without a deadline is the point, so only dated ones can fall behind.
     prisma.todo.findMany({ where: { userId: user.id, dueDate: { lt: today } }, select: { id: true, name: true, status: true, dueDate: true } }),
@@ -32,7 +33,7 @@ export async function getNeedsAttention(now = new Date()): Promise<AttentionItem
   const items: AttentionItem[] = [
     ...documents.map((item) => ({ key: dismissalKey("document", item.id, item.expiryDate!), kind: "document" as const, title: item.name, context: "Expired document", date: item.expiryDate!.toISOString(), timestamp: item.expiryDate!.getTime(), href: `/documents/${item.id}`, editHref: `/documents/${item.id}?edit=1` })),
     ...milestones.map((item) => ({ key: dismissalKey("milestone", item.id, item.dueDate!), kind: "milestone" as const, title: item.name, context: `Overdue milestone · ${item.goal.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/goals/${item.goalId}`, goalId: item.goalId, milestoneId: item.id })),
-    ...customItems.map((item) => ({ key: dismissalKey("custom", item.id, item.dueDate!), kind: "custom" as const, title: item.name, context: `Overdue · ${item.module.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/custom-modules/${item.moduleId}/items/${item.id}`, editHref: `/custom-modules/${item.moduleId}/items/${item.id}` })),
+    ...customItems.map((item) => ({ key: dismissalKey("custom", item.id, item.dueDate!), kind: "custom" as const, title: item.name, context: `Overdue · ${item.module.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/custom-modules/${item.moduleId}/items/${item.id}`, editHref: `/custom-modules/${item.moduleId}/items/${item.id}`, icon: item.module.icon, color: item.module.color })),
     ...todos.filter((todo) => isOpenTodoStatus(todo.status)).map((todo) => ({ key: dismissalKey("todo", todo.id, todo.dueDate!), kind: "todo" as const, title: todo.name, context: "Overdue to-do", date: todo.dueDate!.toISOString(), timestamp: todo.dueDate!.getTime(), href: "/todos" })),
   ];
   const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));

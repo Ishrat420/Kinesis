@@ -9,14 +9,11 @@ import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/polic
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
-export type UpcomingItem = {
-  id: string;
-  kind: "document" | "milestone" | "relationship" | "todo" | "custom";
-  title: string;
-  date: string;
-  timestamp: number;
-  href: string;
-};
+type BaseUpcomingItem = { id: string; title: string; date: string; timestamp: number; href: string };
+export type UpcomingItem =
+  | (BaseUpcomingItem & { kind: "document" | "milestone" | "relationship" | "todo" })
+  /** A custom module object is shown with its own module's icon and colour. */
+  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string });
 
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
@@ -54,7 +51,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
         dueDate: { lte: customItemWindowEnd },
         module: { userId: user.id },
       },
-      select: { id: true, name: true, dueDate: true, moduleId: true },
+      select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { icon: true, color: true } } },
     }),
   ]);
 
@@ -115,6 +112,8 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       date: dueDate.toISOString(),
       timestamp: dueDate.getTime(),
       href: `/custom-modules/${item.moduleId}/items/${item.id}`,
+      icon: item.module.icon,
+      color: item.module.color,
     };
   }) : [];
   return [...documentItems, ...milestoneItems, ...todoItems, ...relationshipItems, ...customItemItems].sort((a, b) => a.timestamp - b.timestamp);

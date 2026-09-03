@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, ListTodo, Puzzle, TriangleAlert, X } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, ListTodo, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-actions";
+import { CustomModuleBadge } from "@/lib/custom-modules/icons";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 
@@ -18,6 +19,9 @@ type NotificationItem = {
   actionUrl: string;
   readAt: Date | null;
   createdAt: Date;
+  /** Set for a custom item's notification, so it wears its own module's icon and colour. */
+  moduleIcon: string | null;
+  moduleColor: string | null;
 };
 
 export function NotificationBell({ notifications, initialUnreadCount }: { notifications: NotificationItem[]; initialUnreadCount: number }) {
@@ -76,9 +80,11 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
               const isTodo = notification.type === "TODO_DUE" || notification.actionUrl === "/todos";
               return (
               <Link key={notification.id} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readIds.has(notification.id) ? "opacity-70" : "bg-zinc-50/70"}`}>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                  {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isCustomItem ? <Puzzle className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
-                </span>
+                {isCustomItem && notification.moduleIcon && notification.moduleColor
+                  ? <CustomModuleBadge icon={notification.moduleIcon} color={notification.moduleColor} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />
+                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                    </span>}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readIds.has(notification.id) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
