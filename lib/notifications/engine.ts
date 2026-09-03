@@ -1,10 +1,11 @@
-import type { CustomItem, Document, Milestone, RelationshipImportantDate, NotificationType } from "@prisma/client";
+import type { CustomItem, Document, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
+import { isOpenTodoStatus } from "@/lib/todos/status";
 
 type NotificationCandidate = {
   type: NotificationType;
@@ -144,6 +145,38 @@ export function getCustomItemNotificationCandidate(
   };
 }
 
+/**
+ * Opens on the due date itself and stays current while the To-Do is overdue.
+ *
+ * Unlike every other source there is no lead time to honour: a To-Do has no
+ * advance stage at all (ADR-009 is explicit that capture must not require a
+ * deadline, so most of them never have a date to look ahead from). It speaks on
+ * the day and not before, which also means it is never an *advance* notice --
+ * so, like an expired document, it is not gated on `remindersEnabled`. Turning
+ * reminders off silences predictions, not statements about what has already
+ * come due.
+ */
+export function getTodoNotificationCandidate(
+  todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
+  now = new Date(),
+): NotificationCandidate | null {
+  if (!todo.dueDate || !isOpenTodoStatus(todo.status)) return null;
+  const today = startOfUtcDay(now)!;
+  const dueDate = startOfUtcDay(todo.dueDate)!;
+  if (today < dueDate) return null;
+
+  return {
+    type: "TODO_DUE",
+    reminderAt: dueDate,
+    timeUntilExpiry: null,
+    expiryDate: dueDate,
+    documentName: todo.name,
+    documentType: "To-do",
+    message: `${todo.name} is ${formatDeadline(dueDate, today)}`,
+    actionUrl: "/todos",
+  };
+}
+
 async function reconcileDocument(document: Document, userId: string, now: Date, remindersEnabled: boolean, locale: string) {
   const candidate = getDocumentNotificationCandidate(document, now, remindersEnabled, locale);
   const stale = await prisma.notification.deleteMany({
@@ -251,6 +284,32 @@ async function reconcileCustomItem(
   return { created: inserted.count, removed: stale.count };
 }
 
+async function reconcileTodo(
+  todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
+  userId: string,
+  now: Date,
+) {
+  const candidate = getTodoNotificationCandidate(todo, now);
+  const stale = await prisma.notification.deleteMany({
+    where: candidate
+      ? { userId, todoId: todo.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
+      : { userId, todoId: todo.id },
+  });
+  if (!candidate) return { created: 0, removed: stale.count };
+
+  const inserted = await prisma.notification.createMany({
+    data: [{ id: crypto.randomUUID(), userId, todoId: todo.id, ...candidate }],
+    skipDuplicates: true,
+  });
+  if (!inserted.count) {
+    await prisma.notification.updateMany({
+      where: { userId, todoId: todo.id, type: candidate.type, expiryDate: candidate.expiryDate },
+      data: candidate,
+    });
+  }
+  return { created: inserted.count, removed: stale.count };
+}
+
 /** Reconciles every supported source so normal page loads and the cron are equally reliable. */
 export async function runNotificationEngine(userId: string, now = new Date()): Promise<{ evaluated: number; created: number; removed: number }> {
   // The cron evaluates every user in one process, so the locale is read per
@@ -264,7 +323,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   const { locale } = resolveFormatPreferences(settings);
   if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
-  const [documents, milestones, relationshipDates, customItems, orphanCleanup] = await Promise.all([
+  const [documents, milestones, relationshipDates, customItems, todos, orphanCleanup] = await Promise.all([
     prisma.document.findMany({ where: { userId } }),
     prisma.milestone.findMany({
       where: { completed: false, goal: { userId, status: "Active" } },
@@ -275,11 +334,14 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
     prisma.customItem.findMany({ where: { archived: false, module: { userId } } }),
+    // Every To-Do, dated or not: one that has just had its due date cleared, or
+    // been marked done, still needs its old notification reconciled away.
+    prisma.todo.findMany({ where: { userId }, select: { id: true, name: true, dueDate: true, status: true } }),
     prisma.notification.deleteMany({
       where: {
         userId,
         OR: [
-          { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null },
+          { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null, todoId: null },
           { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { status: { not: "Active" } } }] } } },
           { customItemId: { not: null }, customItem: { is: { archived: true } } },
         ],
@@ -306,9 +368,10 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
     ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, remindersEnabled, milestoneLeadDays)),
     ...relationshipDateInputs.map((importantDate) => reconcileRelationshipDate(importantDate, userId, now, remindersEnabled, relationshipLeadDays)),
     ...customItems.map((item) => reconcileCustomItem(item, userId, now, remindersEnabled, customItemLeadDays, locale)),
+    ...todos.map((todo) => reconcileTodo(todo, userId, now)),
   ]);
   return {
-    evaluated: documents.length + milestones.length + relationshipDateInputs.length + customItems.length,
+    evaluated: documents.length + milestones.length + relationshipDateInputs.length + customItems.length + todos.length,
     created: results.reduce((total, result) => total + result.created, 0),
     removed: orphanCleanup.count + results.reduce((total, result) => total + result.removed, 0),
   };

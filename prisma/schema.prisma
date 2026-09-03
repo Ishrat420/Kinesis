@@ -76,7 +76,7 @@ model FinanceItem {
 }
 
 model Document {
-  id                  String          @id
+  id                  String               @id
   name                String
   type                String
   status              String
@@ -88,20 +88,21 @@ model Document {
   notes               String?
   link                String?
   userId              String
-  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  objectId            String          @unique
-  object              Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  prompt              Int             @default(180)
-  expiryDateLabel     String          @default("Expiry date")
-  issueDateLabel      String          @default("Issue date")
-  documentNumberLabel String          @default("Document number")
-  countryLabel        String          @default("Country")
-  notesLabel          String          @default("Notes")
-  linkLabel           String          @default("Link")
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId            String               @unique
+  object              Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  prompt              Int                  @default(180)
+  expiryDateLabel     String               @default("Expiry date")
+  issueDateLabel      String               @default("Issue date")
+  documentNumberLabel String               @default("Document number")
+  countryLabel        String               @default("Country")
+  notesLabel          String               @default("Notes")
+  linkLabel           String               @default("Link")
   customFields        DocumentField[]
   notifications       Notification[]
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  dismissals          AttentionDismissal[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 enum NotificationType {
@@ -109,6 +110,7 @@ enum NotificationType {
   EXPIRED
   MILESTONE_DUE
   CUSTOM_ITEM_DUE
+  TODO_DUE
 }
 
 model Notification {
@@ -118,6 +120,7 @@ model Notification {
   milestoneId        String?
   relationshipDateId String?
   customItemId       String?
+  todoId             String?
   reminderAt         DateTime?
   timeUntilExpiry    String?
   expiryDate         DateTime?
@@ -133,15 +136,18 @@ model Notification {
   milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
   relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
   customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
+  todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
 
   @@unique([userId, documentId, type, expiryDate])
   @@unique([userId, milestoneId, type, expiryDate])
   @@unique([userId, relationshipDateId, type, expiryDate])
   @@unique([userId, customItemId, type, expiryDate])
+  @@unique([userId, todoId, type, expiryDate])
   @@index([userId, createdAt])
   @@index([milestoneId])
   @@index([relationshipDateId])
   @@index([customItemId])
+  @@index([todoId])
 }
 
 model DocumentField {
@@ -395,7 +401,7 @@ model CustomModule {
 }
 
 model CustomItem {
-  id            String            @id
+  id            String               @id
   moduleId      String
   name          String
   notes         String?
@@ -404,14 +410,15 @@ model CustomItem {
   // and the Calendar all treat it as a due date, not a bare alert time.
   dueDate       DateTime?
   link          String?
-  archived      Boolean           @default(false)
-  module        CustomModule      @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  objectId      String            @unique
-  object        Object            @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  archived      Boolean              @default(false)
+  module        CustomModule         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  objectId      String               @unique
+  object        Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
   fields        CustomItemField[]
   notifications Notification[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  dismissals    AttentionDismissal[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   @@index([moduleId, archived, createdAt])
 }
@@ -472,20 +479,40 @@ model Todo {
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   objectId    String     @unique
   object      Object     @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+
+  notifications Notification[]
+  dismissals    AttentionDismissal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, status, dueDate])
 }
 
 model AttentionDismissal {
-  id        String   @id
-  itemKey   String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id           String      @id
+  // The item *and* the deadline it was dismissed at: "<kind>:<id>:<yyyy-mm-dd>".
+  // A dismissal is permanent for as long as that deadline stands; editing the
+  // date changes the key, so the old row stops matching and the item returns to
+  // Needs Attention on its own. See lib/attention/dismissal.ts.
+  itemKey      String
+  // One of these is set, naming the record the key points at. They exist for
+  // referential integrity alone -- deleting the record takes its dismissals with
+  // it, rather than leaving rows nothing can ever match or clean up.
+  documentId   String?
+  customItemId String?
+  todoId       String?
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document     Document?   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  customItem   CustomItem? @relation(fields: [customItemId], references: [id], onDelete: Cascade)
+  todo         Todo?       @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
 
   @@unique([userId, itemKey])
+  @@index([documentId])
+  @@index([customItemId])
+  @@index([todoId])
 }
 
 model ActivityEvent {
