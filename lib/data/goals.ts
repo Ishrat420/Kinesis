@@ -4,8 +4,8 @@ import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
 import { calculateGoalHealth } from "@/lib/goals/health";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
-import { startOfUtcDay } from "@/lib/dates";
-import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
+import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
+import { getReminderLeadDays } from "@/lib/reminders/policy";
 
 export async function syncAndGetGoals() {
   await connection();
@@ -119,13 +119,14 @@ export async function getMilestonesDueSoon(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
   const settings = await getSettings();
-  const today = startOfUtcDay(now)!;
-  const windowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
+  // The same window the milestones page filters by, so the tile's number and
+  // the list behind "See all" can never describe different sets.
+  const window = milestoneDueSoonWindow(now, getReminderLeadDays(settings, "milestone"));
 
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      dueDate: { gte: today, lte: windowEnd },
+      dueDate: { gte: window.from, lte: window.to },
       goal: { userId: user.id, status: "Active" },
     },
     include: { goal: { select: { id: true, name: true } } },

@@ -1,10 +1,20 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarDays, CheckSquare, Target } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckSquare, ListFilter, Target, X } from "lucide-react";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getActiveIncompleteMilestones } from "@/lib/data/goals";
+import { getSettings } from "@/lib/data/settings";
 import { formatDate, formatDeadline, startOfUtcDay } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
+import {
+  MILESTONES_ALL_HREF,
+  MILESTONES_DUE_SOON_HREF,
+  MILESTONE_DUE_SOON_FILTER,
+  milestoneDueSoonLabel,
+  milestoneDueSoonWindow,
+  milestoneLists,
+} from "@/lib/goals/milestone-window";
+import { getReminderLeadDays } from "@/lib/reminders/policy";
 
 type MilestoneList = Awaited<ReturnType<typeof getActiveIncompleteMilestones>>;
 
@@ -73,14 +83,59 @@ function MilestoneSection({
   );
 }
 
-export default async function MilestonesPage() {
-  const [milestones, { locale }] = await Promise.all([
+/**
+ * The due-soon filter, in whichever state it is currently in.
+ *
+ * Both states are plain links rather than client state: the dashboard tile
+ * needs to be able to link straight to the filtered view, so the filter lives
+ * in the URL and the page stays a Server Component.
+ */
+function DueSoonFilter({ active, label, hidden }: { active: boolean; label: string; hidden: number }) {
+  if (!active) {
+    return (
+      <Link
+        href={MILESTONES_DUE_SOON_HREF}
+        className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-600 shadow-sm transition hover:border-zinc-300 hover:text-zinc-900"
+      >
+        <ListFilter className="h-4 w-4" />
+        Only due within {label}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 py-2 pl-3.5 pr-2 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
+        Due within {label}
+        <Link
+          href={MILESTONES_ALL_HREF}
+          aria-label={`Remove the due within ${label} filter`}
+          className="rounded-full p-1 text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
+        >
+          <X className="h-3.5 w-3.5" />
+        </Link>
+      </span>
+      {hidden > 0 && (
+        <Link href={MILESTONES_ALL_HREF} className="text-sm font-medium text-zinc-500 transition hover:text-zinc-900">
+          {hidden} more outside this window →
+        </Link>
+      )}
+    </div>
+  );
+}
+
+export default async function MilestonesPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+  const [params, milestones, settings, { locale }] = await Promise.all([
+    searchParams,
     getActiveIncompleteMilestones(),
+    getSettings(),
     getFormatPreferences(),
   ]);
+  const dueSoonOnly = params.filter === MILESTONE_DUE_SOON_FILTER;
+  const leadDays = getReminderLeadDays(settings, "milestone");
+  const label = milestoneDueSoonLabel(leadDays);
   const today = startOfUtcDay(new Date())!;
-  const overdue = milestones.filter((milestone) => milestone.dueDate && milestone.dueDate < today);
-  const upcoming = milestones.filter((milestone) => !milestone.dueDate || milestone.dueDate >= today);
+  const { overdue, upcoming, hiddenByFilter } = milestoneLists(milestones, today, milestoneDueSoonWindow(today, leadDays), dueSoonOnly);
 
   return (
     <ModuleContent width="standard">
@@ -91,11 +146,23 @@ export default async function MilestonesPage() {
         icon={<CheckSquare className="h-6 w-6" />}
         iconClassName="bg-emerald-50 text-emerald-700"
         title="Milestones"
-        description="All incomplete milestones from your active goals."
+        description={dueSoonOnly
+          ? `Milestones due in the next ${label}. Anything overdue is listed regardless.`
+          : "All incomplete milestones from your active goals."}
       />
 
-      <div className="mt-9 space-y-5">
-        <MilestoneSection title="Upcoming" emptyMessage="No upcoming milestones." milestones={upcoming} now={today} locale={locale} />
+      <div className="mt-7">
+        <DueSoonFilter active={dueSoonOnly} label={label} hidden={hiddenByFilter} />
+      </div>
+
+      <div className="mt-5 space-y-5">
+        <MilestoneSection
+          title="Upcoming"
+          emptyMessage={dueSoonOnly ? `No milestones due in the next ${label}.` : "No upcoming milestones."}
+          milestones={upcoming}
+          now={today}
+          locale={locale}
+        />
         <MilestoneSection title="Overdue" emptyMessage="No overdue milestones." milestones={overdue} now={today} locale={locale} overdue />
       </div>
     </ModuleContent>
