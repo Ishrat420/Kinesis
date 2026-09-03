@@ -2,14 +2,22 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { BellRing, CalendarDays, Circle, CircleAlert, FileWarning, Flag, ListTodo, Pencil, Puzzle, X } from "lucide-react";
+import { BellRing, CalendarDays, Circle, CircleAlert, FileWarning, Flag, ListTodo, Pencil, X } from "lucide-react";
 import { dismissAttentionItem } from "@/app/actions";
+import { CustomModuleBadge } from "@/lib/custom-modules/icons";
 import { toggleMilestoneAction, updateMilestoneDueDateAction, type GoalActionState } from "@/app/(app)/goals/actions";
 import type { AttentionItem } from "@/lib/data/attention";
 import { formatDate, formatDateInput, formatDeadline, formatExpiry } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 
-const icons = { document: FileWarning, milestone: ListTodo, custom: Puzzle, todo: CircleAlert };
+const icons = { document: FileWarning, milestone: ListTodo, todo: CircleAlert };
+
+/** A custom module object keeps its module's icon and colour; every other kind has one fixed icon. */
+function AttentionIcon({ item }: { item: AttentionItem }) {
+  if (item.kind === "custom") return <CustomModuleBadge icon={item.icon} color={item.color} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />;
+  const Icon = icons[item.kind];
+  return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><Icon className="h-5 w-5" /></span>;
+}
 const initialGoalState: GoalActionState = {};
 
 export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
@@ -28,11 +36,10 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
         <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><BellRing className="h-5 w-5" /></span><h2 id="attention-title" className="text-2xl font-semibold">Needs attention</h2></div><p className="mt-3 text-sm text-zinc-500">Expired documents, and overdue milestones, to-dos and reminders.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5" /></button></div>
         <div className="mt-6 space-y-3">
           {visible.length ? visible.map((item) => {
-            const Icon = icons[item.kind];
             const timing = item.kind === "document" ? formatExpiry(item.date) : formatDeadline(item.date);
             return <div key={item.key} className="flex items-center gap-3 rounded-2xl border border-zinc-200 p-4">
               <Link href={item.href} onClick={() => setOpen(false)} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><Icon className="h-5 w-5" /></span>
+                <AttentionIcon item={item} />
                 <span className="min-w-0"><span className="block truncate font-semibold text-zinc-900">{item.title}</span><span className="mt-0.5 block text-sm text-zinc-500">{item.context} · {formatDate(item.date, locale)} · {timing}</span></span>
               </Link>
               {item.kind === "milestone"
