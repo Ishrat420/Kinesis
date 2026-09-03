@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, Puzzle, TriangleAlert, X } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, ListTodo, Puzzle, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-actions";
@@ -9,7 +9,7 @@ import { useFormatPreferences } from "@/lib/format/context";
 
 type NotificationItem = {
   id: string;
-  type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE" | "CUSTOM_ITEM_DUE";
+  type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE" | "CUSTOM_ITEM_DUE" | "TODO_DUE";
   message: string;
   documentName: string;
   documentType: string | null;
@@ -73,15 +73,16 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
               const isMilestone = notification.type === "MILESTONE_DUE" || notification.actionUrl.startsWith("/goals/");
               const isRelationshipDate = notification.actionUrl === "/relationships";
               const isCustomItem = notification.type === "CUSTOM_ITEM_DUE" || notification.actionUrl.startsWith("/custom-modules/");
+              const isTodo = notification.type === "TODO_DUE" || notification.actionUrl === "/todos";
               return (
               <Link key={notification.id} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readIds.has(notification.id) ? "opacity-70" : "bg-zinc-50/70"}`}>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>
-                  {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isCustomItem ? <Puzzle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                  {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isCustomItem ? <Puzzle className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readIds.has(notification.id) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
-                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isMilestone || isCustomItem ? "Due" : isRelationshipDate ? "Occurs" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
+                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isMilestone || isCustomItem || isTodo ? "Due" : isRelationshipDate ? "Occurs" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
                 </span>
               </Link>
               );
