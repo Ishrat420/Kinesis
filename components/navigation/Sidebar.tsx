@@ -74,10 +74,10 @@ export async function SidebarNav() {
       </NavSection>
 
       {/*
-        Adding a module is an action on this list, so its control sits in the
-        list's own heading instead of a "Customize" group of one.
+        Adding a module is an action on this list, so its control closes the
+        list instead of standing in a "Customize" group of one.
       */}
-      <NavSection label="Modules" action={<AddModuleButton />}>
+      <NavSection label="Modules">
         {modules.map((module) => (
           <SidebarNavLink
             key={module.name}
@@ -89,35 +89,28 @@ export async function SidebarNav() {
         {customModules.map((customModule) => (
           <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
         ))}
+        <AddModuleButton />
       </NavSection>
 
-      {/* Settings configures Kinesis rather than holding any of your life in
-        it, so a rule separates it instead of a heading of its own. */}
-      <div className="mt-1 space-y-1 border-t border-zinc-100 pt-5">
+      <NavSection label="System">
         <SidebarNavLink href="/settings" label="Settings" icon={<Settings className="h-[18px] w-[18px]" />} />
-      </div>
+      </NavSection>
     </nav>
   );
 }
 
 function NavSection({
   label,
-  action,
   children,
 }: {
   label: string;
-  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2 px-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-          {label}
-        </p>
-
-        {action}
-      </div>
+      <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+        {label}
+      </p>
 
       <div className="space-y-1">{children}</div>
     </div>
