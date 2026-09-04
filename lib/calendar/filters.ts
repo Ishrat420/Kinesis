@@ -7,6 +7,7 @@ export const CALENDAR_SOURCE_LABELS: Record<CalendarSourceType, string> = {
   RELATIONSHIP: "Relationships",
   REMINDER: "Reminders",
   CUSTOM_OBJECT: "Custom modules",
+  TODO: "To-Dos",
 };
 
 export const ALL_CALENDAR_SOURCES = Object.keys(CALENDAR_SOURCE_LABELS) as CalendarSourceType[];

@@ -43,6 +43,7 @@ Verify that dated records appear correctly in the Calendar:
 - [ ] Relationship important date.
 - [ ] Milestone due date.
 - [ ] Goal due date.
+- [ ] To-Do due date, and that opening it lands on that to-do.
 
 ## Needs Attention
 
