@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   practiceFindMany: vi.fn(async (): Promise<unknown[]> => []),
   customItemFindMany: vi.fn(async (): Promise<unknown[]> => []),
   notificationFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  todoFindMany: vi.fn(async (): Promise<unknown[]> => []),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -23,6 +24,7 @@ vi.mock("@/lib/data/prisma", () => ({
     connectionPractice: { findMany: mocks.practiceFindMany },
     customItem: { findMany: mocks.customItemFindMany },
     notification: { findMany: mocks.notificationFindMany },
+    todo: { findMany: mocks.todoFindMany },
   },
 }));
 

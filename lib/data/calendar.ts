@@ -8,6 +8,7 @@ import { addUtcDays } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { occurrencesInRange } from "@/lib/relationships/occurrence";
+import { isOpenTodoStatus } from "@/lib/todos/status";
 import { prisma } from "./prisma";
 
 const dateKey = (date: Date) => date.toISOString().slice(0, 10);
@@ -34,13 +35,14 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   await connection();
   const user = await requireKinesisUser();
   const dateFields = { where: { type: "DATE" as const }, select: { id: true, label: true, value: true, type: true } } as const;
-  const [settings, goals, documents, importantDates, practices, customItems] = await Promise.all([
+  const [settings, goals, documents, importantDates, practices, customItems, todos] = await Promise.all([
     prisma.userSettings.findUnique({ where: { userId: user.id } }),
     prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true } }),
     prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, customFields: dateFields } }),
     prisma.relationshipImportantDate.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] } }),
     prisma.connectionPractice.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true } }),
     prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, fields: dateFields } }),
+    prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, dueDate: true, status: true } }),
   ]);
 
   const { locale } = resolveFormatPreferences(settings);
@@ -119,6 +121,15 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
       addReminder({ id: `custom-reminder-${custom.id}`, name: custom.name, deadline: custom.dueDate, deadlineLabel: "due", lead: customItemLead, sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref });
     }
     for (const field of resolveDatedFields(custom.fields)) add({ id: `custom-field-${field.id}`, title: `${custom.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: `${field.label} from ${custom.module.name}` });
+  }
+  // A dated To-Do pins its deadline like any other, and keeps it once done --
+  // the calendar is a record of when things fell due, so a finished item is
+  // relabelled rather than removed, exactly as a completed milestone is. There
+  // is no lead-up pin to go with it: a To-Do has no reminder window at all (see
+  // getTodoNotificationCandidate), so there is no earlier day to promise.
+  for (const todo of todos) {
+    if (!todo.dueDate) continue;
+    add({ id: `todo-due-${todo.id}`, title: `${todo.name} due`, kind: hasTime(todo.dueDate) ? "SCHEDULED" : "DATED", date: todo.dueDate, startTime: hasTime(todo.dueDate) ? timeValue(todo.dueDate) : undefined, sourceType: "TODO", sourceObjectId: todo.id, sourceModule: "To-Dos", href: `/todos#todo-${todo.id}`, detail: isOpenTodoStatus(todo.status) ? "To-do due date" : "Completed to-do" });
   }
   return items.sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || "") || a.title.localeCompare(b.title));
 }
