@@ -6,6 +6,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { startOfUtcDay } from "@/lib/dates";
 import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
+import { activeGoalWhere } from "@/lib/goals/active";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
@@ -34,7 +35,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
         // The upper bound is moot once mapped below when reminders are off, but
         // narrowing here keeps the query from fetching every future milestone.
         dueDate: { lte: milestoneWindowEnd },
-        goal: { userId: user.id, status: "Active" },
+        goal: { userId: user.id, ...activeGoalWhere(now) },
       },
       select: { id: true, name: true, dueDate: true, goalId: true },
     }),
