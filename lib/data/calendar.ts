@@ -48,11 +48,11 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
 
   const now = new Date();
   const { locale } = resolveFormatPreferences(settings);
-  // A pin is a promise that a reminder will fire on that day. Both switches
-  // have to be on for that to be true, so both gate the pins here exactly as
-  // they gate the engine -- otherwise the calendar advertises alerts that
-  // nothing will ever raise.
-  const remindersOn = (settings?.notificationsEnabled ?? true) && (settings?.remindersEnabled ?? true);
+  // A pin marks the day a lead-up opens, which is a fact about the record and
+  // stays true however the person chooses to be told. Only Reminders governs
+  // it: In-app notifications decides whether the bell speaks, not whether the
+  // reminder exists, so it has no say over the calendar.
+  const remindersOn = settings?.remindersEnabled ?? true;
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const milestoneLead: ReminderLead = { kind: "leadDays", days: getReminderLeadDays(settings, "milestone") };
   const relationshipLead: ReminderLead = { kind: "leadDays", days: relationshipLeadDays };

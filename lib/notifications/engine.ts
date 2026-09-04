@@ -317,13 +317,18 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   // The cron evaluates every user in one process, so the locale is read per
   // user here rather than from a request-scoped context.
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
-  const notificationsEnabled = settings?.notificationsEnabled ?? true;
   const remindersEnabled = settings?.remindersEnabled ?? true;
   const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const customItemLeadDays = getReminderLeadDays(settings, "customItem");
   const { locale } = resolveFormatPreferences(settings);
-  if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
+
+  // In-app notifications is a switch on one surface -- the bell, which is the
+  // only reader of these rows -- so it is applied where the bell reads them
+  // rather than here. Reconciling regardless keeps the table correct while the
+  // bell is off, instead of freezing it: this pass used to return early, which
+  // stopped the cleanup as well as the writing, and the stale rows it left
+  // behind reappeared the moment the switch went back on.
 
   // The readers below already treat a goal past its target date as archived,
   // but the column they no longer wait on is what the goal's own status chip

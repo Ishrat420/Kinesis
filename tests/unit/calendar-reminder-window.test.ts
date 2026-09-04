@@ -200,8 +200,18 @@ describe("no pin for a reminder that will never fire", () => {
     expect(await reminders(month("2026-12-01", "2026-12-31"))).toEqual([]);
   });
 
-  it("drops every pin when notifications are switched off entirely", async () => {
+  it("keeps its pins when only the bell is switched off", async () => {
+    // In-app notifications governs the bell and nothing else. The lead-up still
+    // opens on that day, so the pin still states it; the person has only chosen
+    // not to be told in the bell.
     mocks.settingsFindUnique.mockResolvedValue(settings({ notificationsEnabled: false }));
+    mocks.documentFindMany.mockResolvedValue(document("2027-01-15", 30));
+
+    expect(await reminders(month("2026-12-01", "2026-12-31"))).toHaveLength(1);
+  });
+
+  it("still drops them when reminders are off, whatever the bell is set to", async () => {
+    mocks.settingsFindUnique.mockResolvedValue(settings({ notificationsEnabled: false, remindersEnabled: false }));
     mocks.documentFindMany.mockResolvedValue(document("2027-01-15", 30));
 
     expect(await reminders(month("2026-12-01", "2026-12-31"))).toEqual([]);

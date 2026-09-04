@@ -9,7 +9,7 @@ import { getGlobalSearchIndex } from "@/lib/search/engine";
 import { UserButton } from "@clerk/nextjs";
 
 export async function Topbar() {
-  const [{ notifications, unreadCount }, user, searchEntries] = await Promise.all([
+  const [{ enabled: notificationsEnabled, notifications, unreadCount }, user, searchEntries] = await Promise.all([
     getRecentNotifications(),
     getCurrentUser(),
     getGlobalSearchIndex(),
@@ -30,7 +30,7 @@ export async function Topbar() {
         </div>
 
         <div className="relative flex items-center gap-3">
-          <NotificationBell key={`${unreadCount}:${notifications.map(({ id, readAt }) => `${id}:${readAt?.getTime() ?? "unread"}`).join(",")}`} notifications={notifications} initialUnreadCount={unreadCount} />
+          {notificationsEnabled && <NotificationBell key={`${unreadCount}:${notifications.map(({ id, readAt }) => `${id}:${readAt?.getTime() ?? "unread"}`).join(",")}`} notifications={notifications} initialUnreadCount={unreadCount} />}
 
           <UserButton appearance={{ elements: { avatarBox: "h-11 w-11 border border-zinc-200/80 shadow-sm" } }}>
             <UserButton.MenuItems>

@@ -56,6 +56,11 @@ Verify that dated records appear correctly in the Calendar:
 - [ ] Open the attention item.
 - [ ] Handle/resolve the item and verify the attention state updates correctly.
 
+## Notifications & Reminders
+
+- [ ] Untick In-app notifications and verify the bell disappears from the top bar, and that Needs Attention, Upcoming & Due, Expiring soon and every calendar pin are unchanged.
+- [ ] Re-tick it and verify the bell returns showing the true current state, not a backlog.
+
 ## Data Export
 
 - [ ] Complete recent-auth verification when prompted.
