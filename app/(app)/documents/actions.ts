@@ -3,7 +3,7 @@
 import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
@@ -29,6 +29,8 @@ function documentData(formData: FormData) {
   const expiryDate = date(formData, "expiryDate");
   const requestedPrompt = Number(text(formData, "prompt"));
   const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
+  // Absent on the create form, so a new document is never born archived.
+  const archived = formData.get("archived") === "true";
 
   const customLabels = formData.getAll("customLabel");
   const customIds = formData.getAll("customId");
@@ -49,7 +51,7 @@ function documentData(formData: FormData) {
   return {
     name,
     type,
-    status: getExpiryDetails(expiryDate, prompt).status,
+    status: getDocumentState({ expiryDate, prompt, archived }).status,
     expiryDate,
     issueDate: date(formData, "issueDate"),
     documentNumber: text(formData, "documentNumber") || null,
@@ -57,6 +59,7 @@ function documentData(formData: FormData) {
     notes: text(formData, "notes") || null,
     link: text(formData, "link") || null,
     prompt,
+    archived,
     expiryDateLabel: text(formData, "expiryDateLabel") || "Expiry date",
     issueDateLabel: text(formData, "issueDateLabel") || "Issue date",
     documentNumberLabel: text(formData, "documentNumberLabel") || "Document number",

@@ -14,6 +14,8 @@ These checks complement automated and unit testing and are intended to verify th
 - [ ] Create a document.
 - [ ] Edit an existing document.
 - [ ] Search for and find a document.
+- [ ] Archive an expiring or expired document, and verify its status reads Archived and it leaves Needs Attention, Upcoming & Due, Expiring soon and the calendar.
+- [ ] Un-archive it and verify the reminder returns.
 
 ## Goals & Milestones
 

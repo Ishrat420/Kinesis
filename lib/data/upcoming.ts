@@ -25,7 +25,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   const customItemWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "customItem"));
   const [documents, milestones, importantDates, todos, customItems] = await Promise.all([
     prisma.document.findMany({
-      where: { userId: user.id, expiryDate: { not: null } },
+      where: { userId: user.id, archived: false, expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
     }),
     prisma.milestone.findMany({
