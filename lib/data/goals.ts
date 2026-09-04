@@ -6,6 +6,8 @@ import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
+import { activeGoalWhere } from "@/lib/goals/active";
+import { archiveLapsedGoals } from "./goal-status";
 
 export async function syncAndGetGoals() {
   await connection();
@@ -72,10 +74,7 @@ export async function getGoalUnits() {
 export async function getGoalsForLinking() {
   await connection();
   const user = await requireKinesisUser();
-  await prisma.goal.updateMany({
-    where: { userId: user.id, status: "Active", targetDate: { lt: new Date() } },
-    data: { status: "Archived" },
-  });
+  await archiveLapsedGoals(user.id);
   return prisma.goal.findMany({
     where: { userId: user.id },
     select: { id: true, name: true, status: true },
@@ -86,13 +85,10 @@ export async function getGoalsForLinking() {
 export async function getGoalDashboardSummary(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
-  await prisma.goal.updateMany({
-    where: { userId: user.id, status: "Active", targetDate: { lt: now } },
-    data: { status: "Archived" },
-  });
+  await archiveLapsedGoals(user.id, now);
 
   const goals = await prisma.goal.findMany({
-    where: { userId: user.id, status: "Active" },
+    where: { userId: user.id, ...activeGoalWhere(now) },
     include: { metricHistory: { orderBy: { recordedAt: "asc" } }, milestones: { select: { completed: true, dueDate: true } } },
   });
 
@@ -127,20 +123,20 @@ export async function getMilestonesDueSoon(now = new Date()) {
     where: {
       completed: false,
       dueDate: { gte: window.from, lte: window.to },
-      goal: { userId: user.id, status: "Active" },
+      goal: { userId: user.id, ...activeGoalWhere(now) },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: "asc" }, { position: "asc" }],
   });
 }
 
-export async function getActiveIncompleteMilestones() {
+export async function getActiveIncompleteMilestones(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      goal: { userId: user.id, status: "Active" },
+      goal: { userId: user.id, ...activeGoalWhere(now) },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }],

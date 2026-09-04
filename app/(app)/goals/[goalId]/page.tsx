@@ -1,18 +1,19 @@
 import { notFound } from "next/navigation";
-import { Activity, CalendarDays, Flag, Gauge, Target, Trash2 } from "lucide-react";
+import { Activity, Flag, Gauge, Target, Trash2 } from "lucide-react";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalRelationships, getGoalUnits } from "@/lib/data/goals";
 import { displayNumber } from "@/lib/goals/format";
-import { formatFutureDate, formatShortMonthYear } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
-import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalRelationshipAction, updateGoalStatusAction, updateMilestoneAction } from "../actions";
+import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalRelationshipAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneAction } from "../actions";
 import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
 import { MilestoneRow } from "./MilestoneRow";
 import { calculateGoalHealth } from "@/lib/goals/health";
 import { LinkedGoals } from "./LinkedGoals";
+import { GoalTargetDate } from "./GoalTargetDate";
+import { earliestTargetDate } from "@/lib/goals/target-date";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
@@ -24,6 +25,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   const statusAction = updateGoalStatusAction.bind(null, goal.id);
   const targetAction = addTargetAction.bind(null, goal.id);
   const milestoneAction = addMilestoneAction.bind(null, goal.id);
+  const targetDateAction = updateGoalTargetDateAction.bind(null, goal.id);
   const health = goal.targetValue !== null && goal.currentValue !== null && goal.targetDate
     ? calculateGoalHealth({ targetValue: goal.targetValue, currentValue: goal.currentValue, targetDate: goal.targetDate, unit: goal.unit, history: goal.metricHistory, locale })
     : null;
@@ -34,7 +36,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
 
-    <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 flex items-center gap-2 text-sm text-zinc-300"><CalendarDays className="h-4 w-4"/>{goal.targetDate ? <><span>Target · {formatShortMonthYear(goal.targetDate, locale)}</span><span className="text-zinc-600">•</span><strong className="font-medium text-violet-300">{formatFutureDate(goal.targetDate, now)}</strong></> : <span>No target date</span>}</div></div></div></header>
+    <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 -ml-1.5"><GoalTargetDate targetDate={goal.targetDate} earliestAllowed={earliestTargetDate(goal.milestones)} action={targetDateAction} /></div></div></div></header>
 
     <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"><div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Milestones</h2><p className="mt-1 text-sm text-zinc-500">Your current understanding of the path forward.</p></div><Flag className="h-5 w-5 text-violet-500"/></div>

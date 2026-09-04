@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { dismissalKey } from "@/lib/attention/dismissal";
 import { startOfUtcDay } from "@/lib/dates";
+import { activeGoalWhere } from "@/lib/goals/active";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
 type BaseAttentionItem = { key: string; title: string; context: string; date: string; timestamp: number; href: string };
@@ -19,7 +20,7 @@ export async function getNeedsAttention(now = new Date()): Promise<AttentionItem
   const today = startOfUtcDay(now)!;
   const [documents, milestones, customItems, todos, dismissals] = await Promise.all([
     prisma.document.findMany({ where: { userId: user.id, archived: false, expiryDate: { lt: today } }, select: { id: true, name: true, expiryDate: true } }),
-    prisma.milestone.findMany({ where: { completed: false, dueDate: { lt: today }, goal: { userId: user.id, status: "Active" } }, select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } } }),
+    prisma.milestone.findMany({ where: { completed: false, dueDate: { lt: today }, goal: { userId: user.id, ...activeGoalWhere(now) } }, select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } } }),
     prisma.customItem.findMany({ where: { archived: false, dueDate: { lt: today }, module: { userId: user.id } }, select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { name: true, icon: true, color: true } } } }),
     // A To-Do without a due date is not overdue, it is just undated: capture
     // without a deadline is the point, so only dated ones can fall behind.

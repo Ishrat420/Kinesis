@@ -4,6 +4,8 @@ import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
+import { activeGoalWhere, lapsedGoalWhere } from "@/lib/goals/active";
+import { archiveLapsedGoals } from "@/lib/data/goal-status";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
@@ -323,10 +325,16 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   const { locale } = resolveFormatPreferences(settings);
   if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
+  // The readers below already treat a goal past its target date as archived,
+  // but the column they no longer wait on is what the goal's own status chip
+  // shows -- so the daily pass writes it, and it converges without anyone
+  // having to open the goals page.
+  await archiveLapsedGoals(userId, now);
+
   const [documents, milestones, relationshipDates, customItems, todos, orphanCleanup] = await Promise.all([
     prisma.document.findMany({ where: { userId, archived: false } }),
     prisma.milestone.findMany({
-      where: { completed: false, goal: { userId, status: "Active" } },
+      where: { completed: false, goal: { userId, ...activeGoalWhere(now) } },
       include: { goal: { select: { id: true, name: true } } },
     }),
     prisma.relationshipImportantDate.findMany({
@@ -342,7 +350,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
         userId,
         OR: [
           { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null, todoId: null },
-          { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { status: { not: "Active" } } }] } } },
+          { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { is: lapsedGoalWhere(now) } }] } } },
           { customItemId: { not: null }, customItem: { is: { archived: true } } },
           { documentId: { not: null }, document: { is: { archived: true } } },
         ],

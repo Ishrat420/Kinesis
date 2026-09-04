@@ -13,7 +13,7 @@ import { objectPairKey } from "@/lib/objects/relationships";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
 
-export type GoalActionState = { error?: string };
+export type GoalActionState = { error?: string; saved?: boolean };
 
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const numeric = (data: FormData, key: string) => {
@@ -33,7 +33,7 @@ const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) =
   const { locale } = await getFormatPreferences();
   return `The due date must be before the goal target date of ${formatDate(targetDate, locale)}.`;
 };
-const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); };
+const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); revalidatePath("/calendar"); revalidatePath("/goals/milestones/due-soon"); };
 
 /** A goal's identity in the shared Object layer, resolved once and scoped to its owner. */
 const goalObjectId = async (userId: string, goalId: string) =>
@@ -75,6 +75,39 @@ export async function updateGoalStatusAction(id: string, _previousState: GoalAct
   if (!GOAL_STATUSES.includes(status as typeof GOAL_STATUSES[number])) return { error: `Choose one of ${GOAL_STATUSES.join(", ")}.` };
   await prisma.goal.updateMany({ where: { id, userId: user.id }, data: { status } }); refresh(id);
   return {};
+}
+
+/**
+ * Moves a goal's target date, which is the horizon everything else is measured
+ * against: goal health's pace, the calendar's target pin, whether a milestone's
+ * due date is still legal, and -- through `activeGoalWhere` -- whether the goal
+ * and its milestones are still reminding at all. Nothing caches any of that, so
+ * changing the date here is enough to move all of it.
+ *
+ * A date can only be pulled back as far as the milestones allow. Every due date
+ * has to stay before the target, so shortening past one would leave the goal in
+ * a state its own forms refuse to create.
+ */
+export async function updateGoalTargetDateAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
+  const user = await requireKinesisUser();
+  const targetDate = optionalDate(data, "targetDate");
+  if (targetDate === undefined) return { error: "Enter a valid target date." };
+
+  const goal = await prisma.goal.findFirst({
+    where: { id, userId: user.id },
+    select: { milestones: { where: { dueDate: { not: null } }, orderBy: { dueDate: "desc" }, take: 1, select: { name: true, dueDate: true } } },
+  });
+  if (!goal) return {};
+
+  const latest = goal.milestones[0];
+  if (targetDate && latest?.dueDate && latest.dueDate >= targetDate) {
+    const { locale } = await getFormatPreferences();
+    return { error: `Milestone “${latest.name}” is due ${formatDate(latest.dueDate, locale)}. The target date must be after it.` };
+  }
+
+  await prisma.goal.update({ where: { id }, data: { targetDate } });
+  refresh(id);
+  return { saved: true };
 }
 
 export async function deleteGoalAction(id: string) {
