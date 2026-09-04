@@ -13,9 +13,11 @@ type TargetDateAction = (state: GoalActionState, data: FormData) => Promise<Goal
 /**
  * The goal's target date, edited in place.
  *
- * Double-click rather than a button, because this sits in the goal's headline
- * where a visible control would compete with the goal's own name. Enter opens
- * it too, so the affordance is not mouse-only.
+ * It reads as the headline's own text rather than a control, because a button
+ * here would compete with the goal's name; the hover highlight and the tooltip
+ * carry the affordance instead. Click opens it -- the same single click the
+ * milestone due date below it uses -- and so does Enter or Space, which keeps
+ * it off the mouse alone.
  *
  * Saving needs nothing more than the action: the target date is read fresh by
  * goal health, the calendar's pin, the milestone forms' bound, and by
@@ -39,9 +41,17 @@ export function GoalTargetDate({ targetDate, earliestAllowed, action }: {
   return (
     <button
       type="button"
-      onDoubleClick={() => setEditing(true)}
-      onKeyDown={(event) => { if (event.key === "Enter") setEditing(true); }}
-      title="Double-click to change the target date"
+      onClick={() => setEditing(true)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        // Opening puts an autofocused date input where this button was, within
+        // the same keystroke. Enter's default activation would then land on
+        // that input and submit the form before anything has been typed, so
+        // the key is handled here and its default stopped.
+        event.preventDefault();
+        setEditing(true);
+      }}
+      title="Change the target date"
       className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 text-left text-sm text-zinc-300 transition hover:bg-white/10"
     >
       <CalendarDays className="h-4 w-4" />

@@ -22,7 +22,8 @@ These checks complement automated and unit testing and are intended to verify th
 - [ ] Create a goal.
 - [ ] Create a milestone for a goal.
 - [ ] Update an existing milestone.
-- [ ] Double-click a goal's target date, change it, and verify the goal page, calendar pin, milestones due-within list and goal health all move with it.
+- [ ] Click a goal's target date, change it, and verify the goal page, calendar pin, milestones due-within list and goal health all move with it.
+- [ ] Open it with Enter as well, and verify it does not save before a date is chosen.
 - [ ] Verify a goal whose target date has passed stops reminding without opening the goals page.
 
 ## Relationships
