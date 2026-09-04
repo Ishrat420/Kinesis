@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { getExpiryDetails } from "@/lib/documents/expiry";
+import { getDocumentState, getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
 import { getCurrentUser, getUserDisplayName } from "./user";
 import { connection } from "next/server";
@@ -18,6 +18,7 @@ export type DocumentInput = {
   notes?: string | null;
   link?: string | null;
   prompt?: number;
+  archived?: boolean;
   expiryDateLabel?: string;
   issueDateLabel?: string;
   documentNumberLabel?: string;
@@ -34,8 +35,11 @@ export async function getDocuments() {
 
 export async function getDocumentSummary() {
   const user = await requireKinesisUser();
+  // Archived documents are out of the cycle, so they are not tracked, active,
+  // or expiring: counting them here would keep a document the person has
+  // finished with in the dashboard's numbers forever.
   const documents = await prisma.document.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, archived: false },
     select: { expiryDate: true, prompt: true },
   });
 
@@ -54,7 +58,7 @@ export async function getExpiringDocuments(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
   const documents = await prisma.document.findMany({
-    where: { userId: user.id, expiryDate: { not: null } },
+    where: { userId: user.id, archived: false, expiryDate: { not: null } },
     orderBy: { expiryDate: "asc" },
   });
 
@@ -115,7 +119,7 @@ export async function getDocument(id: string) {
     include: { customFields: { orderBy: { position: "asc" } } },
   });
   if (!document) return null;
-  const status = getExpiryDetails(document.expiryDate, document.prompt).status;
+  const status = getDocumentState(document).status;
   if (status !== document.status) {
     return prisma.document.update({
       where: { id, userId: user.id },

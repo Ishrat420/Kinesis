@@ -324,7 +324,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   if (!notificationsEnabled) return { evaluated: 0, created: 0, removed: 0 };
 
   const [documents, milestones, relationshipDates, customItems, todos, orphanCleanup] = await Promise.all([
-    prisma.document.findMany({ where: { userId } }),
+    prisma.document.findMany({ where: { userId, archived: false } }),
     prisma.milestone.findMany({
       where: { completed: false, goal: { userId, status: "Active" } },
       include: { goal: { select: { id: true, name: true } } },
@@ -344,6 +344,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
           { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null, todoId: null },
           { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { status: { not: "Active" } } }] } } },
           { customItemId: { not: null }, customItem: { is: { archived: true } } },
+          { documentId: { not: null }, document: { is: { archived: true } } },
         ],
       },
     }),

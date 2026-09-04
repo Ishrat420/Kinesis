@@ -18,7 +18,7 @@ export async function getNeedsAttention(now = new Date()): Promise<AttentionItem
   const user = await requireKinesisUser();
   const today = startOfUtcDay(now)!;
   const [documents, milestones, customItems, todos, dismissals] = await Promise.all([
-    prisma.document.findMany({ where: { userId: user.id, expiryDate: { lt: today } }, select: { id: true, name: true, expiryDate: true } }),
+    prisma.document.findMany({ where: { userId: user.id, archived: false, expiryDate: { lt: today } }, select: { id: true, name: true, expiryDate: true } }),
     prisma.milestone.findMany({ where: { completed: false, dueDate: { lt: today }, goal: { userId: user.id, status: "Active" } }, select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } } }),
     prisma.customItem.findMany({ where: { archived: false, dueDate: { lt: today }, module: { userId: user.id } }, select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { name: true, icon: true, color: true } } } }),
     // A To-Do without a due date is not overdue, it is just undated: capture

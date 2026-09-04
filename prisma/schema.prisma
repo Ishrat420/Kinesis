@@ -91,6 +91,11 @@ model Document {
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   objectId            String               @unique
   object              Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  // Takes the document out of the reminder cycle without deleting it, the way
+  // CustomItem.archived does. A document otherwise has no terminal state at
+  // all -- `status` above is derived display data that nothing filters on, so
+  // the only exits were clearing the expiry date or deleting the record.
+  archived            Boolean              @default(false)
   prompt              Int                  @default(180)
   expiryDateLabel     String               @default("Expiry date")
   issueDateLabel      String               @default("Issue date")

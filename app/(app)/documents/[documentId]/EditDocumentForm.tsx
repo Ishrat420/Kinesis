@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { DocumentFields, type CustomField } from "../DocumentFields";
 import { updateDocumentAction, type DocumentActionState } from "../actions";
-import { getExpiryDetails, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { getDocumentState, type ExpiryUrgency, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate } from "@/lib/dates";
@@ -32,6 +32,7 @@ export type EditableDocument = {
   notes: string;
   link: string;
   prompt: number;
+  archived: boolean;
   expiryDateLabel: string;
   issueDateLabel: string;
   documentNumberLabel: string;
@@ -43,8 +44,8 @@ export type EditableDocument = {
 
 export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
   const [editing, setEditing] = useState(initialEditing);
-  const expiry = getExpiryDetails(document.expiryDate ? new Date(`${document.expiryDate}T00:00:00.000Z`) : null, document.prompt);
-  const statusClass = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
+  const expiry = getDocumentState({ expiryDate: toUtcDate(document.expiryDate), prompt: document.prompt, archived: document.archived });
+  const statusClass = STATUS_TONES[expiry.urgency];
   const { locale } = useFormatPreferences();
   const addedDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(document.createdAt));
 
@@ -57,7 +58,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
         breadcrumbs={[{ label: "Documents", href: "/documents" }, { label: document.name }]}
         title={document.name}
         description={<>{document.type} <span className="mx-1 text-zinc-300">|</span> Added {addedDate}</>}
-        actions={<><span className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>{document.status}</span>{!editing && <button type="button" onClick={() => setEditing(true)} className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"><Pencil className="h-4 w-4" />Edit</button>}</>}
+        actions={<><span className={`rounded-full px-4 py-2 text-sm font-semibold ${statusClass}`}>{expiry.status}</span>{!editing && <button type="button" onClick={() => setEditing(true)} className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"><Pencil className="h-4 w-4" />Edit</button>}</>}
       />
 
       {editing ? (
@@ -69,7 +70,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, history }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: "neutral" | "safe" | "soon" | "expired"; locale: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[] }) {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, history }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[] }) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   const linkedFields = document.customFields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
@@ -139,9 +140,10 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
   const [state, formAction, pending] = useActionState(action, initialState);
   const [expiryDate, setExpiryDate] = useState(document.expiryDate);
   const [prompt, setPrompt] = useState(document.prompt);
+  const [archived, setArchived] = useState(document.archived);
   const router = useRouter();
-  const expiry = getExpiryDetails(expiryDate ? new Date(`${expiryDate}T00:00:00.000Z`) : null, prompt);
-  const urgencyClass = { neutral: "bg-zinc-50 text-zinc-600", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700" }[expiry.urgency];
+  const expiry = getDocumentState({ expiryDate: toUtcDate(expiryDate), prompt, archived });
+  const urgencyClass = { neutral: "bg-zinc-50 text-zinc-600", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" }[expiry.urgency];
 
   useEffect(() => { if (state.success) { router.refresh(); onSaved(); } }, [state.success, router, onSaved]);
 
@@ -149,11 +151,22 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
     <div className="grid gap-3 sm:grid-cols-2"><Field label="Document name" name="name" value={document.name} required /><DocumentTypeSelect types={documentTypes} defaultValue={document.type} /></div>
     <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-zinc-600">Reminder<select name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 outline-none focus:border-zinc-400">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}</select></label><div className="text-sm font-medium text-zinc-600">Time until expiry<div role="status" className={`mt-1.5 flex h-11 items-center gap-2 rounded-xl px-3 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div></div></div>
     <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} /></div>
+    <div className="flex flex-col gap-3 border-t border-zinc-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-semibold text-zinc-800">Archive</p>
+        <p className="mt-1 text-sm text-zinc-500">An archived document keeps its details and history, but stops reminding you and leaves Needs Attention, Upcoming &amp; Due and the calendar.</p>
+      </div>
+      <button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not archived"}</button>
+      <input type="hidden" name="archived" value={String(archived)} />
+    </div>
     {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
     <div className="flex flex-col gap-4 border-t border-zinc-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-zinc-500">Owner: <span className="font-medium text-zinc-700">{ownerName}</span></p><div className="flex gap-2"><button type="button" onClick={onCancel} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><X className="h-4 w-4" />Cancel</button><button disabled={pending} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"><Save className="h-4 w-4" />{pending ? "Saving…" : "Save changes"}</button></div></div>
   </form></section>;
 }
 
+const STATUS_TONES: Record<ExpiryUrgency, string> = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" };
+/** The form holds a yyyy-mm-dd string; every date rule here reads whole UTC days. */
+function toUtcDate(value: string) { return value ? new Date(`${value}T00:00:00.000Z`) : null; }
 function displayDate(value: string, locale: string) { return value ? formatDate(value, locale) : EMPTY_VALUE; }
 /** A DATE-type custom field's raw value may still be a legacy dd/mm/yyyy string, so it is parsed rather than formatted directly. */
 function displayFieldValue(field: { type?: string; value: string }, locale: string) {
@@ -162,12 +175,13 @@ function displayFieldValue(field: { type?: string; value: string }, locale: stri
   return date ? formatDate(date, locale) : field.value;
 }
 function historyLabel(action: string) { return action === "Added" ? "Document added" : action === "Updated" ? "Document updated" : `Document ${action.toLowerCase()}`; }
-function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: "neutral" | "safe" | "soon" | "expired" }) {
+function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: ExpiryUrgency }) {
   const detailClass = detailTone ? {
     neutral: "bg-zinc-100 text-zinc-600",
     safe: "bg-emerald-50 text-emerald-700",
     soon: "bg-amber-50 text-amber-700",
     expired: "bg-red-50 text-red-700",
+    archived: "bg-zinc-200 text-zinc-700",
   }[detailTone] : "text-zinc-500";
   return <div className="rounded-2xl bg-blue-50/50 p-4"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</dt><dd className="mt-2 text-lg font-semibold text-zinc-900">{value}</dd><p className={`mt-1 inline-flex rounded-full text-sm ${detailTone ? `px-2.5 py-1 font-semibold ${detailClass}` : detailClass}`}>{detail}</p></div>;
 }

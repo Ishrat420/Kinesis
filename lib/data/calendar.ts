@@ -38,7 +38,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   const [settings, goals, documents, importantDates, practices, customItems, todos] = await Promise.all([
     prisma.userSettings.findUnique({ where: { userId: user.id } }),
     prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true } }),
-    prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, customFields: dateFields } }),
+    prisma.document.findMany({ where: { userId: user.id, archived: false }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, customFields: dateFields } }),
     prisma.relationshipImportantDate.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] } }),
     prisma.connectionPractice.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true } }),
     prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, fields: dateFields } }),

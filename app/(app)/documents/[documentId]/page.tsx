@@ -17,7 +17,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   const history = await getActivityForHref(`/documents/${document.id}`);
 
   return <ModuleContent><DocumentDetailRecord document={{
-    id: document.id, name: document.name, type: document.type, status: document.status,
+    id: document.id, name: document.name, type: document.type, status: document.status, archived: document.archived,
     createdAt: document.createdAt.toISOString(), expiryDate: toDateInput(document.expiryDate), issueDate: toDateInput(document.issueDate),
     documentNumber: document.documentNumber ?? "", country: document.country ?? "", notes: document.notes ?? "", link: document.link ?? "", prompt: document.prompt,
     expiryDateLabel: document.expiryDateLabel, issueDateLabel: document.issueDateLabel, documentNumberLabel: document.documentNumberLabel,
