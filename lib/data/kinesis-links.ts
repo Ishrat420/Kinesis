@@ -1,31 +1,38 @@
 import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
-import type { KinesisLinkOption, KinesisObjectType } from "@/lib/custom-fields/types";
+import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOption, type KinesisLinkTargetType } from "@/lib/custom-fields/types";
+import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 
+/** Narrows a located object to one a Kinesis Link is allowed to point at. */
+const isLinkTarget = (location: ObjectLocation): location is ObjectLocation & { type: KinesisLinkTargetType } =>
+  KINESIS_LINK_TARGET_TYPES.some((type) => type === location.type);
+
+/**
+ * A link stores an object id and nothing else. The module a target belongs to
+ * still decides how it is presented and where it opens, so that mapping lives
+ * in lib/objects/locations rather than in the column -- and is shared with every
+ * other surface that offers objects to point at.
+ */
 export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
-  const user = await requireKinesisUser();
-  const [documents, items, goals] = await Promise.all([
-    prisma.document.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.customItem.findMany({ where: { module: { userId: user.id } }, select: { id: true, name: true, module: { select: { id: true, name: true } } }, orderBy: { name: "asc" } }),
-    prisma.goal.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-  ]);
-  return [
-    ...documents.map(({ id, name }) => ({ type: "DOCUMENT" as const, id, module: "Documents", name, href: `/documents/${id}` })),
-    ...items.map(({ id, name, module }) => ({ type: "CUSTOM_ITEM" as const, id, module: module.name, name, href: `/custom-modules/${module.id}/items/${id}` })),
-    ...goals.map(({ id, name }) => ({ type: "GOAL" as const, id, module: "Goals", name, href: `/goals/${id}` })),
-  ];
+  const objects = await prisma.object.findMany({
+    where: { userId: (await requireKinesisUser()).id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
+    select: objectLocationSelect,
+    orderBy: { name: "asc" },
+  });
+  // Documents, then custom items, then goals, each already by name: the order the
+  // picker has always grouped its modules in, read from each type's own `order`.
+  return locateObjects(objects)
+    .filter(isLinkTarget)
+    .sort((first, second) => kinesisLinkTargetOrder(first.type) - kinesisLinkTargetOrder(second.type));
 }
 
-export async function validateKinesisTargets(targets: Array<{ targetType?: KinesisObjectType | null; targetId?: string | null }>) {
+/** The foreign key keeps links pointing at something real; this keeps them pointing at something of yours. */
+export async function validateKinesisTargets(targets: Array<{ targetObjectId?: string | null }>) {
   const user = await requireKinesisUser();
-  const documentIds = targets.filter((target) => target.targetType === "DOCUMENT" && target.targetId).map((target) => target.targetId!);
-  const itemIds = targets.filter((target) => target.targetType === "CUSTOM_ITEM" && target.targetId).map((target) => target.targetId!);
-  const goalIds = targets.filter((target) => target.targetType === "GOAL" && target.targetId).map((target) => target.targetId!);
-  const [documents, items, goals] = await Promise.all([
-    prisma.document.findMany({ where: { id: { in: documentIds }, userId: user.id }, select: { id: true } }),
-    prisma.customItem.findMany({ where: { id: { in: itemIds }, module: { userId: user.id } }, select: { id: true } }),
-    prisma.goal.findMany({ where: { id: { in: goalIds }, userId: user.id }, select: { id: true } }),
-  ]);
-  const allowed = new Set([...documents.map(({ id }) => `DOCUMENT:${id}`), ...items.map(({ id }) => `CUSTOM_ITEM:${id}`), ...goals.map(({ id }) => `GOAL:${id}`)]);
-  if (targets.some(({ targetType, targetId }) => targetType && targetId && !allowed.has(`${targetType}:${targetId}`))) throw new Error("Linked object not found");
+  const targetIds = [...new Set(targets.flatMap(({ targetObjectId }) => (targetObjectId ? [targetObjectId] : [])))];
+  if (!targetIds.length) return;
+  const owned = await prisma.object.count({
+    where: { id: { in: targetIds }, userId: user.id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
+  });
+  if (owned !== targetIds.length) throw new Error("Linked object not found");
 }

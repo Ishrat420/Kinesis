@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { parseKinesisTarget } from "@/lib/custom-fields/types";
+import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder } from "@/lib/custom-fields/types";
 
-describe("parseKinesisTarget", () => {
-  it.each(["DOCUMENT", "CUSTOM_ITEM", "GOAL"] as const)("parses a %s target", (type) => {
-    expect(parseKinesisTarget(`${type}:object-id`)).toEqual({
-      targetType: type,
-      targetId: "object-id",
-    });
+describe("Kinesis link targets", () => {
+  it("offers only the object types a link can resolve to a page, in picker order", () => {
+    expect(KINESIS_LINK_TARGET_TYPES).toEqual(["DOCUMENT", "CUSTOM_ITEM", "GOAL"]);
   });
 
-  it.each(["", "GOAL:", "UNKNOWN:object-id"])("rejects an invalid target: %s", (value) => {
-    expect(parseKinesisTarget(value)).toBeNull();
+  it("reads picker order from each type's own order, not the allowed-types list's position", () => {
+    // Membership and order come from independent properties on the config, so
+    // this asserts them separately rather than through one array's shape.
+    expect(kinesisLinkTargetOrder("DOCUMENT")).toBeLessThan(kinesisLinkTargetOrder("CUSTOM_ITEM"));
+    expect(kinesisLinkTargetOrder("CUSTOM_ITEM")).toBeLessThan(kinesisLinkTargetOrder("GOAL"));
   });
 });

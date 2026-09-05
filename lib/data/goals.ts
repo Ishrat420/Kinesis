@@ -1,8 +1,13 @@
 import { prisma } from "./prisma";
+import { getSettings } from "./settings";
 import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
 import { calculateGoalHealth } from "@/lib/goals/health";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
+import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
+import { getReminderLeadDays } from "@/lib/reminders/policy";
+import { activeGoalWhere } from "@/lib/goals/active";
+import { archiveLapsedGoals } from "./goal-status";
 
 export async function syncAndGetGoals() {
   await connection();
@@ -26,6 +31,40 @@ export async function getGoal(id: string) {
   return goal;
 }
 
+export async function getGoalRelationships(goalId: string) {
+  const user = await requireKinesisUser();
+  // Every goal this user owns, including the one being viewed. The list already
+  // had to be fetched to offer the picker, so letting it carry objectId makes it
+  // the Object -> Goal lookup too, and the far end of a link resolves from data
+  // in hand instead of a nested relation on every relationship row.
+  const goals = await prisma.goal.findMany({
+    where: { userId: user.id },
+    select: { id: true, name: true, status: true, objectId: true },
+    orderBy: { name: "asc" },
+  });
+  const objectId = goals.find((goal) => goal.id === goalId)?.objectId;
+  if (!objectId) return { linked: [], availableGoals: [] };
+
+  // Addressed by object id: that is what the shared capability stores, and what
+  // @@index([userId, sourceObjectId]) and ([userId, targetObjectId]) cover.
+  const relationships = await prisma.objectRelationship.findMany({
+    where: { userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+    orderBy: { createdAt: "asc" },
+  });
+
+  // Keyed by identity and without the goal being viewed, so it answers both
+  // "which goal is the other end" and "which goals may still be linked".
+  const goalByObjectId = new Map(goals.flatMap(({ objectId: linkedObjectId, ...goal }) =>
+    goal.id === goalId ? [] : [[linkedObjectId, goal] as const]));
+  const linked = relationships.flatMap((relationship) => {
+    const inverse = relationship.targetObjectId === objectId;
+    const goal = goalByObjectId.get(inverse ? relationship.sourceObjectId : relationship.targetObjectId);
+    return goal ? [{ ...relationship, inverse, goal }] : [];
+  });
+  const linkedIds = new Set(linked.map(({ goal }) => goal.id));
+  return { linked, availableGoals: [...goalByObjectId.values()].filter(({ id }) => !linkedIds.has(id)) };
+}
+
 export async function getGoalUnits() {
   const user = await requireKinesisUser();
   const custom = await prisma.goalUnit.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } });
@@ -35,10 +74,7 @@ export async function getGoalUnits() {
 export async function getGoalsForLinking() {
   await connection();
   const user = await requireKinesisUser();
-  await prisma.goal.updateMany({
-    where: { userId: user.id, status: "Active", targetDate: { lt: new Date() } },
-    data: { status: "Archived" },
-  });
+  await archiveLapsedGoals(user.id);
   return prisma.goal.findMany({
     where: { userId: user.id },
     select: { id: true, name: true, status: true },
@@ -49,13 +85,10 @@ export async function getGoalsForLinking() {
 export async function getGoalDashboardSummary(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
-  await prisma.goal.updateMany({
-    where: { userId: user.id, status: "Active", targetDate: { lt: now } },
-    data: { status: "Archived" },
-  });
+  await archiveLapsedGoals(user.id, now);
 
   const goals = await prisma.goal.findMany({
-    where: { userId: user.id, status: "Active" },
+    where: { userId: user.id, ...activeGoalWhere(now) },
     include: { metricHistory: { orderBy: { recordedAt: "asc" } }, milestones: { select: { completed: true, dueDate: true } } },
   });
 
@@ -81,28 +114,29 @@ export async function getGoalDashboardSummary(now = new Date()) {
 export async function getMilestonesDueSoon(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const oneMonthFromToday = new Date(today);
-  oneMonthFromToday.setUTCMonth(oneMonthFromToday.getUTCMonth() + 1);
+  const settings = await getSettings();
+  // The same window the milestones page filters by, so the tile's number and
+  // the list behind "See all" can never describe different sets.
+  const window = milestoneDueSoonWindow(now, getReminderLeadDays(settings, "milestone"));
 
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      dueDate: { gte: today, lte: oneMonthFromToday },
-      goal: { userId: user.id, status: "Active" },
+      dueDate: { gte: window.from, lte: window.to },
+      goal: { userId: user.id, ...activeGoalWhere(now) },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: "asc" }, { position: "asc" }],
   });
 }
 
-export async function getActiveIncompleteMilestones() {
+export async function getActiveIncompleteMilestones(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      goal: { userId: user.id, status: "Active" },
+      goal: { userId: user.id, ...activeGoalWhere(now) },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }],

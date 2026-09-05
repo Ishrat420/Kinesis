@@ -7,11 +7,12 @@ const mocks = vi.hoisted(() => {
     requireRecentVerificationResponse: vi.fn().mockResolvedValue(true),
     prisma: {
       user: { findMany: findMany() }, userSettings: { findMany: findMany() },
+      object: { findMany: findMany() }, objectRelationship: { findMany: findMany() },
       document: { findMany: findMany() }, documentType: { findMany: findMany() },
       goal: { findMany: findMany() }, goalUnit: { findMany: findMany() },
       person: { findMany: findMany() }, relationship: { findMany: findMany() },
       financeItem: { findMany: findMany() }, customModule: { findMany: findMany() },
-      attentionDismissal: { findMany: findMany() },
+      todo: { findMany: findMany() }, attentionDismissal: { findMany: findMany() },
       securityEvent: { create: vi.fn().mockResolvedValue({}) },
     },
   };

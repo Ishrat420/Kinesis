@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { Check, ChevronDown, ExternalLink, Minus, Plus } from "lucide-react";
+import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
@@ -9,12 +8,21 @@ import {
   type CustomFieldValue,
   type KinesisLinkOption,
 } from "@/lib/custom-fields/types";
+import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
+import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
+import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
 type FieldNames = { id: string; label: string; type: string; value: string; target: string };
 
-const inputClass = "h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100";
+const inputClass = FIELD_INPUT_CLASS;
+
+function toDateInputValue(value: string) {
+  const date = parseDatedFieldValue(value);
+  return date ? date.toISOString().slice(0, 10) : "";
+}
+
 const defaultNames: FieldNames = {
   id: "fieldId",
   label: "fieldLabel",
@@ -37,6 +45,12 @@ export function CustomFieldsEditor({
       ...field,
       key: field.id ?? crypto.randomUUID(),
       type: field.type ?? "TEXT",
+      // A date field now edits through a native <input type="date">, which
+      // only ever shows a value already in yyyy-mm-dd. A value saved before
+      // that change (dd/mm/yyyy) is parsed and reformatted here so opening
+      // an old field for editing still shows its actual date instead of a
+      // blank picker.
+      value: field.type === "DATE" ? toDateInputValue(field.value) : field.value,
       phase: "ready",
       editingName: false,
     })),
@@ -213,50 +227,17 @@ function FieldInput({ field, index, linkOptions, names, update }: {
   }
 
   if (field.type === "KINESIS_LINK") {
-    const selected = field.targetType && field.targetId ? `${field.targetType}:${field.targetId}` : "";
-    const modules = [...new Set(linkOptions.map(({ module }) => module))];
-    const selectedOption = linkOptions.find((option) => `${option.type}:${option.id}` === selected);
-    if (selectedOption) {
-      return (
-        <div>
-          <input type="hidden" name={names.value} value="" />
-          <input type="hidden" name={names.target} value={selected} />
-          <Link
-            href={selectedOption.href}
-            className={`${inputClass} flex items-center justify-between gap-3 text-zinc-700 hover:border-zinc-400 hover:text-zinc-950`}
-          >
-            <span className="min-w-0 truncate">{selectedOption.name}</span>
-            <ExternalLink className="h-4 w-4 shrink-0 text-zinc-400" />
-          </Link>
-        </div>
-      );
-    }
     return (
       <div>
         <input type="hidden" name={names.value} value="" />
-        <div className="relative">
-          <select
-            required
-            name={names.target}
-            value={selected}
-            onChange={(event) => {
-              const [targetType, ...id] = event.target.value.split(":");
-              update({ targetType: targetType as CustomFieldValue["targetType"], targetId: id.join(":") });
-            }}
-            aria-label={`Field ${index + 1} linked object`}
-            className={`${inputClass} appearance-none pr-11`}
-          >
-            <option value="">Select object ↗</option>
-            {modules.map((module) => (
-              <optgroup key={module} label={module}>
-                {linkOptions.filter((option) => option.module === module).map((option) => (
-                  <option key={`${option.type}:${option.id}`} value={`${option.type}:${option.id}`}>{option.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-        </div>
+        <KinesisLinkField
+          name={names.target}
+          options={linkOptions}
+          value={field.targetObjectId ?? ""}
+          onChange={(targetObjectId) => update({ targetObjectId })}
+          ariaLabel={`Field ${index + 1} linked object`}
+          required
+        />
       </div>
     );
   }
@@ -273,9 +254,7 @@ function FieldInput({ field, index, linkOptions, names, update }: {
       ) : (
         <input
           name={names.value}
-          type={field.type === "NUMBER" ? "number" : field.type === "LINK" ? "url" : "text"}
-          inputMode={field.type === "DATE" ? "numeric" : undefined}
-          pattern={field.type === "DATE" ? "[0-9]{2}/[0-9]{2}/[0-9]{4}" : undefined}
+          type={field.type === "NUMBER" ? "number" : field.type === "LINK" ? "url" : field.type === "DATE" ? "date" : "text"}
           value={field.value}
           onChange={(event) => update({ value: event.target.value })}
           aria-label={`Field ${index + 1} value`}
@@ -289,7 +268,6 @@ function FieldInput({ field, index, linkOptions, names, update }: {
 
 function valuePlaceholder(type?: CustomFieldType) {
   if (type === "NUMBER") return "Number";
-  if (type === "DATE") return "dd/mm/yyyy";
   if (type === "LINK") return "https://…";
   return "Text";
 }

@@ -91,7 +91,7 @@ Worth trying, cool idea but solution/value isn't proven
 Changes or affects fundamental Kinesis architecture
 
 ### Integration
-Changes or affects fundamental Kinesis architecture
+External Integration related 
 
 ### UX / UI
 Primarily interaction or visual design work
@@ -147,10 +147,13 @@ KD-010-external-app-notes-Integration
 KD-012-starter-example-data
 KD-013-guided-onboarding
 KD-015-kinesis-timeline-review
+KD-026-document-no-reminder-option
+KD-027-todo-reminder-window
 
 ## 🧠 Planning Needed
 
 KD-007-adding-priority
+KD-016-automated-document-field-extraction
 
 ## ✓ Accepted
 
@@ -160,12 +163,21 @@ KD-007-adding-priority
 
 ## Accepted — Needs Planning
 
+KD-025-to-do-board
+KD-023-universal-object-connection
 KD-011-unified-todo-view
+KD-017-turn-dashboard-into-decision-surface
+KD-020-mobile-navigation-and-responsive-app
 
 ## ⛔ Blocked
 
 
 ## ✅ Done
+KD-024-universal-object-capablity-layer
+KD-022-goal-linked-relationships
+KD-021-relationship-with-oneself
+KD-018-standardise-module-navigation
+KD-019-sidebar-route-aware
 KD-009-implement-authetication-system
 KD-014-kinesis-calendar
 KD-001-improve-milestones
@@ -180,6 +192,7 @@ KD-003-custom-object-fields
 # Bugs
 
 ## Open
+BUG-003-remove-goal-measure-validation
 
 ## In Progress
 

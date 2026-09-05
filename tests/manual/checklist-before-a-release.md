@@ -1,0 +1,73 @@
+# Pre-Release Manual Verification Checklist
+
+Complete this checklist before creating the final release tag.
+
+These checks complement automated and unit testing and are intended to verify that Kinesis's core user flows are functioning correctly in the release environment.
+
+## Authentication & Access
+
+- [ ] Owner can sign in successfully and reach the dashboard.
+- [ ] Verify anonymous and non-owner users cannot access protected content.
+
+## Documents
+
+- [ ] Create a document.
+- [ ] Edit an existing document.
+- [ ] Search for and find a document.
+- [ ] Archive an expiring or expired document, and verify its status reads Archived and it leaves Needs Attention, Upcoming & Due, Expiring soon and the calendar.
+- [ ] Un-archive it and verify the reminder returns.
+
+## Goals & Milestones
+
+- [ ] Create a goal.
+- [ ] Create a milestone for a goal.
+- [ ] Update an existing milestone.
+- [ ] Click a goal's target date, change it, and verify the goal page, calendar pin, milestones due-within list and goal health all move with it.
+- [ ] Open it with Enter as well, and verify it does not save before a date is chosen.
+- [ ] Verify a goal whose target date has passed stops reminding without opening the goals page.
+
+## Relationships
+
+- [ ] Add a person and create a relationship.
+- [ ] Add an important date to a relationship.
+- [ ] Link a goal to a relationship.
+- [ ] Ctrl/Cmd-click two people on the constellation and create the connection from the prompt.
+- [ ] Add a practice, reflection, important date and note under "Relationship with myself", reload, and verify they persist.
+
+## Custom Modules & Fields
+
+- [ ] Create a custom module.
+- [ ] Create and populate a custom field.
+- [ ] Create a Kinesis Link and verify it opens the linked object.
+
+## Calendar
+
+Verify that dated records appear correctly in the Calendar:
+
+- [ ] Document expiry date.
+- [ ] Relationship important date.
+- [ ] Milestone due date.
+- [ ] Goal due date.
+- [ ] To-Do due date, and that opening it lands on that to-do.
+
+## Needs Attention
+
+- [ ] Verify an attention item appears when expected.
+- [ ] Open the attention item.
+- [ ] Handle/resolve the item and verify the attention state updates correctly.
+
+## Notifications & Reminders
+
+- [ ] Untick In-app notifications and verify the bell disappears from the top bar, and that Needs Attention, Upcoming & Due, Expiring soon and every calendar pin are unchanged.
+- [ ] Re-tick it and verify the bell returns showing the true current state, not a backlog.
+
+## Data Export
+
+- [ ] Complete recent-auth verification when prompted.
+- [ ] Export user data successfully.
+- [ ] Verify the export is generated and contains expected data.
+
+## Release Gate
+
+- [ ] All required manual checks above have passed.
+- [ ] Automated/unit tests are passing.

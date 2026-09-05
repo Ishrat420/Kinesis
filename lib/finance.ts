@@ -1,5 +1,12 @@
-export type FinanceKind = "asset" | "liability" | "income" | "expense";
-export type FinanceFrequency = "Weekly" | "Fortnightly" | "Monthly" | "Quarterly" | "Yearly";
+import { parseDateOnly } from "@/lib/dates";
+
+export const FINANCE_KINDS = ["asset", "liability", "income", "expense"] as const;
+export const FINANCE_FREQUENCIES = ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"] as const;
+export const ASSET_CATEGORIES = ["Cash", "Savings", "Property", "Investment", "Vehicle", "Superannuation", "Other"];
+export const LIABILITY_CATEGORIES = ["Credit Card", "Mortgage", "Personal Loan", "Car Loan", "Student Loan", "Other"];
+
+export type FinanceKind = (typeof FINANCE_KINDS)[number];
+export type FinanceFrequency = (typeof FINANCE_FREQUENCIES)[number];
 
 export type FinanceItem = {
   id: string;
@@ -13,6 +20,17 @@ export type FinanceItem = {
   endDate?: string;
   notes?: string;
 };
+
+export const isFinanceKind = (value: unknown): value is FinanceKind =>
+  FINANCE_KINDS.includes(value as FinanceKind);
+export const isFinanceFrequency = (value: unknown): value is FinanceFrequency =>
+  FINANCE_FREQUENCIES.includes(value as FinanceFrequency);
+/**
+ * `Date` silently rolls an out-of-range day into the next month, so parsing
+ * alone accepts 2026-02-30 as 2 March. `parseDateOnly` rejects any value whose
+ * parts do not survive the round trip, which is what this guard needs.
+ */
+export const isCalendarDate = (value: string) => parseDateOnly(value) !== null;
 
 const monthlyFactor: Record<FinanceFrequency, number> = {
   Weekly: 52 / 12,

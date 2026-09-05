@@ -1,11 +1,11 @@
 import Image from "next/image";
-import Link from "next/link";
 import kinesisIcon from "@/app/icon.png";
 import {
   Calendar,
   FileText,
   Home,
   Landmark,
+  ListTodo,
   Settings,
   Target,
   Users,
@@ -13,6 +13,7 @@ import {
 import { AddModuleButton } from "./AddModuleButton";
 import { getCustomModules } from "@/lib/data/custom-modules";
 import { DraggableCustomModuleLink } from "./DraggableCustomModuleLink";
+import { SidebarNavLink } from "./SidebarNavLink";
 
 const modules = [
   { icon: FileText, name: "Documents", href: "/documents" },
@@ -21,59 +22,80 @@ const modules = [
   { icon: Users, name: "Relationships", href: "/relationships" },
 ];
 
-export async function Sidebar() {
-  const customModules = await getCustomModules();
+export function Sidebar() {
   return (
-    <aside className="hidden min-h-[calc(100vh-72px)] w-[270px] border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
-      <div className="mb-6 flex items-center gap-4 px-2">
-        <Image
-          src={kinesisIcon}
-          alt="Kinesis"
-          width={52}
-          height={52}
-          className="rounded-2xl shadow-sm"
-          priority
-        />
-
-        <div>
-          <h2 className="text-[28px] font-semibold leading-none tracking-tight">
-            Kinesis
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">Life in motion</p>
-        </div>
-      </div>
+    <aside className="hidden min-h-[calc(100vh-72px)] w-[270px] shrink-0 border-r border-zinc-200/80 bg-white px-5 py-5 md:block">
+      <SidebarBrand />
 
       <div className="border-t border-zinc-100 pt-6">
-        <nav className="space-y-5 text-sm">
-          <NavSection label="Main">
-            <SidebarItem active icon={Home} label="Dashboard" href="/" />
-          </NavSection>
-
-          <NavSection label="Modules">
-            {modules.map((module) => (
-              <SidebarItem
-                key={module.name}
-                icon={module.icon}
-                label={module.name}
-                href={"href" in module ? module.href : undefined}
-              />
-            ))}
-            {customModules.map((customModule) => (
-              <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
-            ))}
-          </NavSection>
-
-          <NavSection label="Customize">
-            <AddModuleButton />
-          </NavSection>
-
-          <NavSection label="System">
-            <SidebarItem icon={Calendar} label="Calendar" href="/calendar" />
-            <SidebarItem icon={Settings} label="Settings" href="/settings" />
-          </NavSection>
-        </nav>
+        <SidebarNav />
       </div>
     </aside>
+  );
+}
+
+export function SidebarBrand() {
+  return (
+    <div className="mb-6 flex items-center gap-4 px-2">
+      <Image
+        src={kinesisIcon}
+        alt="Kinesis"
+        width={52}
+        height={52}
+        className="rounded-2xl shadow-sm"
+        priority
+      />
+
+      <div>
+        <h2 className="text-[28px] font-semibold leading-none tracking-tight">
+          Kinesis
+        </h2>
+        <p className="mt-1 text-sm text-zinc-400">Life in motion</p>
+      </div>
+    </div>
+  );
+}
+
+export async function SidebarNav() {
+  const customModules = await getCustomModules();
+
+  return (
+    <nav aria-label="Main navigation" className="flex flex-col gap-5 text-sm">
+      {/*
+        Overview holds the places you go to decide what to do next — the
+        Dashboard, the To-Dos, the Calendar. ADR-009 is explicit that modules
+        answer "what do I have?" while actions answer "what needs me now?", and
+        those are different questions, so the two stay in separate groups.
+      */}
+      <NavSection label="Overview">
+        <SidebarNavLink href="/" label="Dashboard" icon={<Home className="h-[18px] w-[18px]" />} />
+        <SidebarNavLink href="/todos" label="To-Dos" icon={<ListTodo className="h-[18px] w-[18px]" />} />
+        <SidebarNavLink href="/calendar" label="Calendar" icon={<Calendar className="h-[18px] w-[18px]" />} />
+      </NavSection>
+
+      {/*
+        Adding a module is an action on this list, so its control closes the
+        list instead of standing in a "Customize" group of one.
+      */}
+      <NavSection label="Modules">
+        {modules.map((module) => (
+          <SidebarNavLink
+            key={module.name}
+            href={module.href}
+            label={module.name}
+            icon={<module.icon className="h-[18px] w-[18px]" />}
+          />
+        ))}
+        {customModules.map((customModule) => (
+          <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
+        ))}
+        <AddModuleButton />
+      </NavSection>
+
+      <NavSection label="System">
+        <SidebarNavLink href="/settings" label="Settings" icon={<Settings className="h-[18px] w-[18px]" />} />
+      </NavSection>
+    </nav>
   );
 }
 
@@ -92,39 +114,5 @@ function NavSection({
 
       <div className="space-y-1">{children}</div>
     </div>
-  );
-}
-
-function SidebarItem({
-  icon: Icon,
-  label,
-  active = false,
-  href,
-}: {
-  icon: React.ElementType;
-  label: string;
-  active?: boolean;
-  href?: string;
-}) {
-  const className = `flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition duration-200 ${
-        active
-          ? "bg-zinc-950 text-white shadow-[0_8px_24px_rgb(0,0,0,0.12)]"
-          : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
-      }`;
-  const content = (
-    <>
-      <Icon className="h-[18px] w-[18px]" />
-      <span className="font-medium">{label}</span>
-    </>
-  );
-
-  return href ? (
-    <Link href={href} className={className}>
-      {content}
-    </Link>
-  ) : (
-    <button type="button" className={className}>
-      {content}
-    </button>
   );
 }

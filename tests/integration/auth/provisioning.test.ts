@@ -70,7 +70,8 @@ describe.sequential("database-backed owner provisioning", () => {
         firstName: "Old",
         lastName: "Owner",
         email: "old@example.com",
-        goals: { create: { id: "rotation-goal", name: "Keep me" } },
+        objects: { create: { id: "rotation-goal-object", type: "GOAL", name: "Keep me" } },
+        goals: { create: { id: "rotation-goal", objectId: "rotation-goal-object", name: "Keep me" } },
       },
     });
     authenticate("clerk_replacement", "New");

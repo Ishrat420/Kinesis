@@ -6,7 +6,8 @@ export type CalendarSourceType =
   | "DOCUMENT"
   | "RELATIONSHIP"
   | "REMINDER"
-  | "CUSTOM_OBJECT";
+  | "CUSTOM_OBJECT"
+  | "TODO";
 
 export type KinesisCalendarItem = {
   id: string;

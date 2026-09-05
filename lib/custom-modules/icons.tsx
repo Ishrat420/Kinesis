@@ -54,3 +54,17 @@ export function CustomModuleIcon({ name, className }: { name: string; className?
   const Icon = CUSTOM_MODULE_ICONS[name as CustomModuleIconName] ?? Package;
   return <Icon className={className} />;
 }
+
+/**
+ * How a custom module object is shown wherever it surfaces outside its own
+ * module -- Upcoming & Due, Needs Attention, notifications. The icon and tint
+ * are the module's own, so an object always looks like where it came from
+ * instead of wearing a generic stand-in.
+ */
+export function CustomModuleBadge({ icon, color, className, iconClassName }: { icon: string; color: string; className?: string; iconClassName?: string }) {
+  return (
+    <span className={`flex shrink-0 items-center justify-center ${className ?? ""}`} style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, white)`, color }}>
+      <CustomModuleIcon name={icon} className={iconClassName} />
+    </span>
+  );
+}

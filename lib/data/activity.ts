@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 
-export type ActivityAction = "Added" | "Updated" | "Completed";
+/** "Converted" records a quick capture becoming a richer object (KD-008D). */
+export type ActivityAction = "Added" | "Updated" | "Completed" | "Converted";
 
 export type ActivityItem = {
   id: string;
@@ -23,4 +24,9 @@ export async function addActivity({ action, moduleName, objectName, icon, href }
 export async function getRecentActivity(limit = 8) {
   const user = await requireKinesisUser();
   return prisma.activityEvent.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: limit });
+}
+
+export async function getActivityForHref(href: string, limit = 20) {
+  const user = await requireKinesisUser();
+  return prisma.activityEvent.findMany({ where: { userId: user.id, href }, orderBy: { createdAt: "desc" }, take: limit });
 }

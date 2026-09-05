@@ -1,13 +1,16 @@
 "use client";
 
-import { Bell, CalendarClock, CheckCheck, Clock3, Flag, TriangleAlert, X } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, ListTodo, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-actions";
+import { CustomModuleBadge } from "@/lib/custom-modules/icons";
+import { formatDate } from "@/lib/dates";
+import { useFormatPreferences } from "@/lib/format/context";
 
 type NotificationItem = {
   id: string;
-  type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE";
+  type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE" | "CUSTOM_ITEM_DUE" | "TODO_DUE";
   message: string;
   documentName: string;
   documentType: string | null;
@@ -16,9 +19,13 @@ type NotificationItem = {
   actionUrl: string;
   readAt: Date | null;
   createdAt: Date;
+  /** Set for a custom item's notification, so it wears its own module's icon and colour. */
+  moduleIcon: string | null;
+  moduleColor: string | null;
 };
 
 export function NotificationBell({ notifications, initialUnreadCount }: { notifications: NotificationItem[]; initialUnreadCount: number }) {
+  const { locale } = useFormatPreferences();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [readIds, setReadIds] = useState(() => new Set(notifications.filter((item) => item.readAt).map((item) => item.id)));
@@ -46,8 +53,6 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
     void markAllNotificationsReadAction();
   }
 
-  const dateFormatter = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-
   return (
     <div ref={container} className="relative">
       <button type="button" aria-label={`${unreadCount} unread notifications`} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="relative flex h-11 min-w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white px-3 shadow-sm transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md">
@@ -68,18 +73,26 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
           <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto p-2 sm:max-h-[480px]">
             {notifications.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-zinc-500"><Bell className="mx-auto mb-3 h-6 w-6 text-zinc-300" />No notifications yet</div>
-            ) : notifications.map((notification) => (
+            ) : notifications.map((notification) => {
+              const isMilestone = notification.type === "MILESTONE_DUE" || notification.actionUrl.startsWith("/goals/");
+              const isRelationshipDate = notification.actionUrl === "/relationships";
+              const isCustomItem = notification.type === "CUSTOM_ITEM_DUE" || notification.actionUrl.startsWith("/custom-modules/");
+              const isTodo = notification.type === "TODO_DUE" || notification.actionUrl === "/todos";
+              return (
               <Link key={notification.id} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readIds.has(notification.id) ? "opacity-70" : "bg-zinc-50/70"}`}>
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : notification.type === "MILESTONE_DUE" ? "bg-violet-50 text-violet-700" : "bg-amber-50 text-amber-700"}`}>
-                  {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : notification.type === "MILESTONE_DUE" ? <Flag className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
-                </span>
+                {isCustomItem && notification.moduleIcon && notification.moduleColor
+                  ? <CustomModuleBadge icon={notification.moduleIcon} color={notification.moduleColor} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />
+                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                    </span>}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readIds.has(notification.id) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
-                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{notification.type === "MILESTONE_DUE" ? "Due" : "Expires"} {dateFormatter.format(notification.expiryDate)}</span>}</span>
+                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isMilestone || isCustomItem || isTodo ? "Due" : isRelationshipDate ? "Occurs" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
                 </span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

@@ -16,5 +16,9 @@ export default defineConfig({
     restoreMocks: true,
     include: ["tests/integration/**/*.test.ts"],
     setupFiles: ["./tests/integration/setup-env.ts"],
+    // Every integration file shares the one test database, and several reset it
+    // with an unfiltered `user.deleteMany()`. Run the files one at a time so a
+    // suite cannot delete the rows another is still using.
+    fileParallelism: false,
   },
 });
