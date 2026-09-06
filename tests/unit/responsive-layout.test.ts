@@ -95,6 +95,42 @@ describe("mobile navigation", () => {
   });
 });
 
+/**
+ * The top bar carries `backdrop-blur`, and an element with a backdrop-filter
+ * becomes the containing block for its `position: fixed` descendants. Anything
+ * mounted from the bar that means "the viewport" therefore gets "the 72px
+ * header" instead, silently: the drawer drew itself 280x72 with the navigation
+ * scrolled out of sight inside it, and only a phone ever showed it.
+ *
+ * An overlay opened from the bar has two ways out -- render into `document.body`
+ * through a portal, or state a height the clipped containing block cannot
+ * shrink -- and `inset-0` alone is neither.
+ */
+describe("overlays opened from the top bar", () => {
+  const mounted = ["MobileNavDrawer.tsx", "NotificationBell.tsx"];
+
+  it.each(mounted)("%s does not trust inset-0 to mean the viewport", (file) => {
+    const source = sources.get(join("components", "navigation", file)) ?? "";
+    expect(source).not.toBe("");
+
+    // `fixed inset-0` is only honest once the subtree has left the header, so a
+    // file that writes one has to portal. Sizing the overlay instead is the
+    // other way out, and leaves no `inset-0` here to find.
+    const insetOverlays = source.match(/className="fixed inset-0[^"]*"/g) ?? [];
+    if (insetOverlays.length) expect(source).toContain("createPortal");
+  });
+
+  it("keeps the drawer's overlay in document.body", () => {
+    const drawer = sources.get(join("components", "navigation", "MobileNavDrawer.tsx")) ?? "";
+    expect(drawer).toContain("createPortal");
+    expect(drawer).toContain("document.body");
+  });
+
+  it("still has a backdrop filter on the bar, which is what makes this necessary", () => {
+    expect(sources.get(join("components", "navigation", "Topbar.tsx"))).toContain("backdrop-blur");
+  });
+});
+
 describe("grid templates", () => {
   it("keeps every unconditional pixel template inside the narrowest viewport", () => {
     const tooWide = [...sources].flatMap(([path, source]) =>
