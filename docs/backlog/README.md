@@ -192,7 +192,6 @@ KD-003-custom-object-fields
 # Bugs
 
 ## Open
-BUG-003-remove-goal-measure-validation
 
 ## In Progress
 
@@ -204,6 +203,7 @@ BUG-003-remove-goal-measure-validation
 
 BUG-001-title
 BUG-002-goal-showing-active
+BUG-003-remove-goal-measure-validation
 
 
 ## Won't Fix

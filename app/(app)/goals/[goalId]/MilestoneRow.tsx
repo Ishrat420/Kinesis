@@ -20,8 +20,10 @@ function autoCompletionFeedbackState(autoCompleted: boolean, completedAt: Date |
   return remaining <= AUTO_COMPLETION_FADE_MS ? "fading" : "visible";
 }
 
-export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, updateAction, duplicateAction, deleteAction }: {
+export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggleAction, updateAction, duplicateAction, deleteAction }: {
   milestone: { id: string; name: string; value: number | null; dueDate: Date | null; completed: boolean; completedAt: Date | null; autoCompleted: boolean };
+  /** Whether the goal still has a measure. Without one there is no value to hold. */
+  hasTarget: boolean;
   unit: string | null;
   goalTargetDate: Date | null;
   toggleAction: () => Promise<void>;
@@ -38,7 +40,10 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   const date = milestone.dueDate ? formatDate(milestone.dueDate, locale) : undefined;
   const completedDate = milestone.completedAt ? formatDate(milestone.completedAt, locale) : undefined;
   const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
-  const title = `${milestone.name}${milestone.value === null ? "" : ` ${displayNumber(milestone.value, unit, locale)}`}`;
+  // The measure can be removed while this row is on screen; until the value is
+  // cleared with it, the number left behind counts nothing.
+  const measuredValue = hasTarget ? milestone.value : null;
+  const title = `${milestone.name}${measuredValue === null ? "" : ` ${displayNumber(measuredValue, unit, locale)}`}`;
 
   useEffect(() => {
     const nextState = autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt);
@@ -61,8 +66,8 @@ export function MilestoneRow({ milestone, unit, goalTargetDate, toggleAction, up
   if (editing) return <form action={formAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <input name="name" required autoFocus defaultValue={milestone.name} aria-label="Milestone title" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
-      <input name="value" type="number" step="any" min="0" defaultValue={milestone.value ?? ""} placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />
-      {unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
+      {hasTarget && <input name="value" type="number" step="any" min="0" defaultValue={milestone.value ?? ""} placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />}
+      {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
       <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
       <input name="dueDate" type="date" max={latestDueDate} defaultValue={milestone.dueDate ? formatDateInput(milestone.dueDate) : ""} aria-label="Optional due date" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
       <button className="h-11 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button>

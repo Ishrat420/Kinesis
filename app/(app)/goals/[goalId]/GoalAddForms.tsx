@@ -4,10 +4,13 @@ import { useActionState, useState } from "react";
 import { CalendarDays, Gauge, Plus, X } from "lucide-react";
 import { addUtcDays, formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
+import { Modal } from "@/components/overlay/Modal";
+import { MEASURE_REMOVAL_CONSEQUENCE } from "@/lib/goals/measure";
 import type { GoalActionState } from "../actions";
 
 type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
 const initialState: GoalActionState = {};
+const REMOVE_MEASURE_CLASS = "rounded-xl px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50";
 
 function ActionError({ error }: { error?: string }) {
   if (!error) return null;
@@ -80,6 +83,14 @@ export function MilestoneDueDateForm({ action, removeAction, dueDate, goalTarget
   </form>;
 }
 
+/**
+ * The measure and its removal share a panel because they are one decision, but
+ * only one of them cascades. Removing a measure a milestone is using takes that
+ * milestone's value with it, so the dialog names the consequence before anything
+ * is written; a measure nothing depends on is removed as directly as before,
+ * with no warning to dismiss. Whether it cascades is the server's call either
+ * way -- this only decides whether to ask first.
+ */
 export function MeasurableTargetForm({
   action,
   removeAction,
@@ -87,17 +98,33 @@ export function MeasurableTargetForm({
   targetValue,
   currentValue,
   unit,
+  measuredMilestones,
 }: {
   action: FormAction;
-  removeAction: () => Promise<void>;
+  removeAction: FormAction;
   units: string[];
   targetValue: number | null;
   currentValue: number | null;
   unit: string | null;
+  /** How many milestones hold a value in this measure and would lose it with it. */
+  measuredMilestones: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [state, formAction] = useActionState(action, initialState);
+  const [removeState, removeFormAction] = useActionState(removeAction, initialState);
   const hasTarget = targetValue !== null;
+  const cascades = measuredMilestones > 0;
+
+  // The removal lands on the server and the goal comes back without a measure.
+  // The dialog then has nothing left to ask about, and a confirmation still set
+  // would reopen it over whatever measure is added next. Adjusting state during
+  // render is React's own answer to a prop change; an effect renders twice.
+  const [measured, setMeasured] = useState(hasTarget);
+  if (measured !== hasTarget) {
+    setMeasured(hasTarget);
+    setConfirming(false);
+  }
 
   if (!expanded) {
     return (
@@ -112,16 +139,35 @@ export function MeasurableTargetForm({
   }
 
   return (
-    <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
-      <div className="flex items-center justify-between sm:col-span-3">
-        <p className="text-sm font-semibold text-zinc-800">{hasTarget ? "Update measurable target" : "New measurable target"}</p>
-        <button type="button" onClick={() => setExpanded(false)} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
-      </div>
-      <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
-      <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
-      <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Current value<input name="currentValue" type="number" min="0" step="any" required defaultValue={currentValue ?? ""} placeholder="2,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
-      {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
-      <div className="flex gap-2 sm:col-span-3"><button className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">{hasTarget ? "Update values" : "Add target"}</button>{hasTarget && <button formAction={removeAction} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50">Remove</button>}</div>
-    </form>
+    <>
+      <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
+        <div className="flex items-center justify-between sm:col-span-3">
+          <p className="text-sm font-semibold text-zinc-800">{hasTarget ? "Update measurable target" : "New measurable target"}</p>
+          <button type="button" onClick={() => setExpanded(false)} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
+        </div>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Current value<input name="currentValue" type="number" min="0" step="any" required defaultValue={currentValue ?? ""} placeholder="2,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
+        {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
+        {removeState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{removeState.error}</p>}
+        <div className="flex gap-2 sm:col-span-3">
+          <button className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">{hasTarget ? "Update values" : "Add target"}</button>
+          {hasTarget && (cascades
+            ? <button type="button" onClick={() => setConfirming(true)} className={REMOVE_MEASURE_CLASS}>Remove</button>
+            : <button formAction={removeFormAction} className={REMOVE_MEASURE_CLASS}>Remove</button>)}
+        </div>
+      </form>
+
+      {confirming && (
+        <Modal title="Are you sure?" eyebrow="Remove measurable target" onClose={() => setConfirming(false)}>
+          <p className="leading-7 text-zinc-600">{MEASURE_REMOVAL_CONSEQUENCE}</p>
+          <form action={removeFormAction} className="mt-7 flex flex-wrap justify-end gap-3">
+            <input type="hidden" name="confirmed" value="true" />
+            <button type="button" onClick={() => setConfirming(false)} className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Keep the measure</button>
+            <button className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Remove from goal and milestones</button>
+          </form>
+        </Modal>
+      )}
+    </>
   );
 }

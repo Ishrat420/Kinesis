@@ -47,13 +47,13 @@ describe.sequential("cross-user authorization contract", () => {
     await addTargetAction(ids.goalA, {}, form({ targetValue: "150", currentValue: "25", unit: "items" }));
     await toggleProgressAction(ids.goalA, "showTargetProgress", false);
     await addMilestoneAction(ids.goalA, {}, form({ name: "owner-a-added-milestone" }));
-    await removeTargetAction(ids.goalA);
+    await removeTargetAction(ids.goalA, {}, form({ confirmed: "true" }));
     expect((await ownerState("ownerA")).goals[0].milestones).toHaveLength(2);
 
     const before = await ownerState("ownerB");
     await updateGoalStatusAction(ids.goalB, {}, form({ status: "Completed" }));
     await expect(addTargetAction(ids.goalB, {}, form({ targetValue: "999", currentValue: "999", unit: "items" }))).rejects.toThrow("Goal not found");
-    await removeTargetAction(ids.goalB);
+    await removeTargetAction(ids.goalB, {}, form({ confirmed: "true" }));
     await toggleProgressAction(ids.goalB, "showTargetProgress", false);
     await addMilestoneAction(ids.goalB, {}, form({ name: "intrusion" }));
     await deleteGoalAction(ids.goalB);
