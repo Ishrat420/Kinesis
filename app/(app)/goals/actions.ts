@@ -9,6 +9,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
 import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
@@ -181,11 +182,47 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
   return {};
 }
 
-export async function removeTargetAction(id: string) {
+/**
+ * Removing a goal's measure takes everything measured in it with it, in one
+ * transaction: the goal's own values, the history goal health averages, and the
+ * value every milestone holds in that unit. Leaving the milestone values behind
+ * was the bug -- a number with no unit, no goal value to complete it against and
+ * an input the milestone form still offered, which is neither editable nor
+ * removable once the measure it belonged to is gone.
+ *
+ * `autoCompleted` goes with them for the same reason. It records that a
+ * completion was calculated from the measure rather than chosen, and it is what
+ * the milestone row offers to undo; once the comparison behind it cannot be
+ * made, the claim is unsupportable. The completion itself is left alone. It is
+ * milestone data, and it stays the owner's to reopen.
+ *
+ * The confirmation is enforced here rather than only in the dialog. A stale form
+ * -- or a milestone that took a value between the page rendering and the button
+ * being pressed -- would otherwise cascade without anyone having been asked.
+ */
+export async function removeTargetAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
-  await prisma.$transaction([prisma.goal.updateMany({ where: { id, userId: user.id }, data: { targetValue: null, currentValue: null, unit: null } }), prisma.goalMetricSnapshot.deleteMany({ where: { goalId: id, goal: { userId: user.id } } })]);
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { milestones: { where: { value: { not: null } }, select: { id: true }, take: 1 } } });
+  if (!goal) return {};
+  if (goal.milestones.length && value(data, "confirmed") !== "true") return { error: MEASURE_REMOVAL_CONFIRMATION };
+  await prisma.$transaction([
+    prisma.goal.updateMany({ where: { id, userId: user.id }, data: { targetValue: null, currentValue: null, unit: null } }),
+    prisma.goalMetricSnapshot.deleteMany({ where: { goalId: id, goal: { userId: user.id } } }),
+    prisma.milestone.updateMany({ where: { goalId: id, goal: { userId: user.id } }, data: { value: null, autoCompleted: false } }),
+  ]);
   refresh(id);
+  return {};
 }
+
+/**
+ * A milestone value only means anything against a goal that has a measure, so a
+ * goal without one stores none -- whatever a form submitted. That keeps a stale
+ * form, or a submission racing a removal, from re-establishing the orphaned
+ * value the measure's removal exists to clear, and makes an ordinary edit to a
+ * milestone's name or date save the milestone clean.
+ */
+const measuredValue = (goalTargetValue: number | null, milestoneValue: number | null) =>
+  goalTargetValue === null ? null : milestoneValue;
 
 export async function addMilestoneAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
@@ -193,12 +230,13 @@ export async function addMilestoneAction(id: string, _previousState: GoalActionS
   if (!name) return { error: "Enter a milestone name." };
   if (dueDate === undefined) return { error: "Enter a valid due date." };
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true, targetDate: true, _count: { select: { milestones: true } } } });
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetValue: true, currentValue: true, targetDate: true, _count: { select: { milestones: true } } } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
-  const auto = milestoneValue !== null && goal.currentValue !== null && goal.currentValue >= milestoneValue;
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: milestoneValue, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+  const measured = measuredValue(goal.targetValue, milestoneValue);
+  const auto = measured !== null && goal.currentValue !== null && goal.currentValue >= measured;
+  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: measured, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
   return {};
 }
 
@@ -208,11 +246,11 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
   if (!name) return { error: "Enter a milestone name." };
   if (dueDate === undefined) return { error: "Enter a valid due date." };
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetDate: true } });
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetValue: true, targetDate: true } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
-  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { name, value: milestoneValue, dueDate } });
+  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { name, value: measuredValue(goal.targetValue, milestoneValue), dueDate } });
   refresh(id);
   return {};
 }

@@ -1,6 +1,6 @@
 # BUG-003: Removing a goal measure leaves milestones in an invalid state
 
-**Status:** Open
+**Status:** Fixed
 **Priority:** High
 
 ## Problem
@@ -75,3 +75,51 @@ If the user confirms:
 ## Implementation note
 
 Enforce this behaviour on the server as well as in the interface. The goal measure, milestone references and values, and dependent calculations must be removed in one atomic operation to prevent orphaned references, stale calculated states, or partial updates.
+
+## Fix
+
+The measure and everything measured in it are now removed together, in one
+transaction, and the cascade is announced before it runs.
+
+* **Removal asks first when it costs something.** If any milestone holds a value
+  in the measure, `removeTargetAction` refuses an unconfirmed request and returns
+  the warning; the dialog carries the same words. The gate is on the server, not
+  only in the dialog, so a form left open before a milestone took a value cannot
+  slip past it. Cancelling writes nothing at all.
+
+* **A measure nothing uses is removed as directly as before.** No dialog, no
+  extra click. The confirmation exists for the cascade, not for the removal.
+
+* **The cascade reaches every milestone, whatever its status.** One
+  `updateMany` over the goal's milestones clears the value on all of them --
+  active, overdue, inactive, completed -- along with the goal's own target,
+  current value and unit, and the metric history goal health averages. There is
+  no ordering in which a milestone value can outlive the measure it was
+  expressed in.
+
+* **Calculated results go with their inputs.** Goal health reads the target
+  against the current value over that history: with all three gone, no ON
+  TRACK, AT RISK or AHEAD can survive the removal. `autoCompleted` is cleared
+  for the same reason -- it claims a completion was calculated from the measure,
+  and that comparison can no longer be made. The completion itself is left
+  alone; it is milestone data, and it stays the owner's to reopen.
+
+* **Nothing measured comes back afterwards.** A milestone value only means
+  something against a goal that has a measure, so a goal without one stores none
+  whatever a form submits. The milestone row hides the value input when the goal
+  has no measure, and `addMilestoneAction` and `updateMilestoneAction` drop a
+  submitted value rather than trusting it. Renaming a milestone after a removal
+  saves the name and leaves the value null, which is the edit that used to fail.
+
+`lib/goals/measure.ts` holds what the two ends share: the warning, and the count
+of milestones using the measure. The page counts them to decide whether to ask;
+the action counts them again to decide whether it may proceed without having
+been asked, so the dialog and the gate cannot come to disagree.
+
+`tests/integration/goals/goal-measure-removal.test.ts` runs the scenarios above
+against the database, including the untouched-on-cancel case and the rename that
+follows a removal.
+
+## Related
+
+* ADR-004 — Goals Module
