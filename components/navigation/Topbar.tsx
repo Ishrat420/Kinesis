@@ -17,19 +17,25 @@ export async function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 h-[72px] border-b border-zinc-200/80 bg-white/90 backdrop-blur">
-      <div className="relative flex h-full items-center justify-end px-4 sm:px-8">
-        <div className="absolute left-4 md:hidden">
+      {/*
+        Below md the bar is a plain row -- menu, search, actions -- so the search
+        field takes whatever width is left instead of being squeezed between two
+        fixed insets. From md the search goes back to being absolutely centred
+        across the full header, which is the desktop layout and must not change.
+      */}
+      <div className="relative flex h-full items-center gap-3 px-4 sm:px-8">
+        <div className="shrink-0 md:hidden">
           <MobileNavDrawer>
             <SidebarBrand />
             <SidebarNav />
           </MobileNavDrawer>
         </div>
 
-        <div className="absolute left-20 right-32 flex justify-center sm:right-40 md:left-8">
+        <div className="flex min-w-0 flex-1 md:absolute md:left-8 md:right-40 md:justify-center">
           <CommandBar entries={searchEntries.map((entry) => entry.id === "person:self" ? { ...entry, title: getUserDisplayName(user) } : entry)} />
         </div>
 
-        <div className="relative flex items-center gap-3">
+        <div className="relative ml-auto flex shrink-0 items-center gap-3">
           {notificationsEnabled && <NotificationBell key={`${unreadCount}:${notifications.map(({ id, readAt }) => `${id}:${readAt?.getTime() ?? "unread"}`).join(",")}`} notifications={notifications} initialUnreadCount={unreadCount} />}
 
           <UserButton appearance={{ elements: { avatarBox: "h-11 w-11 border border-zinc-200/80 shadow-sm" } }}>

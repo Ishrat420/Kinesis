@@ -7,6 +7,9 @@ import { Breadcrumbs, type Breadcrumb } from "@/components/navigation/Breadcrumb
  * Top-level module pages rely on the sidebar to say where they are, so they
  * pass a title and description only. Detail pages add breadcrumbs and a back
  * link to the module they belong to.
+ *
+ * The title steps down a size below `sm`: at 38px a two-word module name eats
+ * most of a phone screen, and the actions below it wrap rather than shrink.
  */
 export function ModuleHeader({
   title,
@@ -52,7 +55,7 @@ export function ModuleHeader({
               <p className="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-400">{eyebrow}</p>
             )}
 
-            <h1 className={`${eyebrow ? "mt-2 " : ""}text-[38px] font-semibold leading-none tracking-tight`}>
+            <h1 className={`${eyebrow ? "mt-2 " : ""}text-[30px] font-semibold leading-tight tracking-tight sm:text-[38px] sm:leading-none`}>
               {title}
             </h1>
 
