@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
@@ -9,6 +10,17 @@ import { Menu, X } from "lucide-react";
  *
  * The drawer receives the same navigation markup the sidebar renders, so both
  * breakpoints stay in step, and it closes itself whenever the route changes.
+ *
+ * **The overlay renders into `document.body`, not where it is written.** The
+ * button that opens it lives in the top bar, and the top bar carries
+ * `backdrop-blur`: an element with a backdrop-filter becomes the containing
+ * block for its `position: fixed` descendants, so `inset-0` meant "the 72px
+ * header" rather than "the viewport". The drawer was drawn 280x72, the
+ * navigation was scrolled out of sight inside it, and a phone got a white box
+ * with a close button in it. The header's `z-30` stacking context is the same
+ * problem for painting. This is the identical trap Modal documents, and a
+ * portal is the only reliable way out of it -- any ancestor may grow a filter,
+ * a transform or a perspective later and quietly break this again.
  */
 export function MobileNavDrawer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -40,7 +52,7 @@ export function MobileNavDrawer({ children }: { children: React.ReactNode }) {
         <Menu className="h-5 w-5" />
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div role="dialog" aria-modal="true" aria-label="Navigation" className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm" onClick={close} />
 
@@ -58,7 +70,8 @@ export function MobileNavDrawer({ children }: { children: React.ReactNode }) {
 
             {children}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

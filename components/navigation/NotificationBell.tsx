@@ -60,7 +60,16 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
         {unreadCount > 0 && <span className="ml-1.5 rounded-full bg-zinc-900 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </button>
 
-      {open && <button type="button" aria-label="Close notifications" className="fixed inset-0 z-40 bg-zinc-950/10 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none" onClick={() => setOpen(false)} />}
+      {/*
+        The scrim is sized rather than inset because the top bar's backdrop-filter
+        makes it the containing block for anything fixed inside it: `inset-0` gave
+        this the 72px header to cover, not the page behind the panel. The panel
+        itself has to stay here -- the outside-click handler above closes on
+        anything outside `container`, so portalling it away would close it on its
+        own clicks -- and the bar is pinned to the top of the viewport, so an
+        explicit viewport height lands where `inset-0` was meant to.
+      */}
+      {open && <button type="button" aria-label="Close notifications" className="fixed inset-x-0 top-0 z-40 h-[100dvh] bg-zinc-950/10 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none" onClick={() => setOpen(false)} />}
       {open && (
         <section aria-label="Notifications" className="fixed inset-x-3 top-20 z-50 max-h-[calc(100dvh-6rem)] overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgb(0,0,0,0.2)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-14 sm:w-[420px]">
           <div className="flex items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4">
