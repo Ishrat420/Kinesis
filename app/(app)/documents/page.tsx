@@ -59,10 +59,10 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
       </div>
 
       <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">All documents</h2>
 
-          <div className="flex h-11 w-80 items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 text-zinc-400">
+          <div className="flex h-11 w-full items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 text-zinc-400 sm:w-80">
             <Search className="h-[18px] w-[18px]" />
             <input
               className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
@@ -76,14 +76,18 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
             <Link
               key={document.id}
               href={`/documents/${document.id}`}
-              className="grid grid-cols-[44px_1fr_180px_160px] items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md"
+              /* The four columns need 432px of track and gap before the name
+                 gets a single pixel -- more than the content column has beside
+                 the sidebar at md -- so the row stacks until lg, the same shape
+                 the goals list uses. */
+              className="grid items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md lg:grid-cols-[44px_1fr_180px_160px]"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50">
                 <FileText className="h-[18px] w-[18px] text-zinc-700" />
               </div>
 
-              <div>
-                <p className="font-semibold">{document.name}</p>
+              <div className="min-w-0">
+                <p className="break-words font-semibold">{document.name}</p>
                 <p className="text-sm text-zinc-500">{document.type}</p>
               </div>
 

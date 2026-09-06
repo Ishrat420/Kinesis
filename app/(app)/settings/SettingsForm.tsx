@@ -59,8 +59,8 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <div className="mt-5 divide-y divide-zinc-100">
           <Toggle name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} icon={Bell} title="In-app notifications" description="Show updates and alerts in Kinesis." />
           <Toggle name="remindersEnabled" defaultChecked={settings.remindersEnabled} icon={Clock3} title="Reminders" description="Get advance notice for upcoming dates." />
-          <label className="flex items-center justify-between gap-5 py-4 text-sm">
-            <span><span className="font-medium text-zinc-800">Remind me about milestones</span><span className="mt-1 block text-zinc-500">How far ahead of a milestone&rsquo;s due date to start reminding you.</span></span>
+          <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
+            <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about milestones</span><span className="mt-1 block text-zinc-500">How far ahead of a milestone&rsquo;s due date to start reminding you.</span></span>
             <span className="flex items-center gap-2">
               <input
                 name="milestoneReminderLeadDays"
@@ -75,8 +75,8 @@ export function SettingsForm({ settings }: { settings: Settings }) {
               <span className="text-zinc-500">days before</span>
             </span>
           </label>
-          <label className="flex items-center justify-between gap-5 py-4 text-sm">
-            <span><span className="font-medium text-zinc-800">Remind me about important dates</span><span className="mt-1 block text-zinc-500">How far ahead of a birthday, anniversary or other important date to start reminding you.</span></span>
+          <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
+            <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about important dates</span><span className="mt-1 block text-zinc-500">How far ahead of a birthday, anniversary or other important date to start reminding you.</span></span>
             <span className="flex items-center gap-2">
               <input
                 name="relationshipReminderLeadDays"
@@ -91,8 +91,8 @@ export function SettingsForm({ settings }: { settings: Settings }) {
               <span className="text-zinc-500">days before</span>
             </span>
           </label>
-          <label className="flex items-center justify-between gap-5 py-4 text-sm">
-            <span><span className="font-medium text-zinc-800">Remind me about custom item due dates</span><span className="mt-1 block text-zinc-500">How far ahead of a custom item&rsquo;s due date to start reminding you.</span></span>
+          <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
+            <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about custom item due dates</span><span className="mt-1 block text-zinc-500">How far ahead of a custom item&rsquo;s due date to start reminding you.</span></span>
             <span className="flex items-center gap-2">
               <input
                 name="customItemReminderLeadDays"

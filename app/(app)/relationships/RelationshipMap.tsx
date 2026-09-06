@@ -241,16 +241,24 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
               })}
             </div>
           </div>
-          <div className="absolute bottom-5 left-5 z-20 flex items-center overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div className="absolute bottom-[calc(50%+1.25rem)] left-5 z-20 flex items-center overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm sm:bottom-5">
             <button onClick={() => setScale((v) => Math.max(.45, v - .1))} className="map-icon"><Minus /></button><span className="w-14 text-center text-xs font-semibold text-zinc-500">{Math.round(scale * 100)}%</span><button onClick={() => setScale((v) => Math.min(1.6, v + .1))} className="map-icon"><Plus /></button><button onClick={() => { setScale(.9); setOffset({x:0,y:0}); }} className="map-icon border-l"><Maximize2 /></button>
           </div>
-          <div className="absolute bottom-5 right-5 z-20 rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm">Drag to move · Ctrl/Cmd-click two people to link or unlink</div>
+          <div className="absolute bottom-5 right-5 z-20 hidden rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm sm:block">Drag to move · Ctrl/Cmd-click two people to link or unlink</div>
         </div>
 
         {pendingConnection && <ConnectionDialog pending={pendingConnection} relationship={pendingRelationship} people={people} onChange={(type) => setPendingConnection((current) => current ? { ...current, type } : null)} onCancel={() => { setPendingConnection(null); setLinkFrom(null); setMultiSelection([]); }} onConnect={createConnection} onDisconnect={removePendingConnection} />}
 
-        <aside style={{ width: inspectorWidth }} className="absolute inset-y-0 right-0 z-30 hidden max-w-[calc(100%-2rem)] shrink-0 overflow-y-auto border-l border-zinc-200 bg-white shadow-[-12px_0_32px_rgba(24,24,27,0.08)] sm:block lg:relative lg:max-w-[55%] lg:shadow-none">
-          <button onPointerDown={startInspectorResize} className="absolute inset-y-0 left-0 z-40 w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400" aria-label="Resize relationship details" title="Drag to resize details" />
+        {/*
+          A phone has no room for a 360px panel beside the map, and hiding the
+          panel outright left mobile with a constellation nobody could edit. So
+          below sm it is a bottom sheet over the lower half of the map, and from
+          sm up it is the side panel it has always been -- its dragged width
+          travels as a custom property, because an inline width cannot be held
+          to a breakpoint.
+        */}
+        <aside style={{ "--inspector-width": `${inspectorWidth}px` } as React.CSSProperties} className="absolute inset-x-0 bottom-0 top-1/2 z-30 shrink-0 overflow-y-auto border-t border-zinc-200 bg-white shadow-[0_-12px_32px_rgba(24,24,27,0.08)] sm:bottom-0 sm:left-auto sm:right-0 sm:top-0 sm:w-(--inspector-width) sm:max-w-[calc(100%-2rem)] sm:border-l sm:border-t-0 sm:shadow-[-12px_0_32px_rgba(24,24,27,0.08)] lg:relative lg:max-w-[55%] lg:shadow-none">
+          <button onPointerDown={startInspectorResize} className="absolute inset-y-0 left-0 z-40 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400 sm:block" aria-label="Resize relationship details" title="Drag to resize details" />
           {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => { setMultiSelection([]); setLinkFrom(selectedPerson.id); }} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setMultiSelection([]); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
         </aside>
       </div>
