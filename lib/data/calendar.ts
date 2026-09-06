@@ -4,7 +4,7 @@ import { occurrencesForCadence, practiceAnchor } from "@/lib/calendar/recurrence
 import { resolveDatedFields } from "@/lib/calendar/dated-fields";
 import { reminderOpensAt, reminderPinDetail, reminderPinTitle, type ReminderLead } from "@/lib/calendar/reminders";
 import type { KinesisCalendarItem } from "@/lib/calendar/types";
-import { addUtcDays } from "@/lib/dates";
+import { addUtcDays, startOfDayIn } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { effectiveStatus } from "@/lib/goals/format";
@@ -46,8 +46,9 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
     prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, dueDate: true, status: true } }),
   ]);
 
-  const now = new Date();
-  const { locale } = resolveFormatPreferences(settings);
+  const { locale, timeZone } = resolveFormatPreferences(settings);
+  // The day the owner is on, which is what decides whether a goal has lapsed.
+  const today = startOfDayIn(timeZone, new Date());
   // A pin marks the day a lead-up opens, which is a fact about the record and
   // stays true however the person chooses to be told. Only Reminders governs
   // it: In-app notifications decides whether the bell speaks, not whether the
@@ -93,7 +94,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
       // The goal's stored status can still say Active after its target date has
       // passed, so the same rule the engine filters by is applied here rather
       // than the column, or the calendar would pin a reminder nothing raises.
-      if (milestone.completed || effectiveStatus(goal.status, goal.targetDate, now) !== "Active") continue;
+      if (milestone.completed || effectiveStatus(goal.status, goal.targetDate, today) !== "Active") continue;
       addReminder({ id: `milestone-reminder-${milestone.id}`, name: milestone.name, deadline: milestone.dueDate, deadlineLabel: "due", lead: milestoneLead, sourceObjectId: goal.id, sourceModule: goal.name, href: `/goals/${goal.id}` });
     }
   }

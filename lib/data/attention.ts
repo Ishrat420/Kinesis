@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { dismissalKey } from "@/lib/attention/dismissal";
-import { startOfUtcDay } from "@/lib/dates";
+import { getToday } from "@/lib/format/server";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
@@ -17,7 +17,7 @@ export type AttentionItem =
 export async function getNeedsAttention(now = new Date()): Promise<AttentionItem[]> {
   await connection();
   const user = await requireKinesisUser();
-  const today = startOfUtcDay(now)!;
+  const today = await getToday(now);
   const [documents, milestones, customItems, todos, dismissals] = await Promise.all([
     prisma.document.findMany({ where: { userId: user.id, archived: false, expiryDate: { lt: today } }, select: { id: true, name: true, expiryDate: true } }),
     prisma.milestone.findMany({ where: { completed: false, dueDate: { lt: today }, goal: { userId: user.id, ...activeGoalWhere(now) } }, select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } } }),

@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { formatDateInput, formatFutureDate, formatShortMonthYear } from "@/lib/dates";
-import { useFormatPreferences } from "@/lib/format/context";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 import type { GoalActionState } from "../actions";
 
 const initialState: GoalActionState = {};
@@ -32,6 +32,7 @@ export function GoalTargetDate({ targetDate, earliestAllowed, action }: {
 }) {
   const [editing, setEditing] = useState(false);
   const { locale } = useFormatPreferences();
+  const today = useToday();
   const close = useCallback(() => setEditing(false), []);
 
   if (editing) {
@@ -59,7 +60,7 @@ export function GoalTargetDate({ targetDate, earliestAllowed, action }: {
         <>
           <span>Target · {formatShortMonthYear(targetDate, locale)}</span>
           <span className="text-zinc-600">•</span>
-          <strong className="font-medium text-violet-300">{formatFutureDate(targetDate, new Date())}</strong>
+          <strong className="font-medium text-violet-300">{formatFutureDate(targetDate, today)}</strong>
         </>
       ) : (
         <span>No target date</span>

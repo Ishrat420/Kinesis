@@ -1,11 +1,12 @@
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
-import { DEFAULT_CURRENCY, DEFAULT_LOCALE } from "@/lib/format/preferences";
+import { DEFAULT_CURRENCY, DEFAULT_LOCALE, DEFAULT_TIME_ZONE } from "@/lib/format/preferences";
 import { REMINDER_LEAD_DEFAULTS } from "@/lib/reminders/policy";
 
 export const defaultSettings = {
   locale: DEFAULT_LOCALE,
   currency: DEFAULT_CURRENCY,
+  timeZone: DEFAULT_TIME_ZONE,
   notificationsEnabled: true,
   remindersEnabled: true,
   milestoneReminderLeadDays: REMINDER_LEAD_DEFAULTS.milestone,

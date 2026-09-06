@@ -12,6 +12,7 @@ import { getNeedsAttention } from "@/lib/data/attention";
 import { getRecentActivity } from "@/lib/data/activity";
 import { getFinanceItems } from "@/lib/data/finance";
 import { getMonthlyCashFlow } from "@/lib/finance";
+import { getToday } from "@/lib/format/server";
 import { getSettings } from "@/lib/data/settings";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 
@@ -59,7 +60,7 @@ export default async function Home() {
         expiringSoon={expiringDocuments.upcoming.length}
         attentionItems={attentionItems}
         goalsAtRisk={goalSummary.atRisk}
-        netCashFlow={getMonthlyCashFlow(financeItems).netCashFlow}
+        netCashFlow={getMonthlyCashFlow(financeItems, await getToday()).netCashFlow}
       />
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">

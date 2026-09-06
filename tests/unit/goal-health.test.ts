@@ -12,7 +12,7 @@ const baseGoal = {
   currentValue: 30,
   targetDate: daysFromNow(30),
   unit: "Books",
-  now,
+  today: now,
 };
 
 describe("calculateGoalHealth: cases where no health can be reported", () => {
@@ -123,7 +123,7 @@ describe("calculateGoalHealth: classifying a measured pace against the required 
       currentValue: 4_000,
       targetDate: daysFromNow(365),
       unit: "$AUD",
-      now,
+      today: now,
       history: [snapshot(0, -60), snapshot(4_000, 0)],
     });
 
@@ -147,7 +147,7 @@ describe("calculateGoalHealth: goals that count down rather than up", () => {
       currentValue: 8_000,
       targetDate: daysFromNow(120),
       unit: "$AUD",
-      now,
+      today: now,
       history: [snapshot(10_000, -30), snapshot(8_000, 0)],
     });
 
@@ -161,7 +161,7 @@ describe("calculateGoalHealth: goals that count down rather than up", () => {
       currentValue: 12_000,
       targetDate: daysFromNow(120),
       unit: "$AUD",
-      now,
+      today: now,
       history: [snapshot(10_000, -30), snapshot(12_000, 0)],
     });
 

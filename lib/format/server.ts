@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { startOfDayIn } from "@/lib/dates";
 import { getSettings } from "@/lib/data/settings";
 import {
   DEFAULT_FORMAT_PREFERENCES,
@@ -21,3 +22,15 @@ export const getFormatPreferences = cache(async (): Promise<FormatPreferences> =
     return DEFAULT_FORMAT_PREFERENCES;
   }
 });
+
+/**
+ * The calendar day it is for the owner, as every reader on the server needs it.
+ *
+ * A day at UTC midnight, like every stored date -- so it drops straight into
+ * the comparisons that already existed. Takes the instant rather than reading
+ * the clock itself so a caller with a fixed `now` (the cron, a test) resolves
+ * the same way a request does.
+ */
+export async function getToday(now: Date = new Date()): Promise<Date> {
+  return startOfDayIn((await getFormatPreferences()).timeZone, now);
+}

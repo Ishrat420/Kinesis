@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser, requireRecentVerification } from "@/lib/auth";
-import { isSupportedCurrency, isSupportedLocale } from "@/lib/format/preferences";
+import { isSupportedCurrency, isSupportedLocale, isSupportedTimeZone } from "@/lib/format/preferences";
 import { DELETE_ALL_CONFIRMATION } from "./constants";
 
 export type SettingsActionState = { error?: string; message?: string };
@@ -15,11 +15,15 @@ export async function updateSettingsAction(
   const user = await requireKinesisUser();
   const locale = String(formData.get("locale") ?? "");
   const currency = String(formData.get("currency") ?? "");
+  const timeZone = String(formData.get("timeZone") ?? "");
 
   // An unrecognised tag makes every Intl constructor throw, so regional values
   // are checked against the supported list rather than stored as submitted.
   if (!isSupportedLocale(locale)) return { error: "Choose a valid region." };
   if (!isSupportedCurrency(currency)) return { error: "Choose a valid currency." };
+  // Asked of Intl rather than matched against a list: an unresolvable zone
+  // would throw inside every formatter that touched it.
+  if (!isSupportedTimeZone(timeZone)) return { error: "Choose a valid time zone." };
 
   const milestoneReminderLeadDays = Number(formData.get("milestoneReminderLeadDays"));
   if (!Number.isInteger(milestoneReminderLeadDays) || milestoneReminderLeadDays < 0 || milestoneReminderLeadDays > 365) {
@@ -37,6 +41,7 @@ export async function updateSettingsAction(
   const data = {
     locale,
     currency,
+    timeZone,
     notificationsEnabled: formData.get("notificationsEnabled") === "on",
     remindersEnabled: formData.get("remindersEnabled") === "on",
     milestoneReminderLeadDays,

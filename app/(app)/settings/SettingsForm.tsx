@@ -1,15 +1,16 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Bell, Clock3, Coins, Globe, Save } from "lucide-react";
+import { useActionState, useMemo, useState } from "react";
+import { Bell, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
-import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES } from "@/lib/format/preferences";
+import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES, supportedTimeZones } from "@/lib/format/preferences";
 import { updateSettingsAction, type SettingsActionState } from "./actions";
 
 type Settings = {
   locale: string;
   currency: string;
+  timeZone: string;
   notificationsEnabled: boolean;
   remindersEnabled: boolean;
   milestoneReminderLeadDays: number;
@@ -28,6 +29,19 @@ export function SettingsForm({ settings }: { settings: Settings }) {
   const [state, action, pending] = useActionState(updateSettingsAction, initialState);
   const [locale, setLocale] = useState(settings.locale);
   const [currency, setCurrency] = useState(settings.currency);
+  const [timeZone, setTimeZone] = useState(settings.timeZone);
+  // Over four hundred of them, read from the runtime rather than hand-listed.
+  // The stored value is folded in so a zone this browser does not enumerate --
+  // an alias, or one it is simply older than -- cannot be silently dropped by
+  // the picker the next time the form is saved.
+  const zones = useMemo(() => [...new Set([...supportedTimeZones(), timeZone])].sort(), [timeZone]);
+  const zoneNow = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat(locale, { timeZone, dateStyle: "medium", timeStyle: "short" }).format(new Date());
+    } catch {
+      return null;
+    }
+  }, [locale, timeZone]);
 
   return (
     <form action={action} className="space-y-6">
@@ -49,6 +63,24 @@ export function SettingsForm({ settings }: { settings: Settings }) {
               {SUPPORTED_CURRENCIES.map((option) => <option key={option.value} value={option.value}>{option.value} · {option.label}</option>)}
             </select>
             <span className="mt-2 block text-xs text-zinc-500">Amounts appear as <strong className="font-semibold text-zinc-700">{formatMoney(SAMPLE_AMOUNT, locale, currency)}</strong></span>
+          </label>
+
+          {/*
+            Time zone decides one thing: which day Kinesis thinks it is. Every
+            date is still stored and shown as the day it was entered on, so
+            changing this moves no record -- it only moves the line between
+            today and yesterday, which is what "due today" and "overdue" are
+            counted from.
+          */}
+          <label className="block sm:col-span-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-zinc-800"><MapPin className="h-4 w-4" /> Time zone</span>
+            <select name="timeZone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} className="input mt-2 appearance-none">
+              {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+            </select>
+            <span className="mt-2 block text-xs text-zinc-500">
+              Decides which day counts as today, so a to-do due today says so from midnight where you are.
+              {zoneNow && <> It is currently <strong className="font-semibold text-zinc-700">{zoneNow}</strong> there.</>}
+            </span>
           </label>
         </div>
       </section>

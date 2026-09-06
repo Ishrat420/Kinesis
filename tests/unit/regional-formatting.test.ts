@@ -12,6 +12,7 @@ import { formatDecimal, formatMoney, formatSignificant } from "@/lib/format/numb
 import {
   DEFAULT_CURRENCY,
   DEFAULT_LOCALE,
+  DEFAULT_TIME_ZONE,
   isSupportedCurrency,
   isSupportedLocale,
   resolveFormatPreferences,
@@ -78,10 +79,14 @@ describe("locale-aware amounts", () => {
 
 describe("stored preference resilience", () => {
   it("falls back to the defaults for unsupported stored values", () => {
-    expect(resolveFormatPreferences({ locale: "zz-ZZ", currency: "XXX" }))
-      .toEqual({ locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY });
-    expect(resolveFormatPreferences(null))
-      .toEqual({ locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY });
+    const defaults = { locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY, timeZone: DEFAULT_TIME_ZONE };
+    expect(resolveFormatPreferences({ locale: "zz-ZZ", currency: "XXX", timeZone: "Mars/Olympus_Mons" })).toEqual(defaults);
+    expect(resolveFormatPreferences(null)).toEqual(defaults);
+  });
+
+  it("keeps a stored time zone Intl can resolve", () => {
+    expect(resolveFormatPreferences({ locale: "en-GB", currency: "GBP", timeZone: "Europe/London" }))
+      .toEqual({ locale: "en-GB", currency: "GBP", timeZone: "Europe/London" });
   });
 
   it("never throws on a value Intl would reject", () => {

@@ -8,12 +8,14 @@ import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { archiveLapsedGoals } from "./goal-status";
+import { getToday } from "@/lib/format/server";
 
 export async function syncAndGetGoals() {
   await connection();
   const user = await requireKinesisUser();
+  const today = await getToday();
   const goals = await prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true, metricHistory: { orderBy: { recordedAt: "asc" } } }, orderBy: { updatedAt: "desc" } });
-  const overdue = goals.filter((goal) => effectiveStatus(goal.status, goal.targetDate) === "Archived" && goal.status === "Active");
+  const overdue = goals.filter((goal) => effectiveStatus(goal.status, goal.targetDate, today) === "Archived" && goal.status === "Active");
   if (overdue.length) {
     await prisma.goal.updateMany({ where: { userId: user.id, id: { in: overdue.map(({ id }) => id) } }, data: { status: "Archived" } });
     overdue.forEach((goal) => { goal.status = "Archived"; });
@@ -26,7 +28,7 @@ export async function getGoal(id: string) {
   const include = { milestones: { orderBy: { position: "asc" as const } }, metricHistory: { orderBy: { recordedAt: "asc" as const } } };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, include });
   if (!goal) return null;
-  const status = effectiveStatus(goal.status, goal.targetDate);
+  const status = effectiveStatus(goal.status, goal.targetDate, await getToday());
   if (status !== goal.status) return prisma.goal.update({ where: { id }, data: { status }, include });
   return goal;
 }
@@ -74,7 +76,7 @@ export async function getGoalUnits() {
 export async function getGoalsForLinking() {
   await connection();
   const user = await requireKinesisUser();
-  await archiveLapsedGoals(user.id);
+  await archiveLapsedGoals(user.id, await getToday());
   return prisma.goal.findMany({
     where: { userId: user.id },
     select: { id: true, name: true, status: true },
@@ -85,15 +87,16 @@ export async function getGoalsForLinking() {
 export async function getGoalDashboardSummary(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
-  await archiveLapsedGoals(user.id, now);
+  const today = await getToday(now);
+  await archiveLapsedGoals(user.id, today);
 
   const goals = await prisma.goal.findMany({
-    where: { userId: user.id, ...activeGoalWhere(now) },
+    where: { userId: user.id, ...activeGoalWhere(today) },
     include: { metricHistory: { orderBy: { recordedAt: "asc" } }, milestones: { select: { completed: true, dueDate: true } } },
   });
 
   const atRisk = goals.filter((goal) => {
-    if (goal.milestones.some((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now)) return true;
+    if (goal.milestones.some((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < today)) return true;
     if (goal.targetValue === null || goal.currentValue === null || !goal.targetDate) return false;
     if (goal.currentValue === goal.targetValue) return false;
 
@@ -103,7 +106,7 @@ export async function getGoalDashboardSummary(now = new Date()) {
       targetDate: goal.targetDate,
       unit: goal.unit,
       history: goal.metricHistory,
-      now,
+      today,
     });
     return health?.status === "AT RISK";
   }).length;
@@ -115,15 +118,16 @@ export async function getMilestonesDueSoon(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
   const settings = await getSettings();
+  const today = await getToday(now);
   // The same window the milestones page filters by, so the tile's number and
   // the list behind "See all" can never describe different sets.
-  const window = milestoneDueSoonWindow(now, getReminderLeadDays(settings, "milestone"));
+  const window = milestoneDueSoonWindow(today, getReminderLeadDays(settings, "milestone"));
 
   return prisma.milestone.findMany({
     where: {
       completed: false,
       dueDate: { gte: window.from, lte: window.to },
-      goal: { userId: user.id, ...activeGoalWhere(now) },
+      goal: { userId: user.id, ...activeGoalWhere(today) },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: "asc" }, { position: "asc" }],
@@ -136,7 +140,7 @@ export async function getActiveIncompleteMilestones(now = new Date()) {
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      goal: { userId: user.id, ...activeGoalWhere(now) },
+      goal: { userId: user.id, ...activeGoalWhere(await getToday(now)) },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }],

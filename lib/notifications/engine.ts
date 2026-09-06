@@ -1,7 +1,7 @@
 import type { CustomItem, Document, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
-import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
+import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
 import { activeGoalWhere, lapsedGoalWhere } from "@/lib/goals/active";
@@ -23,13 +23,16 @@ type NotificationCandidate = {
 /** Converts the current state of a document into the alert that should be visible now. */
 export function getDocumentNotificationCandidate(
   document: Pick<Document, "id" | "name" | "type" | "expiryDate" | "prompt">,
-  now = new Date(),
+  today: Date,
   remindersEnabled = true,
   locale?: string,
 ): NotificationCandidate | null {
   if (!document.expiryDate) return null;
 
-  const today = startOfUtcDay(now)!;
+  // Normalised defensively. The engine resolves the owner's day before calling
+  // in, but these are exported and comparing an instant against a stored
+  // calendar date is precisely the mistake this whole change exists to undo.
+  today = startOfUtcDay(today)!;
   const expiryDate = startOfUtcDay(document.expiryDate)!;
   const reminderAt = getExpiryReminderDate(expiryDate, document.prompt);
   const daysRemaining = Math.max(0, differenceInCalendarDays(expiryDate, today));
@@ -62,11 +65,11 @@ export function getDocumentNotificationCandidate(
 /** Opens a reminder `leadDays` before the due date and keeps it current while the milestone is overdue. */
 export function getMilestoneNotificationCandidate(
   milestone: Pick<Milestone, "id" | "name" | "dueDate"> & { goal: { id: string; name: string } },
-  now = new Date(),
+  today: Date,
   leadDays = 0,
 ): NotificationCandidate | null {
   if (!milestone.dueDate) return null;
-  const today = startOfUtcDay(now)!;
+  today = startOfUtcDay(today)!;
   const dueDate = startOfUtcDay(milestone.dueDate)!;
   const reminderAt = getReminderWindowStart(dueDate, leadDays);
   if (today < reminderAt) return null;
@@ -93,10 +96,10 @@ export function getMilestoneNotificationCandidate(
  */
 export function getRelationshipDateNotificationCandidate(
   importantDate: Pick<RelationshipImportantDate, "id" | "label" | "date" | "repeatsYearly"> & { personName: string },
-  now = new Date(),
+  today: Date,
   leadDays = 0,
 ): NotificationCandidate | null {
-  const today = startOfUtcDay(now)!;
+  today = startOfUtcDay(today)!;
   const occurrence = getNextOccurrence(importantDate, today);
   if (!occurrence) return null;
 
@@ -124,12 +127,12 @@ export function getRelationshipDateNotificationCandidate(
  */
 export function getCustomItemNotificationCandidate(
   item: Pick<CustomItem, "id" | "name" | "dueDate" | "moduleId">,
-  now = new Date(),
+  today: Date,
   leadDays = 0,
   locale?: string,
 ): NotificationCandidate | null {
   if (!item.dueDate) return null;
-  const today = startOfUtcDay(now)!;
+  today = startOfUtcDay(today)!;
   const dueDate = startOfUtcDay(item.dueDate)!;
   const reminderAt = getReminderWindowStart(dueDate, leadDays);
   if (today < reminderAt) return null;
@@ -160,10 +163,10 @@ export function getCustomItemNotificationCandidate(
  */
 export function getTodoNotificationCandidate(
   todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
-  now = new Date(),
+  today: Date,
 ): NotificationCandidate | null {
   if (!todo.dueDate || !isOpenTodoStatus(todo.status)) return null;
-  const today = startOfUtcDay(now)!;
+  today = startOfUtcDay(today)!;
   const dueDate = startOfUtcDay(todo.dueDate)!;
   if (today < dueDate) return null;
 
@@ -179,8 +182,8 @@ export function getTodoNotificationCandidate(
   };
 }
 
-async function reconcileDocument(document: Document, userId: string, now: Date, remindersEnabled: boolean, locale: string) {
-  const candidate = getDocumentNotificationCandidate(document, now, remindersEnabled, locale);
+async function reconcileDocument(document: Document, userId: string, today: Date, remindersEnabled: boolean, locale: string) {
+  const candidate = getDocumentNotificationCandidate(document, today, remindersEnabled, locale);
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, documentId: document.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -204,11 +207,11 @@ async function reconcileDocument(document: Document, userId: string, now: Date, 
 async function reconcileMilestone(
   milestone: Pick<Milestone, "id" | "name" | "dueDate"> & { goal: { id: string; name: string } },
   userId: string,
-  now: Date,
+  today: Date,
   remindersEnabled: boolean,
   leadDays: number,
 ) {
-  const candidate = remindersEnabled ? getMilestoneNotificationCandidate(milestone, now, leadDays) : null;
+  const candidate = remindersEnabled ? getMilestoneNotificationCandidate(milestone, today, leadDays) : null;
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, milestoneId: milestone.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -232,11 +235,11 @@ async function reconcileMilestone(
 async function reconcileRelationshipDate(
   importantDate: Pick<RelationshipImportantDate, "id" | "label" | "date" | "repeatsYearly"> & { personName: string },
   userId: string,
-  now: Date,
+  today: Date,
   remindersEnabled: boolean,
   leadDays: number,
 ) {
-  const candidate = remindersEnabled ? getRelationshipDateNotificationCandidate(importantDate, now, leadDays) : null;
+  const candidate = remindersEnabled ? getRelationshipDateNotificationCandidate(importantDate, today, leadDays) : null;
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, relationshipDateId: importantDate.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -260,12 +263,12 @@ async function reconcileRelationshipDate(
 async function reconcileCustomItem(
   item: Pick<CustomItem, "id" | "name" | "dueDate" | "moduleId">,
   userId: string,
-  now: Date,
+  today: Date,
   remindersEnabled: boolean,
   leadDays: number,
   locale: string,
 ) {
-  const candidate = remindersEnabled ? getCustomItemNotificationCandidate(item, now, leadDays, locale) : null;
+  const candidate = remindersEnabled ? getCustomItemNotificationCandidate(item, today, leadDays, locale) : null;
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, customItemId: item.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -289,9 +292,9 @@ async function reconcileCustomItem(
 async function reconcileTodo(
   todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
   userId: string,
-  now: Date,
+  today: Date,
 ) {
-  const candidate = getTodoNotificationCandidate(todo, now);
+  const candidate = getTodoNotificationCandidate(todo, today);
   const stale = await prisma.notification.deleteMany({
     where: candidate
       ? { userId, todoId: todo.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
@@ -321,7 +324,12 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const customItemLeadDays = getReminderLeadDays(settings, "customItem");
-  const { locale } = resolveFormatPreferences(settings);
+  const { locale, timeZone } = resolveFormatPreferences(settings);
+  // The one conversion in the whole pass: which day it is where the owner is.
+  // The cron evaluates every user in one process at some arbitrary UTC hour, so
+  // reading this per user is the only way each of them gets their own day --
+  // and it is why a reminder no longer waits until mid-morning to speak.
+  const today = startOfDayIn(timeZone, now);
 
   // In-app notifications is a switch on one surface -- the bell, which is the
   // only reader of these rows -- so it is applied where the bell reads them
@@ -334,12 +342,12 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   // but the column they no longer wait on is what the goal's own status chip
   // shows -- so the daily pass writes it, and it converges without anyone
   // having to open the goals page.
-  await archiveLapsedGoals(userId, now);
+  await archiveLapsedGoals(userId, today);
 
   const [documents, milestones, relationshipDates, customItems, todos, orphanCleanup] = await Promise.all([
     prisma.document.findMany({ where: { userId, archived: false } }),
     prisma.milestone.findMany({
-      where: { completed: false, goal: { userId, ...activeGoalWhere(now) } },
+      where: { completed: false, goal: { userId, ...activeGoalWhere(today) } },
       include: { goal: { select: { id: true, name: true } } },
     }),
     prisma.relationshipImportantDate.findMany({
@@ -355,7 +363,7 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
         userId,
         OR: [
           { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null, todoId: null },
-          { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { is: lapsedGoalWhere(now) } }] } } },
+          { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { is: lapsedGoalWhere(today) } }] } } },
           { customItemId: { not: null }, customItem: { is: { archived: true } } },
           { documentId: { not: null }, document: { is: { archived: true } } },
         ],
@@ -378,11 +386,11 @@ export async function runNotificationEngine(userId: string, now = new Date()): P
   }));
 
   const results = await Promise.all([
-    ...documents.map((document) => reconcileDocument(document, userId, now, remindersEnabled, locale)),
-    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, now, remindersEnabled, milestoneLeadDays)),
-    ...relationshipDateInputs.map((importantDate) => reconcileRelationshipDate(importantDate, userId, now, remindersEnabled, relationshipLeadDays)),
-    ...customItems.map((item) => reconcileCustomItem(item, userId, now, remindersEnabled, customItemLeadDays, locale)),
-    ...todos.map((todo) => reconcileTodo(todo, userId, now)),
+    ...documents.map((document) => reconcileDocument(document, userId, today, remindersEnabled, locale)),
+    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, today, remindersEnabled, milestoneLeadDays)),
+    ...relationshipDateInputs.map((importantDate) => reconcileRelationshipDate(importantDate, userId, today, remindersEnabled, relationshipLeadDays)),
+    ...customItems.map((item) => reconcileCustomItem(item, userId, today, remindersEnabled, customItemLeadDays, locale)),
+    ...todos.map((todo) => reconcileTodo(todo, userId, today)),
   ]);
   return {
     evaluated: documents.length + milestones.length + relationshipDateInputs.length + customItems.length + todos.length,

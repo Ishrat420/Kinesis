@@ -16,17 +16,26 @@
  * chip reads -- but nothing waits on it.
  */
 
-/** Goals still Active at `now`: not manually closed, and not past their target date. */
-export function activeGoalWhere(now: Date = new Date()) {
+/**
+ * Goals still Active on `today`: not manually closed, and not past their target
+ * date.
+ *
+ * `today` is a day at UTC midnight, in the owner's zone -- not an instant. A
+ * target date is stored at the last millisecond of its day, so comparing it
+ * against the clock kept a goal alive through the small hours of the following
+ * local day: on UTC+10 a goal targeted the 7th stayed Active until 10am on the
+ * 8th. Comparing days answers the question that was actually being asked.
+ */
+export function activeGoalWhere(today: Date) {
   return {
     status: "Active",
-    OR: [{ targetDate: null }, { targetDate: { gte: now } }],
+    OR: [{ targetDate: null }, { targetDate: { gte: today } }],
   };
 }
 
 /** The complement: manually closed, or lapsed past its target date. */
-export function lapsedGoalWhere(now: Date = new Date()) {
+export function lapsedGoalWhere(today: Date) {
   return {
-    OR: [{ status: { not: "Active" } }, { targetDate: { lt: now } }],
+    OR: [{ status: { not: "Active" } }, { targetDate: { lt: today } }],
   };
 }

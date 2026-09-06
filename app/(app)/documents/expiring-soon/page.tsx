@@ -5,20 +5,20 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { formatDate } from "@/lib/dates";
-import { getFormatPreferences } from "@/lib/format/server";
+import { getFormatPreferences, getToday } from "@/lib/format/server";
 
 type DocumentList = Awaited<ReturnType<typeof getExpiringDocuments>>["upcoming"];
 
 function DocumentSection({
   title,
   documents,
-  now,
+  today,
   locale,
   expired = false,
 }: {
   title: string;
   documents: DocumentList;
-  now: Date;
+  today: Date;
   locale: string;
   expired?: boolean;
 }) {
@@ -37,7 +37,7 @@ function DocumentSection({
       {documents.length ? (
         <div className="divide-y divide-zinc-100">
           {documents.map((document) => {
-            const expiry = getExpiryDetails(document.expiryDate, document.prompt, now);
+            const expiry = getExpiryDetails(document.expiryDate, document.prompt, today);
             return (
               <Link
                 key={document.id}
@@ -72,10 +72,10 @@ function DocumentSection({
 }
 
 export default async function ExpiringDocumentsPage() {
-  const now = new Date();
-  const [{ upcoming, expired }, { locale }] = await Promise.all([
-    getExpiringDocuments(now),
+  const [{ upcoming, expired }, { locale }, today] = await Promise.all([
+    getExpiringDocuments(),
     getFormatPreferences(),
+    getToday(),
   ]);
 
   return (
@@ -91,8 +91,8 @@ export default async function ExpiringDocumentsPage() {
       />
 
       <div className="mt-9 space-y-5">
-        <DocumentSection title="Upcoming" documents={upcoming} now={now} locale={locale} />
-        <DocumentSection title="Expired" documents={expired} now={now} locale={locale} expired />
+        <DocumentSection title="Upcoming" documents={upcoming} today={today} locale={locale} />
+        <DocumentSection title="Expired" documents={expired} today={today} locale={locale} expired />
       </div>
     </ModuleContent>
   );
