@@ -10,7 +10,7 @@ import { getDocumentState, type ExpiryUrgency, REMINDER_OPTIONS } from "@/lib/do
 import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate } from "@/lib/dates";
-import { useFormatPreferences } from "@/lib/format/context";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
@@ -44,7 +44,8 @@ export type EditableDocument = {
 
 export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
   const [editing, setEditing] = useState(initialEditing);
-  const expiry = getDocumentState({ expiryDate: toUtcDate(document.expiryDate), prompt: document.prompt, archived: document.archived });
+  const today = useToday();
+  const expiry = getDocumentState({ expiryDate: toUtcDate(document.expiryDate), prompt: document.prompt, archived: document.archived }, today);
   const statusClass = STATUS_TONES[expiry.urgency];
   const { locale } = useFormatPreferences();
   const addedDate = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(document.createdAt));
@@ -142,7 +143,7 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
   const [prompt, setPrompt] = useState(document.prompt);
   const [archived, setArchived] = useState(document.archived);
   const router = useRouter();
-  const expiry = getDocumentState({ expiryDate: toUtcDate(expiryDate), prompt, archived });
+  const expiry = getDocumentState({ expiryDate: toUtcDate(expiryDate), prompt, archived }, useToday());
   const urgencyClass = { neutral: "bg-zinc-50 text-zinc-600", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" }[expiry.urgency];
 
   useEffect(() => { if (state.success) { router.refresh(); onSaved(); } }, [state.success, router, onSaved]);

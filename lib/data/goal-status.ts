@@ -12,9 +12,9 @@ import { prisma } from "./prisma";
  * too, and `lib/data/goals.ts` reaches for `next/server` and the auth layer
  * that a cron process has no request context for.
  */
-export function archiveLapsedGoals(userId: string, now = new Date()) {
+export function archiveLapsedGoals(userId: string, today: Date) {
   return prisma.goal.updateMany({
-    where: { userId, status: "Active", targetDate: { lt: now } },
+    where: { userId, status: "Active", targetDate: { lt: today } },
     data: { status: "Archived" },
   });
 }

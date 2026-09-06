@@ -40,15 +40,20 @@ const monthlyFactor: Record<FinanceFrequency, number> = {
   Yearly: 1 / 12,
 };
 
-function isActiveRecurringItem(item: FinanceItem, date: Date) {
-  const day = date.toISOString().slice(0, 10);
+function isActiveRecurringItem(item: FinanceItem, today: Date) {
+  const day = today.toISOString().slice(0, 10);
   return (!item.startDate || item.startDate <= day) && (!item.endDate || item.endDate >= day);
 }
 
-export function getMonthlyCashFlow(items: FinanceItem[], date = new Date()) {
+/**
+ * `today` is the owner's day, not the clock: whether a recurring item has
+ * started or finished is a question about their calendar, and reading it in UTC
+ * kept an item running for the first hours of the day it was meant to stop.
+ */
+export function getMonthlyCashFlow(items: FinanceItem[], today: Date) {
   const monthlyTotal = (kind: "income" | "expense") =>
     items
-      .filter((item) => item.kind === kind && isActiveRecurringItem(item, date))
+      .filter((item) => item.kind === kind && isActiveRecurringItem(item, today))
       .reduce(
         (sum, item) => sum + item.amount * monthlyFactor[item.frequency ?? "Monthly"],
         0,

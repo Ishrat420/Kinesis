@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import type { CalendarItemKind, CalendarSourceType, KinesisCalendarItem } from "@/lib/calendar/types";
 import { CALENDAR_SOURCE_LABELS, DEFAULT_CALENDAR_SOURCES, isDefaultSourceSelection } from "@/lib/calendar/filters";
 import { formatAgendaDate, formatCalendarDate, formatMonthHeading, formatTime } from "@/lib/dates";
-import { useFormatPreferences } from "@/lib/format/context";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -35,7 +35,10 @@ export function CalendarView({ items, month }: { items: KinesisCalendarItem[]; m
   const [sources, setSources] = useState<Set<CalendarSourceType>>(new Set(DEFAULT_CALENDAR_SOURCES));
   const [preview, setPreview] = useState<KinesisCalendarItem | null>(null);
   const [overviewDate, setOverviewDate] = useState<string | null>(null);
-  const today = dateKey(new Date());
+  // The owner's day, not the browser's: this marker used to sit on yesterday
+  // until mid-morning on UTC+10, and disagreed with the server that rendered it.
+  const today = useToday();
+  const todayKey = dateKey(today);
   const filtered = useMemo(() => items.filter((item) => kinds.has(item.kind) && sources.has(item.sourceType)), [items, kinds, sources]);
   const byDate = useMemo(() => Map.groupBy(filtered, (item) => item.date), [filtered]);
   const first = new Date(selectedMonth); first.setUTCDate(first.getUTCDate() - ((first.getUTCDay() + 6) % 7));
@@ -55,7 +58,7 @@ export function CalendarView({ items, month }: { items: KinesisCalendarItem[]; m
       <div className="relative mt-7">
         <div className="mb-4 grid grid-cols-[44px_1fr_44px] items-center rounded-2xl border border-zinc-200/80 bg-white px-3 py-3 shadow-sm md:mx-auto md:max-w-xl">
           <button aria-label="Previous month" onClick={() => navigate(-1)} className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100"><ChevronLeft className="h-5 w-5"/></button>
-          <div className="text-center"><h2 className="text-xl font-semibold">{formatMonthHeading(selectedMonth, locale)}</h2><button onClick={() => router.push(`/calendar?month=${monthParam(new Date())}`)} className="mt-0.5 text-xs font-semibold text-violet-600 hover:text-violet-800">Today</button></div>
+          <div className="text-center"><h2 className="text-xl font-semibold">{formatMonthHeading(selectedMonth, locale)}</h2><button onClick={() => router.push(`/calendar?month=${monthParam(today)}`)} className="mt-0.5 text-xs font-semibold text-violet-600 hover:text-violet-800">Today</button></div>
           <button aria-label="Next month" onClick={() => navigate(1)} className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100"><ChevronRight className="h-5 w-5"/></button>
         </div>
         {filterOpen && <div className="absolute right-0 top-0 z-30 w-full max-w-[18rem] rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl"><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Calendar filters</h3><button onClick={() => setFilterOpen(false)}><X className="h-4 w-4"/></button></div><p className="mb-2 text-xs font-bold uppercase tracking-wider text-zinc-400">Item type</p>{(["DATED", "SCHEDULED"] as const).map((kind) => <label key={kind} className="flex items-center gap-2 py-1.5 text-sm"><input type="checkbox" checked={kinds.has(kind)} onChange={() => toggle(kinds, kind, setKinds)}/>{kind === "DATED" ? "Dated" : "Scheduled"}</label>)}<p className="mb-2 mt-4 text-xs font-bold uppercase tracking-wider text-zinc-400">Source</p>{(Object.entries(CALENDAR_SOURCE_LABELS) as [CalendarSourceType, string][]).map(([source, label]) => <label key={source} className="flex items-center gap-2 py-1.5 text-sm"><input type="checkbox" checked={sources.has(source)} onChange={() => toggle(sources, source, setSources)}/>{label}</label>)}<p className="mt-3 text-xs leading-5 text-zinc-400">Reminders pin the day each lead-up opens, ahead of the date it warns about.</p></div>}
@@ -63,7 +66,7 @@ export function CalendarView({ items, month }: { items: KinesisCalendarItem[]; m
 
       {view === "month" ? <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50/80">{weekdays.map((day) => <div key={day} className="px-1 py-3 text-center text-[11px] font-bold uppercase text-zinc-500 sm:px-2 sm:tracking-[0.15em]">{day}</div>)}</div>
-        <div className="grid grid-cols-7">{days.map((day) => { const key = dateKey(day); const dayItems = byDate.get(key) || []; const inMonth = day.getUTCMonth() === selectedMonth.getUTCMonth(); return <div key={key} className={`min-h-24 border-b border-r border-zinc-100 p-1 sm:min-h-36 sm:p-1.5 md:min-h-40 md:p-2 ${inMonth ? "bg-white" : "bg-zinc-50/60"}`}><button onClick={() => setOverviewDate(key)} className={`mb-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${key === today ? "bg-zinc-950 text-white" : inMonth ? "text-zinc-700 hover:bg-zinc-100" : "text-zinc-300"}`}>{day.getUTCDate()}</button>{/* A seventh of a phone screen cannot hold a readable pill, so below sm each item is a dot and the day overview carries the detail. */}<DayDots date={key} items={dayItems} onOpen={() => setOverviewDate(key)}/><div className="hidden space-y-1 sm:block">{dayItems.slice(0, 3).map((item) => <ItemPill key={item.id} item={item} onClick={() => setPreview(item)}/>)}{dayItems.length > 3 && <button onClick={() => setOverviewDate(key)} className="w-full px-1 py-1 text-left text-xs font-semibold text-violet-600 hover:text-violet-800">+{dayItems.length - 3} more</button>}</div></div>})}</div>
+        <div className="grid grid-cols-7">{days.map((day) => { const key = dateKey(day); const dayItems = byDate.get(key) || []; const inMonth = day.getUTCMonth() === selectedMonth.getUTCMonth(); return <div key={key} className={`min-h-24 border-b border-r border-zinc-100 p-1 sm:min-h-36 sm:p-1.5 md:min-h-40 md:p-2 ${inMonth ? "bg-white" : "bg-zinc-50/60"}`}><button onClick={() => setOverviewDate(key)} className={`mb-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${key === todayKey ? "bg-zinc-950 text-white" : inMonth ? "text-zinc-700 hover:bg-zinc-100" : "text-zinc-300"}`}>{day.getUTCDate()}</button>{/* A seventh of a phone screen cannot hold a readable pill, so below sm each item is a dot and the day overview carries the detail. */}<DayDots date={key} items={dayItems} onOpen={() => setOverviewDate(key)}/><div className="hidden space-y-1 sm:block">{dayItems.slice(0, 3).map((item) => <ItemPill key={item.id} item={item} onClick={() => setPreview(item)}/>)}{dayItems.length > 3 && <button onClick={() => setOverviewDate(key)} className="w-full px-1 py-1 text-left text-xs font-semibold text-violet-600 hover:text-violet-800">+{dayItems.length - 3} more</button>}</div></div>})}</div>
       </section> : <Agenda items={filtered} onSelect={setPreview}/>} 
       <div className="mt-4 flex flex-wrap gap-5 text-xs text-zinc-500"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded bg-violet-100 ring-1 ring-violet-200"/> Dated</span><span className="flex items-center gap-2"><span className="h-3 w-3 rounded bg-teal-100 ring-1 ring-teal-200"/> Scheduled</span><span className="flex items-center gap-2"><span className="h-3 w-3 rounded bg-amber-100 ring-1 ring-amber-200"/> Reminder</span></div>
     {preview && <Preview item={preview} close={() => setPreview(null)}/>} 

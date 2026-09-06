@@ -16,7 +16,7 @@ import {
   getMonthlyCashFlow,
 } from "@/lib/finance";
 import { deleteFinanceItem, saveFinanceItem } from "@/app/(app)/finance/actions";
-import { useFormatPreferences } from "@/lib/format/context";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
 
 const SAVE_FAILED = "Something went wrong saving this item. Please try again.";
@@ -30,6 +30,7 @@ function useMoney() {
 const kindLabels: Record<Kind, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
 export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[] }) {
   const money = useMoney();
+  const today = useToday();
   const [items, setItems] = useState(initialItems);
   const [modal, setModal] = useState<"choose" | "form" | null>(null);
   const [formKind, setFormKind] = useState<Kind>("asset");
@@ -43,9 +44,9 @@ export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[]
   const totals = useMemo(() => {
     const sum = (kind: Kind) => items.filter((item) => item.kind === kind).reduce((total, item) => total + item.amount, 0);
     const assets = sum("asset"), liabilities = sum("liability");
-    const { income, expenses, netCashFlow } = getMonthlyCashFlow(items);
+    const { income, expenses, netCashFlow } = getMonthlyCashFlow(items, today);
     return { assets, liabilities, income, expenses, netWorth: assets - liabilities, flow: netCashFlow };
-  }, [items]);
+  }, [items, today]);
 
   function openForm(kind: Kind, item: FinanceItem | null = null) { setFormKind(kind); setEditing(item); setFormError(null); setModal("form"); }
   function closeModal() { setModal(null); setEditing(null); setFormError(null); }

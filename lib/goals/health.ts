@@ -31,17 +31,18 @@ function monthDifference(from: Date, to: Date) {
   return Math.max(0, Math.round((to.getTime() - from.getTime()) / (DAY_MS * 365.2425 / 12)));
 }
 
-export function calculateGoalHealth({ targetValue, currentValue, targetDate, unit, history, now = new Date(), locale }: {
+export function calculateGoalHealth({ targetValue, currentValue, targetDate, unit, history, today, locale }: {
   targetValue: number;
   currentValue: number;
   targetDate: Date;
   unit: string | null;
   history: Snapshot[];
-  now?: Date;
+  /** The owner's current day, not the clock: pace is counted in whole days. */
+  today: Date;
   /** Only affects the human-readable message; callers reading `status` may omit it. */
   locale?: string;
 }): GoalHealth | null {
-  const daysRemaining = (targetDate.getTime() - now.getTime()) / DAY_MS;
+  const daysRemaining = (targetDate.getTime() - today.getTime()) / DAY_MS;
   if (daysRemaining <= 0 || targetValue === currentValue) return null;
 
   const period = periodFor(daysRemaining);
@@ -68,7 +69,7 @@ export function calculateGoalHealth({ targetValue, currentValue, targetDate, uni
   const ratio = actualPace / requiredPace;
   if (ratio >= 1.1) {
     const remainingDaysAtPace = Math.abs(targetValue - currentValue) / (direction * rawDailyPace);
-    const expectedFinish = new Date(now.getTime() + remainingDaysAtPace * DAY_MS);
+    const expectedFinish = new Date(today.getTime() + remainingDaysAtPace * DAY_MS);
     const monthsAhead = monthDifference(expectedFinish, targetDate);
     return { status: "AHEAD", message: monthsAhead > 0 ? `You're approximately ${monthsAhead} month${monthsAhead === 1 ? "" : "s"} ahead.` : "You're ahead of the pace needed to reach this goal.", tone: "good", requiredPace, actualPace, period: period.name };
   }

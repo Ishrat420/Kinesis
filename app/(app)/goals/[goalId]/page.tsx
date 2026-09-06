@@ -5,7 +5,7 @@ import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalRelationships, getGoalUnits } from "@/lib/data/goals";
 import { displayNumber } from "@/lib/goals/format";
-import { getFormatPreferences } from "@/lib/format/server";
+import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalRelationshipAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneAction } from "../actions";
 import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
@@ -18,7 +18,7 @@ import { milestonesUsingMeasure } from "@/lib/goals/measure";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
-  const [goal, units, { locale }, goalRelationships] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getGoalRelationships(goalId)]);
+  const [goal, units, { locale }, goalRelationships, today] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getGoalRelationships(goalId), getToday()]);
   if (!goal) notFound();
   const completed = goal.milestones.filter((item) => item.completed).length;
   const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
@@ -32,10 +32,9 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   // same rows the removal will clear -- completed and overdue ones included.
   const measuredMilestones = milestonesUsingMeasure(goal.milestones).length;
   const health = goal.targetValue !== null && goal.currentValue !== null && goal.targetDate
-    ? calculateGoalHealth({ targetValue: goal.targetValue, currentValue: goal.currentValue, targetDate: goal.targetDate, unit: goal.unit, history: goal.metricHistory, locale })
+    ? calculateGoalHealth({ targetValue: goal.targetValue, currentValue: goal.currentValue, targetDate: goal.targetDate, unit: goal.unit, history: goal.metricHistory, today, locale })
     : null;
-  const now = new Date();
-  const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < now);
+  const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < today);
   const hasMilestoneRisk = overdueMilestones.length > 0;
 
   return <ModuleContent>

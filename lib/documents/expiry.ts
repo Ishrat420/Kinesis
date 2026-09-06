@@ -50,25 +50,25 @@ export type ExpiryUrgency = "neutral" | "safe" | "soon" | "expired" | "archived"
  */
 export function getDocumentState(
   document: { expiryDate: Date | null; prompt: number; archived?: boolean },
-  now = new Date(),
+  today: Date,
 ) {
   if (document.archived) {
     return { label: ARCHIVED_STATUS, urgency: "archived" as const, status: ARCHIVED_STATUS };
   }
-  return getExpiryDetails(document.expiryDate, document.prompt, now);
+  return getExpiryDetails(document.expiryDate, document.prompt, today);
 }
 
-export function getExpiryDetails(expiryDate: Date | null, prompt: number, now = new Date()) {
+export function getExpiryDetails(expiryDate: Date | null, prompt: number, today: Date) {
   if (!expiryDate) {
     return { label: "No expiry date", urgency: "neutral" as const, status: "Active" };
   }
 
-  const today = atUtcMidnight(now);
+  const currentDay = atUtcMidnight(today);
   const expiry = atUtcMidnight(expiryDate);
-  const differenceInDays = Math.round((expiry.getTime() - today.getTime()) / DAY);
+  const differenceInDays = Math.round((expiry.getTime() - currentDay.getTime()) / DAY);
   const expired = differenceInDays < 0;
-  const withinReminderPeriod = today >= getExpiryReminderDate(expiry, prompt);
-  const label = formatExpiry(expiry, today);
+  const withinReminderPeriod = currentDay >= getExpiryReminderDate(expiry, prompt);
+  const label = formatExpiry(expiry, currentDay);
 
   return {
     label,

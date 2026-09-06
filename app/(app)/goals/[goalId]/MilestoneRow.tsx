@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { displayNumber } from "@/lib/goals/format";
 import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
-import { useFormatPreferences } from "@/lib/format/context";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 import type { GoalActionState } from "../actions";
 
 type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
@@ -38,8 +38,8 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   // one result: whichever was pressed, the reason it failed shows on this row.
   const [toggleState, toggleFormAction] = useActionState(() => toggleAction(), initialState);
   const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
-  const now = new Date();
-  const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
+  const today = useToday();
+  const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < today);
   const { locale } = useFormatPreferences();
   const date = milestone.dueDate ? formatDate(milestone.dueDate, locale) : undefined;
   const completedDate = milestone.completedAt ? formatDate(milestone.completedAt, locale) : undefined;
@@ -84,7 +84,7 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
     <form action={toggleFormAction} onClick={(event) => event.stopPropagation()}><button aria-label={milestone.completed ? "Reopen milestone" : "Complete milestone"} className="mt-0.5 text-zinc-400">{milestone.completed ? <Check className="h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle className="h-6 w-6"/>}</button></form>
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
-      {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, now)}</p>}
+      {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, today)}</p>}
       {toggleState.error && <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{toggleState.error}</p>}
       {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
         <span className="inline-flex items-center gap-2"><span className="h-2 w-2 bg-amber-400" />Completed automatically</span>

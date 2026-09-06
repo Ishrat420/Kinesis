@@ -3,8 +3,8 @@ import { formatDecimal } from "@/lib/format/numbers";
 export const GOAL_STATUSES = ["Active", "Revisit Later", "Finished", "Archived"] as const;
 export const DEFAULT_GOAL_UNITS = ["$AUD", "$USD", "Books", "Clients", "Km", "Kg", "Days"];
 
-export function effectiveStatus(status: string, targetDate: Date | null, now = new Date()) {
-  if (targetDate && targetDate.getTime() < now.getTime() && status === "Active") return "Archived";
+export function effectiveStatus(status: string, targetDate: Date | null, today: Date) {
+  if (targetDate && targetDate.getTime() < today.getTime() && status === "Active") return "Archived";
   return status;
 }
 

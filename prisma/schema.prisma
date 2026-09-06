@@ -45,6 +45,9 @@ model UserSettings {
   // Named per object type so later objects (documents already have their own
   // per-record setting; todos, ...) can each get a column of their own without
   // disturbing the others -- see lib/reminders/policy.ts.
+  // Decides which day "today" is, and nothing else -- dates are stored and
+  // rendered in UTC either side of it. See lib/format/preferences.ts.
+  timeZone                     String   @default("Australia/Sydney")
   milestoneReminderLeadDays    Int      @default(30)
   relationshipReminderLeadDays Int      @default(30)
   customItemReminderLeadDays   Int      @default(30)

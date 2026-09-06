@@ -8,6 +8,7 @@ import { TODO_STATUSES, isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/st
 import { TODO_SCOPES, DEFAULT_TODO_SCOPE, type TodoScope } from "@/lib/todos/scopes";
 import { formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { CaptureDetailsDialog } from "@/components/capture/CaptureDetailsDialog";
+import { useToday } from "@/lib/format/context";
 import { deleteTodoAction, setTodoStatusAction } from "./actions";
 
 const inScope = (todo: TodoRecord, scope: TodoScope) =>
@@ -58,6 +59,7 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
 }
 
 function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; onEdit: () => void }) {
+  const today = useToday();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const open = isOpenTodoStatus(todo.status);
@@ -86,7 +88,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         <p className={`break-words font-medium ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</p>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
           <span>{todoStatusLabel(todo.status)}</span>
-          {open && todo.dueDate && <span>· {formatDate(todo.dueDate, locale)} · {formatDeadline(todo.dueDate)}</span>}
+          {open && todo.dueDate && <span>· {formatDate(todo.dueDate, locale)} · {formatDeadline(todo.dueDate, today)}</span>}
           {!open && todo.completedAt && <span>· {formatDate(todo.completedAt, locale)}</span>}
           {todo.links.map((link) => (
             <Link key={link.objectId} href={link.href} className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200">

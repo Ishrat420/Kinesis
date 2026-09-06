@@ -4,8 +4,8 @@ import { ModuleContent } from "@/components/layout/ModuleContent";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getActiveIncompleteMilestones } from "@/lib/data/goals";
 import { getSettings } from "@/lib/data/settings";
-import { formatDate, formatDeadline, startOfUtcDay } from "@/lib/dates";
-import { getFormatPreferences } from "@/lib/format/server";
+import { formatDate, formatDeadline } from "@/lib/dates";
+import { getFormatPreferences, getToday } from "@/lib/format/server";
 import {
   MILESTONES_ALL_HREF,
   MILESTONES_DUE_SOON_HREF,
@@ -134,7 +134,7 @@ export default async function MilestonesPage({ searchParams }: { searchParams: P
   const dueSoonOnly = params.filter === MILESTONE_DUE_SOON_FILTER;
   const leadDays = getReminderLeadDays(settings, "milestone");
   const label = milestoneDueSoonLabel(leadDays);
-  const today = startOfUtcDay(new Date())!;
+  const today = await getToday();
   const { overdue, upcoming, hiddenByFilter } = milestoneLists(milestones, today, milestoneDueSoonWindow(today, leadDays), dueSoonOnly);
 
   return (

@@ -10,14 +10,28 @@ export type FormatPreferences = {
   locale: string;
   /** ISO 4217 code used whenever an amount is rendered as money. */
   currency: string;
+  /**
+   * IANA zone deciding which day *today* is -- and nothing else.
+   *
+   * Stored dates stay UTC and render in UTC; this only answers "what day is it
+   * where the owner is", which is the question `startOfUtcDay(new Date())` was
+   * silently answering with "in UTC". It travels with locale and currency
+   * because it has the same problem they do: a Client Component that worked it
+   * out from the machine it happens to be running on would disagree with the
+   * server and break hydration.
+   */
+  timeZone: string;
 };
 
 export const DEFAULT_LOCALE = "en-AU";
 export const DEFAULT_CURRENCY = "AUD";
+/** Matched to the locale and currency defaults: this deployment assumes an Australian owner. */
+export const DEFAULT_TIME_ZONE = "Australia/Sydney";
 
 export const DEFAULT_FORMAT_PREFERENCES: FormatPreferences = {
   locale: DEFAULT_LOCALE,
   currency: DEFAULT_CURRENCY,
+  timeZone: DEFAULT_TIME_ZONE,
 };
 
 /**
@@ -56,6 +70,35 @@ export const SUPPORTED_CURRENCIES = [
   { value: "ZAR", label: "South African rand" },
 ] as const;
 
+/**
+ * Every zone this runtime can actually resolve, for the settings picker.
+ *
+ * Read from `Intl` rather than hand-listed: there are over four hundred, they
+ * change, and a stale copy would offer a zone the runtime then throws on.
+ */
+export function supportedTimeZones(): string[] {
+  try {
+    return [...Intl.supportedValuesOf("timeZone")];
+  } catch {
+    return [DEFAULT_TIME_ZONE, "UTC"];
+  }
+}
+
+/**
+ * Asked of `Intl` directly rather than checked against the list above, because
+ * the list is what a picker offers while this is what a formatter will accept:
+ * aliases and legacy names resolve fine but are not always enumerated.
+ */
+export function isSupportedTimeZone(value: unknown): value is FormatPreferences["timeZone"] {
+  if (typeof value !== "string" || !value) return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isSupportedLocale(value: unknown): value is FormatPreferences["locale"] {
   return typeof value === "string" && SUPPORTED_LOCALES.some((locale) => locale.value === value);
 }
@@ -68,9 +111,11 @@ export function isSupportedCurrency(value: unknown): value is FormatPreferences[
 export function resolveFormatPreferences(settings: {
   locale?: string | null;
   currency?: string | null;
+  timeZone?: string | null;
 } | null | undefined): FormatPreferences {
   return {
     locale: isSupportedLocale(settings?.locale) ? settings.locale : DEFAULT_LOCALE,
     currency: isSupportedCurrency(settings?.currency) ? settings.currency : DEFAULT_CURRENCY,
+    timeZone: isSupportedTimeZone(settings?.timeZone) ? settings.timeZone : DEFAULT_TIME_ZONE,
   };
 }

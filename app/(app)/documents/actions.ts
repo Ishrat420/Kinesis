@@ -8,6 +8,7 @@ import { addActivity } from "@/lib/data/activity";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType, type CustomFieldValue } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refusalOf } from "@/lib/actions/refusal";
+import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
 
 export type DocumentActionState = { error?: string; success?: boolean };
@@ -33,7 +34,7 @@ function date(formData: FormData, name: string) {
  */
 type DocumentFormResult = { ok: true; data: DocumentInput } | { ok: false; error: string };
 
-function documentData(formData: FormData): DocumentFormResult {
+function documentData(formData: FormData, today: Date): DocumentFormResult {
   const name = text(formData, "name");
   const type = text(formData, "type");
   if (!name || !type) return { ok: false, error: "Name and type are required." };
@@ -63,7 +64,7 @@ function documentData(formData: FormData): DocumentFormResult {
   return { ok: true, data: {
     name,
     type,
-    status: getDocumentState({ expiryDate, prompt, archived }).status,
+    status: getDocumentState({ expiryDate, prompt, archived }, today).status,
     expiryDate,
     issueDate: date(formData, "issueDate"),
     documentNumber: text(formData, "documentNumber") || null,
@@ -88,7 +89,7 @@ export async function createDocumentAction(
 ): Promise<DocumentActionState> {
   // Narrowed through the result rather than destructured: a union loses its
   // correlation the moment its members are pulled apart.
-  const form = documentData(formData);
+  const form = documentData(formData, await getToday());
   if (!form.ok) return { error: form.error };
   const data = form.data;
   data.type = await resolveDocumentType(data.type);
@@ -110,7 +111,7 @@ export async function updateDocumentAction(
 ): Promise<DocumentActionState> {
   // Narrowed through the result rather than destructured: a union loses its
   // correlation the moment its members are pulled apart.
-  const form = documentData(formData);
+  const form = documentData(formData, await getToday());
   if (!form.ok) return { error: form.error };
   const data = form.data;
   data.type = await resolveDocumentType(data.type);

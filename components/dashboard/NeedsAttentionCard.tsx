@@ -8,7 +8,7 @@ import { CustomModuleBadge } from "@/lib/custom-modules/icons";
 import { toggleMilestoneAction, updateMilestoneDueDateAction, type GoalActionState } from "@/app/(app)/goals/actions";
 import type { AttentionItem } from "@/lib/data/attention";
 import { formatDate, formatDateInput, formatDeadline, formatExpiry } from "@/lib/dates";
-import { useFormatPreferences } from "@/lib/format/context";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 
 const icons = { document: FileWarning, milestone: ListTodo, todo: CircleAlert };
 
@@ -21,6 +21,7 @@ function AttentionIcon({ item }: { item: AttentionItem }) {
 const initialGoalState: GoalActionState = {};
 
 export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
+  const today = useToday();
   const { locale } = useFormatPreferences();
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
@@ -36,7 +37,7 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
         <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><BellRing className="h-5 w-5" /></span><h2 id="attention-title" className="text-2xl font-semibold">Needs attention</h2></div><p className="mt-3 text-sm text-zinc-500">Expired documents, and overdue milestones, to-dos and reminders.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5" /></button></div>
         <div className="mt-6 space-y-3">
           {visible.length ? visible.map((item) => {
-            const timing = item.kind === "document" ? formatExpiry(item.date) : formatDeadline(item.date);
+            const timing = item.kind === "document" ? formatExpiry(item.date, today) : formatDeadline(item.date, today);
             return <div key={item.key} className="flex items-center gap-3 rounded-2xl border border-zinc-200 p-4">
               <Link href={item.href} onClick={() => setOpen(false)} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
                 <AttentionIcon item={item} />

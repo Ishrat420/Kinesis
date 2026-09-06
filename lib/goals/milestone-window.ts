@@ -25,8 +25,8 @@ export type MilestoneDueWindow = { from: Date; to: Date };
  * inclusive. `getMilestonesDueSoon` builds its query from this and the page
  * filters with it, so the count and the list cannot describe different sets.
  */
-export function milestoneDueSoonWindow(now: DateInput, leadDays: number): MilestoneDueWindow {
-  const from = startOfUtcDay(now)!;
+export function milestoneDueSoonWindow(today: DateInput, leadDays: number): MilestoneDueWindow {
+  const from = startOfUtcDay(today)!;
   return { from, to: getReminderWindowEnd(from, leadDays) };
 }
 

@@ -7,6 +7,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
 import { deleteObjects, objectFor } from "./objects";
 import { refuse } from "@/lib/actions/refusal";
+import { getToday } from "@/lib/format/server";
 
 export type DocumentInput = {
   name: string;
@@ -44,8 +45,9 @@ export async function getDocumentSummary() {
     select: { expiryDate: true, prompt: true },
   });
 
+  const today = await getToday();
   const statuses = documents.map(
-    ({ expiryDate, prompt }) => getExpiryDetails(expiryDate, prompt).status,
+    ({ expiryDate, prompt }) => getExpiryDetails(expiryDate, prompt, today).status,
   );
 
   return {
@@ -58,16 +60,17 @@ export async function getDocumentSummary() {
 export async function getExpiringDocuments(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
+  const today = await getToday(now);
   const documents = await prisma.document.findMany({
     where: { userId: user.id, archived: false, expiryDate: { not: null } },
     orderBy: { expiryDate: "asc" },
   });
 
   const upcoming = documents.filter(
-    (document) => getExpiryDetails(document.expiryDate, document.prompt, now).status === "Expiring soon",
+    (document) => getExpiryDetails(document.expiryDate, document.prompt, today).status === "Expiring soon",
   );
   const expired = documents
-    .filter((document) => getExpiryDetails(document.expiryDate, document.prompt, now).status === "Expired")
+    .filter((document) => getExpiryDetails(document.expiryDate, document.prompt, today).status === "Expired")
     .reverse();
 
   return { upcoming, expired };
@@ -120,7 +123,7 @@ export async function getDocument(id: string) {
     include: { customFields: { orderBy: { position: "asc" } } },
   });
   if (!document) return null;
-  const status = getDocumentState(document).status;
+  const status = getDocumentState(document, await getToday()).status;
   if (status !== document.status) {
     return prisma.document.update({
       where: { id, userId: user.id },

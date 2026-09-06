@@ -36,8 +36,8 @@ import {
   useTransition,
 } from "react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
-import { formatDate } from "@/lib/dates";
-import { useFormatPreferences } from "@/lib/format/context";
+import { formatDate, formatDateInput } from "@/lib/dates";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { saveMapGeometry, saveRelationshipMap } from "./actions";
 import { contentFingerprint, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
@@ -358,7 +358,7 @@ function PersonInspectorTabs({ person, relationships, people, goals, onChangePer
 function SelfRelationshipInspector({ selfRelationship, onChange }: { selfRelationship: SelfRelationship; onChange: (patch: Partial<SelfRelationship>) => void }) {
   const { locale } = useFormatPreferences();
   const [adding, setAdding] = useState<"practice" | "reflection" | "date" | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDateInput(useToday());
   return <div>
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship with myself</p><p className="mt-0.5 text-[11px] text-zinc-400">A private space for the relationship you have with yourself</p></div><UserRound className="h-4 w-4 text-zinc-400" /></div>
     <div className="px-5 py-5">
@@ -403,7 +403,7 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
   const second = people.find((person) => person.id === relationship.to);
   const [from, to] = second && isSelfPerson(second) ? [second, first] : [first, second];
   const [adding, setAdding] = useState<"practice" | "reflection" | "date" | "goal" | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDateInput(useToday());
   return <div>
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship details</p><p className="mt-0.5 text-[11px] text-zinc-400">Shared between two people</p></div><Link2 className="h-4 w-4 text-zinc-400" /></div>
     <div className="px-5 py-5">

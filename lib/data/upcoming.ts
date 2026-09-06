@@ -5,6 +5,7 @@ import { getSettings } from "./settings";
 import { requireKinesisUser } from "@/lib/auth";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { startOfUtcDay } from "@/lib/dates";
+import { getToday } from "@/lib/format/server";
 import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
@@ -19,7 +20,7 @@ export type UpcomingItem =
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
   const user = await requireKinesisUser();
-  const today = startOfUtcDay(now)!;
+  const today = await getToday(now);
   const settings = await getSettings();
   const milestoneWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
