@@ -36,7 +36,9 @@ describe.sequential("cross-user authorization contract", () => {
     await updateDocument(ids.documentA, owned);
     await expect(prisma.document.findUniqueOrThrow({ where: { id: ids.documentA } })).resolves.toMatchObject({ name: owned.name });
     const before = await ownerState("ownerB");
-    await expect(updateDocument(ids.documentB, { ...owned, name: "intrusion" })).rejects.toThrow("Document not found");
+    // The data layer still refuses by throwing; it is the action wrapping it that
+    // turns a refusal into a message the form can show.
+    await expect(updateDocument(ids.documentB, { ...owned, name: "intrusion" })).rejects.toThrow("This document no longer exists.");
     await deleteDocument(ids.documentB);
     await deleteUnusedDocumentType("Owner B Type");
     expect(await ownerState("ownerB")).toEqual(before);
@@ -52,7 +54,7 @@ describe.sequential("cross-user authorization contract", () => {
 
     const before = await ownerState("ownerB");
     await updateGoalStatusAction(ids.goalB, {}, form({ status: "Completed" }));
-    await expect(addTargetAction(ids.goalB, {}, form({ targetValue: "999", currentValue: "999", unit: "items" }))).rejects.toThrow("Goal not found");
+    await expect(addTargetAction(ids.goalB, {}, form({ targetValue: "999", currentValue: "999", unit: "items" }))).resolves.toEqual({ error: "This goal no longer exists." });
     await removeTargetAction(ids.goalB, {}, form({ confirmed: "true" }));
     await toggleProgressAction(ids.goalB, "showTargetProgress", false);
     await addMilestoneAction(ids.goalB, {}, form({ name: "intrusion" }));
@@ -98,7 +100,7 @@ describe.sequential("cross-user authorization contract", () => {
     await createCustomItemAction(ids.moduleA, {}, form({ name: "owner-a-added-item" }));
     expect((await ownerState("ownerA")).customModules[0].items).toHaveLength(2);
     const before = await ownerState("ownerB");
-    await expect(createCustomItemAction(ids.moduleB, {}, form({ name: "intrusion" }))).rejects.toThrow("Module not found");
+    await expect(createCustomItemAction(ids.moduleB, {}, form({ name: "intrusion" }))).resolves.toEqual({ error: "This module no longer exists." });
     await deleteCustomModuleAction(ids.moduleB);
     expect(await ownerState("ownerB")).toEqual(before);
   });

@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
 import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
 import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
+import { refuse, refusalOf } from "@/lib/actions/refusal";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
@@ -172,13 +173,20 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
   if (targetValue < 0 || currentValue < 0) return { error: "Target and current values cannot be negative." };
   if (!unit) return { error: "Enter a unit, such as $AUD or Books." };
   if (!DEFAULT_GOAL_UNITS.some((item) => item.toLowerCase() === unit.toLowerCase())) await prisma.goalUnit.upsert({ where: { userId_name: { userId: user.id, name: unit } }, update: {}, create: { id: crypto.randomUUID(), userId: user.id, name: unit } });
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
     const previous = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true } });
-    if (!previous) throw new Error("Goal not found");
+    if (!previous) refuse("This goal no longer exists.");
     await tx.goal.update({ where: { id }, data: { targetValue, currentValue, unit } });
     if (previous?.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
     await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, completedAt: new Date(), autoCompleted: true } });
-  }); refresh(id);
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
+  refresh(id);
   return {};
 }
 
@@ -283,13 +291,20 @@ export async function removeMilestoneDueDateAction(id: string, milestoneId: stri
   refresh(id);
 }
 
-export async function toggleMilestoneAction(id: string, milestoneId: string, completed: boolean) {
+/**
+ * Completing or reopening a milestone reports its outcome, because a toggle that
+ * silently does nothing is indistinguishable from one that worked: the checkbox
+ * springs back and the person is left guessing. It takes the form-state shape so
+ * the row can drive it with `useActionState` and show the reason in place.
+ */
+export async function toggleMilestoneAction(id: string, milestoneId: string, completed: boolean): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const owned = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
-  if (!owned) throw new Error("Milestone not found");
+  if (!owned) return { error: "This milestone no longer exists." };
   const milestone = await prisma.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true } } } });
   if (completed) await addActivity({ action: "Completed", moduleName: "Milestone", objectName: `${milestone.name} for ${milestone.goal.name}`, icon: "goals", href: `/goals/${id}` });
   refresh(id);
+  return {};
 }
 
 export async function deleteMilestoneAction(id: string, milestoneId: string) { const user = await requireKinesisUser(); await prisma.milestone.deleteMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } }); refresh(id); }

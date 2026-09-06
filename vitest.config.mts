@@ -11,6 +11,8 @@ export default defineConfig({
     environment: "node",
     clearMocks: true,
     restoreMocks: true,
-    include: ["tests/unit/**/*.test.ts"],
+    // .tsx as well: the error fallbacks are components, and one that throws
+    // while rendering has nowhere left to escalate to.
+    include: ["tests/unit/**/*.test.{ts,tsx}"],
   },
 });

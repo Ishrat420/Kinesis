@@ -1,12 +1,13 @@
 "use server";
 
-import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument } from "@/lib/data/documents";
+import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument, type DocumentInput } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { CUSTOM_FIELD_TYPES, type CustomFieldType, type CustomFieldValue } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
+import { refusalOf } from "@/lib/actions/refusal";
 import { completeCaptureConversion } from "@/lib/data/capture";
 
 export type DocumentActionState = { error?: string; success?: boolean };
@@ -22,10 +23,20 @@ function date(formData: FormData, name: string) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
 }
 
-function documentData(formData: FormData) {
+/**
+ * Reads the form, or says what is wrong with it.
+ *
+ * Every problem here is one the person can fix, so it comes back as a message
+ * the form renders. The Kinesis Link check used to `throw` its sentence, which
+ * Next.js redacts on the way to the browser: the owner got "An unexpected error
+ * occurred" and a digest hash instead of being told which field to fill in.
+ */
+type DocumentFormResult = { ok: true; data: DocumentInput } | { ok: false; error: string };
+
+function documentData(formData: FormData): DocumentFormResult {
   const name = text(formData, "name");
   const type = text(formData, "type");
-  if (!name || !type) return null;
+  if (!name || !type) return { ok: false, error: "Name and type are required." };
   const expiryDate = date(formData, "expiryDate");
   const requestedPrompt = Number(text(formData, "prompt"));
   const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
@@ -38,17 +49,18 @@ function documentData(formData: FormData) {
   const customTypes = formData.getAll("customType");
   const customTargets = formData.getAll("customTarget");
   const validTypes = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
-  const customFields = customLabels.flatMap((label, index) => {
-    if (typeof label !== "string" || !label.trim()) return [];
+  const customFields: CustomFieldValue[] = [];
+  for (const [index, label] of customLabels.entries()) {
+    if (typeof label !== "string" || !label.trim()) continue;
     const value = customValues[index];
     const requestedType = String(customTypes[index] ?? "TEXT") as CustomFieldType;
-    const type = validTypes.has(requestedType) ? requestedType : "TEXT";
-    const targetObjectId = type === "KINESIS_LINK" ? String(customTargets[index] ?? "").trim() : "";
-    if (type === "KINESIS_LINK" && !targetObjectId) throw new Error("Select an object for every Kinesis Link field");
-    return [{ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: type === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type, targetObjectId: targetObjectId || null }];
-  });
+    const fieldType = validTypes.has(requestedType) ? requestedType : "TEXT";
+    const targetObjectId = fieldType === "KINESIS_LINK" ? String(customTargets[index] ?? "").trim() : "";
+    if (fieldType === "KINESIS_LINK" && !targetObjectId) return { ok: false, error: `Choose what “${label.trim()}” links to.` };
+    customFields.push({ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: fieldType === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type: fieldType, targetObjectId: targetObjectId || null });
+  }
 
-  return {
+  return { ok: true, data: {
     name,
     type,
     status: getDocumentState({ expiryDate, prompt, archived }).status,
@@ -67,17 +79,21 @@ function documentData(formData: FormData) {
     notesLabel: text(formData, "notesLabel") || "Notes",
     linkLabel: text(formData, "linkLabel") || "Link",
     customFields,
-  };
+  } };
 }
 
 export async function createDocumentAction(
   _previousState: DocumentActionState,
   formData: FormData,
 ): Promise<DocumentActionState> {
-  const data = documentData(formData);
-  if (!data) return { error: "Name and type are required." };
+  // Narrowed through the result rather than destructured: a union loses its
+  // correlation the moment its members are pulled apart.
+  const form = documentData(formData);
+  if (!form.ok) return { error: form.error };
+  const data = form.data;
   data.type = await resolveDocumentType(data.type);
-  await validateKinesisTargets(data.customFields);
+  const unowned = await validateKinesisTargets(data.customFields ?? []);
+  if (unowned) return { error: unowned };
   const document = await createDocument(data);
   await addActivity({ action: "Added", moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
   // No-op unless quick capture sent the user here to turn a To-Do into this
@@ -92,11 +108,24 @@ export async function updateDocumentAction(
   _previousState: DocumentActionState,
   formData: FormData,
 ): Promise<DocumentActionState> {
-  const data = documentData(formData);
-  if (!data) return { error: "Name and type are required." };
+  // Narrowed through the result rather than destructured: a union loses its
+  // correlation the moment its members are pulled apart.
+  const form = documentData(formData);
+  if (!form.ok) return { error: form.error };
+  const data = form.data;
   data.type = await resolveDocumentType(data.type);
-  await validateKinesisTargets(data.customFields);
-  await updateDocument(documentId, data);
+  const unowned = await validateKinesisTargets(data.customFields ?? []);
+  if (unowned) return { error: unowned };
+  try {
+    await updateDocument(documentId, data);
+  } catch (failure) {
+    // A refusal raised inside the transaction, which has now rolled back.
+    // Anything else is a fault, or one of Next.js's control-flow errors, and
+    // belongs to the boundary rather than to this form.
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
   await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
   revalidatePath("/", "layout");
   return { success: true };

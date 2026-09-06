@@ -26,13 +26,17 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   hasTarget: boolean;
   unit: string | null;
   goalTargetDate: Date | null;
-  toggleAction: () => Promise<void>;
+  /** Reports its outcome, so a toggle that could not be applied says so. */
+  toggleAction: () => Promise<GoalActionState>;
   updateAction: FormAction;
   duplicateAction: () => Promise<void>;
   deleteAction: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction] = useActionState(updateAction, initialState);
+  // Both the checkbox and the Undo button drive the same toggle, so they share
+  // one result: whichever was pressed, the reason it failed shows on this row.
+  const [toggleState, toggleFormAction] = useActionState(() => toggleAction(), initialState);
   const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
   const now = new Date();
   const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < now);
@@ -77,13 +81,14 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   </form>;
 
   return <div role="button" tabIndex={0} onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setEditing(true); }} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition hover:border-violet-200 hover:bg-violet-50/30 ${milestone.completed ? "border-emerald-100 bg-emerald-50/60" : "border-zinc-200"}`}>
-    <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button aria-label={milestone.completed ? "Reopen milestone" : "Complete milestone"} className="mt-0.5 text-zinc-400">{milestone.completed ? <Check className="h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle className="h-6 w-6"/>}</button></form>
+    <form action={toggleFormAction} onClick={(event) => event.stopPropagation()}><button aria-label={milestone.completed ? "Reopen milestone" : "Complete milestone"} className="mt-0.5 text-zinc-400">{milestone.completed ? <Check className="h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle className="h-6 w-6"/>}</button></form>
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
       {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, now)}</p>}
+      {toggleState.error && <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{toggleState.error}</p>}
       {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
         <span className="inline-flex items-center gap-2"><span className="h-2 w-2 bg-amber-400" />Completed automatically</span>
-        <form action={toggleAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-amber-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
+        <form action={toggleFormAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-amber-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
         <button type="button" onClick={(event) => { event.stopPropagation(); dismissAutoCompletionFeedback(); }} aria-label="Dismiss automatic completion message" className="p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"><X className="h-3.5 w-3.5" /></button>
       </div>}
     </div>

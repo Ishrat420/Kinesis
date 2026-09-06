@@ -26,13 +26,20 @@ export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
     .sort((first, second) => kinesisLinkTargetOrder(first.type) - kinesisLinkTargetOrder(second.type));
 }
 
-/** The foreign key keeps links pointing at something real; this keeps them pointing at something of yours. */
-export async function validateKinesisTargets(targets: Array<{ targetObjectId?: string | null }>) {
+/**
+ * The foreign key keeps links pointing at something real; this keeps them
+ * pointing at something of yours.
+ *
+ * Returns the message to show, or null when every target checks out. It used to
+ * throw, which meant a form whose picker had gone stale crashed the page
+ * instead of saying so in the field the person was looking at.
+ */
+export async function validateKinesisTargets(targets: Array<{ targetObjectId?: string | null }>): Promise<string | null> {
   const user = await requireKinesisUser();
   const targetIds = [...new Set(targets.flatMap(({ targetObjectId }) => (targetObjectId ? [targetObjectId] : [])))];
-  if (!targetIds.length) return;
+  if (!targetIds.length) return null;
   const owned = await prisma.object.count({
     where: { id: { in: targetIds }, userId: user.id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
   });
-  if (owned !== targetIds.length) throw new Error("Linked object not found");
+  return owned === targetIds.length ? null : "One of the linked items no longer exists. Reopen the link field and choose again.";
 }

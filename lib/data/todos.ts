@@ -5,6 +5,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 import { isOpenTodoStatus } from "@/lib/todos/status";
+import { refuse } from "@/lib/actions/refusal";
 
 /**
  * Standalone To-Dos (ADR-009).
@@ -101,7 +102,7 @@ export async function updateTodoDetails(id: string, { status, dueDate, linkObjec
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
     const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, status: true } });
-    if (!todo) throw new Error("To-Do not found");
+    if (!todo) refuse("This to-do no longer exists.");
 
     if (status !== undefined || dueDate !== undefined) {
       const nextStatus = status ?? todo.status;
@@ -127,7 +128,7 @@ export async function updateTodoDetails(id: string, { status, dueDate, linkObjec
         // One count, not one lookup per id: either every target is the user's
         // or the whole save is refused.
         const owned = await transaction.object.count({ where: { id: { in: targets }, userId: user.id } });
-        if (owned !== targets.length) throw new Error("Linked object not found");
+        if (owned !== targets.length) refuse("One of the linked items no longer exists.");
         await transaction.objectRelationship.createMany({
           data: targets.map((targetObjectId) => ({
             userId: user.id, sourceObjectId: todo.objectId, targetObjectId,
