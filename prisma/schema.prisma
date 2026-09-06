@@ -304,6 +304,12 @@ model ConnectionPractice {
   selfPersonId   String?
   title          String
   cadence        String?
+  // The date the recurrence is measured from, and the day-of-week/day-of-month
+  // it lands on. This used to be implied by `createdAt`, which meant a practice
+  // silently changed its schedule every time the row was rewritten. It is
+  // nullable only so rows predating the column keep working: readers fall back
+  // to `createdAt` through `practiceAnchor`, and every write sets it.
+  anchorDate     DateTime?
   position       Int           @default(0)
   relationship   Relationship? @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
   selfPerson     Person?       @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
