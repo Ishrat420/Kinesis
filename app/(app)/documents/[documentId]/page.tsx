@@ -1,7 +1,7 @@
+import { notFound } from "next/navigation";
 import { getDocument, getDocumentTypes } from "@/lib/data/documents";
 import { getActivityForHref } from "@/lib/data/activity";
 import { ModuleContent } from "@/components/layout/ModuleContent";
-import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { DocumentDetailRecord } from "./EditDocumentForm";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
@@ -12,7 +12,8 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   const { edit } = await searchParams;
   const [document, documentTypes, user, linkOptions] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser(), getKinesisLinkOptions()]);
 
-  if (!document) return <ModuleContent><ModuleHeader backHref="/documents" backLabel="Back to documents" title="Document not found" description="This document may have been deleted." /></ModuleContent>;
+  // One answer for a missing record across every module -- see app/(app)/not-found.tsx.
+  if (!document) notFound();
 
   const history = await getActivityForHref(`/documents/${document.id}`);
 

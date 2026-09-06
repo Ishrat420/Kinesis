@@ -5,7 +5,7 @@ import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { getCustomItem } from "@/lib/data/custom-modules";
 import { deleteCustomItemAction } from "../../../actions";
 import { EditCustomItemForm } from "./EditCustomItemForm";
-import { ActionSubmitButton } from "../../../ActionSubmitButton";
+import { DeleteItemButton } from "./DeleteItemButton";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
@@ -23,7 +23,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       icon={<CustomModuleIcon name={item.module.icon} className="h-6 w-6"/>}
       iconClassName="text-zinc-700"
       iconStyle={{ backgroundColor: `color-mix(in srgb, ${item.module.color} 10%, white)` }}
-      actions={<form action={deleteCustomItemAction.bind(null, moduleId, item.id)}><ActionSubmitButton tone="danger" idleLabel="Delete item" pendingLabel="Deleting…" /></form>}
+      actions={<DeleteItemButton action={deleteCustomItemAction.bind(null, moduleId, item.id)} />}
     />
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"><EditCustomItemForm moduleId={moduleId} item={{ id: item.id, name: item.name, notes: item.notes ?? "", dueDate: item.dueDate?.toISOString().slice(0, 10) ?? "", link: item.link ?? "", archived: item.archived, fields: item.fields }} linkOptions={linkOptions} /></section>
     <p className="mt-4 text-sm text-zinc-400">Created {formatDate(item.createdAt, locale)} · Updated {formatDate(item.updatedAt, locale)}</p>

@@ -67,6 +67,9 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
 function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId: string; milestoneId: string; dueDate: string; onComplete: () => void }) {
   const [rescheduling, setRescheduling] = useState(false);
   const [state, formAction] = useActionState(updateMilestoneDueDateAction.bind(null, goalId, milestoneId), initialGoalState);
+  // Completing reports its outcome too, so a milestone that has since been
+  // deleted says so here rather than throwing past the dashboard.
+  const [completeState, completeAction] = useActionState(() => toggleMilestoneAction(goalId, milestoneId, true), initialGoalState);
 
   if (rescheduling) {
     return <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
@@ -79,10 +82,13 @@ function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId
     </form>;
   }
 
-  return <div className="flex shrink-0 items-center gap-2" onClick={(event) => event.stopPropagation()}>
-    <form action={toggleMilestoneAction.bind(null, goalId, milestoneId, true)} onSubmit={onComplete}>
-      <button aria-label="Mark milestone complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600"><Circle className="h-5 w-5" /></button>
-    </form>
-    <button type="button" onClick={() => setRescheduling(true)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><CalendarDays className="h-3.5 w-3.5" />Reschedule</button>
+  return <div className="flex shrink-0 flex-col items-end gap-1.5" onClick={(event) => event.stopPropagation()}>
+    <div className="flex items-center gap-2">
+      <form action={completeAction} onSubmit={onComplete}>
+        <button aria-label="Mark milestone complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600"><Circle className="h-5 w-5" /></button>
+      </form>
+      <button type="button" onClick={() => setRescheduling(true)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><CalendarDays className="h-3.5 w-3.5" />Reschedule</button>
+    </div>
+    {completeState.error && <p role="alert" className="text-xs font-medium text-red-600">{completeState.error}</p>}
   </div>;
 }

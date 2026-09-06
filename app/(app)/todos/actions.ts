@@ -9,8 +9,11 @@ import { addActivity } from "@/lib/data/activity";
 import { isTodoStatus } from "@/lib/todos/status";
 import { parseDateOnly } from "@/lib/dates";
 import { captureCreateHref, DEFAULT_CAPTURE_TARGET, isCaptureTargetType } from "@/lib/capture/targets";
+import { refusalOf } from "@/lib/actions/refusal";
 
 export type CaptureState = { error?: string; captured?: { id: string; name: string } };
+/** What a row-level action reports back to the board. */
+export type TodoActionState = { error?: string };
 export type TodoDetailsState = { error?: string; saved?: boolean };
 
 const text = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
@@ -79,13 +82,19 @@ export async function saveTodoDetailsAction(id: string, _previousState: TodoDeta
   const statusValue = text(formData, "status");
   if (statusValue && !isTodoStatus(statusValue)) return { error: "Choose a valid status." };
 
-  await updateTodoDetails(id, {
-    status: statusValue ? (statusValue as TodoStatus) : undefined,
-    dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
-    // The form submits one entry per linked object, so the whole set arrives
-    // together and an empty set legitimately means "no longer concerns anything".
-    linkObjectIds: formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean),
-  });
+  try {
+    await updateTodoDetails(id, {
+      status: statusValue ? (statusValue as TodoStatus) : undefined,
+      dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
+      // The form submits one entry per linked object, so the whole set arrives
+      // together and an empty set legitimately means "no longer concerns anything".
+      linkObjectIds: formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean),
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
   refresh();
   return { saved: true };
 }
@@ -99,14 +108,32 @@ export async function captureLinkOptionsAction(): Promise<ObjectLocation[]> {
   return getTodoLinkOptions();
 }
 
-export async function setTodoStatusAction(id: string, status: string) {
-  if (!isTodoStatus(status)) return;
-  const todo = await updateTodoDetails(id, { status });
-  if (status === "DONE") await addActivity({ action: "Completed", moduleName: "To-Do", objectName: todo.name, icon: "todos", href: "/todos" });
+/**
+ * Marking a To-Do done, or reopening it, reports its outcome.
+ *
+ * The board drove this from a transition that awaited it and looked at nothing,
+ * so a failure took the whole page down through the nearest error boundary --
+ * for a checkbox. Now the row says what happened and stays where it is.
+ */
+export async function setTodoStatusAction(id: string, status: string): Promise<TodoActionState> {
+  if (!isTodoStatus(status)) return { error: "That is not a status a to-do can have." };
+  try {
+    const todo = await updateTodoDetails(id, { status });
+    if (status === "DONE") await addActivity({ action: "Completed", moduleName: "To-Do", objectName: todo.name, icon: "todos", href: "/todos" });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
   refresh();
+  return {};
 }
 
-export async function deleteTodoAction(id: string) {
-  await deleteTodo(id);
+export async function deleteTodoAction(id: string): Promise<TodoActionState> {
+  const { count } = await deleteTodo(id);
+  // A delete that matched nothing is not an error worth shouting about -- the
+  // row was already gone -- but the refresh below has to happen either way so
+  // the board stops showing it.
   refresh();
+  return count ? {} : { error: "This to-do had already been deleted." };
 }

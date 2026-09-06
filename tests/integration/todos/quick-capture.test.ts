@@ -160,7 +160,7 @@ describe.sequential("quick capture", () => {
 
     await expect(saveTodoDetailsAction(captured!.id, {}, form({
       target: "TODO", linkObjectId: ["capture-passport-object", "stranger-mixed-object"],
-    }))).rejects.toThrow(/Linked object not found/);
+    }))).resolves.toEqual({ error: "One of the linked items no longer exists." });
 
     // The set is replaced by deleting first, so a rejected save must roll back
     // rather than leave the To-Do with nothing.
@@ -173,7 +173,7 @@ describe.sequential("quick capture", () => {
     await prisma.goal.create({ data: { id: "stranger-goal", name: "Theirs", userId: stranger, objectId: "stranger-object" } });
 
     await expect(saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", linkObjectId: "stranger-object" })))
-      .rejects.toThrow(/Linked object not found/);
+      .resolves.toEqual({ error: "One of the linked items no longer exists." });
     expect(await prisma.objectRelationship.count({ where: { userId: owner } })).toBe(0);
   });
 

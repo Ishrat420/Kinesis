@@ -59,14 +59,26 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
 
 function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; onEdit: () => void }) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const open = isOpenTodoStatus(todo.status);
+
+  /**
+   * These used to be awaited and ignored inside the transition, so a failed
+   * checkbox threw past the row and took the page with it. The row reports it
+   * instead and stays put -- and the error clears on the next attempt rather
+   * than lingering over a to-do that has since worked.
+   */
+  const run = (action: () => Promise<{ error?: string }>) => startTransition(async () => {
+    setError(null);
+    setError((await action()).error ?? null);
+  });
 
   return (
     <li id={`todo-${todo.id}`} className="flex flex-wrap items-center gap-3 py-4 scroll-mt-24">
       <button
         type="button" disabled={pending} aria-pressed={!open}
         aria-label={open ? `Mark ${todo.name} done` : `Reopen ${todo.name}`}
-        onClick={() => startTransition(async () => { await setTodoStatusAction(todo.id, open ? "DONE" : "TODO"); })}
+        onClick={() => run(() => setTodoStatusAction(todo.id, open ? "DONE" : "TODO"))}
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition disabled:opacity-50 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
       ><Check className="h-4 w-4" aria-hidden="true" /></button>
 
@@ -87,7 +99,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       <div className="flex shrink-0 items-center gap-1">
         <select
           value={todo.status} disabled={pending} aria-label={`Status of ${todo.name}`}
-          onChange={(event) => { const status = event.target.value; startTransition(async () => { await setTodoStatusAction(todo.id, status); }); }}
+          onChange={(event) => { const status = event.target.value; run(() => setTodoStatusAction(todo.id, status)); }}
           className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-zinc-400 disabled:opacity-50"
         >
           {TODO_STATUSES.map((status) => <option key={status} value={status}>{todoStatusLabel(status)}</option>)}
@@ -95,10 +107,12 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         <button type="button" onClick={onEdit} aria-label={`Edit ${todo.name}`} className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900"><Pencil className="h-4 w-4" /></button>
         <button
           type="button" disabled={pending} aria-label={`Delete ${todo.name}`}
-          onClick={() => startTransition(async () => { await deleteTodoAction(todo.id); })}
+          onClick={() => run(() => deleteTodoAction(todo.id))}
           className="rounded-xl p-2 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
         ><Trash2 className="h-4 w-4" /></button>
       </div>
+
+      {error && <p role="alert" className="w-full text-sm font-medium text-red-600">{error}</p>}
     </li>
   );
 }
