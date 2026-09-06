@@ -17,6 +17,7 @@ import {
   MoreHorizontal,
   Plus,
   RotateCcw,
+  Save,
   Sparkles,
   StickyNote,
   Target,
@@ -32,12 +33,13 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
-import { saveRelationshipMap } from "./actions";
-import { emptySelfRelationship, hasRelationshipBetween, isSelfPerson, toggleMultiSelect, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
+import { saveMapGeometry, saveRelationshipMap } from "./actions";
+import { contentFingerprint, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
 type PersonIcon = "user" | "heart" | "baby" | "cat" | "home";
 type Selection = { kind: "person" | "relationship"; id: string } | null;
@@ -67,12 +69,66 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   const canvas = useRef<HTMLDivElement>(null);
   const action = useRef<{ kind: "node" | "pan"; id?: string; x: number; y: number; ox: number; oy: number } | null>(null);
 
-  const skipInitialSave = useRef(true);
+  /*
+    Saving, in two halves.
+
+    Where a bubble sits is cheap to write and changes on every drag, so it goes
+    on its own the moment the pointer settles. Everything else -- people,
+    connections, practices, reflections, dates, notes -- waits to be asked, and
+    says so if it fails. The old single autosave did neither: one drag rewrote
+    the whole graph, and the result was discarded with `void`, so a failed save
+    looked exactly like a successful one right up until the page was reloaded.
+  */
+  const [saving, startSaving] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [savedContent, setSavedContent] = useState(() => contentFingerprint({ people: startingPeople, relationships: initialData.relationships }));
+  const dirty = contentFingerprint({ people, relationships }) !== savedContent;
+
+  function saveContent() {
+    const snapshot = { people, relationships };
+    const fingerprint = contentFingerprint(snapshot);
+    setSaveError(null);
+    startSaving(async () => {
+      const result = await saveRelationshipMap(snapshot);
+      if (result.error) { setSaveError(result.error); return; }
+      // The snapshot's fingerprint, not the live one: anything edited while the
+      // save was in flight is still unsaved and must stay that way.
+      setSavedContent(fingerprint);
+      setSaved(true);
+    });
+  }
+
+  // Only what actually moved is sent, so a typical drag is one UPDATE.
+  const savedGeometry = useRef(new Map(mapGeometry(startingPeople).map((person) => [person.id, person])));
+  const [geometryFailed, setGeometryFailed] = useState(false);
+  const geometryKey = JSON.stringify(mapGeometry(people));
   useEffect(() => {
-    if (skipInitialSave.current) { skipInitialSave.current = false; return; }
-    const timeout = window.setTimeout(() => void saveRelationshipMap({ people, relationships }), 350);
+    // Read back out of the key rather than closed over `people`, so this
+    // depends on the geometry and nothing else: renaming someone, or writing a
+    // reflection, must not schedule a position save.
+    const geometry: PersonGeometry[] = JSON.parse(geometryKey);
+    const moved = geometry.filter((person) => {
+      const previous = savedGeometry.current.get(person.id);
+      return !previous || previous.x !== person.x || previous.y !== person.y || previous.size !== person.size;
+    });
+    if (!moved.length) return;
+    const timeout = window.setTimeout(async () => {
+      const result = await saveMapGeometry(moved);
+      setGeometryFailed(Boolean(result.error));
+      // Left unrecorded on failure, so the next move retries these too.
+      if (!result.error) for (const person of moved) savedGeometry.current.set(person.id, person);
+    }, 400);
     return () => window.clearTimeout(timeout);
-  }, [people, relationships]);
+  }, [geometryKey]);
+
+  // The last line of defence for an edit nobody pressed Save on.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const selectedPerson = selection?.kind === "person" ? people.find((person) => person.id === selection.id) ?? null : null;
   const selectedRelationship = selection?.kind === "relationship" ? relationships.find((relationship) => relationship.id === selection.id) ?? null : null;
@@ -201,10 +257,18 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
         title="Your people, in orbit"
         description="Love them, tolerate them, call them every Sunday. Map them here."
         actions={<>
+          <SaveStatus dirty={dirty} saving={saving} saved={saved} />
           <button onClick={reset} className="map-button"><RotateCcw /> Reset</button>
-          <button onClick={addPerson} className="map-button map-button-dark"><Plus /> Add person</button>
+          <button onClick={addPerson} className="map-button"><Plus /> Add person</button>
+          <button onClick={saveContent} disabled={!dirty || saving} className="map-button map-button-dark disabled:cursor-not-allowed disabled:opacity-40"><Save /> {saving ? "Saving…" : "Save changes"}</button>
         </>}
       />
+
+      {(saveError || geometryFailed) && (
+        <p role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium leading-5 text-red-700">
+          {saveError ?? "Bubble positions could not be saved. They will be retried the next time you move one."}
+        </p>
+      )}
 
       <div className="relative flex h-[calc(100vh-290px)] min-h-[620px] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#f7f8f7]">
@@ -298,9 +362,9 @@ function SelfRelationshipInspector({ selfRelationship, onChange }: { selfRelatio
   return <div>
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship with myself</p><p className="mt-0.5 text-[11px] text-zinc-400">A private space for the relationship you have with yourself</p></div><UserRound className="h-4 w-4 text-zinc-400" /></div>
     <div className="px-5 py-5">
-      <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that keep you connected to yourself.</p>{adding === "practice" && <PracticeForm onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...selfRelationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.practices.map((practice, index) => <DetailItem key={index} title={practice.title} detail={practice.cadence} onDelete={() => onChange({ practices: selfRelationship.practices.filter((_, itemIndex) => itemIndex !== index) })} />)}{selfRelationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...selfRelationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.reflections.map((reflection, index) => <div key={index} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: selfRelationship.reflections.filter((_, itemIndex) => itemIndex !== index) })} /></div>)}{selfRelationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...selfRelationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.importantDates.map((date, index) => <DetailItem key={index} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: selfRelationship.importantDates.filter((_, itemIndex) => itemIndex !== index) })} />)}{selfRelationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that keep you connected to yourself.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...selfRelationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: selfRelationship.practices.filter((item) => item.id !== practice.id) })} />)}{selfRelationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...selfRelationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: selfRelationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{selfRelationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...selfRelationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: selfRelationship.importantDates.filter((item) => item.id !== date.id) })} />)}{selfRelationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={selfRelationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about the relationship you have with yourself…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
     </div>
   </div>;
@@ -345,9 +409,9 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
     <div className="px-5 py-5">
       <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1 text-center"><p className="truncate text-base font-semibold">{from?.name} <span className="font-normal text-zinc-300">↔</span> {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">{relationship.type}</p></div><PersonDot person={to} /></div>
       <InspectorLabel>Relationship type</InspectorLabel><input value={relationship.type ?? ""} onChange={(event) => onChange({ type: event.target.value || null })} placeholder="Choose a relationship type" className="input mb-5 !py-2.5" />
-      <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice, index) => <DetailItem key={index} title={practice.title} detail={practice.cadence} onDelete={() => onChange({ practices: relationship.practices.filter((_, itemIndex) => itemIndex !== index) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection, index) => <div key={index} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((_, itemIndex) => itemIndex !== index) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date, index) => <DetailItem key={index} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((_, itemIndex) => itemIndex !== index) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: relationship.practices.filter((item) => item.id !== practice.id) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
+      <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
         {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
         <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); if (!goal) return null; return <LinkedGoal key={goal.id} goal={goal} onUnlink={() => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goal.id) })} />; })}{relationship.linkedGoals.every((goalId) => !goals.some((goal) => goal.id === goalId)) && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
@@ -374,33 +438,59 @@ function ConnectionDialog({ pending, relationship, people, onChange, onCancel, o
   </div>;
 }
 
-function PracticeForm({ onSave, onCancel }: { onSave: (practice: Relationship["practices"][number]) => void; onCancel: () => void }) {
+/**
+ * Frequency is chosen, not typed, and the practice says which day it counts
+ * from.
+ *
+ * Both replace guesswork. The old free-text box accepted "Every fortnight"
+ * happily and then produced no calendar entries at all, because the recurrence
+ * reader had never understood the phrase -- and with no start date, a weekly
+ * practice landed on whatever weekday its row happened to be written on.
+ */
+function PracticeForm({ today, onSave, onCancel }: { today: string; onSave: (practice: ConnectionPracticeEntry) => void; onCancel: () => void }) {
   const [title, setTitle] = useState("");
-  const [cadence, setCadence] = useState("");
-  return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (title.trim() && cadence.trim()) onSave({ title: title.trim(), cadence: cadence.trim() }); }}>
+  const [cadence, setCadence] = useState<PracticeCadence>("Weekly");
+  const [anchorDate, setAnchorDate] = useState(today);
+  return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (title.trim() && anchorDate) onSave({ id: crypto.randomUUID(), title: title.trim(), cadence, anchorDate }); }}>
     <input autoFocus required value={title} onChange={(event) => setTitle(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder="Practice, e.g. Sunday walk" aria-label="Practice name" />
-    <input required value={cadence} onChange={(event) => setCadence(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder="Frequency, e.g. Every Sunday" aria-label="Practice frequency" />
+    <select required value={cadence} onChange={(event) => setCadence(event.target.value as PracticeCadence)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Practice frequency">{PRACTICE_CADENCES.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+    <label className="block text-[10px] font-semibold uppercase tracking-[.12em] text-zinc-400">Starts on
+      <input required type="date" value={anchorDate} onChange={(event) => setAnchorDate(event.target.value)} className="input mt-1 !rounded-lg !px-3 !py-2 text-xs font-normal normal-case tracking-normal text-zinc-950" aria-label="Practice start date" />
+    </label>
+    <p className="text-[10px] leading-4 text-zinc-400">The calendar counts from this day: weekly lands on the same weekday, monthly on the same date.</p>
     <FormActions onCancel={onCancel} />
   </form>;
 }
 
-function ReflectionForm({ today, onSave, onCancel }: { today: string; onSave: (reflection: Relationship["reflections"][number]) => void; onCancel: () => void }) {
+/** Names the schedule, and says so plainly when the calendar cannot read it. */
+function practiceDetail(practice: ConnectionPracticeEntry, locale: string) {
+  if (!isPracticeCadence(practice.cadence)) return `${practice.cadence} · unrecognised, so it is not on the calendar`;
+  return `${practice.cadence} · from ${formatDate(practice.anchorDate, locale)}`;
+}
+
+function SaveStatus({ dirty, saving, saved }: { dirty: boolean; saving: boolean; saved: boolean }) {
+  const label = saving ? "Saving…" : dirty ? "Unsaved changes" : saved ? "All changes saved" : null;
+  if (!label) return null;
+  return <p aria-live="polite" className={`hidden text-[11px] font-semibold sm:block ${dirty && !saving ? "text-amber-600" : "text-zinc-400"}`}>{label}</p>;
+}
+
+function ReflectionForm({ today, onSave, onCancel }: { today: string; onSave: (reflection: ReflectionEntry) => void; onCancel: () => void }) {
   const [text, setText] = useState("");
   const [date, setDate] = useState(today);
-  return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (text.trim() && date) onSave({ text: text.trim(), date }); }}>
+  return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (text.trim() && date) onSave({ id: crypto.randomUUID(), text: text.trim(), date }); }}>
     <textarea autoFocus required value={text} onChange={(event) => setText(event.target.value)} className="input min-h-20 resize-y !rounded-lg !px-3 !py-2 text-xs" placeholder="How is this relationship going?" aria-label="Reflection" />
     <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Reflection date" />
     <FormActions onCancel={onCancel} />
   </form>;
 }
 
-function ImportantDateForm({ onSave, onCancel }: { onSave: (date: Relationship["importantDates"][number]) => void; onCancel: () => void }) {
+function ImportantDateForm({ onSave, onCancel }: { onSave: (date: ImportantDateEntry) => void; onCancel: () => void }) {
   const [label, setLabel] = useState("");
   const [date, setDate] = useState("");
   // Most important dates -- birthdays, anniversaries -- come back every year,
   // so that is the default; a one-off event is the exception a person unchecks.
   const [repeatsYearly, setRepeatsYearly] = useState(true);
-  return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (label.trim() && date) onSave({ label: label.trim(), date, repeatsYearly }); }}>
+  return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (label.trim() && date) onSave({ id: crypto.randomUUID(), label: label.trim(), date, repeatsYearly }); }}>
     <input autoFocus required value={label} onChange={(event) => setLabel(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder="Occasion, e.g. Anniversary" aria-label="Date name" />
     <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Important date" />
     <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11px] font-medium text-zinc-600"><input type="checkbox" checked={repeatsYearly} onChange={(event) => setRepeatsYearly(event.target.checked)} className="h-3.5 w-3.5 accent-zinc-900" />Yearly</label>

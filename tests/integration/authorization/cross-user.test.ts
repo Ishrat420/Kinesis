@@ -135,6 +135,8 @@ describe.sequential("cross-user authorization contract", () => {
   it("rejects a mixed owned, foreign, and missing relationship-goal payload atomically", async () => {
     const beforeA = await ownerState("ownerA");
     const beforeB = await ownerState("ownerB");
+    // The map reports a refusal rather than throwing it, so the canvas can show
+    // the reason instead of the owner losing the edit to a discarded promise.
     await expect(saveRelationshipMap({
       people: [
         { id: "replacement-self", name: "Replacement", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship() },
@@ -144,7 +146,7 @@ describe.sequential("cross-user authorization contract", () => {
         id: "replacement-relationship", from: "replacement-self", to: "replacement-person", type: "Friend", notes: "must not be inserted",
         practices: [], reflections: [], importantDates: [], linkedGoals: [ids.goalA, ids.goalB, "missing-goal"],
       }],
-    })).rejects.toThrow("One or more linked goals were not found.");
+    })).resolves.toEqual({ error: "One or more linked goals were not found." });
     expect(await ownerState("ownerA")).toEqual(beforeA);
     expect(await ownerState("ownerB")).toEqual(beforeB);
   });

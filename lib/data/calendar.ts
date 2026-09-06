@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
-import { occurrencesForCadence } from "@/lib/calendar/recurrence";
+import { occurrencesForCadence, practiceAnchor } from "@/lib/calendar/recurrence";
 import { resolveDatedFields } from "@/lib/calendar/dated-fields";
 import { reminderOpensAt, reminderPinDetail, reminderPinTitle, type ReminderLead } from "@/lib/calendar/reminders";
 import type { KinesisCalendarItem } from "@/lib/calendar/types";
@@ -117,7 +117,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   }
   for (const practice of practices) {
     const people = practice.relationship ? `${practice.relationship.firstPerson.name} & ${practice.relationship.secondPerson.name}` : practice.selfPerson?.name;
-    for (const date of occurrencesForCadence(practice.cadence, practice.createdAt, start, end)) add({ id: `practice-${practice.id}-${dateKey(date)}`, title: practice.title, kind: "SCHEDULED", date, sourceType: "RELATIONSHIP", sourceObjectId: practice.relationshipId || practice.selfPersonId || practice.id, sourceModule: people || "Relationships", recurring: true, href: "/relationships", detail: practice.cadence || "Recurring relationship practice" });
+    for (const date of occurrencesForCadence(practice.cadence, practiceAnchor(practice), start, end)) add({ id: `practice-${practice.id}-${dateKey(date)}`, title: practice.title, kind: "SCHEDULED", date, sourceType: "RELATIONSHIP", sourceObjectId: practice.relationshipId || practice.selfPersonId || practice.id, sourceModule: people || "Relationships", recurring: true, href: "/relationships", detail: practice.cadence || "Recurring relationship practice" });
   }
   for (const custom of customItems) {
     const itemHref = `/custom-modules/${custom.moduleId}/items/${custom.id}`;
