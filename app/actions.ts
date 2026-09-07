@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { parseDismissalKey, type DismissibleKind } from "@/lib/attention/dismissal";
+import { notificationKey, OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
 import { formatDateInput } from "@/lib/dates";
 
 /** The column that links a dismissal, and its notifications, back to the record. */
@@ -53,15 +54,25 @@ export async function dismissAttentionItem(itemKey: string) {
   if (!deadline || formatDateInput(deadline) !== parsed.date) return;
 
   const link = LINK_FIELD[parsed.kind];
+  // The bell derives what it shows, so there is no row here to mark read --
+  // there is a marker to write. Its key names the item, its deadline *and* what
+  // is being said about it, because an advance reminder and the overdue notice
+  // that replaces it are separate things to have read. Only the last of those
+  // is unknown from the dismissal key, and for something already overdue it is
+  // fixed by kind, so it can be named rather than looked up.
+  const readKey = notificationKey(parsed.kind, parsed.id, OVERDUE_NOTIFICATION_TYPE[parsed.kind], deadline);
   await prisma.$transaction([
     prisma.attentionDismissal.upsert({
       where: { userId_itemKey: { userId: user.id, itemKey } },
       update: {},
       create: { id: crypto.randomUUID(), userId: user.id, itemKey, [link]: parsed.id },
     }),
-    prisma.notification.updateMany({
-      where: { userId: user.id, [link]: parsed.id, readAt: null },
-      data: { readAt: new Date() },
+    // Hiding the row and quieting the bell stay one act, not two that can
+    // half-apply.
+    prisma.notificationRead.upsert({
+      where: { userId_itemKey: { userId: user.id, itemKey: readKey } },
+      update: {},
+      create: { id: crypto.randomUUID(), userId: user.id, itemKey: readKey, [link]: parsed.id },
     }),
   ]);
   revalidatePath("/");

@@ -5,11 +5,11 @@ vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
-import { runNotificationEngine } from "@/lib/notifications/engine";
+import { collectNotifications } from "@/lib/notifications/engine";
 
 /**
  * The whole chain, against a real database: the stored zone, the day it
- * resolves to, and the notification row that follows from it.
+ * resolves to, and the notification that follows from it.
  *
  * 9am Wednesday in Sydney is still Tuesday in UTC, which is the gap the bug
  * lived in -- the engine read `startOfUtcDay(new Date())` and so believed it
@@ -35,19 +35,16 @@ describe.sequential("the owner's day decides what is due", () => {
   it("raises a to-do due today for an owner whose day has already started", async () => {
     await seed("Australia/Sydney");
 
-    await runNotificationEngine(owner, NINE_AM_SYDNEY);
-
-    await expect(prisma.notification.findMany({ where: { userId: owner }, select: { todoId: true, type: true, message: true } }))
-      .resolves.toEqual([{ todoId: "todo-1", type: "TODO_DUE", message: "Renew rego is due today" }]);
+    await expect(collectNotifications(owner, NINE_AM_SYDNEY)).resolves.toMatchObject([
+      { source: "todo", sourceId: "todo-1", type: "TODO_DUE", message: "Renew rego is due today", readAt: null },
+    ]);
   });
 
   /** The same instant, the same to-do -- and in UTC it is genuinely not due yet. */
   it("stays quiet at that instant for an owner who is actually on UTC", async () => {
     await seed("UTC");
 
-    await runNotificationEngine(owner, NINE_AM_SYDNEY);
-
-    await expect(prisma.notification.count({ where: { userId: owner } })).resolves.toBe(0);
+    await expect(collectNotifications(owner, NINE_AM_SYDNEY)).resolves.toEqual([]);
   });
 
   /**
@@ -60,8 +57,7 @@ describe.sequential("the owner's day decides what is due", () => {
   it("treats an unreadable stored zone as the configured default, not as UTC", async () => {
     await seed("Mars/Olympus_Mons");
 
-    await expect(runNotificationEngine(owner, NINE_AM_SYDNEY)).resolves.toMatchObject({ evaluated: expect.any(Number) });
-    await expect(prisma.notification.count({ where: { userId: owner } })).resolves.toBe(1);
+    await expect(collectNotifications(owner, NINE_AM_SYDNEY)).resolves.toHaveLength(1);
   });
 
   /**
@@ -75,11 +71,8 @@ describe.sequential("the owner's day decides what is due", () => {
     const object = await prisma.object.create({ data: { id: "other-todo-object", type: "TODO", name: "Renew rego", userId: "tz-other" } });
     await prisma.todo.create({ data: { id: "other-todo", name: "Renew rego", userId: "tz-other", objectId: object.id, dueDate: day("2026-01-07") } });
 
-    await runNotificationEngine(owner, NINE_AM_SYDNEY);
-    await runNotificationEngine("tz-other", NINE_AM_SYDNEY);
-
-    await expect(prisma.notification.count({ where: { userId: owner } })).resolves.toBe(1);
-    await expect(prisma.notification.count({ where: { userId: "tz-other" } })).resolves.toBe(0);
+    await expect(collectNotifications(owner, NINE_AM_SYDNEY)).resolves.toHaveLength(1);
+    await expect(collectNotifications("tz-other", NINE_AM_SYDNEY)).resolves.toEqual([]);
     await prisma.user.deleteMany({ where: { id: "tz-other" } });
   });
 });

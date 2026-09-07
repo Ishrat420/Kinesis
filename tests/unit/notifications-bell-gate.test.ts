@@ -1,40 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DerivedNotification } from "@/lib/notifications/engine";
 
 const mocks = vi.hoisted(() => ({
   requireKinesisUser: vi.fn(),
   getSettings: vi.fn(async (): Promise<unknown> => ({})),
-  runNotificationEngine: vi.fn(async () => ({ evaluated: 0, created: 0, removed: 0 })),
-  notificationFindMany: vi.fn(async (): Promise<unknown[]> => []),
-  notificationCount: vi.fn(async () => 0),
-  settingsFindUnique: vi.fn(async (): Promise<unknown> => null),
-  documentFindMany: vi.fn(async (): Promise<unknown[]> => []),
-  milestoneFindMany: vi.fn(async (): Promise<unknown[]> => []),
-  importantDateFindMany: vi.fn(async (): Promise<unknown[]> => []),
-  customItemFindMany: vi.fn(async (): Promise<unknown[]> => []),
-  todoFindMany: vi.fn(async (): Promise<unknown[]> => []),
-  goalUpdateMany: vi.fn(async () => ({ count: 0 })),
-  notificationDeleteMany: vi.fn(async () => ({ count: 0 })),
+  collectNotifications: vi.fn(async (): Promise<unknown[]> => []),
+  readCreateMany: vi.fn(async () => ({ count: 0 })),
+  readUpsert: vi.fn(async () => ({})),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/settings", () => ({ getSettings: mocks.getSettings }));
-vi.mock("@/lib/notifications/engine", () => ({ runNotificationEngine: mocks.runNotificationEngine }));
+vi.mock("@/lib/notifications/engine", () => ({
+  collectNotifications: mocks.collectNotifications,
+  runDailyMaintenance: vi.fn(),
+}));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
-    notification: { findMany: mocks.notificationFindMany, count: mocks.notificationCount, deleteMany: mocks.notificationDeleteMany },
-    userSettings: { findUnique: mocks.settingsFindUnique },
-    document: { findMany: mocks.documentFindMany },
-    milestone: { findMany: mocks.milestoneFindMany },
-    relationshipImportantDate: { findMany: mocks.importantDateFindMany },
-    customItem: { findMany: mocks.customItemFindMany },
-    todo: { findMany: mocks.todoFindMany },
-    goal: { updateMany: mocks.goalUpdateMany },
+    notificationRead: { createMany: mocks.readCreateMany, upsert: mocks.readUpsert },
+    user: { findMany: vi.fn(async () => []) },
   },
 }));
 
-import { getRecentNotifications } from "@/lib/data/notifications";
+import { getRecentNotifications, markAllNotificationsRead } from "@/lib/data/notifications";
 
 const settings = (overrides: Record<string, unknown> = {}) => ({
   notificationsEnabled: true,
@@ -42,12 +32,20 @@ const settings = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+/** A derived notification, only as far as the bell cares about it. */
+const derived = (key: string, readAt: Date | null = null): DerivedNotification => ({
+  key, source: "todo", sourceId: key, readAt,
+  type: "TODO_DUE", reminderAt: null, timeUntilExpiry: null,
+  expiryDate: new Date("2026-01-07T00:00:00.000Z"),
+  documentName: key, documentType: "To-do", message: `${key} is due today`,
+  actionUrl: "/todos", moduleIcon: null, moduleColor: null,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireKinesisUser.mockResolvedValue({ id: "user-1" });
   mocks.getSettings.mockResolvedValue(settings());
-  mocks.notificationFindMany.mockResolvedValue([]);
-  mocks.notificationCount.mockResolvedValue(0);
+  mocks.collectNotifications.mockResolvedValue([]);
 });
 
 describe("In-app notifications governs the bell and nothing else", () => {
@@ -63,27 +61,11 @@ describe("In-app notifications governs the bell and nothing else", () => {
     expect(await getRecentNotifications()).toEqual({ enabled: false, notifications: [], unreadCount: 0 });
   });
 
-  it("reads no rows and raises no count while it is off", async () => {
+  it("derives nothing at all while it is off", async () => {
     mocks.getSettings.mockResolvedValue(settings({ notificationsEnabled: false }));
     await getRecentNotifications();
 
-    expect(mocks.notificationFindMany).not.toHaveBeenCalled();
-    expect(mocks.notificationCount).not.toHaveBeenCalled();
-  });
-
-  it("does not reconcile on a page load while it is off", async () => {
-    // Nothing is going to be read, so there is nothing to bring up to date on
-    // this path. The daily pass still keeps the table honest.
-    mocks.getSettings.mockResolvedValue(settings({ notificationsEnabled: false }));
-    await getRecentNotifications();
-
-    expect(mocks.runNotificationEngine).not.toHaveBeenCalled();
-  });
-
-  it("still reconciles before reading when it is on", async () => {
-    await getRecentNotifications();
-
-    expect(mocks.runNotificationEngine).toHaveBeenCalledWith("user-1");
+    expect(mocks.collectNotifications).not.toHaveBeenCalled();
   });
 
   it("leaves reminders alone: turning the bell off is not turning reminders off", async () => {
@@ -91,5 +73,56 @@ describe("In-app notifications governs the bell and nothing else", () => {
 
     expect((await getRecentNotifications()).enabled).toBe(false);
     expect(mocks.getSettings).toHaveBeenCalled();
+  });
+});
+
+describe("reading the bell writes nothing", () => {
+  it("issues no write on a page load, however much there is to show", async () => {
+    mocks.collectNotifications.mockResolvedValue([derived("a"), derived("b"), derived("c")]);
+
+    await getRecentNotifications();
+
+    expect(mocks.readCreateMany).not.toHaveBeenCalled();
+    expect(mocks.readUpsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("the unread badge counts the whole set, not the page", () => {
+  /**
+   * The panel shows the most urgent few while the badge speaks for everything
+   * pending, so counting the slice would under-report the moment there were
+   * more than `limit` of them.
+   */
+  it("counts past the display limit", async () => {
+    mocks.collectNotifications.mockResolvedValue(Array.from({ length: 12 }, (_, index) => derived(`todo-${index}`)));
+
+    const { notifications, unreadCount } = await getRecentNotifications(8);
+
+    expect(notifications).toHaveLength(8);
+    expect(unreadCount).toBe(12);
+  });
+
+  it("counts only what is actually unread", async () => {
+    mocks.collectNotifications.mockResolvedValue([
+      derived("read-one", new Date("2026-01-06T00:00:00.000Z")),
+      derived("unread-one"),
+      derived("read-two", new Date("2026-01-06T00:00:00.000Z")),
+    ]);
+
+    expect((await getRecentNotifications()).unreadCount).toBe(1);
+  });
+
+  it("marks every unread one, including those the panel never showed", async () => {
+    mocks.collectNotifications.mockResolvedValue([
+      derived("already", new Date("2026-01-06T00:00:00.000Z")),
+      ...Array.from({ length: 10 }, (_, index) => derived(`todo-${index}`)),
+    ]);
+
+    await markAllNotificationsRead();
+
+    expect(mocks.readCreateMany).toHaveBeenCalledTimes(1);
+    const [{ data }] = mocks.readCreateMany.mock.calls[0] as unknown as [{ data: { itemKey: string }[] }];
+    expect(data).toHaveLength(10);
+    expect(data.map(({ itemKey }) => itemKey)).not.toContain("already");
   });
 });

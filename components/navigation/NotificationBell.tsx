@@ -7,9 +7,17 @@ import { markAllNotificationsReadAction, markNotificationReadAction } from "./no
 import { CustomModuleBadge } from "@/lib/custom-modules/icons";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
+import type { NotificationSource } from "@/lib/notifications/identity";
 
+/**
+ * Notifications are derived rather than stored, so a row has no database id to
+ * be known by. `key` is its identity -- the record, what is being said and the
+ * deadline it is about -- and it is what marking one read records.
+ */
 type NotificationItem = {
-  id: string;
+  key: string;
+  source: NotificationSource;
+  sourceId: string;
   type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE" | "CUSTOM_ITEM_DUE" | "TODO_DUE";
   message: string;
   documentName: string;
@@ -18,7 +26,6 @@ type NotificationItem = {
   expiryDate: Date | null;
   actionUrl: string;
   readAt: Date | null;
-  createdAt: Date;
   /** Set for a custom item's notification, so it wears its own module's icon and colour. */
   moduleIcon: string | null;
   moduleColor: string | null;
@@ -28,7 +35,7 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
   const { locale } = useFormatPreferences();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
-  const [readIds, setReadIds] = useState(() => new Set(notifications.filter((item) => item.readAt).map((item) => item.id)));
+  const [readKeys, setReadKeys] = useState(() => new Set(notifications.filter((item) => item.readAt).map((item) => item.key)));
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,15 +47,15 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
   }, []);
 
   function read(notification: NotificationItem) {
-    if (!readIds.has(notification.id)) {
-      setReadIds((ids) => new Set(ids).add(notification.id));
+    if (!readKeys.has(notification.key)) {
+      setReadKeys((keys) => new Set(keys).add(notification.key));
       setUnreadCount((count) => Math.max(0, count - 1));
-      void markNotificationReadAction(notification.id);
+      void markNotificationReadAction(notification.key, notification.source, notification.sourceId);
     }
   }
 
   function readAll() {
-    setReadIds(new Set(notifications.map((item) => item.id)));
+    setReadKeys(new Set(notifications.map((item) => item.key)));
     setUnreadCount(0);
     void markAllNotificationsReadAction();
   }
@@ -88,14 +95,14 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
               const isCustomItem = notification.type === "CUSTOM_ITEM_DUE" || notification.actionUrl.startsWith("/custom-modules/");
               const isTodo = notification.type === "TODO_DUE" || notification.actionUrl === "/todos";
               return (
-              <Link key={notification.id} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readIds.has(notification.id) ? "opacity-70" : "bg-zinc-50/70"}`}>
+              <Link key={notification.key} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readKeys.has(notification.key) ? "opacity-70" : "bg-zinc-50/70"}`}>
                 {isCustomItem && notification.moduleIcon && notification.moduleColor
                   ? <CustomModuleBadge icon={notification.moduleIcon} color={notification.moduleColor} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />
                   : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
                       {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                     </span>}
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readIds.has(notification.id) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
+                  <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readKeys.has(notification.key) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
                   <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isMilestone || isCustomItem || isTodo ? "Due" : isRelationshipDate ? "Occurs" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
                 </span>

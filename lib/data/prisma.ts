@@ -7,7 +7,10 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: ["query", "error", "warn"],
+    // Query logging emits the statement's parameters alongside it, so in
+    // production it writes the owner's document names, notes and amounts
+    // straight into the platform's logs. Faults still surface.
+    log: process.env.NODE_ENV === "production" ? ["error", "warn"] : ["query", "error", "warn"],
   });
 
 if (process.env.NODE_ENV !== "production") {

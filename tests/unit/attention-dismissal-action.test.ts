@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   transaction: vi.fn(),
   dismissalUpsert: vi.fn<(args: { where: unknown; create: Record<string, unknown> }) => unknown>(() => ({ __op: "upsert" })),
-  notificationUpdateMany: vi.fn(() => ({ __op: "markRead" })),
+  notificationReadUpsert: vi.fn<(args: { where: unknown; create: Record<string, unknown> }) => unknown>(() => ({ __op: "markRead" })),
   documentFindFirst: vi.fn(),
   customItemFindFirst: vi.fn(),
   todoFindFirst: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
     attentionDismissal: { upsert: mocks.dismissalUpsert },
-    notification: { updateMany: mocks.notificationUpdateMany },
+    notificationRead: { upsert: mocks.notificationReadUpsert },
     document: { findFirst: mocks.documentFindFirst },
     customItem: { findFirst: mocks.customItemFindFirst },
     todo: { findFirst: mocks.todoFindFirst },
@@ -145,27 +145,55 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
     mocks.transaction.mockResolvedValue([]);
   });
 
-  it("marks the matching notification read in the same transaction", async () => {
+  /**
+   * The bell derives what it shows, so there is no row to update -- there is a
+   * read marker to write, named after the notification it silences. An overdue
+   * document is always saying the same thing, so the key can be built outright
+   * rather than derived, which is what keeps this a single write.
+   */
+  it("writes a read marker naming the notification, in the same transaction", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-06-01") });
 
     await dismissAttentionItem("document:document-1:2026-06-01");
 
-    expect(mocks.notificationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: "owner-id", documentId: "document-1", readAt: null } }),
-    );
+    expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
+      where: { userId_itemKey: { userId: "owner-id", itemKey: "document:document-1:EXPIRED:2026-06-01" } },
+      create: expect.objectContaining({ itemKey: "document:document-1:EXPIRED:2026-06-01", documentId: "document-1" }),
+    });
     // Hiding the row and quieting the bell are one act, not two that can
     // half-apply.
     expect(mocks.transaction).toHaveBeenCalledWith([{ __op: "upsert" }, { __op: "markRead" }]);
   });
 
-  it("quiets a to-do's notification too", async () => {
+  it.each([
+    ["a to-do", "todo:todo-1:2026-06-01", "todo:todo-1:TODO_DUE:2026-06-01", "todoId", "todo-1"],
+    ["a custom item", "custom:item-1:2026-06-01", "custom:item-1:CUSTOM_ITEM_DUE:2026-06-01", "customItemId", "item-1"],
+  ])("names the right notification for %s", async (_label, dismissalKey, readKey, link, id) => {
     mocks.todoFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
+    mocks.customItemFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
 
-    await dismissAttentionItem("todo:todo-1:2026-06-01");
+    await dismissAttentionItem(dismissalKey);
 
-    expect(mocks.notificationUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: "owner-id", todoId: "todo-1", readAt: null } }),
-    );
+    expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
+      create: expect.objectContaining({ itemKey: readKey, [link]: id }),
+    });
+  });
+
+  /**
+   * The two keys look alike and mean different things: a dismissal is only ever
+   * about something overdue, while a notification also has an advance form that
+   * is read separately. Sharing one key would let dismissing an overdue item
+   * silently mark its earlier reminder read as well.
+   */
+  it("does not reuse the dismissal's own key as the read marker", async () => {
+    mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-06-01") });
+
+    await dismissAttentionItem("document:document-1:2026-06-01");
+
+    const dismissal = written()?.create.itemKey;
+    const read = (mocks.notificationReadUpsert.mock.calls[0]?.[0].create as { itemKey: string }).itemKey;
+    expect(dismissal).toBe("document:document-1:2026-06-01");
+    expect(read).not.toBe(dismissal);
   });
 
   it("touches no notification when the dismissal is refused", async () => {
@@ -173,6 +201,6 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
 
     await dismissAttentionItem("document:document-1:2026-06-01");
 
-    expect(mocks.notificationUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.notificationReadUpsert).not.toHaveBeenCalled();
   });
 });
