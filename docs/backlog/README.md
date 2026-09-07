@@ -149,6 +149,7 @@ KD-013-guided-onboarding
 KD-015-kinesis-timeline-review
 KD-026-document-no-reminder-option
 KD-027-todo-reminder-window
+KD-028-goal-lapse-awareness
 
 ## 🧠 Planning Needed
 
@@ -156,6 +157,7 @@ KD-007-adding-priority
 KD-016-automated-document-field-extraction
 
 ## ✓ Accepted
+KD-029-be-able-to-create-to-do
 
 
 ## 🚧 In Progress
@@ -192,6 +194,7 @@ KD-003-custom-object-fields
 # Bugs
 
 ## Open
+BUG-006-notification-panel-behind-relationship-inspector
 
 ## In Progress
 
@@ -204,6 +207,8 @@ KD-003-custom-object-fields
 BUG-001-title
 BUG-002-goal-showing-active
 BUG-003-remove-goal-measure-validation
+BUG-004-calendar-cannot-show-future-reminders
+BUG-005-milestone-tile-and-list-disagree
 
 
 ## Won't Fix

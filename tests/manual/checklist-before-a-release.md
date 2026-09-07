@@ -72,3 +72,7 @@ Verify that dated records appear correctly in the Calendar:
 
 - [ ] All required manual checks above have passed.
 - [ ] Automated/unit tests are passing.
+
+## Release Note
+Results:
+[Date 09/09/26] -> Everything passed, minor bugs fixed, unrelated bugs were added 
