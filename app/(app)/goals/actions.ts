@@ -187,7 +187,7 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
     return { error: refused };
   }
   refresh(id);
-  return {};
+  return { saved: true };
 }
 
 /**
@@ -219,7 +219,7 @@ export async function removeTargetAction(id: string, _previousState: GoalActionS
     prisma.milestone.updateMany({ where: { goalId: id, goal: { userId: user.id } }, data: { value: null, autoCompleted: false } }),
   ]);
   refresh(id);
-  return {};
+  return { saved: true };
 }
 
 /**
@@ -245,7 +245,7 @@ export async function addMilestoneAction(id: string, _previousState: GoalActionS
   const measured = measuredValue(goal.targetValue, milestoneValue);
   const auto = measured !== null && goal.currentValue !== null && goal.currentValue >= measured;
   await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: measured, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
-  return {};
+  return { saved: true };
 }
 
 export async function updateMilestoneAction(id: string, milestoneId: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
@@ -260,7 +260,7 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
   if (conflict) return { error: conflict };
   await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { name, value: measuredValue(goal.targetValue, milestoneValue), dueDate } });
   refresh(id);
-  return {};
+  return { saved: true };
 }
 
 export async function duplicateMilestoneAction(id: string, milestoneId: string) {

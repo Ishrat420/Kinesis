@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { CalendarDays, Gauge, Plus, X } from "lucide-react";
 import { addUtcDays, formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
@@ -29,8 +29,6 @@ export function AddMilestoneForm({
   goalTargetDate: Date | null;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [state, formAction] = useActionState(action, initialState);
-  const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
 
   if (!expanded) {
     return (
@@ -44,11 +42,32 @@ export function AddMilestoneForm({
     );
   }
 
+  return <AddMilestoneFields action={action} hasTarget={hasTarget} unit={unit} goalTargetDate={goalTargetDate} onDone={() => setExpanded(false)} />;
+}
+
+/**
+ * Mounted only while the "New milestone" form is open, so a fresh
+ * `useActionState` starts each time it is expanded -- kept in the parent,
+ * `state.saved` would flip true once and stay true, so a second milestone
+ * added in the same session would save with the form never collapsing to
+ * show it.
+ */
+function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }: {
+  action: FormAction;
+  hasTarget: boolean;
+  unit: string | null;
+  goalTargetDate: Date | null;
+  onDone: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
+  useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
+
   return (
     <form action={formAction} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-semibold text-zinc-800">New milestone</p>
-        <button type="button" onClick={() => setExpanded(false)} aria-label="Cancel adding milestone" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700">
+        <button type="button" onClick={onDone} aria-label="Cancel adding milestone" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -60,7 +79,7 @@ export function AddMilestoneForm({
         <input name="dueDate" type="date" max={latestDueDate} aria-label="Optional milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
       </div>
       <ActionError error={state.error} />
-      <div className="mt-3 flex justify-end"><button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Save milestone</button></div>
+      <div className="mt-3 flex justify-end"><button disabled={pending} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-50"><Plus className="h-4 w-4" /> {pending ? "Saving…" : "Save milestone"}</button></div>
     </form>
   );
 }
@@ -110,21 +129,7 @@ export function MeasurableTargetForm({
   measuredMilestones: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [state, formAction] = useActionState(action, initialState);
-  const [removeState, removeFormAction] = useActionState(removeAction, initialState);
   const hasTarget = targetValue !== null;
-  const cascades = measuredMilestones > 0;
-
-  // The removal lands on the server and the goal comes back without a measure.
-  // The dialog then has nothing left to ask about, and a confirmation still set
-  // would reopen it over whatever measure is added next. Adjusting state during
-  // render is React's own answer to a prop change; an effect renders twice.
-  const [measured, setMeasured] = useState(hasTarget);
-  if (measured !== hasTarget) {
-    setMeasured(hasTarget);
-    setConfirming(false);
-  }
 
   if (!expanded) {
     return (
@@ -139,11 +144,49 @@ export function MeasurableTargetForm({
   }
 
   return (
+    <MeasurableTargetFields
+      action={action}
+      removeAction={removeAction}
+      units={units}
+      targetValue={targetValue}
+      currentValue={currentValue}
+      unit={unit}
+      measuredMilestones={measuredMilestones}
+      onDone={() => setExpanded(false)}
+    />
+  );
+}
+
+/**
+ * Mounted only while the measurable-target panel is open, so both actions'
+ * `useActionState` start fresh each time -- kept in the parent, `saved` would
+ * flip true once and stay true, so a second update in the same session would
+ * save with the panel never collapsing to show it.
+ */
+function MeasurableTargetFields({ action, removeAction, units, targetValue, currentValue, unit, measuredMilestones, onDone }: {
+  action: FormAction;
+  removeAction: FormAction;
+  units: string[];
+  targetValue: number | null;
+  currentValue: number | null;
+  unit: string | null;
+  measuredMilestones: number;
+  onDone: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const [removeState, removeFormAction, removePending] = useActionState(removeAction, initialState);
+  const hasTarget = targetValue !== null;
+  const cascades = measuredMilestones > 0;
+  useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
+  useEffect(() => { if (removeState.saved) onDone(); }, [removeState.saved, onDone]);
+
+  return (
     <>
       <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
         <div className="flex items-center justify-between sm:col-span-3">
           <p className="text-sm font-semibold text-zinc-800">{hasTarget ? "Update measurable target" : "New measurable target"}</p>
-          <button type="button" onClick={() => setExpanded(false)} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={onDone} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
         </div>
         <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
         <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
@@ -151,10 +194,10 @@ export function MeasurableTargetForm({
         {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
         {removeState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{removeState.error}</p>}
         <div className="flex gap-2 sm:col-span-3">
-          <button className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">{hasTarget ? "Update values" : "Add target"}</button>
+          <button disabled={pending} className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">{pending ? "Saving…" : hasTarget ? "Update values" : "Add target"}</button>
           {hasTarget && (cascades
             ? <button type="button" onClick={() => setConfirming(true)} className={REMOVE_MEASURE_CLASS}>Remove</button>
-            : <button formAction={removeFormAction} className={REMOVE_MEASURE_CLASS}>Remove</button>)}
+            : <button formAction={removeFormAction} disabled={removePending} className={REMOVE_MEASURE_CLASS}>{removePending ? "Removing…" : "Remove"}</button>)}
         </div>
       </form>
 
@@ -164,7 +207,7 @@ export function MeasurableTargetForm({
           <form action={removeFormAction} className="mt-7 flex flex-wrap justify-end gap-3">
             <input type="hidden" name="confirmed" value="true" />
             <button type="button" onClick={() => setConfirming(false)} className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Keep the measure</button>
-            <button className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Remove from goal and milestones</button>
+            <button disabled={removePending} className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{removePending ? "Removing…" : "Remove from goal and milestones"}</button>
           </form>
         </Modal>
       )}

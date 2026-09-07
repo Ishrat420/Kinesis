@@ -117,7 +117,7 @@ describe("invalid submissions report an error instead of silently doing nothing"
 
     it("accepts a milestone due before the goal target date", async () => {
       mocks.goalFindFirst.mockResolvedValue({ currentValue: null, targetDate: TARGET_DATE, _count: { milestones: 0 } });
-      await expect(addMilestoneAction(GOAL, {}, form({ name: "Deposit saved", dueDate: "2030-05-31" }))).resolves.toEqual({});
+      await expect(addMilestoneAction(GOAL, {}, form({ name: "Deposit saved", dueDate: "2030-05-31" }))).resolves.toEqual({ saved: true });
       expect(mocks.milestoneCreate).toHaveBeenCalledOnce();
     });
 

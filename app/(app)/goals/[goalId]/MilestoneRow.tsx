@@ -33,7 +33,6 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   deleteAction: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
-  const [state, formAction] = useActionState(updateAction, initialState);
   // Both the checkbox and the Undo button drive the same toggle, so they share
   // one result: whichever was pressed, the reason it failed shows on this row.
   const [toggleState, toggleFormAction] = useActionState(() => toggleAction(), initialState);
@@ -67,18 +66,7 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
     window.setTimeout(() => setAutoCompletionFeedback("hidden"), AUTO_COMPLETION_FADE_MS);
   }
 
-  if (editing) return <form action={formAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <input name="name" required autoFocus defaultValue={milestone.name} aria-label="Milestone title" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
-      {hasTarget && <input name="value" type="number" step="any" min="0" defaultValue={milestone.value ?? ""} placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />}
-      {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
-      <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
-      <input name="dueDate" type="date" max={latestDueDate} defaultValue={milestone.dueDate ? formatDateInput(milestone.dueDate) : ""} aria-label="Optional due date" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
-      <button className="h-11 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button>
-      <button type="button" onClick={() => setEditing(false)} aria-label="Cancel editing" className="rounded-lg p-2 text-zinc-400 hover:bg-white"><X className="h-5 w-5" /></button>
-    </div>
-    {state.error && <p role="alert" className="mt-3 text-sm font-medium text-red-600">{state.error}</p>}
-  </form>;
+  if (editing) return <MilestoneEditForm milestone={milestone} hasTarget={hasTarget} unit={unit} latestDueDate={latestDueDate} updateAction={updateAction} onDone={() => setEditing(false)} />;
 
   return <div role="button" tabIndex={0} onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setEditing(true); }} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition hover:border-violet-200 hover:bg-violet-50/30 ${milestone.completed ? "border-emerald-100 bg-emerald-50/60" : "border-zinc-200"}`}>
     <form action={toggleFormAction} onClick={(event) => event.stopPropagation()}><button aria-label={milestone.completed ? "Reopen milestone" : "Complete milestone"} className="mt-0.5 text-zinc-400">{milestone.completed ? <Check className="h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle className="h-6 w-6"/>}</button></form>
@@ -101,4 +89,36 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
       </div>
     </details>
   </div>;
+}
+
+/**
+ * Mounted only while editing, so a fresh `useActionState` starts each time the
+ * row is opened. Kept in the parent, `state.saved` would flip false to true
+ * exactly once and stay true across every later save in the same session --
+ * the effect below fires on that transition, so a second edit in the same
+ * session would save silently with no form closing to show for it.
+ */
+function MilestoneEditForm({ milestone, hasTarget, unit, latestDueDate, updateAction, onDone }: {
+  milestone: { name: string; value: number | null; dueDate: Date | null };
+  hasTarget: boolean;
+  unit: string | null;
+  latestDueDate: string | undefined;
+  updateAction: FormAction;
+  onDone: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(updateAction, initialState);
+  useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
+
+  return <form action={formAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <input name="name" required autoFocus defaultValue={milestone.name} aria-label="Milestone title" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
+      {hasTarget && <input name="value" type="number" step="any" min="0" defaultValue={milestone.value ?? ""} placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />}
+      {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
+      <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
+      <input name="dueDate" type="date" max={latestDueDate} defaultValue={milestone.dueDate ? formatDateInput(milestone.dueDate) : ""} aria-label="Optional due date" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
+      <button disabled={pending} className="h-11 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
+      <button type="button" onClick={onDone} aria-label="Cancel editing" className="rounded-lg p-2 text-zinc-400 hover:bg-white"><X className="h-5 w-5" /></button>
+    </div>
+    {state.error && <p role="alert" className="mt-3 text-sm font-medium text-red-600">{state.error}</p>}
+  </form>;
 }
