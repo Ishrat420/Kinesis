@@ -1,0 +1,13 @@
+-- A custom item's due date was written at noon UTC rather than midnight, for
+-- no reason recorded anywhere -- every other due date in the app (a To-Do's,
+-- in particular) has always used midnight. Nothing that read it back cared:
+-- every notification and Needs Attention candidate normalises to midnight
+-- before comparing. The calendar was the one reader that took the stored
+-- instant as given, so it read the leftover noon as a real time of day and
+-- rendered every custom item as a 12:00 "Scheduled" event instead of a plain
+-- due date -- which also hid them all behind the "Scheduled" filter.
+--
+-- Existing rows are truncated to the day they were always meant to name. This
+-- only ever moves a timestamp backward by twelve hours; it cannot change which
+-- calendar day a due date falls on.
+UPDATE "CustomItem" SET "dueDate" = date_trunc('day', "dueDate") WHERE "dueDate" IS NOT NULL;

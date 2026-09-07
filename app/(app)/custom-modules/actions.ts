@@ -11,17 +11,31 @@ import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/ty
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
+import { parseDateOnly } from "@/lib/dates";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/custom-modules/${moduleId}`); };
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
 export type CustomItemState = { error?: string };
 
+/**
+ * A due date is a day, not a moment, so it is stored at UTC midnight -- the
+ * same convention `parseDateOnly` already gives every other due date in the
+ * app (a To-Do's, in particular). This used to store noon instead, for no
+ * documented reason predating that convention. Nothing that read it back ever
+ * cared: every notification and Needs Attention candidate normalises to
+ * midnight before comparing. The calendar was the one reader that took the
+ * stored instant as given, so it read the leftover noon as a real time of day
+ * and rendered every custom item as a 12:00 "Scheduled" event -- which also
+ * meant unticking "Scheduled" in the calendar's filter hid every one of them.
+ *
+ * `parseDateOnly` also rejects a date that only looks valid (2026-02-30 was
+ * previously accepted and silently rolled forward to March), which the regex
+ * here never checked for.
+ */
 const dueDateValue = (raw: string) => {
   if (!raw) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
-  const date = new Date(`${raw}T12:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  return parseDateOnly(raw) ?? undefined;
 };
 
 type CustomField = { id: string; label: string; value: string; type: CustomFieldType; targetObjectId: string | null; position: number };
