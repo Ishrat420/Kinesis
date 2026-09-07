@@ -206,8 +206,8 @@ function MeasurableTargetFields({ action, removeAction, units, targetValue, curr
           <p className="leading-7 text-zinc-600">{MEASURE_REMOVAL_CONSEQUENCE}</p>
           <form action={removeFormAction} className="mt-7 flex flex-wrap justify-end gap-3">
             <input type="hidden" name="confirmed" value="true" />
-            <button type="button" onClick={() => setConfirming(false)} className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Keep the measure</button>
-            <button disabled={removePending} className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">{removePending ? "Removing…" : "Remove from goal and milestones"}</button>
+            <button type="button" onClick={() => setConfirming(false)} className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Cancel</button>
+            <button className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Remove</button>
           </form>
         </Modal>
       )}
