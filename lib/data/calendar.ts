@@ -64,8 +64,9 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
     if (item.date >= start && item.date <= end) items.push({ ...item, date: dateKey(item.date) });
   };
   /**
-   * Pins the day a lead-up opens, derived from the record rather than read
-   * from a notification row. A reminder date is always a whole UTC day, so a
+   * Pins the day a lead-up opens, derived from the record directly rather than
+   * gated on today the way the bell's own notifications are (see
+   * lib/calendar/reminders.ts). A reminder date is always a whole UTC day, so a
    * pin is always DATED; and it is window-tested on the pin's own date, which
    * can fall inside the month while the deadline it warns about sits outside.
    */

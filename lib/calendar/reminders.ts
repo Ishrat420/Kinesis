@@ -20,12 +20,11 @@ export type ReminderLead =
  * The day a deadline's lead-up opens.
  *
  * This is a pure function of the deadline and the lead -- which is the whole
- * reason the calendar can show a reminder that has not happened yet. The
- * notification table cannot: it is a reconciled inbox of what should be
- * alerting *now*, so the engine only ever writes a row once `today` has
- * reached this date and deletes it again afterwards. Every stored `reminderAt`
- * is therefore in the past, and a calendar built on those rows could only ever
- * pin reminders that had already gone off.
+ * reason the calendar can show a reminder that has not happened yet. The bell
+ * cannot: it derives what it shows fresh on every read, but only ever shows
+ * what should be alerting *now*, so a candidate exists only once `today` has
+ * reached this date (see collectNotifications). A calendar built on that same
+ * gate could only ever pin reminders that had already gone off.
  *
  * Both readers go through here, so the pin on the calendar and the moment the
  * bell speaks cannot drift apart -- see tests/unit/calendar-reminder-pins.test.ts,
