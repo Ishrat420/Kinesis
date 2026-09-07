@@ -105,7 +105,7 @@ describe.sequential("removing a goal's measurable target", () => {
   });
 
   it("removes the measure from the goal and from every milestone once confirmed", async () => {
-    await expect(remove(GOAL, true)).resolves.toEqual({});
+    await expect(remove(GOAL, true)).resolves.toEqual({ saved: true });
 
     const goal = await readGoal();
     expect(goal).toMatchObject({ targetValue: null, currentValue: null, unit: null });
@@ -147,7 +147,7 @@ describe.sequential("removing a goal's measurable target", () => {
   });
 
   it("removes a measure no milestone uses without asking first", async () => {
-    await expect(remove(UNMEASURED)).resolves.toEqual({});
+    await expect(remove(UNMEASURED)).resolves.toEqual({ saved: true });
 
     await expect(readGoal(UNMEASURED)).resolves.toMatchObject({ targetValue: null, currentValue: null, unit: null });
   });
@@ -157,7 +157,7 @@ describe.sequential("removing a goal's measurable target", () => {
 
     // A form rendered before the removal still carries the old value. Renaming
     // through it has to save the name and drop the value, not resurrect it.
-    await expect(updateMilestoneAction(GOAL, "m-active", {}, form({ name: "Read the first twelve", value: "10" }))).resolves.toEqual({});
+    await expect(updateMilestoneAction(GOAL, "m-active", {}, form({ name: "Read the first twelve", value: "10" }))).resolves.toEqual({ saved: true });
 
     await expect(milestone("m-active")).resolves.toMatchObject({ name: "Read the first twelve", value: null });
   });
