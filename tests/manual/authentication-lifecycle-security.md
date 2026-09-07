@@ -155,9 +155,7 @@ password is available; do not record it.
 
 
 Results:
-[Date 29/08/26]: 
-Case 1 -> 
-Case 2 -> 
+[Date 09/09/26] -> Password input does not show up, instead an code is sent to email
 
 
 ### AUTH-M03 — Owner login establishes only a protected session
@@ -194,9 +192,7 @@ device verification.
   `Cache-Control: no-store`.
 
 Results:
-[Date 29/08/26]: 
-Case 1 -> 
-Case 2 -> 
+[Date 09/09/26] -> Expected 
 
 
 ### AUTH-M04 — Authenticated non-owner is denied server-side
@@ -226,6 +222,7 @@ Results:
 [Date 29/08/26]: 
 Case 1 -> User B tries to sign-in by putting a random password, and it says password it incorrect. 
 Case 2 -> User B tries to sign-in by putting User A's password, then a sign in code is sent to User A's email, if User B puts an incorrect code then User B gets invalid code message. However, if the correct code is entered then it also gets an 403 Forbidden anyway. Confirmed that in the database/admin view that User B did not claim, rotate, or create the local Kinesis owner and that Owner A's binding is unchanged.
+[Date 09/09/26] -> Password input does not show up, instead an code is sent to email
 
 ### AUTH-M05 — Missing owner configuration fails closed
 
@@ -250,9 +247,8 @@ have `KINESIS_OWNER_CLERK_USER_ID` removed. Owner A can authenticate with Clerk.
   or losing data.
 
 Results:
-[Date 29/08/26]: 
-Case 1 -> 
-Case 2 -> 
+[Date 09/09/26] -> The login/Sign in does not work at all, and requesting a protected page does not work
+e.g. https://URL/settings , returns to log-in page 
 
 
 ### AUTH-M06 — Logout invalidates access in every tab and browser history
@@ -287,9 +283,7 @@ one containing the synthetic marker. DevTools preserves the network log.
 - Closing/reopening the private window does not restore the logged-out session.
 
 Results:
-[Date 29/08/26]: 
-Case 1 -> 
-Case 2 -> 
+[Date 09/09/26] -> Sign out, just signs out of all tabs, get request does not work, the back button does not take to old page etc. 
 
 
 ### AUTH-M07 — Server-side revocation and expiry reject an open browser

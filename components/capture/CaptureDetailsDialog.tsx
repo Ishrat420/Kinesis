@@ -78,7 +78,7 @@ export function CaptureDetailsDialog({
         */}
         {captureTargetCarries(target, "link") && (
           <div className="text-sm font-semibold">
-            Link to <span className="font-normal text-zinc-400">(optional)</span>
+            Kinesis Link<span className="font-normal text-zinc-400">(optional)</span>
             <div className="mt-2">
               <KinesisLinkList
                 name="linkObjectId"
