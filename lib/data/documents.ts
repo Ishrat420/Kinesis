@@ -165,7 +165,10 @@ export async function updateDocument(id: string, data: DocumentInput) {
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) refuse("A custom field's type cannot be changed once it has been saved.");
     await transaction.documentField.deleteMany({ where: { documentId: id } });
-    await transaction.notification.deleteMany({ where: { documentId: id, userId: user.id } });
+    // Nothing to clear: the document's notifications are derived from it, and
+    // whether they have been read is keyed on the deadline rather than on any
+    // of the fields being written here. Deleting the old rows was what handed
+    // back an already-read reminder every time a document was renamed.
     return transaction.document.update({
       where: { id },
       data: {

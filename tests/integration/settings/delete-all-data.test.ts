@@ -87,11 +87,13 @@ async function seedEverything(userId: string, tag: string) {
     },
   });
 
-  // One notification hanging off a document, one owned only by the user.
-  await prisma.notification.createMany({
+  // One read marker hanging off a document, one owned only by the user -- the
+  // second is what the account-level sweep has to catch, since no record's
+  // cascade will ever reach it.
+  await prisma.notificationRead.createMany({
     data: [
-      { id: `${tag}-notif-doc`, type: "REMINDER_DUE", documentId: `${tag}-doc`, documentName: "Doc", message: "m", actionUrl: "/", userId },
-      { id: `${tag}-notif-bare`, type: "REMINDER_DUE", documentName: "Doc", message: "m", actionUrl: "/", userId },
+      { id: `${tag}-notif-doc`, itemKey: `document:${tag}-doc:EXPIRED:2030-01-01`, documentId: `${tag}-doc`, userId },
+      { id: `${tag}-notif-bare`, itemKey: `document:${tag}-gone:EXPIRED:2030-01-01`, userId },
     ],
   });
 

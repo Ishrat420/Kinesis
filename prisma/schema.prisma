@@ -17,7 +17,7 @@ model User {
   settings            UserSettings?
   financeItems        FinanceItem[]
   documents           Document[]
-  notifications       Notification[]
+  notificationReads   NotificationRead[]
   documentTypes       DocumentType[]
   goals               Goal[]
   people              Person[]
@@ -107,10 +107,12 @@ model Document {
   notesLabel          String               @default("Notes")
   linkLabel           String               @default("Link")
   customFields        DocumentField[]
-  notifications       Notification[]
+  notificationReads   NotificationRead[]
   dismissals          AttentionDismissal[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+
+  @@index([userId, archived])
 }
 
 enum NotificationType {
@@ -119,43 +121,6 @@ enum NotificationType {
   MILESTONE_DUE
   CUSTOM_ITEM_DUE
   TODO_DUE
-}
-
-model Notification {
-  id                 String                     @id
-  type               NotificationType
-  documentId         String?
-  milestoneId        String?
-  relationshipDateId String?
-  customItemId       String?
-  todoId             String?
-  reminderAt         DateTime?
-  timeUntilExpiry    String?
-  expiryDate         DateTime?
-  documentName       String
-  documentType       String?
-  message            String
-  actionUrl          String
-  readAt             DateTime?
-  userId             String
-  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt          DateTime                   @default(now())
-  document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
-  relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
-  customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
-  todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, documentId, type, expiryDate])
-  @@unique([userId, milestoneId, type, expiryDate])
-  @@unique([userId, relationshipDateId, type, expiryDate])
-  @@unique([userId, customItemId, type, expiryDate])
-  @@unique([userId, todoId, type, expiryDate])
-  @@index([userId, createdAt])
-  @@index([milestoneId])
-  @@index([relationshipDateId])
-  @@index([customItemId])
-  @@index([todoId])
 }
 
 model DocumentField {
@@ -203,6 +168,8 @@ model Goal {
   relationshipLinks     RelationshipGoal[]
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
+
+  @@index([userId, status])
 }
 
 enum ObjectRelationshipType {
@@ -346,7 +313,7 @@ model RelationshipImportantDate {
   repeatsYearly  Boolean        @default(false)
   relationship   Relationship?  @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
   selfPerson     Person?        @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
-  notifications  Notification[]
+  notificationReads NotificationRead[]
 
   @@index([relationshipId, date])
   @@index([selfPersonId, date])
@@ -383,7 +350,7 @@ model Milestone {
   autoCompleted Boolean        @default(false)
   position      Int            @default(0)
   goal          Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  notifications Notification[]
+  notificationReads NotificationRead[]
 
   @@index([goalId, position])
 }
@@ -429,7 +396,7 @@ model CustomItem {
   objectId      String               @unique
   object        Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
   fields        CustomItemField[]
-  notifications Notification[]
+  notificationReads NotificationRead[]
   dismissals    AttentionDismissal[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
@@ -494,13 +461,57 @@ model Todo {
   objectId    String     @unique
   object      Object     @relation(fields: [objectId], references: [id], onDelete: Cascade)
 
-  notifications Notification[]
+  notificationReads NotificationRead[]
   dismissals    AttentionDismissal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, status, dueDate])
+}
+
+/**
+ * Which derived notifications the owner has already read.
+ *
+ * Notifications themselves are not stored. They are a pure function of the
+ * records, the day, and the reminder settings -- exactly as Needs Attention
+ * already is -- so materialising them only created a second copy that had to be
+ * kept in step, and a rewrite of every row on every page render to do it. This
+ * holds the one fact that cannot be derived.
+ */
+model NotificationRead {
+  id                 String                     @id
+  // The notification *as it stood when it was read*:
+  // "<kind>:<id>:<type>:<yyyy-mm-dd>". The deadline and the type are both part
+  // of the identity, matching the unique constraints the old table carried: a
+  // reminder and the overdue notice that follows it are different things to
+  // have read, and a moved deadline is a new notification rather than one
+  // already seen. Renaming the record it points at changes nothing, which the
+  // old table got wrong. See lib/notifications/identity.ts.
+  itemKey            String
+  // One of these is set, naming the record the key points at. They exist for
+  // referential integrity alone -- deleting the record takes its read markers
+  // with it, rather than leaving rows nothing can ever match or clean up.
+  documentId         String?
+  milestoneId        String?
+  relationshipDateId String?
+  customItemId       String?
+  todoId             String?
+  userId             String
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
+  customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
+  todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  readAt             DateTime                   @default(now())
+
+  @@unique([userId, itemKey])
+  @@index([documentId])
+  @@index([milestoneId])
+  @@index([relationshipDateId])
+  @@index([customItemId])
+  @@index([todoId])
 }
 
 model AttentionDismissal {

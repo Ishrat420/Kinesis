@@ -83,10 +83,8 @@ export async function deleteAllDataAction(confirmation: string) {
     prisma.object.deleteMany({ where: owned }),
 
     // 2. Owned directly by the account and outside the identity layer, so
-    //    nothing above reaches them. A Notification need not belong to a
-    //    document, milestone, important date, or custom item, so this clears
-    //    the ones that do not.
-    prisma.notification.deleteMany({ where: owned }),
+    //    nothing above reaches them.
+    prisma.notificationRead.deleteMany({ where: owned }),
     prisma.attentionDismissal.deleteMany({ where: owned }),
     prisma.documentType.deleteMany({ where: owned }),
     prisma.goalUnit.deleteMany({ where: owned }),

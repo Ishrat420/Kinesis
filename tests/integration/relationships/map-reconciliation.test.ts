@@ -38,11 +38,12 @@ async function seedMap() {
   await prisma.connectionPractice.create({ data: { id: "practice-1", relationshipId: "relationship-1", title: "Sunday walk", cadence: "Weekly", anchorDate: new Date("2026-01-04T00:00:00.000Z"), position: 0 } });
   await prisma.relationshipImportantDate.create({ data: { id: "date-1", relationshipId: "relationship-1", label: "Birthday", date: new Date("2026-03-09T00:00:00.000Z"), repeatsYearly: true } });
   await prisma.relationshipReflection.create({ data: { id: "reflection-1", relationshipId: "relationship-1", text: "Good year.", reflectedAt: new Date("2026-02-01T00:00:00.000Z") } });
-  // A read reminder, hanging off the important date by foreign key.
-  await prisma.notification.create({ data: {
-    id: "notification-1", userId: owner, relationshipDateId: "date-1", type: "REMINDER_DUE",
-    documentName: "Sam's Birthday", message: "Sam's Birthday is in 30 days", actionUrl: "/relationships",
-    expiryDate: new Date("2026-03-09T00:00:00.000Z"), readAt: new Date("2026-02-07T00:00:00.000Z"),
+  // The reminder for that date, already read. The notification itself is
+  // derived; this is the one part of it that is stored.
+  await prisma.notificationRead.create({ data: {
+    id: "read-1", userId: owner, relationshipDateId: "date-1",
+    itemKey: "relationship:date-1:REMINDER_DUE:2026-03-09",
+    readAt: new Date("2026-02-07T00:00:00.000Z"),
   } });
 }
 
@@ -84,11 +85,16 @@ describe.sequential("relationship map reconciliation", () => {
     expect(after.createdAt).toEqual(before.createdAt);
   });
 
-  /** The bug that handed back a bell full of reminders already dismissed. */
-  it("leaves an important date's notification, and its read state, intact", async () => {
+  /**
+   * The bug that handed back a bell full of reminders already dismissed. The
+   * marker is keyed on the date's identity and deadline, so it only survives
+   * the save because the row itself did -- which is what this is really about.
+   */
+  it("leaves an important date's read reminder intact", async () => {
     await saveRelationshipMap(rename(await getRelationshipMap(), "Samantha"));
-    await expect(prisma.notification.findUniqueOrThrow({ where: { id: "notification-1" } })).resolves.toMatchObject({
+    await expect(prisma.notificationRead.findUniqueOrThrow({ where: { id: "read-1" } })).resolves.toMatchObject({
       relationshipDateId: "date-1",
+      itemKey: "relationship:date-1:REMINDER_DUE:2026-03-09",
       readAt: new Date("2026-02-07T00:00:00.000Z"),
     });
   });
@@ -122,7 +128,8 @@ describe.sequential("relationship map reconciliation", () => {
     // working as intended -- the point is that it only happens when the owner
     // actually removed the date.
     await expect(prisma.relationshipImportantDate.count()).resolves.toBe(0);
-    await expect(prisma.notification.count()).resolves.toBe(0);
+    // The marker goes with the date it was about, by cascade.
+    await expect(prisma.notificationRead.count()).resolves.toBe(0);
   });
 
   it("removes a person through their identity, taking their connections with them", async () => {
@@ -146,6 +153,7 @@ describe.sequential("relationship map reconciliation", () => {
     await expect(prisma.person.findUniqueOrThrow({ where: { id: "person-friend" } })).resolves.toMatchObject({ positionX: 640, positionY: 480, bubbleSize: 96 });
     await expect(prisma.connectionPractice.count()).resolves.toBe(1);
     await expect(prisma.relationshipImportantDate.count()).resolves.toBe(1);
+    await expect(prisma.notificationRead.count()).resolves.toBe(1);
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 

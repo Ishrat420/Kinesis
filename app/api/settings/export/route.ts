@@ -11,7 +11,7 @@ export async function GET() {
     prisma.userSettings.findMany({ where: { userId } }),
     prisma.object.findMany({ where: { userId } }),
     prisma.objectRelationship.findMany({ where: { userId } }),
-    prisma.document.findMany({ where: { userId }, include: { customFields: true, notifications: true } }),
+    prisma.document.findMany({ where: { userId }, include: { customFields: true } }),
     prisma.documentType.findMany({ where: { userId } }),
     prisma.goal.findMany({ where: { userId }, include: { milestones: true, metricHistory: true } }),
     prisma.goalUnit.findMany({ where: { userId } }),

@@ -1,10 +1,11 @@
 import type { CustomItem, Document, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
-import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
+import { addUtcDays, differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
-import { activeGoalWhere, lapsedGoalWhere } from "@/lib/goals/active";
+import { activeGoalWhere } from "@/lib/goals/active";
+import { notificationKey, type NotificationSource } from "./identity";
 import { archiveLapsedGoals } from "@/lib/data/goal-status";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
@@ -182,219 +183,138 @@ export function getTodoNotificationCandidate(
   };
 }
 
-async function reconcileDocument(document: Document, userId: string, today: Date, remindersEnabled: boolean, locale: string) {
-  const candidate = getDocumentNotificationCandidate(document, today, remindersEnabled, locale);
-  const stale = await prisma.notification.deleteMany({
-    where: candidate
-      ? { userId, documentId: document.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { userId, documentId: document.id },
-  });
-  if (!candidate) return { created: 0, removed: stale.count };
+/** A notification as the bell needs it: the candidate, plus who it is about and whether it has been read. */
+export type DerivedNotification = NotificationCandidate & {
+  /** Stable across renders, and the value the mark-read actions take. */
+  key: string;
+  source: NotificationSource;
+  sourceId: string;
+  readAt: Date | null;
+  /** Set for a custom item, so it wears its own module's icon and colour. */
+  moduleIcon: string | null;
+  moduleColor: string | null;
+};
 
-  const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), userId, documentId: document.id, ...candidate }],
-    skipDuplicates: true,
-  });
-  if (!inserted.count) {
-    await prisma.notification.updateMany({
-      where: { userId, documentId: document.id, type: candidate.type, expiryDate: candidate.expiryDate },
-      data: candidate,
-    });
-  }
-  return { created: inserted.count, removed: stale.count };
-}
+/**
+ * Ordered by the deadline they are about, soonest first.
+ *
+ * Overdue and expired things sort to the top on their own, because their dates
+ * are already behind us. The key breaks ties so the list cannot reorder itself
+ * between two renders of the same data -- nothing here reads the clock.
+ */
+const byUrgency = (first: DerivedNotification, second: DerivedNotification) =>
+  first.expiryDate.getTime() - second.expiryDate.getTime() || first.key.localeCompare(second.key);
 
-async function reconcileMilestone(
-  milestone: Pick<Milestone, "id" | "name" | "dueDate"> & { goal: { id: string; name: string } },
-  userId: string,
-  today: Date,
-  remindersEnabled: boolean,
-  leadDays: number,
-) {
-  const candidate = remindersEnabled ? getMilestoneNotificationCandidate(milestone, today, leadDays) : null;
-  const stale = await prisma.notification.deleteMany({
-    where: candidate
-      ? { userId, milestoneId: milestone.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { userId, milestoneId: milestone.id },
-  });
-  if (!candidate) return { created: 0, removed: stale.count };
-
-  const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), userId, milestoneId: milestone.id, ...candidate }],
-    skipDuplicates: true,
-  });
-  if (!inserted.count) {
-    await prisma.notification.updateMany({
-      where: { userId, milestoneId: milestone.id, type: candidate.type, expiryDate: candidate.expiryDate },
-      data: candidate,
-    });
-  }
-  return { created: inserted.count, removed: stale.count };
-}
-
-async function reconcileRelationshipDate(
-  importantDate: Pick<RelationshipImportantDate, "id" | "label" | "date" | "repeatsYearly"> & { personName: string },
-  userId: string,
-  today: Date,
-  remindersEnabled: boolean,
-  leadDays: number,
-) {
-  const candidate = remindersEnabled ? getRelationshipDateNotificationCandidate(importantDate, today, leadDays) : null;
-  const stale = await prisma.notification.deleteMany({
-    where: candidate
-      ? { userId, relationshipDateId: importantDate.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { userId, relationshipDateId: importantDate.id },
-  });
-  if (!candidate) return { created: 0, removed: stale.count };
-
-  const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), userId, relationshipDateId: importantDate.id, ...candidate }],
-    skipDuplicates: true,
-  });
-  if (!inserted.count) {
-    await prisma.notification.updateMany({
-      where: { userId, relationshipDateId: importantDate.id, type: candidate.type, expiryDate: candidate.expiryDate },
-      data: candidate,
-    });
-  }
-  return { created: inserted.count, removed: stale.count };
-}
-
-async function reconcileCustomItem(
-  item: Pick<CustomItem, "id" | "name" | "dueDate" | "moduleId">,
-  userId: string,
-  today: Date,
-  remindersEnabled: boolean,
-  leadDays: number,
-  locale: string,
-) {
-  const candidate = remindersEnabled ? getCustomItemNotificationCandidate(item, today, leadDays, locale) : null;
-  const stale = await prisma.notification.deleteMany({
-    where: candidate
-      ? { userId, customItemId: item.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { userId, customItemId: item.id },
-  });
-  if (!candidate) return { created: 0, removed: stale.count };
-
-  const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), userId, customItemId: item.id, ...candidate }],
-    skipDuplicates: true,
-  });
-  if (!inserted.count) {
-    await prisma.notification.updateMany({
-      where: { userId, customItemId: item.id, type: candidate.type, expiryDate: candidate.expiryDate },
-      data: candidate,
-    });
-  }
-  return { created: inserted.count, removed: stale.count };
-}
-
-async function reconcileTodo(
-  todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
-  userId: string,
-  today: Date,
-) {
-  const candidate = getTodoNotificationCandidate(todo, today);
-  const stale = await prisma.notification.deleteMany({
-    where: candidate
-      ? { userId, todoId: todo.id, NOT: { type: candidate.type, expiryDate: candidate.expiryDate } }
-      : { userId, todoId: todo.id },
-  });
-  if (!candidate) return { created: 0, removed: stale.count };
-
-  const inserted = await prisma.notification.createMany({
-    data: [{ id: crypto.randomUUID(), userId, todoId: todo.id, ...candidate }],
-    skipDuplicates: true,
-  });
-  if (!inserted.count) {
-    await prisma.notification.updateMany({
-      where: { userId, todoId: todo.id, type: candidate.type, expiryDate: candidate.expiryDate },
-      data: candidate,
-    });
-  }
-  return { created: inserted.count, removed: stale.count };
-}
-
-/** Reconciles every supported source so normal page loads and the cron are equally reliable. */
-export async function runNotificationEngine(userId: string, now = new Date()): Promise<{ evaluated: number; created: number; removed: number }> {
-  // The cron evaluates every user in one process, so the locale is read per
-  // user here rather than from a request-scoped context.
+/**
+ * Every notification the owner should currently see, computed rather than stored.
+ *
+ * This used to be a reconcile pass that deleted and re-inserted rows for every
+ * record on every page render. Nothing is written here at all: the candidates
+ * are a pure function of the records, the day and the settings, and the only
+ * thing read from the database that is not derivable is which of them have
+ * already been read.
+ *
+ * The queries are narrowed to records that could actually produce a candidate.
+ * That is only possible because nothing needs cleaning up any more -- the old
+ * pass had to load every To-Do, dated or not, purely so it could reconcile away
+ * a row for one whose date had been cleared.
+ */
+export async function collectNotifications(userId: string, now = new Date()): Promise<DerivedNotification[]> {
   const settings = await prisma.userSettings.findUnique({ where: { userId } });
   const remindersEnabled = settings?.remindersEnabled ?? true;
   const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const customItemLeadDays = getReminderLeadDays(settings, "customItem");
   const { locale, timeZone } = resolveFormatPreferences(settings);
-  // The one conversion in the whole pass: which day it is where the owner is.
-  // The cron evaluates every user in one process at some arbitrary UTC hour, so
-  // reading this per user is the only way each of them gets their own day --
-  // and it is why a reminder no longer waits until mid-morning to speak.
   const today = startOfDayIn(timeZone, now);
 
-  // In-app notifications is a switch on one surface -- the bell, which is the
-  // only reader of these rows -- so it is applied where the bell reads them
-  // rather than here. Reconciling regardless keeps the table correct while the
-  // bell is off, instead of freezing it: this pass used to return early, which
-  // stopped the cleanup as well as the writing, and the stale rows it left
-  // behind reappeared the moment the switch went back on.
-
-  // The readers below already treat a goal past its target date as archived,
-  // but the column they no longer wait on is what the goal's own status chip
-  // shows -- so the daily pass writes it, and it converges without anyone
-  // having to open the goals page.
-  await archiveLapsedGoals(userId, today);
-
-  const [documents, milestones, relationshipDates, customItems, todos, orphanCleanup] = await Promise.all([
-    prisma.document.findMany({ where: { userId, archived: false } }),
+  const [documents, milestones, relationshipDates, customItems, todos, reads] = await Promise.all([
+    // A document's reminder opens up to a calendar year before it expires, so
+    // that is the bound. The exact prompt is per-record and calendar-based, so
+    // the last word stays with the candidate itself.
+    prisma.document.findMany({
+      where: { userId, archived: false, expiryDate: { not: null, lte: addUtcDays(today, 366) } },
+    }),
     prisma.milestone.findMany({
-      where: { completed: false, goal: { userId, ...activeGoalWhere(today) } },
+      where: {
+        completed: false,
+        dueDate: { not: null, lte: addUtcDays(today, milestoneLeadDays) },
+        goal: { userId, ...activeGoalWhere(today) },
+      },
       include: { goal: { select: { id: true, name: true } } },
     }),
+    // Not narrowed: a yearly date rolls forward to its next occurrence, so the
+    // stored date says little about when it next speaks. The set is one row per
+    // birthday or anniversary, which is small by nature.
     prisma.relationshipImportantDate.findMany({
       where: { OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
-    prisma.customItem.findMany({ where: { archived: false, module: { userId } } }),
-    // Every To-Do, dated or not: one that has just had its due date cleared, or
-    // been marked done, still needs its old notification reconciled away.
-    prisma.todo.findMany({ where: { userId }, select: { id: true, name: true, dueDate: true, status: true } }),
-    prisma.notification.deleteMany({
-      where: {
-        userId,
-        OR: [
-          { documentId: null, milestoneId: null, relationshipDateId: null, customItemId: null, todoId: null },
-          { milestoneId: { not: null }, milestone: { is: { OR: [{ completed: true }, { goal: { is: lapsedGoalWhere(today) } }] } } },
-          { customItemId: { not: null }, customItem: { is: { archived: true } } },
-          { documentId: { not: null }, document: { is: { archived: true } } },
-        ],
-      },
+    prisma.customItem.findMany({
+      where: { archived: false, dueDate: { not: null, lte: addUtcDays(today, customItemLeadDays) }, module: { userId } },
+      include: { module: { select: { icon: true, color: true } } },
     }),
+    // A To-Do has no advance stage at all, so it can only speak from its due
+    // date onwards -- and only while it is still open.
+    prisma.todo.findMany({
+      where: { userId, dueDate: { not: null, lte: today } },
+      select: { id: true, name: true, dueDate: true, status: true },
+    }),
+    prisma.notificationRead.findMany({ where: { userId }, select: { itemKey: true, readAt: true } }),
   ]);
 
-  // A person is never soft-deleted, so unlike a milestone's completed/archived
-  // goal there is no "still exists but should no longer remind" state to filter
-  // here: the FK cascade above already removes a Notification the moment its
-  // RelationshipImportantDate (or the relationship/person behind it) is gone.
-  const relationshipDateInputs = relationshipDates.map((importantDate) => ({
-    id: importantDate.id,
-    label: importantDate.label,
-    date: importantDate.date,
-    repeatsYearly: importantDate.repeatsYearly,
-    personName: importantDate.relationship
-      ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson.name : importantDate.relationship.firstPerson.name)
-      : importantDate.selfPerson!.name,
-  }));
-
-  const results = await Promise.all([
-    ...documents.map((document) => reconcileDocument(document, userId, today, remindersEnabled, locale)),
-    ...milestones.map((milestone) => reconcileMilestone(milestone, userId, today, remindersEnabled, milestoneLeadDays)),
-    ...relationshipDateInputs.map((importantDate) => reconcileRelationshipDate(importantDate, userId, today, remindersEnabled, relationshipLeadDays)),
-    ...customItems.map((item) => reconcileCustomItem(item, userId, today, remindersEnabled, customItemLeadDays, locale)),
-    ...todos.map((todo) => reconcileTodo(todo, userId, today)),
-  ]);
-  return {
-    evaluated: documents.length + milestones.length + relationshipDateInputs.length + customItems.length + todos.length,
-    created: results.reduce((total, result) => total + result.created, 0),
-    removed: orphanCleanup.count + results.reduce((total, result) => total + result.removed, 0),
+  const readAtByKey = new Map(reads.map((read) => [read.itemKey, read.readAt]));
+  const derived: DerivedNotification[] = [];
+  const add = (
+    source: NotificationSource,
+    sourceId: string,
+    candidate: NotificationCandidate | null,
+    module?: { icon: string; color: string },
+  ) => {
+    if (!candidate) return;
+    const key = notificationKey(source, sourceId, candidate.type, candidate.expiryDate);
+    derived.push({
+      ...candidate, key, source, sourceId,
+      readAt: readAtByKey.get(key) ?? null,
+      moduleIcon: module?.icon ?? null,
+      moduleColor: module?.color ?? null,
+    });
   };
+
+  for (const document of documents) {
+    add("document", document.id, getDocumentNotificationCandidate(document, today, remindersEnabled, locale));
+  }
+  for (const milestone of milestones) {
+    add("milestone", milestone.id, remindersEnabled ? getMilestoneNotificationCandidate(milestone, today, milestoneLeadDays) : null);
+  }
+  for (const importantDate of relationshipDates) {
+    const personName = importantDate.relationship
+      ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson.name : importantDate.relationship.firstPerson.name)
+      : importantDate.selfPerson!.name;
+    add("relationship", importantDate.id, remindersEnabled
+      ? getRelationshipDateNotificationCandidate({ ...importantDate, personName }, today, relationshipLeadDays)
+      : null);
+  }
+  for (const item of customItems) {
+    add("custom", item.id, remindersEnabled ? getCustomItemNotificationCandidate(item, today, customItemLeadDays, locale) : null, item.module);
+  }
+  for (const todo of todos) {
+    add("todo", todo.id, getTodoNotificationCandidate(todo, today));
+  }
+
+  return derived.sort(byUrgency);
+}
+
+/**
+ * The daily pass, which no longer has notifications to write.
+ *
+ * What is left is the one genuine write: a goal past its target date is
+ * archived, so its own status chip converges without anyone having to open the
+ * goals page. Everything else the cron used to do is now answered on read.
+ */
+export async function runDailyMaintenance(userId: string, now = new Date()) {
+  const settings = await prisma.userSettings.findUnique({ where: { userId }, select: { timeZone: true } });
+  const { timeZone } = resolveFormatPreferences(settings);
+  const { count } = await archiveLapsedGoals(userId, startOfDayIn(timeZone, now));
+  return { goalsArchived: count };
 }

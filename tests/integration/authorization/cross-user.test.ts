@@ -125,13 +125,21 @@ describe.sequential("cross-user authorization contract", () => {
     }
   });
 
-  it("treats foreign and unknown notification IDs alike", async () => {
-    await markNotificationRead(ids.notificationA);
-    await expect(prisma.notification.findUniqueOrThrow({ where: { id: ids.notificationA } })).resolves.toMatchObject({ readAt: expect.any(Date) });
+  /**
+   * A notification is derived, so marking one read names the record it is about
+   * -- and that name arrives from the browser. A foreign or unknown record must
+   * write nothing rather than leave a marker pointing across accounts.
+   */
+  it("treats foreign and unknown notification records alike", async () => {
+    const ownKey = `document:${ids.documentA}:EXPIRED:2030-06-01`;
+    await markNotificationRead(ownKey, "document", ids.documentA);
+    await expect(prisma.notificationRead.findFirst({ where: { itemKey: ownKey } })).resolves.toMatchObject({ userId: ids.ownerA });
+
     const before = await ownerState("ownerB");
-    await markNotificationRead(ids.notificationB);
-    await markNotificationRead("missing-notification");
+    await markNotificationRead(`document:${ids.documentB}:EXPIRED:2030-06-01`, "document", ids.documentB);
+    await markNotificationRead("document:missing:EXPIRED:2030-06-01", "document", "missing-document");
     expect(await ownerState("ownerB")).toEqual(before);
+    await expect(prisma.notificationRead.count({ where: { userId: ids.ownerA, documentId: ids.documentB } })).resolves.toBe(0);
   });
 
   it("rejects a mixed owned, foreign, and missing relationship-goal payload atomically", async () => {

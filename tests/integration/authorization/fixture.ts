@@ -90,9 +90,11 @@ export async function resetAuthorizationDatabase() {
       customModules: { create: { id: ids.moduleB, name: "Owner B Module", normalizedName: "owner b module", icon: "star", color: "#222222", items: { create: { id: ids.itemB, objectId: "object-item-b", name: "owner-b-private-item", notes: "owner-b-item-notes", fields: { create: { id: ids.itemFieldB, label: "B field", value: "owner-b-item-field" } } } } } },
     },
   });
-  await prisma.notification.createMany({ data: [
-    { id: ids.notificationA, userId: ids.ownerA, type: "REMINDER_DUE", documentId: ids.documentA, documentName: ids.documentA, message: "owner-a-notification", actionUrl: "/documents/a" },
-    { id: ids.notificationB, userId: ids.ownerB, type: "REMINDER_DUE", documentId: ids.documentB, documentName: ids.documentB, message: "owner-b-notification", actionUrl: "/documents/b" },
+  // Notifications are derived, so what an account owns is the record of having
+  // read one. The key is the notification's own identity.
+  await prisma.notificationRead.createMany({ data: [
+    { id: ids.notificationA, userId: ids.ownerA, documentId: ids.documentA, itemKey: `document:${ids.documentA}:EXPIRED:2030-01-01` },
+    { id: ids.notificationB, userId: ids.ownerB, documentId: ids.documentB, itemKey: `document:${ids.documentB}:EXPIRED:2030-01-01` },
   ] });
   await prisma.object.createMany({ data: [
     { id: "object-person-a1", type: "PERSON", name: "Owner A self", userId: ids.ownerA },
@@ -116,11 +118,11 @@ export async function resetAuthorizationDatabase() {
 export async function ownerState(owner: FixtureOwner) {
   const userId = ids[owner];
   return prisma.user.findUniqueOrThrow({ where: { id: userId }, include: {
-    documents: { include: { customFields: true, notifications: true } }, documentTypes: true,
-    goals: { include: { milestones: { include: { notifications: true } }, metricHistory: true } },
+    documents: { include: { customFields: true, notificationReads: true } }, documentTypes: true,
+    goals: { include: { milestones: { include: { notificationReads: true } }, metricHistory: true } },
     financeItems: true, customModules: { include: { items: { include: { fields: true } } } },
     people: { include: { selfPractices: true, selfReflections: true, selfImportantDates: true } },
     relationships: { include: { practices: true, reflections: true, importantDates: true, linkedGoals: true } },
-    goalUnits: true, notifications: true, activityEvents: true,
+    goalUnits: true, notificationReads: true, activityEvents: true,
   } });
 }
