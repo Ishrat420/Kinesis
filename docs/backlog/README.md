@@ -139,7 +139,6 @@ Done
 
 ## 💡 Idea
 
-KD-004-templates-object-types
 KD-005-customisable-module-widgets
 KD-006-recurring-reminder-field
 KD-008-adding-quick-capture
@@ -161,6 +160,7 @@ KD-032-relationships-bypass-the-object-layer
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
+KD-034-multi-value-kinesis-link-fields
 
 
 ## 🚧 In Progress
@@ -173,6 +173,8 @@ KD-023-universal-object-connection
 KD-011-unified-todo-view
 KD-017-turn-dashboard-into-decision-surface
 KD-020-mobile-navigation-and-responsive-app
+KD-033-options-for-more-goal-details
+KD-035-module-templates
 
 ## ⛔ Blocked
 
@@ -190,6 +192,8 @@ KD-002-kinesis-internal-link-field
 KD-003-custom-object-fields
 
 ## 🗑 Dropped
+KD-004-templates-object-types
+KD-036-object-types-navigation-superseded
 
 
 ---
