@@ -16,7 +16,7 @@ import { parseDateOnly } from "@/lib/dates";
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/custom-modules/${moduleId}`); };
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
-export type CustomItemState = { error?: string };
+export type CustomItemState = { error?: string; saved?: boolean };
 
 /**
  * A due date is a day, not a moment, so it is stored at UTC midnight -- the
@@ -150,7 +150,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   if (customModule) await addActivity({ action: "Updated", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
   revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
-  return {};
+  return { saved: true };
 }
 
 export async function toggleCustomItemArchivedAction(moduleId: string, itemId: string, archived: boolean) {
