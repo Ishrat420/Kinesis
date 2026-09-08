@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Plus, X } from "lucide-react";
 import { createCustomModuleAction, type CreateModuleState } from "@/app/(app)/custom-modules/actions";
 import { CUSTOM_MODULE_ICONS, CustomModuleIcon, type CustomModuleIconName } from "@/lib/custom-modules/icons";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 const colors = ["#7c3aed", "#2563eb", "#0891b2", "#059669", "#65a30d", "#d97706", "#e11d48", "#db2777", "#52525b"];
 const initialState: CreateModuleState = {};
@@ -24,7 +25,7 @@ export function AddModuleButton() {
     <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
       <Plus className="h-[18px] w-[18px]" /><span className="font-medium">Add Module</span>
     </button>
-    {open && <div role="dialog" aria-modal="true" aria-labelledby="create-module-title" className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm" onMouseDown={() => setOpen(false)}>
+    {open && <div role="dialog" aria-modal="true" aria-labelledby="create-module-title" className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm`} onMouseDown={() => setOpen(false)}>
       <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-white p-7 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4"><div><h2 id="create-module-title" className="text-2xl font-semibold tracking-tight">Create a custom module</h2><p className="mt-1 text-sm text-zinc-500">Make a new area for anything you want to keep track of.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100"><X className="h-5 w-5" /></button></div>
         <form action={formAction} className="mt-7 space-y-5">

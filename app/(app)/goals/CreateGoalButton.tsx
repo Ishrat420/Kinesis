@@ -6,6 +6,7 @@ import { createGoalAction, type GoalActionState } from "./actions";
 import { CreateGoalSubmit } from "./CreateGoalSubmit";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
 import type { CaptureParams } from "@/lib/capture/params";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 const initialState: GoalActionState = {};
 
@@ -19,7 +20,7 @@ export function CreateGoalButton({ capture }: { capture?: CaptureParams }) {
   const [state, formAction] = useActionState(createGoalAction, initialState);
   return <>
     <button onClick={() => setOpen(true)} className="flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5"><Plus className="h-4 w-4" /> Create goal</button>
-    {open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 p-5 backdrop-blur-sm" onMouseDown={() => setOpen(false)}>
+    {open && <div className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/35 p-5 backdrop-blur-sm`} onMouseDown={() => setOpen(false)}>
       <div className="w-full max-w-lg rounded-3xl bg-white p-7 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between"><div><h2 className="text-2xl font-semibold">Create a goal</h2><p className="mt-1 text-sm text-zinc-500">Start simple. You can add the path forward next.</p></div><button onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100"><X className="h-5 w-5" /></button></div>
         <form action={formAction} className="mt-7 space-y-5">

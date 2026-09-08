@@ -3,6 +3,7 @@
 import { useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 /**
  * The application's dialog shell.
@@ -54,7 +55,7 @@ export function Modal({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/35 backdrop-blur-sm">
+    <div className={`fixed inset-0 ${Z_INDEX.overlay} overflow-y-auto bg-zinc-950/35 backdrop-blur-sm`}>
       {/* The wrapper fills the scrollable area, so a click anywhere off the
           panel closes -- and mousedown rather than click, so a text selection
           that ends outside the panel does not dismiss it. */}

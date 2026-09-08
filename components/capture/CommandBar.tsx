@@ -11,6 +11,7 @@ import { captureCreateHref, captureTargets, DEFAULT_CAPTURE_TARGET, type Capture
 import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { CaptureDetailsDialog } from "./CaptureDetailsDialog";
 import { CaptureConfirmation } from "./CaptureConfirmation";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 const kindIcons = { Document: FileText, Goal: Target, Finance: Landmark, Relationship: UsersRound, Custom: Boxes, Todo: ListTodo };
 const kindTones = { Document: "bg-blue-50", Goal: "bg-violet-50", Finance: "bg-emerald-50", Relationship: "bg-rose-50", Custom: "bg-zinc-100", Todo: "bg-teal-50" };
@@ -121,7 +122,7 @@ export function CommandBar({ entries }: { entries: SearchEntry[] }) {
           : <div className="hidden items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-500 sm:flex"><Command className="h-3 w-3" aria-hidden="true" />K</div>}
       </div>
 
-      {isOpen && <div id="command-bar-options" className="absolute inset-x-0 top-[60px] z-40 overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]">
+      {isOpen && <div id="command-bar-options" className={`absolute inset-x-0 top-[60px] ${Z_INDEX.banner} overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
         {results.length ? <>
           <SectionLabel>Search results</SectionLabel>
           <ul aria-label="Search results" role="listbox">{results.map((result, index) => {
@@ -154,7 +155,7 @@ export function CommandBar({ entries }: { entries: SearchEntry[] }) {
         })}</ul>
       </div>}
 
-      {error && <p role="alert" className="absolute inset-x-0 top-[60px] z-40 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 shadow-lg">{error}</p>}
+      {error && <p role="alert" className={`absolute inset-x-0 top-[60px] ${Z_INDEX.banner} rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 shadow-lg`}>{error}</p>}
 
       {/* Keyed on the capture, so a second one replaces the first outright
           rather than reusing the previous confirmation's dismissal timer. */}

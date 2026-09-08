@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
 import { undoCaptureAction } from "@/app/(app)/todos/actions";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 const VISIBLE_MS = 12_000;
 
@@ -28,7 +29,7 @@ export function CaptureConfirmation({ todo, onAddDetails, onUndone }: { todo: { 
   if (dismissed) return null;
 
   return (
-    <div role="status" aria-live="polite" className="absolute inset-x-0 top-[60px] z-40 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-[0_20px_50px_rgb(0,0,0,0.14)]">
+    <div role="status" aria-live="polite" className={`absolute inset-x-0 top-[60px] ${Z_INDEX.banner} flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Check className="h-4 w-4" aria-hidden="true" /></span>
       <p className="min-w-0 flex-1 truncate text-sm text-zinc-700">To-Do created: <span className="font-semibold text-zinc-900">{todo.name}</span></p>
       <button type="button" onClick={onAddDetails} className="shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100">Add details</button>

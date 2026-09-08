@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 /**
  * Navigation for narrow screens, where the sidebar is hidden.
@@ -53,7 +54,7 @@ export function MobileNavDrawer({ children }: { children: React.ReactNode }) {
       </button>
 
       {open && typeof document !== "undefined" && createPortal(
-        <div role="dialog" aria-modal="true" aria-label="Navigation" className="fixed inset-0 z-50 md:hidden">
+        <div role="dialog" aria-modal="true" aria-label="Navigation" className={`fixed inset-0 ${Z_INDEX.overlay} md:hidden`}>
           <div className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm" onClick={close} />
 
           <div className="absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto bg-white px-5 py-5 shadow-2xl">

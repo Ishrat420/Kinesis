@@ -1,5 +1,6 @@
 import { FileText, UploadCloud, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 type UploadDocumentModalProps = {
   open: boolean;
@@ -16,7 +17,7 @@ export function UploadDocumentModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+    <div className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-black/30 backdrop-blur-sm`}>
       <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
         {/* Header */}
 

@@ -2,12 +2,14 @@
 
 import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, ListTodo, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "./notification-actions";
 import { CustomModuleBadge } from "@/lib/custom-modules/icons";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import type { NotificationSource } from "@/lib/notifications/identity";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 /**
  * Notifications are derived rather than stored, so a row has no database id to
@@ -31,20 +33,51 @@ type NotificationItem = {
   moduleColor: string | null;
 };
 
+/** Where the panel sits, in viewport pixels -- computed from the trigger button once it is portaled out of it. Unset on narrow screens, where the panel is a fixed bottom sheet instead. */
+type Anchor = { top: number; right: number };
+
+const DESKTOP_QUERY = "(min-width: 640px)";
+
 export function NotificationBell({ notifications, initialUnreadCount }: { notifications: NotificationItem[]; initialUnreadCount: number }) {
   const { locale } = useFormatPreferences();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [readKeys, setReadKeys] = useState(() => new Set(notifications.filter((item) => item.readAt).map((item) => item.key)));
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
   const container = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function close(event: MouseEvent) {
-      if (!container.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (container.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  /**
+   * The panel is portaled to `document.body` (see below) so the top bar's
+   * `backdrop-blur` -- which makes it the containing block, and a stacking
+   * context, for anything `fixed` inside it -- cannot trap it the way it once
+   * trapped Modal and MobileNavDrawer. Escaping to `document.body` means the
+   * panel can no longer be positioned relative to the trigger via CSS, so its
+   * position is measured here instead, and only on desktop -- the mobile
+   * layout is a viewport-anchored bottom sheet regardless of where the button
+   * sits.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (!window.matchMedia(DESKTOP_QUERY).matches) { setAnchor(null); return; }
+      const rect = container.current?.getBoundingClientRect();
+      if (rect) setAnchor({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [open]);
 
   function read(notification: NotificationItem) {
     if (!readKeys.has(notification.key)) {
@@ -68,17 +101,21 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
       </button>
 
       {/*
-        The scrim is sized rather than inset because the top bar's backdrop-filter
-        makes it the containing block for anything fixed inside it: `inset-0` gave
-        this the 72px header to cover, not the page behind the panel. The panel
-        itself has to stay here -- the outside-click handler above closes on
-        anything outside `container`, so portalling it away would close it on its
-        own clicks -- and the bar is pinned to the top of the viewport, so an
-        explicit viewport height lands where `inset-0` was meant to.
+        The scrim is sized rather than inset because before this portaled, the
+        top bar's backdrop-filter made it the containing block for anything
+        fixed inside it: `inset-0` gave this the 72px header to cover, not the
+        page behind the panel. Portaling to `document.body` removes that trap,
+        but the bar is still pinned to the top of the viewport, so the same
+        explicit viewport height keeps covering exactly the page below it.
       */}
-      {open && <button type="button" aria-label="Close notifications" className="fixed inset-x-0 top-0 z-40 h-[100dvh] bg-zinc-950/10 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none" onClick={() => setOpen(false)} />}
-      {open && (
-        <section aria-label="Notifications" className="fixed inset-x-3 top-20 z-50 max-h-[calc(100dvh-6rem)] overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgb(0,0,0,0.2)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-14 sm:w-[420px]">
+      {open && typeof document !== "undefined" && createPortal(
+        <div ref={panelRef}>
+          <button type="button" aria-label="Close notifications" className={`fixed inset-x-0 top-0 ${Z_INDEX.banner} h-[100dvh] bg-zinc-950/10 backdrop-blur-[1px] sm:bg-transparent sm:backdrop-blur-none`} onClick={() => setOpen(false)} />
+          <section
+            aria-label="Notifications"
+            style={anchor ? { top: anchor.top, right: anchor.right } : undefined}
+            className={`fixed inset-x-3 top-20 ${Z_INDEX.overlay} max-h-[calc(100dvh-6rem)] overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgb(0,0,0,0.2)] sm:inset-x-auto sm:w-[420px]`}
+          >
           <div className="flex items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4">
             <div><h2 className="font-semibold text-zinc-950">Notifications</h2><p className="mt-0.5 text-xs text-zinc-500">{unreadCount ? `${unreadCount} need your attention` : "You're all caught up"}</p></div>
             <div className="flex items-center gap-1">
@@ -110,7 +147,9 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
               );
             })}
           </div>
-        </section>
+          </section>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
+import { Z_INDEX } from "@/lib/layout/z-index";
 
 const initialState: CreateDocumentState = {};
 
@@ -49,7 +50,7 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm"
+          className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm`}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setOpen(false);
           }}
