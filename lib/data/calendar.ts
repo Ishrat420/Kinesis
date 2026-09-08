@@ -39,10 +39,10 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   const [settings, goals, documents, importantDates, practices, customItems, todos] = await Promise.all([
     prisma.userSettings.findUnique({ where: { userId: user.id } }),
     prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true } }),
-    prisma.document.findMany({ where: { userId: user.id, archived: false }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, customFields: dateFields } }),
+    prisma.document.findMany({ where: { userId: user.id, archived: false }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, object: { select: { fields: dateFields } } } }),
     prisma.relationshipImportantDate.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] } }),
     prisma.connectionPractice.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true } }),
-    prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, fields: dateFields } }),
+    prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, object: { select: { fields: dateFields } } } }),
     prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, dueDate: true, status: true } }),
   ]);
 
@@ -104,7 +104,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
       add({ id: `document-${document.id}`, title: `${document.name} expires`, kind: "DATED", date: document.expiryDate, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, priority: "HIGH", href: `/documents/${document.id}`, detail: "Document expiry date" });
       addReminder({ id: `document-reminder-${document.id}`, name: document.name, deadline: document.expiryDate, deadlineLabel: "expires", lead: { kind: "documentPrompt", prompt: document.prompt }, sourceObjectId: document.id, sourceModule: "Documents", href: `/documents/${document.id}` });
     }
-    for (const field of resolveDatedFields(document.customFields)) add({ id: `document-field-${field.id}`, title: `${document.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, href: `/documents/${document.id}`, detail: `${field.label} from ${document.name}` });
+    for (const field of resolveDatedFields(document.object.fields)) add({ id: `document-field-${field.id}`, title: `${document.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, href: `/documents/${document.id}`, detail: `${field.label} from ${document.name}` });
   }
   for (const important of importantDates) {
     const sourceObjectId = important.relationshipId || important.selfPersonId || important.id;
@@ -127,7 +127,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
       add({ id: `custom-due-${custom.id}`, title: `${custom.name} due`, kind: hasTime(custom.dueDate) ? "SCHEDULED" : "DATED", date: custom.dueDate, startTime: hasTime(custom.dueDate) ? timeValue(custom.dueDate) : undefined, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: "Custom item due date" });
       addReminder({ id: `custom-reminder-${custom.id}`, name: custom.name, deadline: custom.dueDate, deadlineLabel: "due", lead: customItemLead, sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref });
     }
-    for (const field of resolveDatedFields(custom.fields)) add({ id: `custom-field-${field.id}`, title: `${custom.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: `${field.label} from ${custom.module.name}` });
+    for (const field of resolveDatedFields(custom.object.fields)) add({ id: `custom-field-${field.id}`, title: `${custom.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: `${field.label} from ${custom.module.name}` });
   }
   // A dated To-Do pins its deadline like any other, and keeps it once done --
   // the calendar is a record of when things fell due, so a finished item is

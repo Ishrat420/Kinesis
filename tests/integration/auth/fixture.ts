@@ -62,32 +62,32 @@ export async function resetAuthorizationDatabase() {
     data: {
       id: ids.ownerA, firstName: "Owner A", lastName: "Private", email: "owner-a@example.test",
       objects: { create: [
-        { id: "object-document-a", type: "DOCUMENT", name: ids.documentA },
+        { id: "object-document-a", type: "DOCUMENT", name: ids.documentA, fields: { create: { id: ids.documentFieldA, label: "A secret", value: "owner-a-field-value" } } },
         { id: "object-goal-a", type: "GOAL", name: ids.goalA },
         { id: "object-finance-a", type: "FINANCE_ITEM", name: "owner-a-finance" },
-        { id: "object-item-a", type: "CUSTOM_ITEM", name: "owner-a-private-item" },
+        { id: "object-item-a", type: "CUSTOM_ITEM", name: "owner-a-private-item", fields: { create: { id: ids.itemFieldA, label: "A field", value: "owner-a-item-field" } } },
       ] },
-      documents: { create: { id: ids.documentA, objectId: "object-document-a", name: ids.documentA, type: "Owner A Type", status: "Active", owner: "Owner A", notes: "owner-a-document-notes", customFields: { create: { id: ids.documentFieldA, label: "A secret", value: "owner-a-field-value" } } } },
+      documents: { create: { id: ids.documentA, objectId: "object-document-a", name: ids.documentA, type: "Owner A Type", status: "Active", owner: "Owner A", notes: "owner-a-document-notes" } },
       documentTypes: { create: { id: "owner-a-document-type", name: "Owner A Type" } },
       goals: { create: { id: ids.goalA, objectId: "object-goal-a", name: ids.goalA, note: "owner-a-goal-note", targetValue: 100, currentValue: 10, milestones: { create: { id: ids.milestoneA, name: "owner-a-milestone", dueDate: new Date("2030-01-01T23:59:59.999Z") } } } },
       financeItems: { create: { id: ids.financeA, objectId: "object-finance-a", kind: "asset", name: "owner-a-finance", amount: 100 } },
-      customModules: { create: { id: ids.moduleA, name: "Owner A Module", normalizedName: "owner a module", icon: "star", color: "#111111", items: { create: { id: ids.itemA, objectId: "object-item-a", name: "owner-a-private-item", notes: "owner-a-item-notes", fields: { create: { id: ids.itemFieldA, label: "A field", value: "owner-a-item-field" } } } } } },
+      customModules: { create: { id: ids.moduleA, name: "Owner A Module", normalizedName: "owner a module", icon: "star", color: "#111111", items: { create: { id: ids.itemA, objectId: "object-item-a", name: "owner-a-private-item", notes: "owner-a-item-notes" } } } },
     },
   });
   await prisma.user.create({
     data: {
       id: ids.ownerB, firstName: "Owner B", lastName: "Private", email: "owner-b@example.test",
       objects: { create: [
-        { id: "object-document-b", type: "DOCUMENT", name: ids.documentB },
+        { id: "object-document-b", type: "DOCUMENT", name: ids.documentB, fields: { create: { id: ids.documentFieldB, label: "B secret", value: "owner-b-field-value" } } },
         { id: "object-goal-b", type: "GOAL", name: ids.goalB },
         { id: "object-finance-b", type: "FINANCE_ITEM", name: "owner-b-finance" },
-        { id: "object-item-b", type: "CUSTOM_ITEM", name: "owner-b-private-item" },
+        { id: "object-item-b", type: "CUSTOM_ITEM", name: "owner-b-private-item", fields: { create: { id: ids.itemFieldB, label: "B field", value: "owner-b-item-field" } } },
       ] },
-      documents: { create: { id: ids.documentB, objectId: "object-document-b", name: ids.documentB, type: "Owner B Type", status: "Active", owner: "Owner B", notes: "owner-b-document-notes", customFields: { create: { id: ids.documentFieldB, label: "B secret", value: "owner-b-field-value" } } } },
+      documents: { create: { id: ids.documentB, objectId: "object-document-b", name: ids.documentB, type: "Owner B Type", status: "Active", owner: "Owner B", notes: "owner-b-document-notes" } },
       documentTypes: { create: { id: "owner-b-document-type", name: "Owner B Type" } },
       goals: { create: { id: ids.goalB, objectId: "object-goal-b", name: ids.goalB, note: "owner-b-goal-note", targetValue: 200, currentValue: 20, milestones: { create: { id: ids.milestoneB, name: "owner-b-milestone", dueDate: new Date("2030-02-01T23:59:59.999Z") } } } },
       financeItems: { create: { id: ids.financeB, objectId: "object-finance-b", kind: "asset", name: "owner-b-finance", amount: 200 } },
-      customModules: { create: { id: ids.moduleB, name: "Owner B Module", normalizedName: "owner b module", icon: "star", color: "#222222", items: { create: { id: ids.itemB, objectId: "object-item-b", name: "owner-b-private-item", notes: "owner-b-item-notes", fields: { create: { id: ids.itemFieldB, label: "B field", value: "owner-b-item-field" } } } } } },
+      customModules: { create: { id: ids.moduleB, name: "Owner B Module", normalizedName: "owner b module", icon: "star", color: "#222222", items: { create: { id: ids.itemB, objectId: "object-item-b", name: "owner-b-private-item", notes: "owner-b-item-notes" } } } },
     },
   });
   // Notifications are derived, so what an account owns is the record of having
@@ -118,9 +118,9 @@ export async function resetAuthorizationDatabase() {
 export async function ownerState(owner: FixtureOwner) {
   const userId = ids[owner];
   return prisma.user.findUniqueOrThrow({ where: { id: userId }, include: {
-    documents: { include: { customFields: true, notificationReads: true } }, documentTypes: true,
+    documents: { include: { object: { select: { fields: true } }, notificationReads: true } }, documentTypes: true,
     goals: { include: { milestones: { include: { notificationReads: true } }, metricHistory: true } },
-    financeItems: true, customModules: { include: { items: { include: { fields: true } } } },
+    financeItems: true, customModules: { include: { items: { include: { object: { select: { fields: true } } } } } },
     people: { include: { selfPractices: true, selfReflections: true, selfImportantDates: true } },
     relationships: { include: { practices: true, reflections: true, importantDates: true, linkedGoals: true } },
     goalUnits: true, notificationReads: true, activityEvents: true,

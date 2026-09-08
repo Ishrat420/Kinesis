@@ -123,7 +123,7 @@ describe("an archived document leaves the reminder cycle", () => {
   });
 
   it("still pins an unarchived document, so the filter has not caught everything", async () => {
-    mocks.documentFindMany.mockResolvedValue([{ ...lapsed(), customFields: [] }]);
+    mocks.documentFindMany.mockResolvedValue([{ ...lapsed(), object: { fields: [] } }]);
     const items = await getCalendarItems(at("2026-03-01"), at("2026-03-31"));
     expect(items.map((item) => item.title)).toContain("Passport expires");
   });

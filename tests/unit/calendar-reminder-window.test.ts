@@ -53,7 +53,7 @@ const settings = (overrides: Record<string, unknown> = {}) => ({
 });
 
 const document = (expiryDate: string, prompt = 30) => [{
-  id: "document-1", name: "Passport", type: "Identity", expiryDate: at(expiryDate), prompt, customFields: [],
+  id: "document-1", name: "Passport", type: "Identity", expiryDate: at(expiryDate), prompt, object: { fields: [] },
 }];
 
 const milestoneGoal = (dueDate: string, overrides: { completed?: boolean; status?: string } = {}) => [{
@@ -66,7 +66,7 @@ const importantDate = (date: string, repeatsYearly = true) => [{
 }];
 
 const customItem = (dueDate: string) => [{
-  id: "custom-1", name: "Service the car", dueDate: at(dueDate), moduleId: "module-1", module: { name: "Car" }, fields: [],
+  id: "custom-1", name: "Service the car", dueDate: at(dueDate), moduleId: "module-1", module: { name: "Car" }, object: { fields: [] },
 }];
 
 beforeEach(() => {

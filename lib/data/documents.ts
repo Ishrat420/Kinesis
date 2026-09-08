@@ -1,3 +1,4 @@
+import type { ObjectField } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getDocumentState, getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
@@ -116,11 +117,19 @@ export async function deleteUnusedDocumentType(name: string) {
   return {};
 }
 
+/** A document's own fields, off the shared `ObjectField` table, in display order. */
+const documentFieldsInclude = { object: { select: { fields: { orderBy: { position: "asc" as const } } } } };
+
+/** Presents a document the way every caller of this file already expects: `customFields` as its own flat array. */
+function withCustomFields<T extends { object: { fields: ObjectField[] } }>({ object, ...document }: T) {
+  return { ...document, customFields: object.fields };
+}
+
 export async function getDocument(id: string) {
   const user = await requireKinesisUser();
   const document = await prisma.document.findFirst({
     where: { id, userId: user.id },
-    include: { customFields: { orderBy: { position: "asc" } } },
+    include: documentFieldsInclude,
   });
   if (!document) return null;
   const status = getDocumentState(document, await getToday()).status;
@@ -128,29 +137,27 @@ export async function getDocument(id: string) {
     return prisma.document.update({
       where: { id, userId: user.id },
       data: { status },
-      include: { customFields: { orderBy: { position: "asc" } } },
-    });
+      include: documentFieldsInclude,
+    }).then(withCustomFields);
   }
-  return document;
+  return withCustomFields(document);
 }
 
 export async function createDocument(data: DocumentInput & { id?: string }) {
   const user = await getCurrentUser();
   const { customFields = [], ...document } = data;
+  const fields = customFields.map(({ id: fieldId, ...field }, position) => ({
+    ...field,
+    id: fieldId ?? crypto.randomUUID(),
+    position,
+  }));
   return prisma.document.create({
     data: {
       ...document,
       id: data.id ?? crypto.randomUUID(),
       user: { connect: { id: user.id } },
-      object: objectFor.document(document.name, user.id),
+      object: objectFor.document(document.name, user.id, fields),
       owner: getUserDisplayName(user),
-      customFields: {
-        create: customFields.map(({ id: fieldId, ...field }, position) => ({
-          ...field,
-          id: fieldId ?? crypto.randomUUID(),
-          position,
-        })),
-      },
     },
   });
 }
@@ -159,12 +166,12 @@ export async function updateDocument(id: string, data: DocumentInput) {
   const user = await requireKinesisUser();
   const { customFields = [], ...document } = data;
   return prisma.$transaction(async (transaction) => {
-    const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true } });
+    const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
     if (!owned) refuse("This document no longer exists.");
-    const existingFields = await transaction.documentField.findMany({ where: { documentId: id }, select: { id: true, type: true } });
+    const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) refuse("A custom field's type cannot be changed once it has been saved.");
-    await transaction.documentField.deleteMany({ where: { documentId: id } });
+    await transaction.objectField.deleteMany({ where: { objectId: owned.objectId } });
     // Nothing to clear: the document's notifications are derived from it, and
     // whether they have been read is keyed on the deadline rather than on any
     // of the fields being written here. Deleting the old rows was what handed
@@ -173,12 +180,16 @@ export async function updateDocument(id: string, data: DocumentInput) {
       where: { id },
       data: {
         ...document,
-        customFields: {
-          create: customFields.map(({ id: fieldId, ...field }, position) => ({
-            ...field,
-            id: fieldId ?? crypto.randomUUID(),
-            position,
-          })),
+        object: {
+          update: {
+            fields: {
+              create: customFields.map(({ id: fieldId, ...field }, position) => ({
+                ...field,
+                id: fieldId ?? crypto.randomUUID(),
+                position,
+              })),
+            },
+          },
         },
       },
     });

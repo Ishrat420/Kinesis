@@ -106,7 +106,6 @@ model Document {
   countryLabel        String               @default("Country")
   notesLabel          String               @default("Notes")
   linkLabel           String               @default("Link")
-  customFields        DocumentField[]
   notificationReads   NotificationRead[]
   dismissals          AttentionDismissal[]
   createdAt           DateTime             @default(now())
@@ -123,18 +122,28 @@ enum NotificationType {
   TODO_DUE
 }
 
-model DocumentField {
+/**
+ * A record's custom fields, keyed on the `Object` identity every record
+ * already carries -- Document and CustomItem used to each keep their own,
+ * structurally identical field table (DocumentField, CustomItemField), which
+ * is what made a Kinesis Link, a date field, or a type-immutability check a
+ * thing implemented twice. One table now serves every field-capable record;
+ * which record it belongs to is read off `object.type`, not off which table
+ * the row lives in. See the 20260915000000 migration for how the two old
+ * tables' rows were folded in without losing an id.
+ */
+model ObjectField {
   id             String          @id
-  documentId     String
+  objectId       String
+  object         Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
   label          String
   value          String
   type           CustomFieldType @default(TEXT)
   targetObjectId String?
-  targetObject   Object?         @relation("DocumentFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
+  targetObject   Object?         @relation("ObjectFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
   position       Int             @default(0)
-  document       Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
-  @@index([documentId, position])
+  @@index([objectId, position])
   @@index([targetObjectId])
 }
 
@@ -197,8 +206,8 @@ model Object {
   todo                  Todo?
   outgoingRelationships ObjectRelationship[] @relation("RelationshipSource")
   incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
-  linkedFromDocuments   DocumentField[]      @relation("DocumentFieldTarget")
-  linkedFromCustomItems CustomItemField[]    @relation("CustomItemFieldTarget")
+  fields                ObjectField[]
+  linkedFromFields      ObjectField[]        @relation("ObjectFieldTarget")
   createdAt             DateTime             @default(now())
 
   @@index([userId, type, name])
@@ -395,28 +404,12 @@ model CustomItem {
   module        CustomModule         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   objectId      String               @unique
   object        Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  fields        CustomItemField[]
   notificationReads NotificationRead[]
   dismissals    AttentionDismissal[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
   @@index([moduleId, archived, createdAt])
-}
-
-model CustomItemField {
-  id             String          @id
-  itemId         String
-  label          String
-  value          String
-  type           CustomFieldType @default(TEXT)
-  targetObjectId String?
-  targetObject   Object?         @relation("CustomItemFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
-  position       Int             @default(0)
-  item           CustomItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
-
-  @@index([itemId, position])
-  @@index([targetObjectId])
 }
 
 enum CustomFieldType {

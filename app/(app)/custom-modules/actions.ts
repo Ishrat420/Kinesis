@@ -103,8 +103,7 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   await prisma.customItem.create({ data: {
     id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
     dueDate, link: getValue(data, "link") || null,
-    object: objectFor.customItem(name, user.id),
-    fields: { create: fields },
+    object: objectFor.customItem(name, user.id, fields),
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
@@ -126,17 +125,17 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   if (unowned) return { error: unowned };
   try {
     await prisma.$transaction(async (tx) => {
-    const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
+    const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { objectId: true } });
     if (!ownedItem) refuse("This item no longer exists.");
-    const existingFields = await tx.customItemField.findMany({ where: { itemId }, select: { id: true, type: true } });
+    const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
     await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
       name, notes: getValue(data, "notes") || null, dueDate,
       link: getValue(data, "link") || null, archived: data.get("archived") === "true",
     } });
-    await tx.customItemField.deleteMany({ where: { itemId } });
-    if (fields.length) await tx.customItemField.createMany({ data: fields.map((field) => ({ ...field, itemId })) });
+    await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId } });
+    if (fields.length) await tx.objectField.createMany({ data: fields.map((field) => ({ ...field, objectId: ownedItem.objectId })) });
     });
   } catch (failure) {
     // A refusal raised inside the transaction, which has now rolled back.

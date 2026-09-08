@@ -48,8 +48,8 @@ async function tableCounts(): Promise<Record<string, number>> {
 
 /** Populates every table a user can own, so nothing is missed by omission. */
 async function seedEverything(userId: string, tag: string) {
-  const object = (suffix: string, type: "DOCUMENT" | "GOAL" | "FINANCE_ITEM" | "PERSON" | "CUSTOM_ITEM" | "TODO", name: string) =>
-    prisma.object.create({ data: { id: `${tag}-object-${suffix}`, type, name, userId } });
+  const object = (suffix: string, type: "DOCUMENT" | "GOAL" | "FINANCE_ITEM" | "PERSON" | "CUSTOM_ITEM" | "TODO", name: string, fields?: { id: string; label: string; value: string }[]) =>
+    prisma.object.create({ data: { id: `${tag}-object-${suffix}`, type, name, userId, ...(fields ? { fields: { create: fields } } : {}) } });
 
   await prisma.userSettings.create({ data: { userId } });
   await prisma.documentType.create({ data: { id: `${tag}-doctype`, name: "Passport", userId } });
@@ -60,12 +60,11 @@ async function seedEverything(userId: string, tag: string) {
   });
   await prisma.securityEvent.create({ data: { id: `${tag}-security`, event: "SIGNED_IN", userId } });
 
-  await object("doc", "DOCUMENT", "Doc");
+  await object("doc", "DOCUMENT", "Doc", [{ id: `${tag}-docfield`, label: "L", value: "V" }]);
   await prisma.document.create({
     data: {
       id: `${tag}-doc`, name: "Doc", type: "Passport", status: "Active", owner: "Owner", userId,
       objectId: `${tag}-object-doc`,
-      customFields: { create: { id: `${tag}-docfield`, label: "L", value: "V" } },
     },
   });
 
@@ -126,11 +125,10 @@ async function seedEverything(userId: string, tag: string) {
   await prisma.customModule.create({
     data: { id: `${tag}-module`, name: "Books", normalizedName: `${tag} books`, icon: "star", color: "#111111", userId },
   });
-  await object("item", "CUSTOM_ITEM", "Item");
+  await object("item", "CUSTOM_ITEM", "Item", [{ id: `${tag}-itemfield`, label: "L", value: "V" }]);
   await prisma.customItem.create({
     data: {
       id: `${tag}-item`, name: "Item", moduleId: `${tag}-module`, objectId: `${tag}-object-item`,
-      fields: { create: { id: `${tag}-itemfield`, label: "L", value: "V" } },
     },
   });
 

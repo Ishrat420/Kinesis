@@ -11,11 +11,11 @@ const documents: SearchProvider = {
   id: "documents",
   async getEntries() {
     const user = await requireKinesisUser();
-    const rows = await prisma.document.findMany({ where: { userId: user.id }, include: { customFields: true } });
+    const rows = await prisma.document.findMany({ where: { userId: user.id }, include: { object: { select: { fields: true } } } });
     return rows.map((document) => ({
       id: `document:${document.id}`, title: document.name, subtitle: document.type,
       href: `/documents/${document.id}`, kind: "Document" as const,
-      keywords: text(document.name, document.type, document.status, document.owner, document.documentNumber, document.country, document.notes, document.link, document.customFields.flatMap((field) => [field.label, field.value])),
+      keywords: text(document.name, document.type, document.status, document.owner, document.documentNumber, document.country, document.notes, document.link, document.object.fields.flatMap((field) => [field.label, field.value])),
     }));
   },
 };
@@ -78,7 +78,7 @@ const customModules: SearchProvider = {
   id: "custom-modules",
   async getEntries() {
     const user = await requireKinesisUser();
-    const modules = await prisma.customModule.findMany({ where: { userId: user.id }, include: { items: { where: { archived: false }, include: { fields: true } } } });
+    const modules = await prisma.customModule.findMany({ where: { userId: user.id }, include: { items: { where: { archived: false }, include: { object: { select: { fields: true } } } } } });
     return modules.flatMap((module) => [
       {
         id: `custom-module:${module.id}`, title: module.name, subtitle: "Custom module",
@@ -88,7 +88,7 @@ const customModules: SearchProvider = {
       ...module.items.map((item) => ({
         id: `custom-item:${item.id}`, title: item.name, subtitle: module.name,
         href: `/custom-modules/${module.id}/items/${item.id}`, kind: "Custom" as const, icon: module.icon, color: module.color,
-        keywords: text(item.name, module.name, item.notes, item.link, item.fields.flatMap((field) => [field.label, field.value])),
+        keywords: text(item.name, module.name, item.notes, item.link, item.object.fields.flatMap((field) => [field.label, field.value])),
       })),
     ]);
   },

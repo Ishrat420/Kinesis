@@ -73,13 +73,13 @@ export async function deleteAllDataAction(confirmation: string) {
     // 1. Object-backed records, removed through their identity.
     //    Deleting an Object cascades to the typed record that carries it --
     //    Document, Goal, FinanceItem, Person, CustomItem, Todo -- and onward
-    //    to everything hanging off those: DocumentField, CustomItemField,
-    //    Milestone, GoalMetricSnapshot, Relationship and its ConnectionPractice,
-    //    RelationshipReflection, RelationshipImportantDate and RelationshipGoal
-    //    rows, plus the shared capabilities keyed on identity: every
-    //    ObjectRelationship, and the Notifications tied to a document, a
-    //    milestone, a relationship's important date, or a custom item's due
-    //    date. Seventeen tables, one root.
+    //    to everything hanging off those: Milestone, GoalMetricSnapshot,
+    //    Relationship and its ConnectionPractice, RelationshipReflection,
+    //    RelationshipImportantDate and RelationshipGoal rows, plus the shared
+    //    capabilities keyed on identity: every ObjectField (a document's or a
+    //    custom item's custom fields alike), ObjectRelationship, and the
+    //    Notifications tied to a document, a milestone, a relationship's
+    //    important date, or a custom item's due date. Seventeen tables, one root.
     prisma.object.deleteMany({ where: owned }),
 
     // 2. Owned directly by the account and outside the identity layer, so

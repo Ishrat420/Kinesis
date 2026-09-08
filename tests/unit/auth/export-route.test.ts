@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => {
     requireRecentVerificationResponse: vi.fn().mockResolvedValue(true),
     prisma: {
       user: { findMany: findMany() }, userSettings: { findMany: findMany() },
-      object: { findMany: findMany() }, objectRelationship: { findMany: findMany() },
+      object: { findMany: findMany() }, objectField: { findMany: findMany() }, objectRelationship: { findMany: findMany() },
       document: { findMany: findMany() }, documentType: { findMany: findMany() },
       goal: { findMany: findMany() }, goalUnit: { findMany: findMany() },
       person: { findMany: findMany() }, relationship: { findMany: findMany() },
@@ -34,9 +34,15 @@ describe("settings export isolation", () => {
     for (const [name, model] of Object.entries(mocks.prisma)) {
       if (name === "securityEvent") continue;
       expect(model.findMany).toHaveBeenCalledOnce();
-      if (name !== "user") {
-        expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { userId: "owner-id" } });
+      if (name === "user") continue;
+      // ObjectField carries no userId of its own -- a field's ownership is its
+      // parent Object's -- so its scope is expressed through that relation
+      // rather than the flat `where: { userId }` every other model uses.
+      if (name === "objectField") {
+        expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { object: { userId: "owner-id" } } });
+        continue;
       }
+      expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { userId: "owner-id" } });
     }
     expect(mocks.prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "owner-id" },
