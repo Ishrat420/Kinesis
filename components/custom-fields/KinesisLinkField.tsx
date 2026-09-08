@@ -6,22 +6,23 @@ import { KinesisLinkCard } from "./KinesisLinkCard";
 import { FIELD_INPUT_CLASS } from "./field-styles";
 
 /**
- * Choosing objects to point at.
+ * Choosing objects to point at -- the one control every surface that links a
+ * record to others uses, whether it holds a single value or a set: options
+ * grouped by the module they belong to while choosing, and a card that names
+ * and opens the record once chosen.
  *
- * Every surface that links one record to another asks the same question, so it
- * asks it the same way: options grouped by the module they belong to while
- * choosing, and a card that names and opens the record once chosen.
- *
- * Two arities, one control. A Kinesis Link custom field holds a single value --
- * one label, one link, and another link means another field. A To-Do concerns
- * however many things it concerns (ADR-009: "Apply for replacement passport"
- * relates to the passport and depends on the police report), so quick capture
- * takes a set.
+ * `name` is optional (KD-034). A caller submitting through the browser's own
+ * `FormData` -- To-Do linking, still on `ObjectRelationship` -- passes one, so
+ * each chosen object's hidden input carries it under that name. A caller that
+ * serialises its own state at submit time -- a Kinesis Link custom field,
+ * whose whole field set now travels as one JSON payload -- omits it, and no
+ * hidden input is rendered at all rather than one with an empty name that
+ * would submit into nothing.
  */
 
 type SharedProps = {
-  /** The form field the chosen object ids are submitted under. */
-  name: string;
+  /** The form field the chosen object ids are submitted under, when submission goes through native FormData. */
+  name?: string;
   options: LinkableObject[];
   ariaLabel: string;
   placeholder?: string;
@@ -29,46 +30,8 @@ type SharedProps = {
   loading?: boolean;
 };
 
-export function KinesisLinkField({
-  name, options, value, onChange, ariaLabel,
-  placeholder = "Select object ↗",
-  required = false,
-  loading = false,
-  onClear,
-}: SharedProps & {
-  value: string;
-  onChange: (objectId: string) => void;
-  required?: boolean;
-  /** Offered as "Choose something else" beside the card; omit to make a choice final. */
-  onClear?: () => void;
-}) {
-  if (loading) return <LoadingSelect name={name} values={value ? [value] : []} ariaLabel={ariaLabel} />;
-
-  const selected = options.find((option) => option.objectId === value);
-  if (selected) {
-    return (
-      <div className="space-y-2">
-        <input type="hidden" name={name} value={value} />
-        <KinesisLinkCard option={selected} />
-        {onClear && (
-          <button type="button" onClick={onClear} className="text-xs font-semibold text-zinc-500 transition hover:text-zinc-900">
-            Choose something else
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <LinkSelect
-      name={name} options={options} value="" ariaLabel={ariaLabel} placeholder={placeholder} required={required}
-      onChange={onChange}
-    />
-  );
-}
-
 /**
- * The same control holding as many links as the record has.
+ * Holds as many links as the record has.
  *
  * Each chosen object keeps its own hidden input under one field name, so the
  * whole set arrives as `formData.getAll(name)` and the server replaces what it
@@ -95,7 +58,7 @@ export function KinesisLinkList({
     <div className="space-y-2">
       {chosen.map((option) => (
         <div key={option.objectId} className="flex items-center gap-2">
-          <input type="hidden" name={name} value={option.objectId} />
+          {name && <input type="hidden" name={name} value={option.objectId} />}
           <KinesisLinkCard option={option} className="flex-1" />
           <button
             type="button"
@@ -110,7 +73,7 @@ export function KinesisLinkList({
 
       {remaining.length > 0 && (
         <LinkSelect
-          name="" options={remaining} value="" ariaLabel={ariaLabel}
+          options={remaining} value="" ariaLabel={ariaLabel}
           placeholder={chosen.length ? addPlaceholder : placeholder}
           onChange={(objectId) => objectId && onChange([...values, objectId])}
         />
@@ -120,14 +83,13 @@ export function KinesisLinkList({
 }
 
 /**
- * The picker itself. `name` is empty when the select only adds to a list: the
- * hidden inputs above carry the value, and a named select would submit its own
- * empty string alongside them.
+ * The picker itself. Never named: a `KinesisLinkList` submits through its own
+ * per-token hidden inputs above, or not through `FormData` at all, so a named
+ * select here would only ever contribute a stray empty value.
  */
 function LinkSelect({
-  name, options, value, onChange, ariaLabel, placeholder, required = false,
+  options, value, onChange, ariaLabel, placeholder, required = false,
 }: {
-  name: string;
   options: LinkableObject[];
   value: string;
   onChange: (objectId: string) => void;
@@ -139,7 +101,6 @@ function LinkSelect({
   return (
     <Control>
       <select
-        {...(name ? { name } : {})}
         required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -164,10 +125,10 @@ function LinkSelect({
  * a disabled control submits nothing. Carrying the values in hidden inputs stops
  * saving mid-load from silently clearing existing links.
  */
-function LoadingSelect({ name, values, ariaLabel }: { name: string; values: string[]; ariaLabel: string }) {
+function LoadingSelect({ name, values, ariaLabel }: { name?: string; values: string[]; ariaLabel: string }) {
   return (
     <Control>
-      {values.map((objectId) => <input key={objectId} type="hidden" name={name} value={objectId} />)}
+      {name && values.map((objectId) => <input key={objectId} type="hidden" name={name} value={objectId} />)}
       <select disabled aria-label={ariaLabel} className={selectClass}>
         <option>Loading…</option>
       </select>

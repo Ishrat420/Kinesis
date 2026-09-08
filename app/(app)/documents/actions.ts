@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
 import { parseDateOnly } from "@/lib/dates";
-import { DOCUMENT_FIELD_NAMES } from "@/lib/custom-fields/types";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refusalOf } from "@/lib/actions/refusal";
@@ -63,7 +62,7 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
   // Absent on the create form, so a new document is never born archived.
   const archived = formData.get("archived") === "true";
 
-  const form = parseCustomFields(formData, DOCUMENT_FIELD_NAMES);
+  const form = parseCustomFields(formData);
   if (!form.ok) return form;
   const customFields = form.fields;
 

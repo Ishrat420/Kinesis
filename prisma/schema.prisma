@@ -133,17 +133,36 @@ enum NotificationType {
  * tables' rows were folded in without losing an id.
  */
 model ObjectField {
-  id             String          @id
-  objectId       String
-  object         Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  label          String
-  value          String
-  type           CustomFieldType @default(TEXT)
-  targetObjectId String?
-  targetObject   Object?         @relation("ObjectFieldTarget", fields: [targetObjectId], references: [id], onDelete: SetNull)
-  position       Int             @default(0)
+  id       String          @id
+  objectId String
+  object   Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  label    String
+  value    String
+  type     CustomFieldType @default(TEXT)
+  position Int             @default(0)
+  links    FieldLink[]
 
   @@index([objectId, position])
+}
+
+/**
+ * One target of a Kinesis Link field (KD-034). A field used to hold at most
+ * one target, as a nullable column on `ObjectField` itself; a field now holds
+ * as many as the person adds, each its own row here, ordered the way they
+ * added them. Cascades on both ends: deleting the field takes its links with
+ * it, and deleting the target object removes just that token rather than
+ * leaving the field behind with an empty slot to explain -- there is no
+ * "field pointing at nothing" state for a multi-valued field to be in.
+ */
+model FieldLink {
+  id             String      @id
+  fieldId        String
+  field          ObjectField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  targetObjectId String
+  targetObject   Object      @relation("FieldLinkTarget", fields: [targetObjectId], references: [id], onDelete: Cascade)
+  position       Int         @default(0)
+
+  @@index([fieldId, position])
   @@index([targetObjectId])
 }
 
@@ -207,7 +226,7 @@ model Object {
   outgoingRelationships ObjectRelationship[] @relation("RelationshipSource")
   incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
   fields                ObjectField[]
-  linkedFromFields      ObjectField[]        @relation("ObjectFieldTarget")
+  linkedFromFieldLinks  FieldLink[]          @relation("FieldLinkTarget")
   createdAt             DateTime             @default(now())
 
   @@index([userId, type, name])

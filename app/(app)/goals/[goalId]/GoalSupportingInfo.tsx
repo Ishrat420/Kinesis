@@ -56,8 +56,8 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
   const links = fields.filter((field) => field.type === "LINK");
   const kinesisLinks = fields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
-    const option = linkOptions.find(({ objectId }) => objectId === field.targetObjectId);
-    return option ? [{ field, option }] : [];
+    const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find(({ objectId }) => objectId === id) ?? []);
+    return options.length ? [{ field, options }] : [];
   });
   // A field type this section does not have its own group for -- Number,
   // Date, Checkbox -- still saved and shown, plainly, rather than dropped.
@@ -89,10 +89,10 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
       {kinesisLinks.length > 0 && (
         <FieldGroup title="Kinesis Links" icon={<ExternalLink className="h-4 w-4" />}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {kinesisLinks.map(({ field, option }) => (
-              <div key={field.id ?? field.label} className="min-w-0">
+            {kinesisLinks.map(({ field, options }) => (
+              <div key={field.id ?? field.label} className="min-w-0 space-y-2">
                 <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-                <KinesisLinkCard option={option} />
+                {options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />)}
               </div>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import type { ObjectField } from "@prisma/client";
+import type { FieldLink, ObjectField } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getDocumentState, getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
@@ -7,6 +7,7 @@ import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
 import { prepareCustomFields } from "@/lib/custom-fields/parse";
+import { presentCustomFields } from "@/lib/custom-fields/present";
 import { deleteObjects, objectFor } from "./objects";
 import { refuse } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
@@ -118,12 +119,14 @@ export async function deleteUnusedDocumentType(name: string) {
   return {};
 }
 
-/** A document's own fields, off the shared `ObjectField` table, in display order. */
-const documentFieldsInclude = { object: { select: { fields: { orderBy: { position: "asc" as const } } } } };
+/** A document's own fields, off the shared `ObjectField` table, in display order, with each field's Kinesis Link targets in the order they were added. */
+const documentFieldsInclude = {
+  object: { select: { fields: { orderBy: { position: "asc" as const }, include: { links: { orderBy: { position: "asc" as const } } } } } },
+};
 
 /** Presents a document the way every caller of this file already expects: `customFields` as its own flat array. */
-function withCustomFields<T extends { object: { fields: ObjectField[] } }>({ object, ...document }: T) {
-  return { ...document, customFields: object.fields };
+function withCustomFields<T extends { object: { fields: (ObjectField & { links: FieldLink[] })[] } }>({ object, ...document }: T) {
+  return { ...document, customFields: presentCustomFields(object.fields) };
 }
 
 export async function getDocument(id: string) {

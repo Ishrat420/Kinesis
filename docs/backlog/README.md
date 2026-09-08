@@ -160,7 +160,6 @@ KD-032-relationships-bypass-the-object-layer
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
-KD-034-multi-value-kinesis-link-fields
 
 
 ## 🚧 In Progress
@@ -179,6 +178,7 @@ KD-035-module-templates
 
 
 ## ✅ Done
+KD-034-multi-value-kinesis-link-fields
 KD-033-options-for-more-goal-details
 KD-024-universal-object-capablity-layer
 KD-022-goal-linked-relationships

@@ -1,16 +1,15 @@
 "use client";
 
 import { Check, ChevronDown, Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
-  DEFAULT_FIELD_NAMES,
+  CUSTOM_FIELDS_FORM_KEY,
   type CustomFieldType,
   type CustomFieldValue,
-  type FieldNames,
   type KinesisLinkOption,
 } from "@/lib/custom-fields/types";
-import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
+import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
@@ -27,11 +26,9 @@ function toDateInputValue(value: string) {
 export function CustomFieldsEditor({
   initialFields = [],
   linkOptions,
-  names = DEFAULT_FIELD_NAMES,
 }: {
   initialFields?: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
-  names?: FieldNames;
 }) {
   const [fields, setFields] = useState<EditorField[]>(
     initialFields.map((field) => ({
@@ -83,9 +80,21 @@ export function CustomFieldsEditor({
     window.setTimeout(() => update(key, { phase: "ready", editingName: true }), 400);
   };
 
+  // The one thing this whole editor submits: every ready, named field, as a
+  // single JSON payload (KD-034) rather than positional FormData arrays.
+  const payload = useMemo(
+    () => JSON.stringify(
+      fields
+        .filter((field) => field.phase === "ready" && field.label.trim())
+        .map(({ id, label, value, type, targetObjectIds }) => ({ id, label, value, type, targetObjectIds })),
+    ),
+    [fields],
+  );
+
   return (
     <fieldset ref={fieldsetRef}>
       <legend className="sr-only">Custom fields</legend>
+      <input type="hidden" name={CUSTOM_FIELDS_FORM_KEY} value={payload} />
       {fields.length > 0 && (
         <div className="space-y-2">
           {fields.map((field, index) => (
@@ -96,7 +105,6 @@ export function CustomFieldsEditor({
               <FieldIdentity
                 field={field}
                 index={index}
-                names={names}
                 chooseType={(type) => chooseType(field.key, type)}
                 update={(changes) => update(field.key, changes)}
               />
@@ -104,7 +112,6 @@ export function CustomFieldsEditor({
                 field={field}
                 index={index}
                 linkOptions={linkOptions}
-                names={names}
                 update={(changes) => update(field.key, changes)}
               />
               <button
@@ -130,10 +137,9 @@ export function CustomFieldsEditor({
   );
 }
 
-function FieldIdentity({ field, index, names, chooseType, update }: {
+function FieldIdentity({ field, index, chooseType, update }: {
   field: EditorField;
   index: number;
-  names: FieldNames;
   chooseType: (type: CustomFieldType) => void;
   update: (changes: Partial<EditorField>) => void;
 }) {
@@ -166,9 +172,6 @@ function FieldIdentity({ field, index, names, chooseType, update }: {
   if (!field.editingName && field.label.trim()) {
     return (
       <div className="flex h-11 min-w-0 items-center px-3">
-        <input type="hidden" name={names.id} value={field.id ?? ""} />
-        <input type="hidden" name={names.type} value={field.type} />
-        <input type="hidden" name={names.label} value={field.label} />
         <button
           type="button"
           onDoubleClick={() => update({ editingName: true })}
@@ -185,34 +188,28 @@ function FieldIdentity({ field, index, names, chooseType, update }: {
   }
 
   return (
-    <>
-      <input type="hidden" name={names.id} value={field.id ?? ""} />
-      <input type="hidden" name={names.type} value={field.type} />
-      <input
-        name={names.label}
-        value={field.label}
-        onChange={(event) => update({ label: event.target.value })}
-        onBlur={() => field.label.trim() && update({ editingName: false })}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && field.label.trim()) {
-            event.preventDefault();
-            update({ editingName: false });
-          }
-        }}
-        aria-label={`Field ${index + 1} name`}
-        placeholder="Field name"
-        required
-        className={inputClass}
-      />
-    </>
+    <input
+      value={field.label}
+      onChange={(event) => update({ label: event.target.value })}
+      onBlur={() => field.label.trim() && update({ editingName: false })}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && field.label.trim()) {
+          event.preventDefault();
+          update({ editingName: false });
+        }
+      }}
+      aria-label={`Field ${index + 1} name`}
+      placeholder="Field name"
+      required
+      className={inputClass}
+    />
   );
 }
 
-function FieldInput({ field, index, linkOptions, names, update }: {
+function FieldInput({ field, index, linkOptions, update }: {
   field: EditorField;
   index: number;
   linkOptions: KinesisLinkOption[];
-  names: FieldNames;
   update: (value: Partial<EditorField>) => void;
 }) {
   if (field.phase !== "ready") {
@@ -221,41 +218,33 @@ function FieldInput({ field, index, linkOptions, names, update }: {
 
   if (field.type === "KINESIS_LINK") {
     return (
-      <div>
-        <input type="hidden" name={names.value} value="" />
-        <KinesisLinkField
-          name={names.target}
-          options={linkOptions}
-          value={field.targetObjectId ?? ""}
-          onChange={(targetObjectId) => update({ targetObjectId })}
-          ariaLabel={`Field ${index + 1} linked object`}
-          required
-        />
-      </div>
+      <KinesisLinkList
+        options={linkOptions}
+        values={field.targetObjectIds ?? []}
+        onChange={(targetObjectIds) => update({ targetObjectIds })}
+        ariaLabel={`Field ${index + 1} linked objects`}
+      />
+    );
+  }
+
+  if (field.type === "CHECKBOX") {
+    return (
+      <label className="flex h-11 items-center justify-end rounded-xl border border-zinc-200 bg-white px-4">
+        <span className="sr-only">Checkbox value</span>
+        <input type="checkbox" checked={field.value === "true"} onChange={(event) => update({ value: String(event.target.checked) })} className="h-5 w-5 rounded border-zinc-300" />
+      </label>
     );
   }
 
   return (
-    <>
-      <input type="hidden" name={names.target} value="" />
-      {field.type === "CHECKBOX" ? (
-        <label className="flex h-11 items-center justify-end rounded-xl border border-zinc-200 bg-white px-4">
-          <span className="sr-only">Checkbox value</span>
-          <input type="hidden" name={names.value} value={field.value === "true" ? "true" : "false"} />
-          <input type="checkbox" checked={field.value === "true"} onChange={(event) => update({ value: String(event.target.checked) })} className="h-5 w-5 rounded border-zinc-300" />
-        </label>
-      ) : (
-        <input
-          name={names.value}
-          type={field.type === "NUMBER" ? "number" : field.type === "LINK" ? "url" : field.type === "DATE" ? "date" : "text"}
-          value={field.value}
-          onChange={(event) => update({ value: event.target.value })}
-          aria-label={`Field ${index + 1} value`}
-          placeholder={valuePlaceholder(field.type)}
-          className={inputClass}
-        />
-      )}
-    </>
+    <input
+      type={field.type === "NUMBER" ? "number" : field.type === "LINK" ? "url" : field.type === "DATE" ? "date" : "text"}
+      value={field.value}
+      onChange={(event) => update({ value: event.target.value })}
+      aria-label={`Field ${index + 1} value`}
+      placeholder={valuePlaceholder(field.type)}
+      className={inputClass}
+    />
   );
 }
 

@@ -1,6 +1,6 @@
 # KD-034 — Multi-Value Kinesis Link Fields
 
-**Status:** Accepted 
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI, Data Model, Architecture
 
@@ -217,6 +217,62 @@ Neither is optional in practice, and both make KD-033 and KD-035 smaller.
 
 > A field's name defines the meaning of the relationship; the field may contain
 > one or many linked Objects, of any allowed type.
+
+## What shipped
+
+Every Kinesis Link field now holds as many targets as the person adds, under
+the name they chose, across Documents, Custom Items, and Goals, with To-Dos
+converged onto the same picker and token UI.
+
+* **Storage.** `FieldLink` is a new child table (`fieldId`, `targetObjectId`,
+  `position`), replacing the nullable `targetObjectId` column that used to
+  live on `ObjectField` directly. `ObjectField` keeps `label`/`type`/`value`
+  (unused for a link) and now carries `links: FieldLink[]`. Both foreign keys
+  cascade: deleting a field takes its links with it, and deleting a target
+  object removes just that token — there is no "field pointing at nothing"
+  state for a multi-valued field to be in. Storage went with the ticket's own
+  recommended option (field row plus child link table) rather than the
+  dismissible "no longer available" alternative it raised.
+* **Wire format replaced, per the ticket's own hard prerequisite.** The five
+  positional `FormData` arrays (`fieldId`/`fieldLabel`/`fieldType`/
+  `fieldValue`/`fieldTarget`, joined by index) are gone, along with the
+  `FieldNames`/`DEFAULT_FIELD_NAMES`/`DOCUMENT_FIELD_NAMES` mapping KD-033 had
+  just introduced to serve them. `CustomFieldsEditor` now submits one hidden
+  `<input>` (`CUSTOM_FIELDS_FORM_KEY`) carrying the whole field set as JSON;
+  `parseCustomFields` reads that one key. This was a judgment call between the
+  ticket's two named options (JSON payload vs. explicitly-indexed names) —
+  JSON was simpler and removes an entire abstraction rather than growing it.
+* **One picker, one display, everywhere.** `KinesisLinkField` (the old
+  single-value select) is deleted; `KinesisLinkList` — already used by To-Do
+  linking — is now what `CustomFieldsEditor` renders for a `KINESIS_LINK`
+  field, and what `EditDocumentForm` and `GoalSupportingInfo` render per field
+  in their read views (one `KinesisLinkCard` per linked object, not one per
+  field). `KinesisLinkList`'s `name` prop is now optional, since a Kinesis
+  Link field submits through the JSON payload above rather than its own named
+  hidden inputs — only To-Do linking, still on native `FormData`, passes one.
+* **Target rules converged.** `KINESIS_LINK_TARGET_CONFIG` widened from
+  {Document, Custom Item, Goal, Finance Item} to also include Person and
+  To-Do, matching what To-Do linking already allowed ("any object the owner
+  has"). This was a judgment call: the ticket says target rules "have to
+  converge" but doesn't fully spell out the merged set, and the ticket's own
+  principle ("any allowed type") argued for one shared allow-list over
+  per-surface restriction. `validateKinesisTargets` now flattens each field's
+  `targetObjectIds` array rather than checking one id per field.
+* **To-Do links stay on `ObjectRelationship`**, per the ticket's own decision
+  — they gain the shared picker and tokens but remain an unnamed "Links"
+  group rather than becoming named `ObjectField` rows; goal-to-goal linking
+  (`LinkedGoals`) is untouched.
+* **Tokens are not reorderable** — insertion order only, stored as each
+  `FieldLink`'s `position` — per the ticket's own stated fallback.
+* **Migration** (`20260916000000_field_links`) backfills one `FieldLink` row
+  at position 0 for every field that had a `targetObjectId`, then drops that
+  column.
+
+Verified with `prisma validate`, a full typecheck and lint (clean against the
+pre-existing baseline), all 575 unit tests passing (including
+`action-refusals.test.ts` and `custom-fields.test.ts`, both updated for the
+new payload shape and the widened target list), and a production `next
+build`.
 
 ## Related
 

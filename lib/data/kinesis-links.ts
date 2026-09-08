@@ -34,9 +34,9 @@ export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
  * throw, which meant a form whose picker had gone stale crashed the page
  * instead of saying so in the field the person was looking at.
  */
-export async function validateKinesisTargets(targets: Array<{ targetObjectId?: string | null }>): Promise<string | null> {
+export async function validateKinesisTargets(fields: Array<{ targetObjectIds?: string[] }>): Promise<string | null> {
   const user = await requireKinesisUser();
-  const targetIds = [...new Set(targets.flatMap(({ targetObjectId }) => (targetObjectId ? [targetObjectId] : [])))];
+  const targetIds = [...new Set(fields.flatMap(({ targetObjectIds }) => targetObjectIds ?? []))];
   if (!targetIds.length) return null;
   const owned = await prisma.object.count({
     where: { id: { in: targetIds }, userId: user.id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },

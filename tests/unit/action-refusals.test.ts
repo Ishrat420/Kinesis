@@ -51,11 +51,15 @@ const form = (values: Record<string, string | string[]>) => {
   return data;
 };
 
+/** A form carrying the given custom fields, JSON-encoded under the one key `parseCustomFields` reads (KD-034). */
+const withCustomFields = (values: Record<string, string>, fields: Array<Record<string, unknown>>) =>
+  form({ ...values, customFieldsPayload: JSON.stringify(fields) });
+
 /** A document form carrying one Kinesis Link field with nothing chosen in it. */
-const emptyLinkDocument = () => form({
-  name: "Passport", type: "Identity",
-  customLabel: "Related goal", customType: "KINESIS_LINK", customValue: "", customTarget: "", customId: "",
-});
+const emptyLinkDocument = () => withCustomFields(
+  { name: "Passport", type: "Identity" },
+  [{ label: "Related goal", type: "KINESIS_LINK", value: "", targetObjectIds: [] }],
+);
 
 describe("refusalOf", () => {
   it("reports the message of a refusal", () => {
@@ -103,9 +107,10 @@ describe("validation the owner can read", () => {
   });
 
   it("does the same for a custom item's fields", async () => {
-    await expect(createCustomItemAction("module-id", {}, form({
-      name: "Service", fieldLabel: "Related document", fieldType: "KINESIS_LINK", fieldValue: "", fieldTarget: "", fieldId: "",
-    }))).resolves.toEqual({ error: "Choose what “Related document” links to." });
+    await expect(createCustomItemAction("module-id", {}, withCustomFields(
+      { name: "Service" },
+      [{ label: "Related document", type: "KINESIS_LINK", value: "", targetObjectIds: [] }],
+    ))).resolves.toEqual({ error: "Choose what “Related document” links to." });
     expect(mocks.prisma.customItem.create).not.toHaveBeenCalled();
   });
 
@@ -118,23 +123,23 @@ describe("validation the owner can read", () => {
     mocks.createDocument.mockResolvedValue({ id: "new-document", name: "Passport" });
     mocks.redirect.mockImplementation(() => { throw Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/documents/new-document;307;" }); });
 
-    await expect(createDocumentAction({}, form({
-      name: "Passport", type: "Identity",
-      customLabel: "Related goal", customType: "KINESIS_LINK", customValue: "", customTarget: "goal-object-id", customId: "",
-    }))).rejects.toThrow("NEXT_REDIRECT");
+    await expect(createDocumentAction({}, withCustomFields(
+      { name: "Passport", type: "Identity" },
+      [{ label: "Related goal", type: "KINESIS_LINK", value: "", targetObjectIds: ["goal-object-id"] }],
+    ))).rejects.toThrow("NEXT_REDIRECT");
 
     expect(mocks.createDocument).toHaveBeenCalledWith(expect.objectContaining({
-      customFields: [expect.objectContaining({ label: "Related goal", type: "KINESIS_LINK", targetObjectId: "goal-object-id" })],
+      customFields: [expect.objectContaining({ label: "Related goal", type: "KINESIS_LINK", targetObjectIds: ["goal-object-id"] })],
     }));
     expect(mocks.redirect).toHaveBeenCalledWith("/documents/new-document");
   });
 
   it("reports a link whose target is no longer the owner's", async () => {
     mocks.validateKinesisTargets.mockResolvedValue("One of the linked items no longer exists. Reopen the link field and choose again.");
-    await expect(createDocumentAction({}, form({
-      name: "Passport", type: "Identity",
-      customLabel: "Related goal", customType: "KINESIS_LINK", customValue: "", customTarget: "someone-elses-object", customId: "",
-    }))).resolves.toEqual({ error: "One of the linked items no longer exists. Reopen the link field and choose again." });
+    await expect(createDocumentAction({}, withCustomFields(
+      { name: "Passport", type: "Identity" },
+      [{ label: "Related goal", type: "KINESIS_LINK", value: "", targetObjectIds: ["someone-elses-object"] }],
+    ))).resolves.toEqual({ error: "One of the linked items no longer exists. Reopen the link field and choose again." });
     expect(mocks.createDocument).not.toHaveBeenCalled();
   });
 });

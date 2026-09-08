@@ -3,7 +3,7 @@
 import { Link2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
-import { DOCUMENT_FIELD_NAMES, type CustomFieldValue, type KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 
 export type CustomField = CustomFieldValue;
 
@@ -36,7 +36,7 @@ export function DocumentFields({
       <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
       <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
-      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} names={DOCUMENT_FIELD_NAMES}/>
+      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} />
     </div>
   );
 }

@@ -75,8 +75,8 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   const linkedFields = document.customFields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
-    const option = linkOptions.find(({ objectId }) => objectId === field.targetObjectId);
-    return option ? [{ field, option }] : [];
+    const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find(({ objectId }) => objectId === id) ?? []);
+    return options.length ? [{ field, options }] : [];
   });
   return (
     <div className="space-y-6">
@@ -96,9 +96,9 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           {document.customFields.filter((field) => field.type !== "KINESIS_LINK").map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={displayFieldValue(field, locale)} />)}
         </dl>
         {linkedFields.length > 0 && <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
-          {linkedFields.map(({ field, option }) => <div key={field.id ?? field.label} className="min-w-0">
+          {linkedFields.map(({ field, options }) => <div key={field.id ?? field.label} className="min-w-0 space-y-2">
             <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-            <KinesisLinkCard option={option} />
+            {options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />)}
           </div>
           )}
         </div>}

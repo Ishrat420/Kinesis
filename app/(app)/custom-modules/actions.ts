@@ -7,7 +7,6 @@ import { prisma } from "@/lib/data/prisma";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
-import { DEFAULT_FIELD_NAMES } from "@/lib/custom-fields/types";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
@@ -64,7 +63,7 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
   const dueDate = dueDateValue(getValue(data, "dueDate"));
   if (dueDate === undefined) return { error: "Enter a valid due date." };
-  const form = parseCustomFields(data, DEFAULT_FIELD_NAMES);
+  const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true } });
   if (!ownedModule) return { error: "This module no longer exists." };
@@ -88,7 +87,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
   const dueDate = dueDateValue(getValue(data, "dueDate"));
   if (dueDate === undefined) return { error: "Enter a valid due date." };
-  const form = parseCustomFields(data, DEFAULT_FIELD_NAMES);
+  const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
   const unowned = await validateKinesisTargets(form.fields);
   if (unowned) return { error: unowned };
@@ -105,7 +104,10 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
       link: getValue(data, "link") || null, archived: data.get("archived") === "true",
     } });
     await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId } });
-    if (fields.length) await tx.objectField.createMany({ data: fields.map((field) => ({ ...field, objectId: ownedItem.objectId })) });
+    // A field's targets are a nested create -- createMany cannot carry those,
+    // so each field (with its own links) is created on its own rather than in
+    // one batched statement. The count here is always small.
+    for (const field of fields) await tx.objectField.create({ data: { ...field, objectId: ownedItem.objectId } });
     });
   } catch (failure) {
     // A refusal raised inside the transaction, which has now rolled back.

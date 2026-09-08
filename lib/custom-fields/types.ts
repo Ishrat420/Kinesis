@@ -11,8 +11,12 @@ export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]["value"];
 
 /**
  * Which kinds of object a Kinesis Link offers, and where each sits in the
- * picker. Narrower than the Object types Kinesis stores: every record has an
- * identity, but only these are worth pointing a field at today.
+ * picker. Every `KinesisObjectType` Kinesis has is offered (KD-034): a
+ * field's name carries its meaning, not its type, so there is no principled
+ * reason a Document's field could point at a Goal but not a Person or a
+ * To-Do. The one exception isn't a narrower target list -- it's To-Do's own
+ * picker excluding other To-Dos, which is about not letting a To-Do link to
+ * itself or its own kind, not about which types this config allows.
  *
  * `enabled` and `order` are deliberately separate properties rather than one
  * array whose membership means "allowed" and whose position means "display
@@ -24,6 +28,8 @@ const KINESIS_LINK_TARGET_CONFIG = {
   CUSTOM_ITEM: { enabled: true, order: 20 },
   GOAL: { enabled: true, order: 30 },
   FINANCE_ITEM: { enabled: true, order: 40 },
+  PERSON: { enabled: true, order: 50 },
+  TODO: { enabled: true, order: 60 },
 } as const;
 
 export type KinesisLinkTargetType = keyof typeof KINESIS_LINK_TARGET_CONFIG;
@@ -36,12 +42,19 @@ export const KINESIS_LINK_TARGET_TYPES = (Object.keys(KINESIS_LINK_TARGET_CONFIG
 /** A target type's picker position, read from its own `order` rather than inferred from array position. */
 export const kinesisLinkTargetOrder = (type: KinesisLinkTargetType) => KINESIS_LINK_TARGET_CONFIG[type].order;
 
+/**
+ * A field's name defines the meaning of the relationship; the field may
+ * contain one or many linked Objects, of any allowed type (KD-034). There is
+ * no per-field cardinality or type restriction: both would need a field
+ * *definition* to live on, and Kinesis has none yet (see KD-035).
+ */
 export type CustomFieldValue = {
   id?: string;
   label: string;
   value: string;
   type?: CustomFieldType;
-  targetObjectId?: string | null;
+  /** Empty for a Kinesis Link with nothing chosen yet, ignored for every other type. */
+  targetObjectIds?: string[];
 };
 
 export type KinesisLinkOption = {
@@ -55,21 +68,17 @@ export type KinesisLinkOption = {
 };
 
 /**
- * The five positional `FormData` arrays a custom-fields editor posts under,
- * and the one place that naming lives -- so the editor's `<input name=...>`
- * and the server's `formData.getAll(...)` can never drift apart, and a form
- * that already uses its own field names (Documents' `customLabel` etc., kept
- * distinct from its other fields) still decodes through the same parser as
- * everything else.
+ * The one form field a custom-fields editor posts under: the whole set of
+ * fields, JSON-encoded.
+ *
+ * Before KD-034 this was five positional `FormData` arrays -- one label, one
+ * type, one value, one target per field, joined by array index -- which is
+ * what made a field's `targetObjectId` a single nullable column rather than a
+ * list: the wire format itself had no way to say "this field, three targets."
+ * A single serialised payload has no such limit, and removes the position
+ * bookkeeping (and the empty hidden inputs `CustomFieldsEditor` used to emit
+ * purely to keep five arrays aligned) along with it. One name is enough for
+ * every form -- unlike the old positional names, an opaque JSON payload can't
+ * collide with a form's own unrelated fields merely by using a common word.
  */
-export type FieldNames = { id: string; label: string; type: string; value: string; target: string };
-
-/** Used wherever a form's custom fields are the only positional fields on it (custom items, Goals). */
-export const DEFAULT_FIELD_NAMES: FieldNames = {
-  id: "fieldId", label: "fieldLabel", type: "fieldType", value: "fieldValue", target: "fieldTarget",
-};
-
-/** Documents already have their own `link`, `notes`, etc.; these keep custom fields from colliding with them. */
-export const DOCUMENT_FIELD_NAMES: FieldNames = {
-  id: "customId", label: "customLabel", type: "customType", value: "customValue", target: "customTarget",
-};
+export const CUSTOM_FIELDS_FORM_KEY = "customFieldsPayload";

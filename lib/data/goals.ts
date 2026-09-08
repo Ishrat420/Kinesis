@@ -1,6 +1,7 @@
-import type { ObjectField } from "@prisma/client";
+import type { FieldLink, ObjectField } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
+import { presentCustomFields } from "@/lib/custom-fields/present";
 import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
 import { calculateGoalHealth } from "@/lib/goals/health";
 import { connection } from "next/server";
@@ -25,8 +26,8 @@ export async function syncAndGetGoals() {
 }
 
 /** Presents a goal the way every caller of this file already expects: `customFields` as its own flat array. */
-function withCustomFields<T extends { object: { fields: ObjectField[] } }>({ object, ...goal }: T) {
-  return { ...goal, customFields: object.fields };
+function withCustomFields<T extends { object: { fields: (ObjectField & { links: FieldLink[] })[] } }>({ object, ...goal }: T) {
+  return { ...goal, customFields: presentCustomFields(object.fields) };
 }
 
 export async function getGoal(id: string) {
@@ -34,7 +35,7 @@ export async function getGoal(id: string) {
   const include = {
     milestones: { orderBy: { position: "asc" as const } },
     metricHistory: { orderBy: { recordedAt: "asc" as const } },
-    object: { select: { fields: { orderBy: { position: "asc" as const } } } },
+    object: { select: { fields: { orderBy: { position: "asc" as const }, include: { links: { orderBy: { position: "asc" as const } } } } } },
   };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, include });
   if (!goal) return null;

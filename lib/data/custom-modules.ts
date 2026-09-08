@@ -1,13 +1,16 @@
-import type { ObjectField } from "@prisma/client";
+import type { FieldLink, ObjectField } from "@prisma/client";
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
+import { presentCustomFields } from "@/lib/custom-fields/present";
 
-/** A custom item's own fields, off the shared `ObjectField` table, in display order. */
-const itemFieldsInclude = { object: { select: { fields: { orderBy: { position: "asc" as const } } } } };
+/** A custom item's own fields, off the shared `ObjectField` table, in display order, with each field's Kinesis Link targets in the order they were added. */
+const itemFieldsInclude = {
+  object: { select: { fields: { orderBy: { position: "asc" as const }, include: { links: { orderBy: { position: "asc" as const } } } } } },
+};
 
 /** Presents an item the way every caller of this file already expects: `fields` as its own flat array. */
-function withFields<T extends { object: { fields: ObjectField[] } }>({ object, ...item }: T) {
-  return { ...item, fields: object.fields };
+function withFields<T extends { object: { fields: (ObjectField & { links: FieldLink[] })[] } }>({ object, ...item }: T) {
+  return { ...item, fields: presentCustomFields(object.fields) };
 }
 
 export async function getCustomModules() {
