@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { addActivity } from "@/lib/data/activity";
 import { isCalendarDate, isFinanceFrequency, isFinanceKind } from "@/lib/finance";
 import type { FinanceItem, FinanceKind } from "@/lib/finance";
+import { parseDateOnly } from "@/lib/dates";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
@@ -28,8 +29,11 @@ export async function recordFinanceActivity(kind: FinanceKind, updated: boolean,
   revalidatePath("/");
 }
 
+// `validate` below has already confirmed `isCalendarDate` for any value
+// reaching here, so `parseDateOnly` -- the one shared "yyyy-mm-dd -> UTC
+// date" parser -- never returns null in practice.
 function date(value?: string) {
-  return value ? new Date(`${value}T00:00:00.000Z`) : null;
+  return value ? parseDateOnly(value) : null;
 }
 
 function validate(item: FinanceItem): string | null {

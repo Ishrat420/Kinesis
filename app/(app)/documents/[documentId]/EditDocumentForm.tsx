@@ -9,7 +9,7 @@ import { updateDocumentAction, type DocumentActionState } from "../actions";
 import { getDocumentState, type ExpiryUrgency, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
-import { formatDate } from "@/lib/dates";
+import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
@@ -160,7 +160,7 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, onCancel, o
 
 const STATUS_TONES: Record<ExpiryUrgency, string> = { neutral: "bg-zinc-100 text-zinc-700", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" };
 /** The form holds a yyyy-mm-dd string; every date rule here reads whole UTC days. */
-function toUtcDate(value: string) { return value ? new Date(`${value}T00:00:00.000Z`) : null; }
+function toUtcDate(value: string) { return value ? parseDateOnly(value) : null; }
 function displayDate(value: string, locale: string) { return value ? formatDate(value, locale) : EMPTY_VALUE; }
 /** A DATE-type custom field's raw value may still be a legacy dd/mm/yyyy string, so it is parsed rather than formatted directly. */
 function displayFieldValue(field: { type?: string; value: string }, locale: string) {

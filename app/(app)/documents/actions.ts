@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
+import { parseDateOnly } from "@/lib/dates";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType, type CustomFieldValue } from "@/lib/custom-fields/types";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refusalOf } from "@/lib/actions/refusal";
@@ -19,9 +20,22 @@ function text(formData: FormData, name: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function date(formData: FormData, name: string) {
+/**
+ * Reads a date-only field, or says what is wrong with it.
+ *
+ * `parseDateOnly` is the one place "yyyy-mm-dd string -> UTC calendar date"
+ * happens, so an out-of-range day like 2026-02-30 is rejected here rather
+ * than silently rolling into March -- the same defect already fixed once for
+ * custom items and once for finance, closed here for documents too.
+ */
+type DateFieldResult = { ok: true; value: Date | null } | { ok: false; error: string };
+
+function dateField(formData: FormData, name: string, label: string): DateFieldResult {
   const value = text(formData, name);
-  return value ? new Date(`${value}T00:00:00.000Z`) : null;
+  if (!value) return { ok: true, value: null };
+  const parsed = parseDateOnly(value);
+  if (!parsed) return { ok: false, error: `Enter a valid ${label}.` };
+  return { ok: true, value: parsed };
 }
 
 /**
@@ -38,7 +52,11 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
   const name = text(formData, "name");
   const type = text(formData, "type");
   if (!name || !type) return { ok: false, error: "Name and type are required." };
-  const expiryDate = date(formData, "expiryDate");
+  const expiryField = dateField(formData, "expiryDate", "expiry date");
+  if (!expiryField.ok) return expiryField;
+  const issueField = dateField(formData, "issueDate", "issue date");
+  if (!issueField.ok) return issueField;
+  const expiryDate = expiryField.value;
   const requestedPrompt = Number(text(formData, "prompt"));
   const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
   // Absent on the create form, so a new document is never born archived.
@@ -66,7 +84,7 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
     type,
     status: getDocumentState({ expiryDate, prompt, archived }, today).status,
     expiryDate,
-    issueDate: date(formData, "issueDate"),
+    issueDate: issueField.value,
     documentNumber: text(formData, "documentNumber") || null,
     country: text(formData, "country") || null,
     notes: text(formData, "notes") || null,
