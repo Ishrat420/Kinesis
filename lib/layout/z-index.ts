@@ -15,8 +15,8 @@
  *   `overlay` -- a full-screen dialog and its backdrop. Prefer portaling to
  *                `document.body` here (see Modal.tsx) so no ancestor's
  *                stacking context -- chrome included -- can trap it.
- *   `toast`   -- a brief confirmation that must stay visible even while an
- *                `overlay` it was raised from is still closing.
+ *   `top`     -- above an overlay: a confirmation raised from inside a dialog,
+ *                or a toast that has to outlive the dialog it came from.
  *
  * The values only need to hold this relative order; nothing depends on the
  * numbers themselves.
@@ -25,5 +25,5 @@ export const Z_INDEX = {
   chrome: "z-30",
   banner: "z-40",
   overlay: "z-50",
-  toast: "z-[60]",
+  top: "z-[60]",
 } as const;

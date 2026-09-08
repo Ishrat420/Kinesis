@@ -163,7 +163,7 @@ describe("invalid submissions report an error instead of silently doing nothing"
     });
 
     it("saves a valid item", async () => {
-      await expect(saveFinanceItem(financeItem(), false)).resolves.toEqual({});
+      await expect(saveFinanceItem(financeItem(), false)).resolves.toEqual({ saved: true });
       expect(mocks.financeCreate).toHaveBeenCalledOnce();
     });
   });

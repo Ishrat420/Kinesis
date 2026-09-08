@@ -5,7 +5,7 @@ import { getFinanceItems } from "@/lib/data/finance";
 export default async function FinancePage() {
   return (
     <ModuleContent>
-      <FinanceDashboard initialItems={await getFinanceItems()} />
+      <FinanceDashboard items={await getFinanceItems()} />
     </ModuleContent>
   );
 }

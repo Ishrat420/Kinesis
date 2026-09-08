@@ -23,7 +23,7 @@ export function NewItemButton({ moduleId, linkOptions }: { moduleId: string; lin
   }, [moduleId]);
   const [state, formAction] = useActionState(createItem, initialState);
   return <>
-    {created && <div role="status" className={`fixed right-6 top-24 ${Z_INDEX.toast} flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-700 shadow-lg`}><CheckCircle2 className="h-5 w-5"/> Item created</div>}
+    {created && <div role="status" className={`fixed right-6 top-24 ${Z_INDEX.top} flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-700 shadow-lg`}><CheckCircle2 className="h-5 w-5"/> Item created</div>}
     <button type="button" onClick={() => setOpen(true)} className="inline-flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5"><Plus className="h-4 w-4" /> New item</button>
     {open && <div role="dialog" aria-modal="true" aria-labelledby="new-item-title" className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm`} onMouseDown={() => setOpen(false)}>
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-7 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>

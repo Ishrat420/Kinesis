@@ -5,23 +5,22 @@ import {
   CreditCard, Landmark, Pencil, Plus, Trash2, WalletCards, X,
 } from "lucide-react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
-import { FormEvent, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ASSET_CATEGORIES,
   FINANCE_FREQUENCIES,
-  type FinanceFrequency as Frequency,
   type FinanceItem,
   type FinanceKind as Kind,
   LIABILITY_CATEGORIES,
   getMonthlyCashFlow,
 } from "@/lib/finance";
-import { deleteFinanceItem, saveFinanceItem } from "@/app/(app)/finance/actions";
+import { deleteFinanceItemAction, saveFinanceItemAction, type FinanceActionState } from "@/app/(app)/finance/actions";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
-const SAVE_FAILED = "Something went wrong saving this item. Please try again.";
-const DELETE_FAILED = "Something went wrong deleting this item. Please try again.";
+const initialState: FinanceActionState = {};
 /** Binds the owner's locale and currency so call sites stay a single call. */
 function useMoney() {
   const { locale, currency } = useFormatPreferences();
@@ -29,18 +28,20 @@ function useMoney() {
 }
 
 const kindLabels: Record<Kind, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
-export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[] }) {
+/**
+ * `items` is read straight from the props on every render rather than seeded
+ * into state. The save and delete actions both revalidate this route, so the
+ * server sends the list back as it was actually stored -- where the dashboard
+ * used to patch a local copy with an item rebuilt in the browser, and showed
+ * that instead.
+ */
+export function FinanceDashboard({ items }: { items: FinanceItem[] }) {
   const money = useMoney();
   const today = useToday();
-  const [items, setItems] = useState(initialItems);
   const [modal, setModal] = useState<"choose" | "form" | null>(null);
   const [formKind, setFormKind] = useState<Kind>("asset");
   const [editing, setEditing] = useState<FinanceItem | null>(null);
   const [deleting, setDeleting] = useState<FinanceItem | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deletingBusy, setDeletingBusy] = useState(false);
 
   const totals = useMemo(() => {
     const sum = (kind: Kind) => items.filter((item) => item.kind === kind).reduce((total, item) => total + item.amount, 0);
@@ -49,43 +50,9 @@ export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[]
     return { assets, liabilities, income, expenses, netWorth: assets - liabilities, flow: netCashFlow };
   }, [items, today]);
 
-  function openForm(kind: Kind, item: FinanceItem | null = null) { setFormKind(kind); setEditing(item); setFormError(null); setModal("form"); }
-  function closeModal() { setModal(null); setEditing(null); setFormError(null); }
-  function closeDeleteModal() { setDeleting(null); setDeleteError(null); }
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const data = new FormData(event.currentTarget);
-    const next: FinanceItem = { id: editing?.id || crypto.randomUUID(), kind: formKind, name: String(data.get("name")), amount: Number(data.get("amount")), notes: String(data.get("notes") || "") };
-    if (formKind === "asset" || formKind === "liability") { next.category = String(data.get("category")); const rate = data.get("rate"); if (rate !== "") next.rate = Number(rate); }
-    else { next.frequency = String(data.get("frequency")) as Frequency; next.startDate = String(data.get("startDate") || ""); next.endDate = String(data.get("endDate") || ""); }
-    const target = editing;
-    setSaving(true); setFormError(null);
-    try {
-      const result = await saveFinanceItem(next, Boolean(target));
-      if (result.error) { setFormError(result.error); return; }
-      setItems((current) => target ? current.map((item) => item.id === target.id ? next : item) : [...current, next]);
-      closeModal();
-    } catch {
-      setFormError(SAVE_FAILED);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function remove() {
-    if (!deleting) return;
-    const id = deleting.id;
-    setDeletingBusy(true); setDeleteError(null);
-    try {
-      await deleteFinanceItem(id);
-      setItems((current) => current.filter((item) => item.id !== id));
-      closeDeleteModal();
-    } catch {
-      setDeleteError(DELETE_FAILED);
-    } finally {
-      setDeletingBusy(false);
-    }
-  }
+  function openForm(kind: Kind, item: FinanceItem | null = null) { setFormKind(kind); setEditing(item); setModal("form"); }
+  const closeModal = useCallback(() => { setModal(null); setEditing(null); }, []);
+  const closeDeleteModal = useCallback(() => setDeleting(null), []);
 
   const assets = items.filter((item) => item.kind === "asset");
   const liabilities = items.filter((item) => item.kind === "liability");
@@ -108,10 +75,19 @@ export function FinanceDashboard({ initialItems }: { initialItems: FinanceItem[]
 
     {modal && <div className={`fixed inset-0 ${Z_INDEX.overlay} flex items-end justify-center bg-zinc-950/35 p-0 backdrop-blur-sm sm:items-center sm:p-5`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}><div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:max-w-lg sm:rounded-[28px] sm:p-7">
       <div className="flex items-start justify-between"><div><p className="text-xl font-semibold">{modal === "choose" ? "What would you like to add?" : `${editing ? "Edit" : "Add"} ${kindLabels[formKind]}`}</p><p className="mt-1 text-sm text-zinc-500">{modal === "choose" ? "Choose the type of financial item." : "Keep it high-level — you can update this anytime."}</p></div><button aria-label="Close" onClick={closeModal} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5"/></button></div>
-      {modal === "choose" ? <div className="mt-6 grid grid-cols-2 gap-3">{(["asset", "liability", "income", "expense"] as Kind[]).map((kind) => <button key={kind} onClick={() => openForm(kind)} className="group rounded-2xl border border-zinc-200 p-5 text-left transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${kind === "asset" || kind === "income" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{kind === "income" ? <ArrowDownLeft className="h-5 w-5"/> : kind === "expense" ? <ArrowUpRight className="h-5 w-5"/> : kind === "asset" ? <Building2 className="h-5 w-5"/> : <CreditCard className="h-5 w-5"/>}</span><span className="mt-4 block font-semibold">Add {kindLabels[kind]}</span><span className="mt-1 block text-xs text-zinc-500">{kind === "asset" ? "Something you own" : kind === "liability" ? "A balance you owe" : kind === "income" ? "Recurring money in" : "Recurring money out"}</span></button>)}</div> : <FinanceForm kind={formKind} item={editing} onSubmit={save} error={formError} saving={saving}/>} 
+      {modal === "choose" ? <div className="mt-6 grid grid-cols-2 gap-3">{(["asset", "liability", "income", "expense"] as Kind[]).map((kind) => <button key={kind} onClick={() => openForm(kind)} className="group rounded-2xl border border-zinc-200 p-5 text-left transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${kind === "asset" || kind === "income" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{kind === "income" ? <ArrowDownLeft className="h-5 w-5"/> : kind === "expense" ? <ArrowUpRight className="h-5 w-5"/> : kind === "asset" ? <Building2 className="h-5 w-5"/> : <CreditCard className="h-5 w-5"/>}</span><span className="mt-4 block font-semibold">Add {kindLabels[kind]}</span><span className="mt-1 block text-xs text-zinc-500">{kind === "asset" ? "Something you own" : kind === "liability" ? "A balance you owe" : kind === "income" ? "Recurring money in" : "Recurring money out"}</span></button>)}</div> : <FinanceForm kind={formKind} item={editing} onSaved={closeModal}/>}
     </div></div>}
-    {deleting && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/40 p-5 backdrop-blur-sm"><div className="w-full max-w-sm rounded-[28px] bg-white p-7 shadow-2xl"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 className="h-5 w-5"/></div><h2 className="mt-5 text-xl font-semibold">Delete {deleting.name}?</h2><p className="mt-2 text-sm leading-6 text-zinc-500">This will remove the item and immediately update your totals. This action cannot be undone.</p>{deleteError && <p role="alert" className="mt-4 text-sm font-medium text-red-600">{deleteError}</p>}<div className="mt-6 flex justify-end gap-3"><button onClick={closeDeleteModal} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold">Cancel</button><button onClick={remove} disabled={deletingBusy} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-wait disabled:opacity-70">{deletingBusy ? "Deleting…" : "Delete item"}</button></div></div></div>}
+    {deleting && <DeleteFinanceItem item={deleting} onCancel={closeDeleteModal} onDeleted={closeDeleteModal}/>}
   </>;
+}
+
+/** The confirmation stacks on top of the form dialog it can be raised from, so it sits a tier above it. */
+function DeleteFinanceItem({ item, onCancel, onDeleted }: { item: FinanceItem; onCancel: () => void; onDeleted: () => void }) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(() => deleteFinanceItemAction(item.id), initialState);
+  useEffect(() => { if (state.saved) { router.refresh(); onDeleted(); } }, [state.saved, router, onDeleted]);
+
+  return <div className={`fixed inset-0 ${Z_INDEX.top} flex items-center justify-center bg-zinc-950/40 p-5 backdrop-blur-sm`}><div className="w-full max-w-sm rounded-[28px] bg-white p-7 shadow-2xl"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 className="h-5 w-5"/></div><h2 className="mt-5 text-xl font-semibold">Delete {item.name}?</h2><p className="mt-2 text-sm leading-6 text-zinc-500">This will remove the item and immediately update your totals. This action cannot be undone.</p>{state.error && <p role="alert" className="mt-4 text-sm font-medium text-red-600">{state.error}</p>}<form action={formAction} className="mt-6 flex justify-end gap-3"><button type="button" onClick={onCancel} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold">Cancel</button><button disabled={pending} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-wait disabled:opacity-70">{pending ? "Deleting…" : "Delete item"}</button></form></div></div>;
 }
 
 function DarkStat({ label, value }: { label: string; value: number }) { const money = useMoney(); return <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"><p className="text-xs font-medium text-zinc-400">{label}</p><p className="mt-2 text-xl font-semibold">{money(value)}</p></div>; }
@@ -119,5 +95,5 @@ function FlowCard({ icon: Icon, label, value, tone, signed = false }: { icon: ty
 
 function ItemSection({ title, subtitle, icon: Icon, items, onEdit, onDelete, recurring = false }: { title: string; subtitle: string; icon: typeof Banknote; items: FinanceItem[]; onEdit: (kind: Kind, item: FinanceItem) => void; onDelete: (item: FinanceItem) => void; recurring?: boolean }) { const money = useMoney(); return <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700"><Icon className="h-5 w-5"/></div><div><h2 className="font-semibold">{title}</h2><p className="text-xs text-zinc-400">{subtitle}</p></div></div><div className="mt-5 divide-y divide-zinc-100">{items.length ? items.map((item) => <div key={item.id} className="group flex items-center gap-3 py-4 first:pt-1 last:pb-0"><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.kind === "income" ? "bg-emerald-50 text-emerald-600" : item.kind === "expense" ? "bg-rose-50 text-rose-600" : "bg-zinc-50 text-zinc-500"}`}>{item.kind === "income" ? <ArrowDownLeft className="h-4 w-4"/> : item.kind === "expense" ? <ArrowUpRight className="h-4 w-4"/> : <Landmark className="h-4 w-4"/>}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="mt-0.5 text-xs text-zinc-400">{recurring ? kindLabels[item.kind] : item.category || kindLabels[item.kind]}{item.rate !== undefined ? ` · ${item.rate}% p.a.` : ""}</p></div><div className="text-right"><p className="text-sm font-semibold">{money(item.amount)}{recurring && <span className="font-normal text-zinc-400"> / {item.frequency?.toLowerCase()}</span>}</p></div><div className="flex opacity-60 transition group-hover:opacity-100"><button aria-label={`Edit ${item.name}`} onClick={() => onEdit(item.kind, item)} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><Pencil className="h-4 w-4"/></button><button aria-label={`Delete ${item.name}`} onClick={() => onDelete(item)} className="rounded-lg p-2 text-zinc-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4"/></button></div></div>) : <p className="py-8 text-center text-sm text-zinc-400">Nothing here yet.</p>}</div></section>; }
 
-function FinanceForm({ kind, item, onSubmit, error, saving }: { kind: Kind; item: FinanceItem | null; onSubmit: (event: FormEvent<HTMLFormElement>) => void; error: string | null; saving: boolean }) { const balance = kind === "liability"; const recurring = kind === "income" || kind === "expense"; const categories = balance ? LIABILITY_CATEGORIES : ASSET_CATEGORIES; return <form onSubmit={onSubmit} className="mt-6 space-y-4"><Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field><Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required defaultValue={item?.amount} className="input pl-8"/></div></Field>{!recurring ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" defaultValue={item?.rate} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field></div> : <><Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field><div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div></>}<Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>{error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}<button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button></form>; }
+function FinanceForm({ kind, item, onSaved }: { kind: Kind; item: FinanceItem | null; onSaved: () => void }) { const router = useRouter(); const [state, formAction, saving] = useActionState(saveFinanceItemAction.bind(null, kind, item?.id ?? null), initialState); const error = state.error ?? null; useEffect(() => { if (state.saved) { router.refresh(); onSaved(); } }, [state.saved, router, onSaved]); const balance = kind === "liability"; const recurring = kind === "income" || kind === "expense"; const categories = balance ? LIABILITY_CATEGORIES : ASSET_CATEGORIES; return <form action={formAction} className="mt-6 space-y-4"><Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field><Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required defaultValue={item?.amount} className="input pl-8"/></div></Field>{!recurring ? <div className="grid gap-4 sm:grid-cols-2"><Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" defaultValue={item?.rate} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field></div> : <><Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field><div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div></>}<Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>{error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}<button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button></form>; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</span>{children}</label>; }
