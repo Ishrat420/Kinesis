@@ -50,7 +50,20 @@ export const CUSTOM_MODULE_ICONS = {
 
 export type CustomModuleIconName = keyof typeof CUSTOM_MODULE_ICONS;
 
+/**
+ * The icon a module's stored name maps to, falling back to a package for a
+ * name this build no longer ships. For a caller that needs the component
+ * itself -- to hand to something that renders its own icon, such as the
+ * dashboard's ModuleCard -- rather than a rendered glyph.
+ */
+export function customModuleIcon(name: string): React.ElementType {
+  return CUSTOM_MODULE_ICONS[name as CustomModuleIconName] ?? Package;
+}
+
 export function CustomModuleIcon({ name, className }: { name: string; className?: string }) {
+  // The lookup is inline rather than through `customModuleIcon` above:
+  // resolving a component by calling a function during render is what
+  // `react-hooks/static-components` exists to catch, and a map lookup is not.
   const Icon = CUSTOM_MODULE_ICONS[name as CustomModuleIconName] ?? Package;
   return <Icon className={className} />;
 }
