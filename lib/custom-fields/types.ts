@@ -23,6 +23,7 @@ const KINESIS_LINK_TARGET_CONFIG = {
   DOCUMENT: { enabled: true, order: 10 },
   CUSTOM_ITEM: { enabled: true, order: 20 },
   GOAL: { enabled: true, order: 30 },
+  FINANCE_ITEM: { enabled: true, order: 40 },
 } as const;
 
 export type KinesisLinkTargetType = keyof typeof KINESIS_LINK_TARGET_CONFIG;
@@ -51,4 +52,24 @@ export type KinesisLinkOption = {
   href: string;
   icon?: string;
   color?: string;
+};
+
+/**
+ * The five positional `FormData` arrays a custom-fields editor posts under,
+ * and the one place that naming lives -- so the editor's `<input name=...>`
+ * and the server's `formData.getAll(...)` can never drift apart, and a form
+ * that already uses its own field names (Documents' `customLabel` etc., kept
+ * distinct from its other fields) still decodes through the same parser as
+ * everything else.
+ */
+export type FieldNames = { id: string; label: string; type: string; value: string; target: string };
+
+/** Used wherever a form's custom fields are the only positional fields on it (custom items, Goals). */
+export const DEFAULT_FIELD_NAMES: FieldNames = {
+  id: "fieldId", label: "fieldLabel", type: "fieldType", value: "fieldValue", target: "fieldTarget",
+};
+
+/** Documents already have their own `link`, `notes`, etc.; these keep custom fields from colliding with them. */
+export const DOCUMENT_FIELD_NAMES: FieldNames = {
+  id: "customId", label: "customLabel", type: "customType", value: "customValue", target: "customTarget",
 };

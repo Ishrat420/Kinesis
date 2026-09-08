@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { addActivity } from "@/lib/data/activity";
 import { parseDateOnly } from "@/lib/dates";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType, type CustomFieldValue } from "@/lib/custom-fields/types";
+import { DOCUMENT_FIELD_NAMES } from "@/lib/custom-fields/types";
+import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refusalOf } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
@@ -62,22 +63,9 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
   // Absent on the create form, so a new document is never born archived.
   const archived = formData.get("archived") === "true";
 
-  const customLabels = formData.getAll("customLabel");
-  const customIds = formData.getAll("customId");
-  const customValues = formData.getAll("customValue");
-  const customTypes = formData.getAll("customType");
-  const customTargets = formData.getAll("customTarget");
-  const validTypes = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
-  const customFields: CustomFieldValue[] = [];
-  for (const [index, label] of customLabels.entries()) {
-    if (typeof label !== "string" || !label.trim()) continue;
-    const value = customValues[index];
-    const requestedType = String(customTypes[index] ?? "TEXT") as CustomFieldType;
-    const fieldType = validTypes.has(requestedType) ? requestedType : "TEXT";
-    const targetObjectId = fieldType === "KINESIS_LINK" ? String(customTargets[index] ?? "").trim() : "";
-    if (fieldType === "KINESIS_LINK" && !targetObjectId) return { ok: false, error: `Choose what “${label.trim()}” links to.` };
-    customFields.push({ id: String(customIds[index] ?? "") || undefined, label: label.trim(), value: fieldType === "KINESIS_LINK" ? "" : typeof value === "string" ? value.trim() : "", type: fieldType, targetObjectId: targetObjectId || null });
-  }
+  const form = parseCustomFields(formData, DOCUMENT_FIELD_NAMES);
+  if (!form.ok) return form;
+  const customFields = form.fields;
 
   return { ok: true, data: {
     name,

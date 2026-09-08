@@ -24,11 +24,11 @@ const goals: SearchProvider = {
   id: "goals",
   async getEntries() {
     const user = await requireKinesisUser();
-    const rows = await prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true } });
+    const rows = await prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true, object: { select: { fields: true } } } });
     return rows.map((goal) => ({
       id: `goal:${goal.id}`, title: goal.name, subtitle: `${goal.status} goal`,
       href: `/goals/${goal.id}`, kind: "Goal" as const,
-      keywords: text(goal.name, goal.status, goal.note, goal.unit, goal.targetValue, goal.currentValue, goal.milestones.map((milestone) => milestone.name)),
+      keywords: text(goal.name, goal.status, goal.note, goal.unit, goal.targetValue, goal.currentValue, goal.milestones.map((milestone) => milestone.name), goal.object.fields.flatMap((field) => [field.label, field.value])),
     }));
   },
 };

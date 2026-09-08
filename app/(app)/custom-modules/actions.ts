@@ -7,7 +7,8 @@ import { prisma } from "@/lib/data/prisma";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { DEFAULT_FIELD_NAMES } from "@/lib/custom-fields/types";
+import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
@@ -38,36 +39,6 @@ const dueDateValue = (raw: string) => {
   return parseDateOnly(raw) ?? undefined;
 };
 
-type CustomField = { id: string; label: string; value: string; type: CustomFieldType; targetObjectId: string | null; position: number };
-type FieldsResult = { ok: true; fields: CustomField[] } | { ok: false; error: string };
-
-/**
- * Reads the field rows, or says what is wrong with them.
- *
- * The Kinesis Link check used to `throw` its sentence. Next.js redacts a thrown
- * message before it reaches the browser, so the owner saw "An unexpected error
- * occurred" and a digest hash rather than the name of the field to go and fill
- * in -- and the form they had just typed into was replaced by a crash screen.
- */
-function customFields(data: FormData): FieldsResult {
-  const ids = data.getAll("fieldId").map(String);
-  const labels = data.getAll("fieldLabel").map(String);
-  const values = data.getAll("fieldValue").map(String);
-  const types = data.getAll("fieldType").map(String);
-  const targets = data.getAll("fieldTarget").map(String);
-  const validTypes = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
-  const fields: CustomField[] = [];
-  for (const [position, label] of labels.entries()) {
-    const requested = types[position] as CustomFieldType;
-    const type = validTypes.has(requested) ? requested : "TEXT";
-    const targetObjectId = type === "KINESIS_LINK" ? (targets[position] ?? "").trim() : "";
-    if (!label.trim()) continue;
-    if (type === "KINESIS_LINK" && !targetObjectId) return { ok: false, error: `Choose what “${label.trim()}” links to.` };
-    fields.push({ id: ids[position] || crypto.randomUUID(), label: label.trim(), value: type === "KINESIS_LINK" ? "" : (values[position] ?? "").trim(), type, targetObjectId: targetObjectId || null, position });
-  }
-  return { ok: true, fields };
-}
-
 export async function createCustomModuleAction(_: CreateModuleState, data: FormData): Promise<CreateModuleState> {
   const user = await requireKinesisUser();
   const name = getValue(data, "name");
@@ -93,17 +64,16 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
   const dueDate = dueDateValue(getValue(data, "dueDate"));
   if (dueDate === undefined) return { error: "Enter a valid due date." };
-  const form = customFields(data);
+  const form = parseCustomFields(data, DEFAULT_FIELD_NAMES);
   if (!form.ok) return { error: form.error };
-  const fields = form.fields;
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true } });
   if (!ownedModule) return { error: "This module no longer exists." };
-  const unowned = await validateKinesisTargets(fields);
+  const unowned = await validateKinesisTargets(form.fields);
   if (unowned) return { error: unowned };
   await prisma.customItem.create({ data: {
     id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
     dueDate, link: getValue(data, "link") || null,
-    object: objectFor.customItem(name, user.id, fields),
+    object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields)),
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
@@ -118,11 +88,11 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
   const dueDate = dueDateValue(getValue(data, "dueDate"));
   if (dueDate === undefined) return { error: "Enter a valid due date." };
-  const form = customFields(data);
+  const form = parseCustomFields(data, DEFAULT_FIELD_NAMES);
   if (!form.ok) return { error: form.error };
-  const fields = form.fields;
-  const unowned = await validateKinesisTargets(fields);
+  const unowned = await validateKinesisTargets(form.fields);
   if (unowned) return { error: unowned };
+  const fields = prepareCustomFields(form.fields);
   try {
     await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { objectId: true } });

@@ -14,6 +14,9 @@ import { refuse, refusalOf } from "@/lib/actions/refusal";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
+import { DEFAULT_FIELD_NAMES } from "@/lib/custom-fields/types";
+import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
+import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 
 export type GoalActionState = { error?: string; saved?: boolean };
 
@@ -312,4 +315,41 @@ export async function deleteMilestoneAction(id: string, milestoneId: string) { c
 export async function toggleProgressAction(id: string, field: "showMilestoneProgress" | "showTargetProgress", shown: boolean) {
   const user = await requireKinesisUser();
   await prisma.goal.updateMany({ where: { id, userId: user.id }, data: { [field]: shown } }); refresh(id);
+}
+
+/**
+ * A goal's supporting context (KD-033): notes, links to external resources,
+ * and Kinesis Links to other records -- Milestones and Linked Goals stay
+ * meaningful checkpoints and independent outcomes precisely by not being
+ * where this goes instead.
+ *
+ * These are the same field types Documents and Custom Items already offer
+ * (TEXT, LINK, KINESIS_LINK), through the same editor and the same shared
+ * `ObjectField` store every field-capable record now uses -- a goal is not a
+ * fourth implementation of this, just a third record type pointed at it.
+ */
+export async function updateGoalFieldsAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
+  const user = await requireKinesisUser();
+  const form = parseCustomFields(data, DEFAULT_FIELD_NAMES);
+  if (!form.ok) return { error: form.error };
+  const unowned = await validateKinesisTargets(form.fields);
+  if (unowned) return { error: unowned };
+  const fields = prepareCustomFields(form.fields);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const owned = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+      if (!owned) refuse("This goal no longer exists.");
+      const existingFields = await tx.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
+      const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
+      if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
+      await tx.objectField.deleteMany({ where: { objectId: owned.objectId } });
+      if (fields.length) await tx.objectField.createMany({ data: fields.map((field) => ({ ...field, objectId: owned.objectId })) });
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
+  refresh(id);
+  return { saved: true };
 }

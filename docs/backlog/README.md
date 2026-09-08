@@ -173,13 +173,13 @@ KD-023-universal-object-connection
 KD-011-unified-todo-view
 KD-017-turn-dashboard-into-decision-surface
 KD-020-mobile-navigation-and-responsive-app
-KD-033-options-for-more-goal-details
 KD-035-module-templates
 
 ## ⛔ Blocked
 
 
 ## ✅ Done
+KD-033-options-for-more-goal-details
 KD-024-universal-object-capablity-layer
 KD-022-goal-linked-relationships
 KD-021-relationship-with-oneself

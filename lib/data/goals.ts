@@ -1,3 +1,4 @@
+import type { ObjectField } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
@@ -23,14 +24,23 @@ export async function syncAndGetGoals() {
   return goals;
 }
 
+/** Presents a goal the way every caller of this file already expects: `customFields` as its own flat array. */
+function withCustomFields<T extends { object: { fields: ObjectField[] } }>({ object, ...goal }: T) {
+  return { ...goal, customFields: object.fields };
+}
+
 export async function getGoal(id: string) {
   const user = await requireKinesisUser();
-  const include = { milestones: { orderBy: { position: "asc" as const } }, metricHistory: { orderBy: { recordedAt: "asc" as const } } };
+  const include = {
+    milestones: { orderBy: { position: "asc" as const } },
+    metricHistory: { orderBy: { recordedAt: "asc" as const } },
+    object: { select: { fields: { orderBy: { position: "asc" as const } } } },
+  };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, include });
   if (!goal) return null;
   const status = effectiveStatus(goal.status, goal.targetDate, await getToday());
-  if (status !== goal.status) return prisma.goal.update({ where: { id }, data: { status }, include });
-  return goal;
+  if (status !== goal.status) return prisma.goal.update({ where: { id }, data: { status }, include }).then(withCustomFields);
+  return withCustomFields(goal);
 }
 
 export async function getGoalRelationships(goalId: string) {

@@ -6,6 +6,7 @@ import { getCurrentUser, getUserDisplayName } from "./user";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
+import { prepareCustomFields } from "@/lib/custom-fields/parse";
 import { deleteObjects, objectFor } from "./objects";
 import { refuse } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
@@ -146,11 +147,7 @@ export async function getDocument(id: string) {
 export async function createDocument(data: DocumentInput & { id?: string }) {
   const user = await getCurrentUser();
   const { customFields = [], ...document } = data;
-  const fields = customFields.map(({ id: fieldId, ...field }, position) => ({
-    ...field,
-    id: fieldId ?? crypto.randomUUID(),
-    position,
-  }));
+  const fields = prepareCustomFields(customFields);
   return prisma.document.create({
     data: {
       ...document,
@@ -183,11 +180,7 @@ export async function updateDocument(id: string, data: DocumentInput) {
         object: {
           update: {
             fields: {
-              create: customFields.map(({ id: fieldId, ...field }, position) => ({
-                ...field,
-                id: fieldId ?? crypto.randomUUID(),
-                position,
-              })),
+              create: prepareCustomFields(customFields),
             },
           },
         },

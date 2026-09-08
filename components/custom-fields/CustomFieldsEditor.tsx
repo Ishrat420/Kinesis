@@ -4,8 +4,10 @@ import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
+  DEFAULT_FIELD_NAMES,
   type CustomFieldType,
   type CustomFieldValue,
+  type FieldNames,
   type KinesisLinkOption,
 } from "@/lib/custom-fields/types";
 import { KinesisLinkField } from "@/components/custom-fields/KinesisLinkField";
@@ -14,7 +16,6 @@ import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
-type FieldNames = { id: string; label: string; type: string; value: string; target: string };
 
 const inputClass = FIELD_INPUT_CLASS;
 
@@ -23,18 +24,10 @@ function toDateInputValue(value: string) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
-const defaultNames: FieldNames = {
-  id: "fieldId",
-  label: "fieldLabel",
-  type: "fieldType",
-  value: "fieldValue",
-  target: "fieldTarget",
-};
-
 export function CustomFieldsEditor({
   initialFields = [],
   linkOptions,
-  names = defaultNames,
+  names = DEFAULT_FIELD_NAMES,
 }: {
   initialFields?: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
