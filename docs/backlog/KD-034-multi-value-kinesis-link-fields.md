@@ -68,7 +68,7 @@ Details that shape the work:
 * **To-Dos** already hold many links. The work there is parity — same picker,
   same tokens, same target rules — plus the naming question below.
 * **Goals** arrive as a link host with KD-033.
-* **To-Do links become named fields** We will have to do this sp that To-Dos get the shared picker, tokens and target
+* **To-Do links become unnamed fields** We will have to do this so that To-Dos get the shared picker, tokens and target
   rules, but one implicit "Links" group rather than named fields. Least work,
   keeps `ObjectRelationship` justified, leaves To-Dos the one surface where a
   link cannot be named.
