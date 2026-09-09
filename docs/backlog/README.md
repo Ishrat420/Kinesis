@@ -161,6 +161,7 @@ KD-032-relationships-bypass-the-object-layer
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
+KD-040-custom-item-fields-are-fully-configurable
 
 
 ## 🚧 In Progress

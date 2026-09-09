@@ -109,6 +109,27 @@ template after them. A distinct action, with no conversion path in either
 direction, removes that ambiguity structurally rather than through
 documentation someone has to already know to go and read.
 
+## Amendment (KD-040)
+
+Point 1 above, as originally written, said more than the design actually
+needed: "there is no dropdown, at any point, that turns a `DATE` field
+into a due date or a due date back into a `DATE` field" was written
+against a specific mechanic (a shared type-dropdown doubling as a
+conversion control) rather than against dropdowns as such.
+
+KD-040 revises the *mechanic* Due Date is added through — a selectable
+"◷ Due date" option in the ordinary field-type dropdown, but reachable
+only for a new, not-yet-saved field row — while leaving the actual
+guarantee this point exists to protect fully intact: **no control, dropdown
+or otherwise, ever changes an existing, already-saved field into a due
+date or back.** An existing field's dropdown never offers Due Date as a
+choice, at any point in the template's lifecycle; the Due Date field's own
+row, once created, is never a live control either — same locked treatment
+every other field's dropdown gets once a template is in use, applied to
+it unconditionally from the moment it's created. What changed is where a
+*brand-new* field can declare itself a due date from the start; nothing
+that already exists as something else can ever become one.
+
 ## Related
 
 * ADR-010 — Notification and Reminders Awareness Surfaces; states the rule
