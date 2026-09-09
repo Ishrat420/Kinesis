@@ -29,11 +29,10 @@ export function GoalSupportingInfo({ fields, linkOptions, action }: {
     <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Supporting information</h2>
-          <p className="mt-1 text-sm text-zinc-500">Notes, links and Kinesis Links that give this goal context.</p>
+          <h2 className="text-xl font-semibold">Goal Details</h2>
         </div>
         {!editing && (
-          <button type="button" onClick={() => setEditing(true)} aria-label="Edit supporting information" className="flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-3.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
+          <button type="button" onClick={() => setEditing(true)} aria-label="Edit goal details" className="flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-3.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
             <Pencil className="h-4 w-4" />{fields.length ? "Edit" : "Add"}
           </button>
         )}
