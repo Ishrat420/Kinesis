@@ -81,29 +81,15 @@ still absolute:
 This amends ADR-011 point 1's literal wording ("There is no dropdown, at
 any point...") — see the amendment note added to that ADR.
 
-### 4. Existing data is not silently lost, but is not silently kept editable either
+### 4. No migration — there is no existing data to carry forward
 
-For items saved before this ships:
-
-* **Notes/Link.** Non-empty existing `notes`/`link` values are migrated
-  once, at ship time, into an ad hoc `TEXT`/`LINK` extra field on the
-  item (labelled "Notes" / "Link" respectively) — so the data continues
-  to exist as an ordinary, editable field rather than becoming a
-  read-only relic or vanishing from the edit form entirely. The
-  `CustomItem.notes`/`.link` columns stop being written or read by the
-  app after the migration runs; whether they're dropped outright is a
-  follow-up, not part of this ticket.
-* **Due date.** There is no equivalent migration target — a due date can
-  only live on a template's Due Date field, and an existing item's
-  module may have no template, or a template with no Due Date field, so
-  there is nowhere to move the value *to*. `CustomItem.dueDate` keeps
-  its existing value, which keeps showing exactly where it does today
-  (Needs Attention, the calendar, notifications) — it just becomes
-  permanently unreachable from the UI (uneditable, unclearable) unless
-  the item's own template already has a Due Date field to take over that
-  job. This is an accepted, explicit trade-off of making Due Date
-  template-only, not an oversight — see Open Questions for the one part
-  of this still worth pinning down.
+Kinesis has no real users or data yet, so there is nothing saved under
+the old fixed Notes/Due date/Link inputs that needs a migration path.
+`CustomItem.notes`/`.link`/`.dueDate` simply stop being written or read
+by the app once this ships; whether the columns themselves are dropped
+outright is a follow-up, not part of this ticket. If this ever changes —
+Kinesis gets real users before this ships — this decision is the first
+thing to revisit, not an assumption to carry forward blindly.
 
 ## Guardrails
 
@@ -116,19 +102,19 @@ For items saved before this ships:
 * A module with no template still works exactly as it does for extras
   today — "+ Add custom field" is unaffected by any of this.
 
-## Open Questions
+## Resolved Questions
 
-1. **Should a module ever be allowed to attach a template *after* it has
-   items with an existing due date, in a way that lets someone route
-   that old value into the template's new Due Date field?** Today
-   nothing like that exists (a template's Due Date field always starts
-   empty for an object that adopts one). Answering "no, never" is
-   consistent with everything already decided above and is the default
-   assumption this ticket ships with unless told otherwise.
-2. **Does the Notes/Link migration need to be visible to the person**
-   (e.g. an activity log entry, or just a silent one-time backfill)? No
-   awareness surface currently reads either column outside the two forms
-   being removed, so a silent backfill is the default assumption.
+Both questions this ticket originally raised turned on there being
+existing data to protect, which there isn't (Decision 4):
+
+1. *Should a module ever let someone attach a template after the fact and
+   route an old due date into its new Due Date field?* Moot — there are
+   no old due dates to route. Retroactively attaching an existing object
+   to a template is a separate, bigger feature (KD-035 built `templateId`
+   as write-once-at-creation, full stop) that this ticket doesn't need to
+   open just to answer this.
+2. *Does the Notes/Link migration need to be visible?* Moot — there's no
+   migration.
 
 ## Related
 
