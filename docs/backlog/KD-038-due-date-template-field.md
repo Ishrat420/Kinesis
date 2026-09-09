@@ -1,6 +1,6 @@
 # KD-038 — Due Date as a Distinct Template Field
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** Medium
 **Tags:** Data Model, Foundation Dependent
 
@@ -129,21 +129,62 @@ read as a bug even though it technically wouldn't be one.
   Custom Item template — enforced by construction (KD-035 Decision 3), not
   by a check this ticket has to add or remember.
 
-## Open questions
+## What shipped
 
-* **Exact schema shape** for marking a `TemplateField` as the due-date
-  field — a boolean flag (`isDueDate`) beside the existing `type: DATE`, or
-  a distinct type identity kept out of the `CustomFieldType` enum
-  `ObjectField` shares with Documents/Goals/ad-hoc extras entirely. Leaning
-  toward the boolean flag for simplicity: since a due-date field never
-  produces an `ObjectField` row regardless of which shape is chosen, a
-  separate enum wouldn't add any additional guarantee `ObjectField` doesn't
-  already have — the real protection is the UI never offering a conversion
-  path, which holds either way. Worth confirming before implementation
-  rather than assuming.
-* Exact placement/icon for the "Due Date" badge, and whether the "+ Add due
-  date field" button needs its own explanatory copy the first time someone
-  sees it.
+Both open questions were settled before implementation (boolean flag;
+`Clock3` icon, no explanatory copy), so what's below is exactly the
+decisions above, built.
+
+* **Schema.** `TemplateField.isDueDate` (boolean flag beside `type: DATE`,
+  per the resolved open question — `prisma/migrations/20260919000000_template_due_date`).
+  Two database-level backstops, since app-level checks alone were the
+  thing this ticket kept insisting on doubling up: a partial unique index
+  (`WHERE "isDueDate" = true`) capping it at one per template, and a check
+  constraint (`NOT "isDueDate" OR "type" = 'DATE'`) pinning it to `DATE`.
+  Neither is expressible in Prisma schema syntax directly, so both live in
+  the migration's raw SQL only.
+* **`updateTemplate`** (`lib/data/templates.ts`) gained the two rules
+  matching those backstops: refuses a submission with more than one
+  `isDueDate: true` field, and — unconditionally, whether or not the
+  template is in use, stricter than the general type-immutability rule —
+  refuses any submission where an *existing* field's `isDueDate` would
+  change in either direction. There is no code path that does this on
+  purpose; only a stray or tampered payload could ever trip it.
+* **UI** (`TemplateFieldsEditor`, Settings → Templates): a second button,
+  "+ Add due date field" (`Clock3` icon, matching the calendar's own
+  "Scheduled" icon), that creates a field pre-set to `label: "Due date"`,
+  `type: "DATE"`, `isDueDate: true` — never reachable through the ordinary
+  type dropdown. Once a template has one, the button itself becomes the
+  "already added" indicator rather than disappearing: `Clock3 · Due date ·
+  Check · Added`, disabled. A due-date row's "type" cell is a fixed badge
+  (`Clock3` + "Due date" text) in place of the dropdown, unconditionally —
+  not just once the template is locked.
+* **Value round-trip.** `getTemplateFieldValues` (`lib/data/custom-modules.ts`)
+  reads a due-date field's value from the object's own `CustomItem.dueDate`
+  instead of the `ObjectField` map every other field uses.
+  `updateCustomItemAction` resolves `dueDate` from the template's due-date
+  field (if the item has one) rather than the form's fixed input, inside
+  the same transaction that already knows the item's template; `saveTemplateFieldValues`
+  explicitly skips that field id so it's never also written as an
+  (unused) `ObjectField` row. `createCustomItemAction` mirrors this for
+  creation: a module whose template has a due-date field ignores the
+  fixed input's value entirely (there is nothing legitimate to read from
+  it — KD-039 will make the field fillable at creation; until then it
+  starts empty, same as every other template field does today).
+* **The fixed Due Date input steps aside**, per Decision 6, on both
+  `NewItemButton` and `EditCustomItemForm`, whenever the module's template
+  (or the item's own, for edit) has a due-date field — computed via a new
+  `getTemplateDueDateFieldId` lookup, threaded down from the module page.
+* **Cloning a template** (`cloneTemplate`) copies `isDueDate` along with
+  every other field property — a clone of a template with a due-date field
+  gets its own, independent one; the two per-template invariants (cap of
+  one, `DATE`-only) hold automatically since the source was already valid.
+
+Verified with `prisma validate`, a full typecheck and lint (clean, no new
+errors against the baseline), the full unit suite passing (621 tests,
+including a new file directly exercising `updateTemplate`'s two Due Date
+rules, plus updates to the parser and read-merge tests for the new field),
+and a production `next build`.
 
 ## Related
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Clock3 } from "lucide-react";
 import { KinesisLinkList } from "./KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "./field-styles";
 import type { CustomFieldType, KinesisLinkOption } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
-export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; value: string; targetObjectIds: string[] };
+export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; value: string; targetObjectIds: string[] };
 
 function toDateInputValue(value: string) {
   const date = parseDatedFieldValue(value);
@@ -50,7 +51,10 @@ export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateF
       <input type="hidden" name={TEMPLATE_FIELD_VALUES_FORM_KEY} value={payload} />
       {values.map((field) => (
         <div key={field.templateFieldId} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-2">
-          <div className="flex h-11 min-w-0 items-center px-3"><span className="truncate text-sm font-medium text-zinc-700">{field.label}</span></div>
+          <div className="flex h-11 min-w-0 items-center gap-1.5 px-3">
+            {field.isDueDate && <Clock3 className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
+            <span className="truncate text-sm font-medium text-zinc-700">{field.label}</span>
+          </div>
           <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} />
         </div>
       ))}

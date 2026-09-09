@@ -500,12 +500,27 @@ model TemplateField {
   label        String
   type         CustomFieldType @default(TEXT)
   position     Int             @default(0)
+  // Marks this row as the template's one Due Date field (KD-038, ADR-011) --
+  // a distinct kind of field, not a property an ordinary DATE field can gain
+  // or lose: there is no UI path that sets this on a row after it's created,
+  // and `updateTemplate` refuses a save that tries. Its value is never
+  // stored on ObjectField at all -- it writes straight to CustomItem.dueDate
+  // (lib/data/custom-modules.ts) -- so, unlike an ordinary field, this one
+  // is never actually removable while any object still exists under a
+  // template that has it (Object.templateId's Restrict already prevents
+  // that object's template from being deleted, and the due-date field is
+  // exactly as load-bearing to that object as the template it belongs to).
+  // A partial unique index (at most one per template) and a check
+  // constraint (only ever true on a DATE row) live in the migration SQL --
+  // Prisma schema syntax can't express either directly.
+  isDueDate    Boolean         @default(false)
   // Every stored value for this field, across every object that has one
   // (KD-035 Phase 2/3). Restrict, not Cascade or SetNull: a field can only be
   // removed once no object uses its template at all (Decision 7's single
   // gate), so in practice this row is never referenced by the time it's
   // deletable -- this is a backstop against that invariant ever being wrong,
-  // not a path this app is meant to exercise.
+  // not a path this app is meant to exercise. Never populated for a
+  // due-date row -- see `isDueDate` above.
   objectFields ObjectField[]
 
   @@index([templateId, position])

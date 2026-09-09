@@ -55,6 +55,18 @@ export async function getTemplateOptions() {
   return prisma.template.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 
+/**
+ * The template's one Due Date field, if it has one (KD-038) -- read by the
+ * item-creation dialog to decide whether to show its own fixed Due Date
+ * input (no template due-date field) or hand that job to the template's own
+ * field instead (there is one, even before that field is fillable at
+ * creation time -- see KD-039).
+ */
+export async function getTemplateDueDateFieldId(templateId: string) {
+  const field = await prisma.templateField.findFirst({ where: { templateId, isDueDate: true }, select: { id: true } });
+  return field?.id ?? null;
+}
+
 export async function createTemplate() {
   const user = await requireKinesisUser();
   return prisma.template.create({ data: { id: crypto.randomUUID(), userId: user.id, name: "Untitled template" } });
@@ -76,7 +88,7 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     const owned = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
     if (!owned) refuse("This template no longer exists.");
 
-    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true } });
+    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true } });
     const existingById = new Map(existing.map((field) => [field.id, field]));
     const submittedIds = new Set(fields.flatMap(({ id }) => id ? [id] : []));
     const removedIds = existing.filter(({ id }) => !submittedIds.has(id)).map(({ id }) => id);
@@ -86,6 +98,17 @@ export async function updateTemplate(templateId: string, name: string, fields: T
       refuse("This template is in use, so its fields can no longer be retyped or removed.");
     }
 
+    // A field's Due Date status is not a type change -- it has no UI path
+    // to change at all (KD-038 Decision 1), unconditionally, whether or not
+    // the template is in use. A stray or tampered payload is the only way
+    // this could ever fire.
+    if (fields.some(({ id, isDueDate }) => id && existingById.has(id) && Boolean(existingById.get(id)!.isDueDate) !== Boolean(isDueDate))) {
+      refuse("A field can't be turned into or out of the Due Date field.");
+    }
+    if (fields.filter(({ isDueDate }) => isDueDate).length > 1) {
+      refuse("A template can only have one Due Date field.");
+    }
+
     await tx.template.update({ where: { id: templateId }, data: { name } });
     if (removedIds.length) await tx.templateField.deleteMany({ where: { id: { in: removedIds } } });
     for (const [position, field] of fields.entries()) {
@@ -93,7 +116,7 @@ export async function updateTemplate(templateId: string, name: string, fields: T
       if (existingField) {
         await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position } });
       } else {
-        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position } });
+        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate) } });
       }
     }
   });
@@ -113,7 +136,7 @@ export async function cloneTemplate(templateId: string, name: string) {
       userId: user.id,
       name,
       fields: {
-        create: source.fields.map(({ label, type, position }) => ({ id: crypto.randomUUID(), label, type, position })),
+        create: source.fields.map(({ label, type, position, isDueDate }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate })),
       },
     },
   });

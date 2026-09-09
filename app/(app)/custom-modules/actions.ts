@@ -9,6 +9,7 @@ import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { parseTemplateFieldValues } from "@/lib/templates/parse";
+import { getTemplateDueDateFieldId } from "@/lib/data/templates";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { promoteExtraFieldToTemplate } from "@/lib/data/custom-modules";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
@@ -69,12 +70,21 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   const name = getValue(data, "name");
   if (!name) return { error: "Enter an item name." };
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
-  const dueDate = dueDateValue(getValue(data, "dueDate"));
-  if (dueDate === undefined) return { error: "Enter a valid due date." };
   const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true, templateId: true } });
   if (!ownedModule) return { error: "This module no longer exists." };
+
+  // The template's own Due Date field (KD-038) takes over that job the
+  // moment the template has one -- the fixed input isn't shown for such a
+  // module (NewItemButton), so there is nothing to read from it yet. That
+  // field isn't fillable at creation until KD-039; until then this simply
+  // leaves it blank, the same as any other template field a new item
+  // starts with.
+  const hasTemplateDueDate = ownedModule.templateId ? Boolean(await getTemplateDueDateFieldId(ownedModule.templateId)) : false;
+  const dueDate = hasTemplateDueDate ? null : dueDateValue(getValue(data, "dueDate"));
+  if (dueDate === undefined) return { error: "Enter a valid due date." };
+
   const unowned = await validateKinesisTargets(form.fields);
   if (unowned) return { error: unowned };
   await prisma.customItem.create({ data: {
@@ -95,8 +105,6 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   const name = getValue(data, "name");
   if (!name) return { error: "Enter an item name." };
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
-  const dueDate = dueDateValue(getValue(data, "dueDate"));
-  if (dueDate === undefined) return { error: "Enter a valid due date." };
   const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
   const templateValues = parseTemplateFieldValues(data);
@@ -104,6 +112,11 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
   const fields = prepareCustomFields(form.fields);
+  // The fixed Due Date input's own value -- read here in case there's no
+  // template due-date field to defer to instead, resolved below once the
+  // item's template (if any) is known.
+  const fixedDueDate = dueDateValue(getValue(data, "dueDate"));
+  if (fixedDueDate === undefined) return { error: "Enter a valid due date." };
   try {
     await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({
@@ -111,6 +124,25 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
       select: { objectId: true, object: { select: { templateId: true } } },
     });
     if (!ownedItem) refuse("This item no longer exists.");
+    const templateId = ownedItem.object.templateId;
+
+    // The template's own Due Date field (KD-038 Decision 6) takes over the
+    // fixed input's job the moment it exists -- the two are never both
+    // live on the form, so whichever is actually in play decides the value.
+    const dueDateField = templateId ? await tx.templateField.findFirst({ where: { templateId, isDueDate: true }, select: { id: true } }) : null;
+    let dueDate = fixedDueDate;
+    if (dueDateField) {
+      const submitted = templateValues.values.find((value) => value.templateFieldId === dueDateField.id);
+      const raw = submitted?.value ?? "";
+      if (!raw) {
+        dueDate = null;
+      } else {
+        const parsed = parseDateOnly(raw);
+        if (!parsed) refuse("Enter a valid due date.");
+        dueDate = parsed;
+      }
+    }
+
     // Extras only -- a template field's type is changed from the template
     // it belongs to (Settings), never from here, and this object's own
     // save form never even offers to.
@@ -127,8 +159,8 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     // one batched statement. The count here is always small.
     for (const field of fields) await tx.objectField.create({ data: { ...field, objectId: ownedItem.objectId } });
 
-    if (ownedItem.object.templateId && templateValues.values.length) {
-      await saveTemplateFieldValues(tx, ownedItem.objectId, ownedItem.object.templateId, templateValues.values);
+    if (templateId && templateValues.values.length) {
+      await saveTemplateFieldValues(tx, ownedItem.objectId, templateId, templateValues.values, dueDateField?.id ?? null);
     }
     });
   } catch (failure) {
@@ -154,15 +186,22 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
  * value is saved"), so a value that's gone blank again gets its row
  * deleted rather than kept around empty, and everything else is a plain
  * upsert keyed on the template field it belongs to.
+ *
+ * The Due Date field (KD-038) never reaches this function's writes at all
+ * -- its value has already been written to `CustomItem.dueDate` by the
+ * caller, so `dueDateFieldId` is skipped here rather than also getting an
+ * (unused) `ObjectField` row.
  */
 async function saveTemplateFieldValues(
   tx: Prisma.TransactionClient,
   objectId: string,
   templateId: string,
   values: { templateFieldId: string; value: string; targetObjectIds: string[] }[],
+  dueDateFieldId: string | null,
 ) {
   const templateFieldTypes = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true } })).map((field) => [field.id, field.type]));
   for (const submitted of values) {
+    if (submitted.templateFieldId === dueDateFieldId) continue;
     // Ignore a field id that isn't actually part of this item's template --
     // stale, or never legitimate. Nothing to write either way.
     const type = templateFieldTypes.get(submitted.templateFieldId);

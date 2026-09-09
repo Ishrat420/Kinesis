@@ -161,7 +161,6 @@ KD-032-relationships-bypass-the-object-layer
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
-KD-038-due-date-template-field
 KD-039-template-fields-on-item-creation
 
 
@@ -180,6 +179,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-038-due-date-template-field
 KD-035-module-templates
 KD-034-multi-value-kinesis-link-fields
 KD-033-options-for-more-goal-details

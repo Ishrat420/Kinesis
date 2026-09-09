@@ -31,13 +31,13 @@ describe("getCustomItem template field merge", () => {
 
   it("merges template fields with this object's stored values, in template order", async () => {
     mocks.prisma.customItem.findFirst.mockResolvedValue({
-      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Buy a house",
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Buy a house", dueDate: null,
       module: { id: "module-1", name: "Decisions" },
       object: { templateId: "template-1", fields: [] },
     });
     mocks.prisma.templateField.findMany.mockResolvedValue([
-      { id: "field-date", templateId: "template-1", label: "Date", type: "DATE", position: 0 },
-      { id: "field-why", templateId: "template-1", label: "Why?", type: "TEXT", position: 1 },
+      { id: "field-date", templateId: "template-1", label: "Date", type: "DATE", position: 0, isDueDate: false },
+      { id: "field-why", templateId: "template-1", label: "Why?", type: "TEXT", position: 1, isDueDate: false },
     ]);
     mocks.prisma.objectField.findMany.mockResolvedValue([
       { id: "value-1", objectId: "object-1", templateFieldId: "field-why", label: "", type: "TEXT", value: "Cheaper than renting", position: 0, links: [] },
@@ -47,19 +47,19 @@ describe("getCustomItem template field merge", () => {
 
     expect(item?.templateId).toBe("template-1");
     expect(item?.templateFields).toEqual([
-      { templateFieldId: "field-date", label: "Date", type: "DATE", value: "", targetObjectIds: [] },
-      { templateFieldId: "field-why", label: "Why?", type: "TEXT", value: "Cheaper than renting", targetObjectIds: [] },
+      { templateFieldId: "field-date", label: "Date", type: "DATE", isDueDate: false, value: "", targetObjectIds: [] },
+      { templateFieldId: "field-why", label: "Why?", type: "TEXT", isDueDate: false, value: "Cheaper than renting", targetObjectIds: [] },
     ]);
   });
 
   it("carries a Kinesis Link template field's targets through", async () => {
     mocks.prisma.customItem.findFirst.mockResolvedValue({
-      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Buy a house",
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Buy a house", dueDate: null,
       module: { id: "module-1", name: "Decisions" },
       object: { templateId: "template-1", fields: [] },
     });
     mocks.prisma.templateField.findMany.mockResolvedValue([
-      { id: "field-links", templateId: "template-1", label: "Kinesis Links", type: "KINESIS_LINK", position: 0 },
+      { id: "field-links", templateId: "template-1", label: "Kinesis Links", type: "KINESIS_LINK", position: 0, isDueDate: false },
     ]);
     mocks.prisma.objectField.findMany.mockResolvedValue([
       { id: "value-1", objectId: "object-1", templateFieldId: "field-links", label: "", type: "KINESIS_LINK", value: "", position: 0, links: [{ id: "link-1", fieldId: "value-1", targetObjectId: "goal-object-1", position: 0 }] },
@@ -68,13 +68,13 @@ describe("getCustomItem template field merge", () => {
     const item = await getCustomItem("module-1", "item-1");
 
     expect(item?.templateFields).toEqual([
-      { templateFieldId: "field-links", label: "Kinesis Links", type: "KINESIS_LINK", value: "", targetObjectIds: ["goal-object-1"] },
+      { templateFieldId: "field-links", label: "Kinesis Links", type: "KINESIS_LINK", isDueDate: false, value: "", targetObjectIds: ["goal-object-1"] },
     ]);
   });
 
   it("returns no template fields for an item that doesn't follow a template", async () => {
     mocks.prisma.customItem.findFirst.mockResolvedValue({
-      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Loose item",
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Loose item", dueDate: null,
       module: { id: "module-1", name: "Miscellany" },
       object: { templateId: null, fields: [] },
     });
@@ -88,7 +88,7 @@ describe("getCustomItem template field merge", () => {
 
   it("keeps template-linked rows out of the plain extras list", async () => {
     mocks.prisma.customItem.findFirst.mockResolvedValue({
-      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Buy a house",
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Buy a house", dueDate: null,
       module: { id: "module-1", name: "Decisions" },
       object: { templateId: "template-1", fields: [{ id: "extra-1", objectId: "object-1", templateFieldId: null, label: "Warranty", type: "TEXT", value: "2 years", position: 0, links: [] }] },
     });
@@ -98,5 +98,46 @@ describe("getCustomItem template field merge", () => {
     const item = await getCustomItem("module-1", "item-1");
 
     expect(item?.fields).toEqual([expect.objectContaining({ id: "extra-1", label: "Warranty", value: "2 years" })]);
+  });
+
+  /**
+   * KD-038: a Due Date field's value is never in ObjectField -- it's the
+   * object's own CustomItem.dueDate, the same column the fixed Due Date
+   * input reads and writes.
+   */
+  it("reads a Due Date field's value from the item's own dueDate, not ObjectField", async () => {
+    mocks.prisma.customItem.findFirst.mockResolvedValue({
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Renew passport", dueDate: new Date("2027-03-09T00:00:00.000Z"),
+      module: { id: "module-1", name: "Renewals" },
+      object: { templateId: "template-1", fields: [] },
+    });
+    mocks.prisma.templateField.findMany.mockResolvedValue([
+      { id: "field-due", templateId: "template-1", label: "Due date", type: "DATE", position: 0, isDueDate: true },
+    ]);
+    mocks.prisma.objectField.findMany.mockResolvedValue([]);
+
+    const item = await getCustomItem("module-1", "item-1");
+
+    expect(item?.templateFields).toEqual([
+      { templateFieldId: "field-due", label: "Due date", type: "DATE", isDueDate: true, value: "2027-03-09", targetObjectIds: [] },
+    ]);
+    // Never consulted for the due-date field's own value -- only for extras.
+    expect(mocks.prisma.objectField.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { objectId: "object-1", templateFieldId: { not: null } } }));
+  });
+
+  it("renders an unset Due Date field as empty, not the epoch", async () => {
+    mocks.prisma.customItem.findFirst.mockResolvedValue({
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Renew passport", dueDate: null,
+      module: { id: "module-1", name: "Renewals" },
+      object: { templateId: "template-1", fields: [] },
+    });
+    mocks.prisma.templateField.findMany.mockResolvedValue([
+      { id: "field-due", templateId: "template-1", label: "Due date", type: "DATE", position: 0, isDueDate: true },
+    ]);
+    mocks.prisma.objectField.findMany.mockResolvedValue([]);
+
+    const item = await getCustomItem("module-1", "item-1");
+
+    expect(item?.templateFields[0].value).toBe("");
   });
 });

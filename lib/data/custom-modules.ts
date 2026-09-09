@@ -44,19 +44,35 @@ export async function getCustomModule(id: string) {
  * with the template's *current* field list -- live, every time this is
  * called, per Decision 7. A template field nobody has filled in yet simply
  * has no matching row, and renders empty rather than being backfilled.
+ *
+ * The Due Date field (KD-038) is the one exception to "a value lives in
+ * ObjectField": it has no row there at all, ever -- its value is
+ * `itemDueDate`, the object's own `CustomItem.dueDate`, the same column the
+ * old fixed Due Date input reads and writes.
  */
-async function getTemplateFieldValues(objectId: string, templateId: string): Promise<TemplateFieldValue[]> {
+async function getTemplateFieldValues(objectId: string, templateId: string, itemDueDate: Date | null): Promise<TemplateFieldValue[]> {
   const [templateFields, values] = await Promise.all([
     prisma.templateField.findMany({ where: { templateId }, orderBy: { position: "asc" } }),
     prisma.objectField.findMany({ where: { objectId, templateFieldId: { not: null } }, include: { links: { orderBy: { position: "asc" } } } }),
   ]);
   const valueByField = new Map(values.map((value) => [value.templateFieldId as string, value]));
   return templateFields.map((field) => {
+    if (field.isDueDate) {
+      return {
+        templateFieldId: field.id,
+        label: field.label,
+        type: field.type,
+        isDueDate: true,
+        value: itemDueDate ? itemDueDate.toISOString().slice(0, 10) : "",
+        targetObjectIds: [],
+      };
+    }
     const value = valueByField.get(field.id);
     return {
       templateFieldId: field.id,
       label: field.label,
       type: field.type,
+      isDueDate: false,
       value: value?.value ?? "",
       targetObjectIds: value ? value.links.map((link) => link.targetObjectId) : [],
     };
@@ -82,7 +98,7 @@ export async function getCustomItem(moduleId: string, itemId: string) {
   });
   if (!item) return null;
   const { object, ...rest } = item;
-  const templateFields = object.templateId ? await getTemplateFieldValues(item.objectId, object.templateId) : [];
+  const templateFields = object.templateId ? await getTemplateFieldValues(item.objectId, object.templateId, item.dueDate) : [];
   return { ...rest, templateId: object.templateId, templateFields, fields: presentCustomFields(object.fields) };
 }
 

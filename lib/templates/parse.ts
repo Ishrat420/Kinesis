@@ -3,7 +3,7 @@ import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/ty
 export const TEMPLATE_FIELDS_FORM_KEY = "templateFieldsPayload";
 export const TEMPLATE_FIELD_VALUES_FORM_KEY = "templateFieldValuesPayload";
 
-export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType };
+export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean };
 export type ParsedTemplateFields = { ok: true; fields: TemplateFieldInput[] } | { ok: false; error: string };
 
 export type TemplateFieldValueInput = { templateFieldId: string; value: string; targetObjectIds: string[] };
@@ -40,9 +40,13 @@ export function parseTemplateFields(data: FormData, key: string = TEMPLATE_FIELD
     if (!isRecord(entry)) continue;
     const label = asString(entry.label).trim();
     if (!label) continue;
+    // A due-date field's type is never actually chosen by the person -- the
+    // "+ Add due date field" action always sends DATE -- but this is read
+    // defensively like everything else here rather than trusted.
+    const isDueDate = entry.isDueDate === true;
     const requestedType = asString(entry.type) as CustomFieldType;
-    const type = VALID_TYPES.has(requestedType) ? requestedType : "TEXT";
-    fields.push({ id: asString(entry.id) || undefined, label, type });
+    const type = isDueDate ? "DATE" : VALID_TYPES.has(requestedType) ? requestedType : "TEXT";
+    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate });
   }
   return { ok: true, fields };
 }
