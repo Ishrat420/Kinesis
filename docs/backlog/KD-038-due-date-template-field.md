@@ -45,9 +45,10 @@ this ticket only ever has one host to design for.
 * Reminders and recurring reminders. Out of scope entirely; a future feature
   layers on top of "there is a due date," whatever object it came from,
   the same way reminders already work today.
-* The item-creation dialog showing this field at creation time — that's a
-  separate, not-yet-numbered ticket that applies to every template field,
-  not something specific to Due Date.
+* The item-creation dialog showing this field at creation time — that's
+  KD-039, a ticket that applies to every template field, not something
+  specific to Due Date. See KD-039's own "Interaction with KD-038" section
+  for how the two are sequenced.
 
 ## Decisions
 
@@ -156,6 +157,5 @@ read as a bug even though it technically wouldn't be one.
 * KD-035 — Module Templates; this ticket is additive to it, built entirely
   on Decision 3 (only Custom Item can follow a template) and Decision 7
   (the single usage gate).
-* A separate, not-yet-numbered ticket for showing a template's fields, due
-  date included, on the item-creation dialog rather than only after
-  creation.
+* KD-039 — showing a template's fields, due date included, on the
+  item-creation dialog rather than only after creation.

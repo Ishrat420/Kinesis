@@ -162,6 +162,7 @@ KD-032-relationships-bypass-the-object-layer
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
 KD-038-due-date-template-field
+KD-039-template-fields-on-item-creation
 
 
 ## 🚧 In Progress
