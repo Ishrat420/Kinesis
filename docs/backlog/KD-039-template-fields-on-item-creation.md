@@ -1,6 +1,6 @@
 # KD-039 — Show a Template's Fields on Item Creation
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI, Foundation Dependent
 
@@ -108,6 +108,48 @@ than being rediscovered as a gap later.
 * A gallery-style "create module and first item together" flow — this
   ticket is about one dialog gaining fields it's currently missing, not a
   new combined flow.
+
+## What shipped
+
+KD-038 landed first, so this ticket implemented directly against a
+template that may already have a Due Date field, rather than the
+"ships before KD-038, needs a follow-up" branch the sequencing note above
+anticipated.
+
+* **`getTemplateFieldsForNewItem`** (`lib/data/templates.ts`) — the
+  creation-time counterpart to `getTemplateFieldValues`: a template's field
+  list shaped as `TemplateFieldValue[]` with every value starting empty,
+  since there is no object yet to have stored one. `[moduleId]/page.tsx`
+  calls it alongside `getCustomModule` / `getKinesisLinkOptions` whenever
+  the module has a `templateId`, and passes the result to `NewItemButton`
+  as `templateFields`.
+* **`NewItemButton`** renders a `TemplateFieldValues` block — the same
+  component and value-editing UI the object detail view uses — right
+  after the Name input and before the extras editor, whenever
+  `templateFields` is non-empty. It also derives `hasTemplateDueDate` from
+  that list and, per KD-038 Decision 6, suppresses the dialog's own fixed
+  Due Date input whenever the template supplies its own — the same
+  step-aside behaviour `EditCustomItemForm` already has.
+* **`createCustomItemAction`** now parses the submitted template values
+  (`parseTemplateFieldValues`), includes them in Kinesis Link ownership
+  validation alongside the extras, and — restructured into a
+  `prisma.$transaction` so the newly created item's `objectId` is
+  available to write against — calls the same `saveTemplateFieldValues`
+  `updateCustomItemAction` already used, inside that transaction. A
+  template's Due Date field (if it has one) is resolved and routed to
+  `CustomItem.dueDate` exactly as `updateCustomItemAction` already does;
+  `saveTemplateFieldValues` skips that field's id so it's never also
+  written as an (unused) `ObjectField` row. A module with no template
+  behaves exactly as before — no template values to parse, no due-date
+  field to resolve, ownership validation and creation unchanged.
+
+Verified with `prisma validate`, a full typecheck and lint (clean, no new
+errors against the pre-existing baseline), the full unit suite passing
+(626 tests, including a new file exercising `createCustomItemAction`'s
+template-value write path — an ordinary field, the Due Date field routing
+to `CustomItem.dueDate` rather than `ObjectField`, an invalid Due Date
+value being rejected before any write, and a template-less module staying
+unaffected), and a production `next build`.
 
 ## Related
 

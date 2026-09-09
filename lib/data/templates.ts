@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { refuse } from "@/lib/actions/refusal";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
+import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
@@ -56,15 +57,24 @@ export async function getTemplateOptions() {
 }
 
 /**
- * The template's one Due Date field, if it has one (KD-038) -- read by the
- * item-creation dialog to decide whether to show its own fixed Due Date
- * input (no template due-date field) or hand that job to the template's own
- * field instead (there is one, even before that field is fillable at
- * creation time -- see KD-039).
+ * A template's field list, shaped for an object that doesn't exist yet
+ * (KD-039) -- every value starts empty, since there is nothing to merge
+ * against. Read by the item-creation dialog, both to render the fields
+ * themselves and to know whether a Due Date field is among them (KD-038
+ * Decision 6: the fixed Due Date input steps aside for it).
+ * `getTemplateFieldValues` in lib/data/custom-modules.ts is the equivalent
+ * once an object exists to actually have values.
  */
-export async function getTemplateDueDateFieldId(templateId: string) {
-  const field = await prisma.templateField.findFirst({ where: { templateId, isDueDate: true }, select: { id: true } });
-  return field?.id ?? null;
+export async function getTemplateFieldsForNewItem(templateId: string): Promise<TemplateFieldValue[]> {
+  const fields = await prisma.templateField.findMany({ where: { templateId }, orderBy: { position: "asc" } });
+  return fields.map((field) => ({
+    templateFieldId: field.id,
+    label: field.label,
+    type: field.type,
+    isDueDate: field.isDueDate,
+    value: "",
+    targetObjectIds: [],
+  }));
 }
 
 export async function createTemplate() {

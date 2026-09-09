@@ -9,7 +9,6 @@ import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { parseTemplateFieldValues } from "@/lib/templates/parse";
-import { getTemplateDueDateFieldId } from "@/lib/data/templates";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { promoteExtraFieldToTemplate } from "@/lib/data/custom-modules";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
@@ -72,28 +71,35 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (name.length > 100) return { error: "Keep the item name under 100 characters." };
   const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
+  const templateValues = parseTemplateFieldValues(data);
+  if (!templateValues.ok) return { error: templateValues.error };
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true, templateId: true } });
   if (!ownedModule) return { error: "This module no longer exists." };
 
-  // The template's own Due Date field (KD-038) takes over that job the
-  // moment the template has one -- the fixed input isn't shown for such a
-  // module (NewItemButton), so there is nothing to read from it yet. That
-  // field isn't fillable at creation until KD-039; until then this simply
-  // leaves it blank, the same as any other template field a new item
-  // starts with.
-  const hasTemplateDueDate = ownedModule.templateId ? Boolean(await getTemplateDueDateFieldId(ownedModule.templateId)) : false;
-  const dueDate = hasTemplateDueDate ? null : dueDateValue(getValue(data, "dueDate"));
+  // The template's own Due Date field (KD-038 Decision 6) takes over the
+  // fixed input's job the moment it exists -- the two are never both live
+  // on the form (NewItemButton), so whichever is actually in play decides
+  // the value (KD-039).
+  const dueDateField = ownedModule.templateId
+    ? await prisma.templateField.findFirst({ where: { templateId: ownedModule.templateId, isDueDate: true }, select: { id: true } })
+    : null;
+  const dueDate = dueDateValue(dueDateField ? (templateValues.values.find((value) => value.templateFieldId === dueDateField.id)?.value ?? "") : getValue(data, "dueDate"));
   if (dueDate === undefined) return { error: "Enter a valid due date." };
 
-  const unowned = await validateKinesisTargets(form.fields);
+  const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
-  await prisma.customItem.create({ data: {
-    id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
-    dueDate, link: getValue(data, "link") || null,
-    // Whatever the module is currently linked to, permanently, per KD-035
-    // Decision 7 -- later relinking the module never reaches back to this item.
-    object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
-  } });
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.customItem.create({ data: {
+      id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
+      dueDate, link: getValue(data, "link") || null,
+      // Whatever the module is currently linked to, permanently, per KD-035
+      // Decision 7 -- later relinking the module never reaches back to this item.
+      object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
+    } });
+    if (ownedModule.templateId && templateValues.values.length) {
+      await saveTemplateFieldValues(tx, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
+    }
+  });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);

@@ -5,14 +5,19 @@ import { CalendarDays, CheckCircle2, Link2, Plus, X } from "lucide-react";
 import { createCustomItemAction, type CustomItemState } from "../actions";
 import { ActionSubmitButton } from "../ActionSubmitButton";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
+import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 const initialState: CustomItemState = {};
 
-export function NewItemButton({ moduleId, linkOptions, hasTemplateDueDate = false }: { moduleId: string; linkOptions: KinesisLinkOption[]; hasTemplateDueDate?: boolean }) {
+export function NewItemButton({ moduleId, linkOptions, templateFields = [] }: { moduleId: string; linkOptions: KinesisLinkOption[]; templateFields?: TemplateFieldValue[] }) {
   const [open, setOpen] = useState(false);
   const [created, setCreated] = useState(false);
+  // KD-038 Decision 6: the template's own Due Date field, when it has one,
+  // takes over this slot entirely -- the fixed input never renders
+  // alongside it, since both would be editing the same CustomItem.dueDate.
+  const hasTemplateDueDate = templateFields.some((field) => field.isDueDate);
   const createItem = useCallback(async (previousState: CustomItemState, data: FormData) => {
     const result = await createCustomItemAction(moduleId, previousState, data);
     if (result.error) return result;
@@ -30,14 +35,14 @@ export function NewItemButton({ moduleId, linkOptions, hasTemplateDueDate = fals
         <div className="flex items-start justify-between"><div><h2 id="new-item-title" className="text-2xl font-semibold">Create a new item</h2><p className="mt-1 text-sm text-zinc-500">Add the essentials now. You can leave anything optional blank.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100"><X className="h-5 w-5" /></button></div>
         <form action={formAction} className="mt-7 space-y-5">
           <label className="block text-sm font-semibold">Name<input required autoFocus name="name" maxLength={100} placeholder="Item name" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-zinc-400" /></label>
+          {templateFields.length > 0 && <TemplateFieldValues fields={templateFields} linkOptions={linkOptions} />}
           <CustomFieldsEditor linkOptions={linkOptions} />
           <label className="block text-sm font-semibold">Notes <span className="font-normal text-zinc-400">(optional)</span><textarea name="notes" rows={3} placeholder="Add any useful context…" className="mt-2 w-full resize-none rounded-2xl border border-zinc-200 p-4 font-normal outline-none" /></label>
           <div className={hasTemplateDueDate ? "" : "grid gap-4 sm:grid-cols-2"}>
             {/* KD-038 Decision 6: once the module's template has a Due Date
-                field, this fixed input steps aside for it -- it isn't
-                fillable here yet (KD-039), so until then a templated item's
-                due date is simply set after creation, on the edit view,
-                same as any other template field starts out. */}
+                field, this fixed input steps aside for it -- the template's
+                own field, rendered above via TemplateFieldValues, is what
+                sets it now. */}
             {!hasTemplateDueDate && <label className="block text-sm font-semibold">Due date <span className="font-normal text-zinc-400">(optional)</span><div className="relative mt-2"><CalendarDays className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-zinc-400"/><input name="dueDate" type="date" className="h-12 w-full rounded-2xl border border-zinc-200 pl-12 pr-3 font-normal outline-none" /></div></label>}
             <label className="block text-sm font-semibold">Link <span className="font-normal text-zinc-400">(optional)</span><div className="relative mt-2"><Link2 className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-zinc-400"/><input name="link" type="url" placeholder="https://…" className="h-12 w-full rounded-2xl border border-zinc-200 pl-12 pr-3 font-normal outline-none" /></div></label>
           </div>
