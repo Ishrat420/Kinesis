@@ -134,16 +134,23 @@ enum NotificationType {
  * tables' rows were folded in without losing an id.
  */
 model ObjectField {
-  id       String          @id
-  objectId String
-  object   Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  label    String
-  value    String
-  type     CustomFieldType @default(TEXT)
-  position Int             @default(0)
-  links    FieldLink[]
+  id              String          @id
+  objectId        String
+  object          Object          @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  label           String
+  value           String
+  type            CustomFieldType @default(TEXT)
+  position        Int             @default(0)
+  links           FieldLink[]
+  // Set when this row is a *value* for a template field (KD-035 Phase 2/3)
+  // rather than an ad-hoc extra -- label/type are unused for such a row and
+  // read from the joined TemplateField instead, never duplicated onto this
+  // one. Restrict: see the comment on TemplateField.objectFields.
+  templateFieldId String?
+  templateField   TemplateField?  @relation(fields: [templateFieldId], references: [id], onDelete: Restrict)
 
   @@index([objectId, position])
+  @@index([templateFieldId])
 }
 
 /**
@@ -228,9 +235,20 @@ model Object {
   incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
   fields                ObjectField[]
   linkedFromFieldLinks  FieldLink[]          @relation("FieldLinkTarget")
+  // The template this object was created under, if any (KD-035 Phase 2) --
+  // set once, at creation, never changed automatically (Decision 7). This is
+  // the permanent fact this object reads its template's live field list
+  // from, independent of whatever CustomModule.templateId says today; it is
+  // also the single fact Template deletion is gated on (Decision 7's one
+  // gate), which is why this relation restricts rather than cascades or
+  // nulls -- an object must never silently lose the template it's rendering
+  // its fields from.
+  templateId            String?
+  template              Template?            @relation(fields: [templateId], references: [id], onDelete: Restrict)
   createdAt             DateTime             @default(now())
 
   @@index([userId, type, name])
+  @@index([templateId])
 }
 
 model ObjectRelationship {
@@ -404,10 +422,20 @@ model CustomModule {
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   items          CustomItem[]
+  // What a *new* item in this module starts from (KD-035 Phase 2) -- forward-
+  // looking only, per Decision 7: never touches an item that already exists,
+  // and can be changed or cleared at any time with no precondition. SetNull
+  // rather than Restrict, unlike Object.templateId below: deleting a template
+  // a module merely starts new items from (with none yet existing under it)
+  // is safe, and should just clear the module's pointer rather than be blocked
+  // by a link nothing has used yet.
+  templateId     String?
+  template       Template?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@unique([userId, normalizedName])
+  @@index([templateId])
 }
 
 model CustomItem {
@@ -440,13 +468,18 @@ model CustomItem {
  * but nothing else in the app references one yet.
  */
 model Template {
-  id        String          @id
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  fields    TemplateField[]
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  id            String          @id
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  fields        TemplateField[]
+  // Every module currently starting new items from this template, and every
+  // object that ever has (KD-035 Phase 2). Two different questions -- see the
+  // field comments on CustomModule.templateId and Object.templateId.
+  customModules CustomModule[]
+  objects       Object[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([userId])
 }
@@ -461,12 +494,19 @@ model Template {
  * a new identity.
  */
 model TemplateField {
-  id         String          @id
-  templateId String
-  template   Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  label      String
-  type       CustomFieldType @default(TEXT)
-  position   Int             @default(0)
+  id           String          @id
+  templateId   String
+  template     Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  label        String
+  type         CustomFieldType @default(TEXT)
+  position     Int             @default(0)
+  // Every stored value for this field, across every object that has one
+  // (KD-035 Phase 2/3). Restrict, not Cascade or SetNull: a field can only be
+  // removed once no object uses its template at all (Decision 7's single
+  // gate), so in practice this row is never referenced by the time it's
+  // deletable -- this is a backstop against that invariant ever being wrong,
+  // not a path this app is meant to exercise.
+  objectFields ObjectField[]
 
   @@index([templateId, position])
 }

@@ -43,11 +43,17 @@ export async function createCustomModuleAction(_: CreateModuleState, data: FormD
   const name = getValue(data, "name");
   const icon = getValue(data, "icon");
   const color = getValue(data, "color");
+  const templateId = getValue(data, "templateId") || null;
   if (!name) return { error: "Enter a module name.", field: "name" };
   if (name.length > 60) return { error: "Keep the module name under 60 characters.", field: "name" };
   if (!(icon in CUSTOM_MODULE_ICONS) || !/^#[0-9a-f]{6}$/i.test(color)) return { error: "Choose a valid icon and colour." };
+  // Ownership rather than trust: a stray or someone else's template id in the
+  // submitted form should fail closed, not silently create an unlinked module.
+  if (templateId && !(await prisma.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } }))) {
+    return { error: "Choose a template you own, or leave it blank." };
+  }
   try {
-    const customModule = await prisma.customModule.create({ data: { id: crypto.randomUUID(), userId: user.id, name, normalizedName: name.toLocaleLowerCase(), icon, color, description: getValue(data, "description") || null } });
+    const customModule = await prisma.customModule.create({ data: { id: crypto.randomUUID(), userId: user.id, name, normalizedName: name.toLocaleLowerCase(), icon, color, description: getValue(data, "description") || null, templateId } });
     revalidatePath("/");
     return { moduleId: customModule.id };
   } catch (error) {
@@ -65,14 +71,16 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (dueDate === undefined) return { error: "Enter a valid due date." };
   const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
-  const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true } });
+  const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true, templateId: true } });
   if (!ownedModule) return { error: "This module no longer exists." };
   const unowned = await validateKinesisTargets(form.fields);
   if (unowned) return { error: unowned };
   await prisma.customItem.create({ data: {
     id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
     dueDate, link: getValue(data, "link") || null,
-    object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields)),
+    // Whatever the module is currently linked to, permanently, per KD-035
+    // Decision 7 -- later relinking the module never reaches back to this item.
+    object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
   } });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });

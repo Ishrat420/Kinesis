@@ -1,6 +1,6 @@
 # KD-035 — Module Templates: Reusable Field Structure for Custom Modules
 
-**Status:** In Progress — Phase 1 shipped
+**Status:** In Progress — Phases 1–2 shipped
 **Priority:** Medium
 **Tags:** UX / UI, Data Model, Architecture, Foundation Dependent
 
@@ -437,6 +437,70 @@ Verified with `prisma validate`, a full typecheck and lint (clean, no new
 errors against the existing baseline), the full unit suite passing
 (592 tests, including two new files for the parser and the actions layer),
 and a production `next build`.
+
+## What shipped (Phase 2)
+
+A module can start new items from a template, and every item it creates
+that way carries a permanent pointer to it.
+
+* **Schema.** `CustomModule.templateId` (nullable, `onDelete: SetNull` —
+  forward-looking only, per Decision 7: deleting a template a module merely
+  starts new items from, with none created under it yet, just clears the
+  module's pointer). `Object.templateId` (nullable, `onDelete: Restrict` —
+  the permanent fact Template deletion is gated on; an object must never
+  silently lose the template it renders its fields from). `ObjectField.templateFieldId`
+  (nullable, `onDelete: Restrict`), added now per the ticket's own reasoning
+  for `Object.templateId` in Decision 3 — a column being added regardless,
+  so Phase 3 needs no further migration — but genuinely unused until then:
+  nothing in this phase writes or reads it, since rendering template fields
+  on an object is explicitly Phase 3's job.
+* **`isTemplateInUse()`** (`lib/data/templates.ts`) is real now: one
+  `Object.count({ where: { templateId } })`, called with the live
+  transaction client where there is one so a check made mid-save sees the
+  same snapshot the write does. The Settings → Templates list and detail
+  screens' two counts (`linkedModules`, `usedByObjects`) are real Prisma
+  `_count` selections in the same place they were always read from — no UI
+  changes needed, only the data underneath.
+* **Only `CustomItem` can follow a template**, per Decision 3 — it's the
+  only object type that lives in a `CustomModule`, the only host this
+  ticket links a template to. `objectFor.customItem` gained an optional
+  `templateId` parameter; every other object factory (`document`, `goal`,
+  …) is untouched.
+* **Module creation** (`AddModuleButton`) gained a "Start from" picker —
+  "Blank" plus the owner's own templates, read from a new, minimal
+  `getTemplateOptions()` (id/name only) fetched once alongside the
+  existing module list in the sidebar rather than only when the dialog
+  opens, matching how the module list itself is already fetched eagerly
+  there. `createCustomModuleAction` re-checks the submitted template id
+  against the owner's own templates before trusting it — a stray or
+  someone else's id fails closed with a message, rather than silently
+  creating an unlinked module or, worse, linking to a template that isn't
+  the owner's.
+* **Item creation** (`createCustomItemAction`) reads the module's *current*
+  `templateId` at the moment of creation and sets it permanently on the new
+  item's `Object.templateId` — a later change to the module's template
+  never reaches back to items already created, exactly as Decision 7
+  describes.
+* **No starter/shipped templates.** The "start from" list is only the
+  owner's own templates — the open question below (per-user vs. global
+  seeding) is still unresolved, so nothing is seeded. "Blank" plus nothing
+  reads the same as it does today for anyone who hasn't made a template
+  yet.
+* **Not built, deliberately out of this phase's scope:** the gallery-style
+  one-click "Add Decisions" shortcut (the ticket's own text left shipping
+  it in this phase or waiting as an open sequencing call, not a
+  requirement); changing or clearing a module's template after creation
+  (Decision 7 says this should always be possible with no precondition,
+  but no UI for it was in Phase 2's own scope list — worth a small
+  follow-up); and the template detail screen's "Used by" *list* of linked
+  modules (Decision 6 names it, Phase 2's own scope only called for the
+  *counts* going live, which is what shipped).
+
+Verified with `prisma validate`, a full typecheck and lint (clean, no new
+errors against the existing baseline), the full unit suite passing
+(599 tests, including two new files — `objectFor.customItem`'s template
+passthrough, and `createCustomModuleAction`'s ownership check on a
+submitted template id), and a production `next build`.
 
 ## Open questions
 

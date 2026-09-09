@@ -1,7 +1,10 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { refuse } from "@/lib/actions/refusal";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
+
+type Client = Prisma.TransactionClient | typeof prisma;
 
 /**
  * Whether any object currently follows this template -- the single gate for
@@ -9,36 +12,47 @@ import type { TemplateFieldInput } from "@/lib/templates/parse";
  * template outright, changing a field's type, removing a field. All three
  * read this one fact rather than three separate checks.
  *
- * `Object.templateId` doesn't exist until a later migration links objects to
- * templates (KD-035 Phase 2), so this always reports false for now -- every
- * template is fully editable in Phase 1, because nothing can possibly be
- * using one yet.
+ * Takes the current transaction client where there is one, so a check made
+ * mid-write sees the same snapshot the write itself does.
  */
-async function isTemplateInUse(): Promise<boolean> {
-  return false;
+async function isTemplateInUse(client: Client, templateId: string): Promise<boolean> {
+  const count = await client.object.count({ where: { templateId } });
+  return count > 0;
 }
 
 export async function getTemplates() {
   const user = await requireKinesisUser();
   const templates = await prisma.template.findMany({
     where: { userId: user.id },
-    include: { _count: { select: { fields: true } } },
+    include: { _count: { select: { fields: true, customModules: true, objects: true } } },
     orderBy: { createdAt: "asc" },
   });
-  // Real zeros, not placeholders: nothing can link to a template until
-  // Phase 2 adds CustomModule.templateId and Object.templateId.
-  return templates.map(({ _count, ...template }) => ({ ...template, fieldCount: _count.fields, linkedModules: 0, usedByObjects: 0 }));
+  return templates.map(({ _count, ...template }) => ({
+    ...template,
+    fieldCount: _count.fields,
+    linkedModules: _count.customModules,
+    usedByObjects: _count.objects,
+  }));
 }
 
 export async function getTemplate(id: string) {
   const user = await requireKinesisUser();
   const template = await prisma.template.findFirst({
     where: { id, userId: user.id },
-    include: { fields: { orderBy: { position: "asc" } } },
+    include: {
+      fields: { orderBy: { position: "asc" } },
+      _count: { select: { customModules: true, objects: true } },
+    },
   });
   if (!template) return null;
-  // Real zeros, not placeholders: see the comment on getTemplates.
-  return { ...template, inUse: await isTemplateInUse(), linkedModules: 0, usedByObjects: 0 };
+  const { _count, ...rest } = template;
+  return { ...rest, inUse: _count.objects > 0, linkedModules: _count.customModules, usedByObjects: _count.objects };
+}
+
+/** The templates a module could start new items from -- just enough to populate that picker. */
+export async function getTemplateOptions() {
+  const user = await requireKinesisUser();
+  return prisma.template.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 
 export async function createTemplate() {
@@ -68,7 +82,7 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     const removedIds = existing.filter(({ id }) => !submittedIds.has(id)).map(({ id }) => id);
     const typeChanged = fields.some(({ id, type }) => id && existingById.has(id) && existingById.get(id)!.type !== type);
 
-    if ((removedIds.length || typeChanged) && await isTemplateInUse()) {
+    if ((removedIds.length || typeChanged) && await isTemplateInUse(tx, templateId)) {
       refuse("This template is in use, so its fields can no longer be retyped or removed.");
     }
 
@@ -109,6 +123,6 @@ export async function deleteTemplate(templateId: string) {
   const user = await requireKinesisUser();
   const owned = await prisma.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
   if (!owned) return;
-  if (await isTemplateInUse()) refuse("This template is in use and cannot be deleted.");
+  if (await isTemplateInUse(prisma, templateId)) refuse("This template is in use and cannot be deleted.");
   await prisma.template.delete({ where: { id: templateId } });
 }

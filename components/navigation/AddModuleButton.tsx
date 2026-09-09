@@ -10,7 +10,7 @@ import { Z_INDEX } from "@/lib/layout/z-index";
 const colors = ["#7c3aed", "#2563eb", "#0891b2", "#059669", "#65a30d", "#d97706", "#e11d48", "#db2777", "#52525b"];
 const initialState: CreateModuleState = {};
 
-export function AddModuleButton() {
+export function AddModuleButton({ templates }: { templates: { id: string; name: string }[] }) {
   const [open, setOpen] = useState(false);
   const [icon, setIcon] = useState<CustomModuleIconName>("package");
   const [color, setColor] = useState(colors[0]);
@@ -33,6 +33,15 @@ export function AddModuleButton() {
           <fieldset><legend className="text-sm font-semibold">Icon</legend><div className="mt-2 grid max-h-52 grid-cols-7 gap-2 overflow-y-auto pr-1">{Object.keys(CUSTOM_MODULE_ICONS).map((name) => <button key={name} type="button" title={name} aria-label={`${name} icon`} aria-pressed={icon === name} onClick={() => setIcon(name as CustomModuleIconName)} className={`flex aspect-square items-center justify-center rounded-xl border transition ${icon === name ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 text-zinc-500 hover:bg-zinc-50"}`}><CustomModuleIcon name={name} className="h-5 w-5" /></button>)}</div><input type="hidden" name="icon" value={icon} /></fieldset>
           <fieldset><legend className="text-sm font-semibold">Colour</legend><div className="mt-2 flex flex-wrap items-center gap-2">{colors.map((swatch) => <button key={swatch} type="button" aria-label={`Select colour ${swatch}`} aria-pressed={color === swatch} onClick={() => setColor(swatch)} className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 ring-offset-2 transition hover:scale-105" style={{ backgroundColor: `color-mix(in srgb, ${swatch} 10%, white)`, color: swatch, boxShadow: color === swatch ? `0 0 0 2px white, 0 0 0 4px ${swatch}` : undefined }}>{color === swatch && <Check className="h-4 w-4" />}</button>)}<label className="relative h-9 w-9 overflow-hidden rounded-full border-2 border-dashed border-zinc-300" title="Custom colour"><input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="absolute -inset-2 h-14 w-14 cursor-pointer opacity-20" /><span className="sr-only">Custom colour</span></label></div><input type="hidden" name="color" value={color} /></fieldset>
           <label className="block text-sm font-semibold">Description <span className="font-normal text-zinc-400">(optional)</span><textarea name="description" maxLength={240} rows={3} placeholder="What will you keep here?" className="mt-2 w-full resize-none rounded-2xl border border-zinc-200 p-4 font-normal outline-none focus:border-violet-500" /></label>
+          {templates.length > 0 && (
+            <label className="block text-sm font-semibold">
+              Start from <span className="font-normal text-zinc-400">(optional)</span>
+              <select name="templateId" defaultValue="" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none focus:border-violet-500">
+                <option value="">Blank</option>
+                {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+              </select>
+            </label>
+          )}
           {state.error && <p id="module-error" role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{state.error}</p>}
           <div className="flex justify-end gap-3 pt-1"><button type="button" onClick={() => setOpen(false)} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Cancel</button><button disabled={pending} className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Creating…" : "Create module"}</button></div>
         </form>

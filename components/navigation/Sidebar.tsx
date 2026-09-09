@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AddModuleButton } from "./AddModuleButton";
 import { getCustomModules } from "@/lib/data/custom-modules";
+import { getTemplateOptions } from "@/lib/data/templates";
 import { DraggableCustomModuleLink } from "./DraggableCustomModuleLink";
 import { SidebarNavLink } from "./SidebarNavLink";
 
@@ -57,7 +58,7 @@ export function SidebarBrand() {
 }
 
 export async function SidebarNav() {
-  const customModules = await getCustomModules();
+  const [customModules, templates] = await Promise.all([getCustomModules(), getTemplateOptions()]);
 
   return (
     <nav aria-label="Main navigation" className="flex flex-col gap-5 text-sm">
@@ -89,7 +90,7 @@ export async function SidebarNav() {
         {customModules.map((customModule) => (
           <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
         ))}
-        <AddModuleButton />
+        <AddModuleButton templates={templates} />
       </NavSection>
 
       <NavSection label="System">

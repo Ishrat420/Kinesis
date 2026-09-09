@@ -16,9 +16,13 @@ type Client = Prisma.TransactionClient | typeof prisma;
  * directly (see the 20260915000000 migration) -- a document and its custom
  * fields are created in one nested write by nesting the fields one level
  * deeper still, under the object this factory already builds.
+ *
+ * `templateId` (KD-035 Phase 2) is set once, here, at creation, and never
+ * changed afterwards (Decision 7) -- there is deliberately no companion
+ * function to update it later.
  */
-const identity = (type: KinesisObjectType, name: string, userId: string, fields?: Prisma.ObjectFieldCreateWithoutObjectInput[]) => ({
-  create: { type, name, userId, ...(fields?.length ? { fields: { create: fields } } : {}) },
+const identity = (type: KinesisObjectType, name: string, userId: string, fields?: Prisma.ObjectFieldCreateWithoutObjectInput[], templateId?: string | null) => ({
+  create: { type, name, userId, templateId: templateId ?? undefined, ...(fields?.length ? { fields: { create: fields } } : {}) },
 });
 
 /**
@@ -31,7 +35,9 @@ export const objectFor = {
   goal: (name: string, userId: string) => identity("GOAL", name, userId),
   financeItem: (name: string, userId: string) => identity("FINANCE_ITEM", name, userId),
   person: (name: string, userId: string) => identity("PERSON", name, userId),
-  customItem: (name: string, userId: string, fields?: Prisma.ObjectFieldCreateWithoutObjectInput[]) => identity("CUSTOM_ITEM", name, userId, fields),
+  // The only object type that can currently follow a template -- it lives in
+  // a CustomModule, the only host KD-035 links to one (Decision 3).
+  customItem: (name: string, userId: string, fields?: Prisma.ObjectFieldCreateWithoutObjectInput[], templateId?: string | null) => identity("CUSTOM_ITEM", name, userId, fields, templateId),
   todo: (name: string, userId: string) => identity("TODO", name, userId),
 };
 
