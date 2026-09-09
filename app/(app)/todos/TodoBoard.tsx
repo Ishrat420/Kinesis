@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { CalendarDays, Check, Ellipsis, Link2 } from "lucide-react";
+import { CalendarDays, Check, Ellipsis, Link2, Search } from "lucide-react";
 import type { TodoRecord } from "@/lib/data/todos";
 import { isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/status";
 import { TODO_SCOPES, DEFAULT_TODO_SCOPE, type TodoScope } from "@/lib/todos/scopes";
@@ -16,24 +16,43 @@ const inScope = (todo: TodoRecord, scope: TodoScope) =>
 
 export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; locale: string; scope: TodoScope }) {
   const [editing, setEditing] = useState<TodoRecord | null>(null);
-  const visible = todos.filter((todo) => inScope(todo, scope));
+  const [query, setQuery] = useState("");
+  const trimmedQuery = query.trim().toLowerCase();
+  const visible = todos.filter((todo) => inScope(todo, scope) && (!trimmedQuery || todo.name.toLowerCase().includes(trimmedQuery)));
 
   return (
     <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-      <nav aria-label="Filter to-dos" className="mb-5 flex flex-wrap gap-2">
-        {TODO_SCOPES.map((option) => (
-          <Link
-            key={option.value} href={option.value === DEFAULT_TODO_SCOPE ? "/todos" : `/todos?scope=${option.value}`} scroll={false}
-            aria-current={option.value === scope ? "page" : undefined}
-            className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${option.value === scope ? "bg-zinc-950 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
-          >{option.label}</Link>
-        ))}
-      </nav>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Filter to-dos" className="flex flex-wrap gap-2">
+          {TODO_SCOPES.map((option) => (
+            <Link
+              key={option.value} href={option.value === DEFAULT_TODO_SCOPE ? "/todos" : `/todos?scope=${option.value}`} scroll={false}
+              aria-current={option.value === scope ? "page" : undefined}
+              className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${option.value === scope ? "bg-zinc-950 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
+            >{option.label}</Link>
+          ))}
+        </nav>
+        <div className="flex h-11 w-full items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 text-zinc-400 sm:w-80">
+          <Search className="h-[18px] w-[18px]" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label="Search to-dos"
+            className="w-full bg-transparent text-sm text-zinc-950 outline-none placeholder:text-zinc-400"
+            placeholder="Search to-dos..."
+          />
+        </div>
+      </div>
 
       {visible.length ? (
         <ul className="divide-y divide-zinc-100">
           {visible.map((todo) => <TodoRow key={todo.id} todo={todo} locale={locale} onEdit={() => setEditing(todo)} />)}
         </ul>
+      ) : trimmedQuery ? (
+        <div className="rounded-2xl border border-dashed border-zinc-200 py-14 text-center">
+          <p className="font-semibold text-zinc-700">No to-dos match &ldquo;{query.trim()}&rdquo;</p>
+          <p className="mt-1 text-sm text-zinc-400">Try a different search.</p>
+        </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-zinc-200 py-14 text-center">
           <p className="font-semibold text-zinc-700">{scope === DEFAULT_TODO_SCOPE ? "Nothing captured yet" : `No ${scope} to-dos`}</p>
