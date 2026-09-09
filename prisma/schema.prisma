@@ -24,6 +24,7 @@ model User {
   relationships       Relationship[]
   goalUnits           GoalUnit[]
   customModules       CustomModule[]
+  templates           Template[]
   dismissals          AttentionDismissal[]
   activityEvents      ActivityEvent[]
   securityEvents      SecurityEvent[]
@@ -429,6 +430,45 @@ model CustomItem {
   updatedAt     DateTime             @updatedAt
 
   @@index([moduleId, archived, createdAt])
+}
+
+/**
+ * A reusable, named set of field definitions (KD-035). A module may start new
+ * objects from one (a later migration adds that link); an object that does
+ * keeps a permanent pointer to it and reads its field list live -- see
+ * TemplateField below. Phase 1: templates are fully manageable from Settings,
+ * but nothing else in the app references one yet.
+ */
+model Template {
+  id        String          @id
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  fields    TemplateField[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId])
+}
+
+/**
+ * One field definition on a Template. `label`, `type`, and `position` live
+ * only here -- an object following this template never gets its own copy of
+ * them, so renaming, reordering, or adding a field reaches every object
+ * instantly, with nothing to backfill (KD-035 Decision 1/7). A field's `id`
+ * stays stable across edits: a later migration has objects store values
+ * against it directly, so renaming or reordering a field must never give it
+ * a new identity.
+ */
+model TemplateField {
+  id         String          @id
+  templateId String
+  template   Template        @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  label      String
+  type       CustomFieldType @default(TEXT)
+  position   Int             @default(0)
+
+  @@index([templateId, position])
 }
 
 enum CustomFieldType {

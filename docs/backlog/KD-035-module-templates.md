@@ -1,6 +1,6 @@
 # KD-035 — Module Templates: Reusable Field Structure for Custom Modules
 
-**Status:** Accepted
+**Status:** In Progress — Phase 1 shipped
 **Priority:** Medium
 **Tags:** UX / UI, Data Model, Architecture, Foundation Dependent
 
@@ -389,6 +389,54 @@ every object under it.
 
 **Depends on:** Phase 2 (`Object.templateId` and `ObjectField.templateFieldId`
 have to exist to read and write against).
+
+## What shipped (Phase 1)
+
+Templates exist and are fully manageable from Settings, standalone — no
+module or object references one yet, exactly as scoped.
+
+* **Schema.** `Template` and `TemplateField` (`prisma/migrations/20260917000000_templates`),
+  scoped by `userId` the same way `CustomModule` is. `TemplateField.type`
+  reuses `CustomFieldType`, unchanged from KD-034 — Kinesis Link included, so
+  a template can define a linked-object field even though nothing consumes
+  it as a value until Phase 2/3.
+* **`isTemplateInUse()`** (`lib/data/templates.ts`) is the single gate from
+  Decision 7 — one function, called from `updateTemplate` (guards type
+  change and field removal) and `deleteTemplate` (guards the template
+  itself). It always returns `false` in this phase, honestly: there is no
+  `Object.templateId` column yet for it to check, so every template is
+  fully editable, including delete. Phase 2 replaces the body with a real
+  query; no call site changes.
+* **Field identity is stable across saves.** `updateTemplate` diffs the
+  submitted field list against what's stored — updates existing rows by id
+  in place, creates rows with no matching id, deletes only ids missing from
+  the submission — rather than the delete-all-and-recreate pattern
+  `ObjectField` uses for values. That pattern would have handed every field
+  a new id on every save, which is fine for a value row but would break
+  `ObjectField.templateFieldId` the moment Phase 2 adds it: a rename or
+  reorder must never look like the old field disappearing and a new one
+  appearing. Caught during implementation, before the migration was
+  written — worth flagging since it's a real correctness requirement the
+  original phase write-up didn't call out explicitly.
+* **UI.** `/settings/templates` (list, field count, "Linked to N modules ·
+  Used by N objects" — real zeros, not placeholders) and
+  `/settings/templates/[templateId]` (name, a `TemplateFieldsEditor` with
+  add/rename/reorder always available and type-change/remove disabled
+  together whenever `locked` is true, Clone via a name-prompt modal, Delete
+  disabled outright — not just refused on submit — while `locked`).
+  Reorder is a pair of up/down buttons per field rather than drag-and-drop;
+  no drag-and-drop library exists in the project yet and one field list is
+  a small enough set that arrows are enough for v1.
+* **Wire format** follows the KD-034 precedent: one JSON payload per form
+  (`TEMPLATE_FIELDS_FORM_KEY`), parsed by `parseTemplateFields`
+  (`lib/templates/parse.ts`) — a smaller sibling of `parseCustomFields`,
+  since a definition has no value and no Kinesis Link target to validate.
+* **Entry point** added to the main Settings page.
+
+Verified with `prisma validate`, a full typecheck and lint (clean, no new
+errors against the existing baseline), the full unit suite passing
+(592 tests, including two new files for the parser and the actions layer),
+and a production `next build`.
 
 ## Open questions
 
