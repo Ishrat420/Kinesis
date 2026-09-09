@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Check, Link2, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, Check, Ellipsis, Link2 } from "lucide-react";
 import type { TodoRecord } from "@/lib/data/todos";
-import { TODO_STATUSES, isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/status";
+import { isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/status";
 import { TODO_SCOPES, DEFAULT_TODO_SCOPE, type TodoScope } from "@/lib/todos/scopes";
 import { formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { CaptureDetailsDialog } from "@/components/capture/CaptureDetailsDialog";
@@ -88,8 +88,12 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         <p className={`break-words font-medium ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</p>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
           <span>{todoStatusLabel(todo.status)}</span>
-          {open && todo.dueDate && <span>· {formatDate(todo.dueDate, locale)} · {formatDeadline(todo.dueDate, today)}</span>}
           {!open && todo.completedAt && <span>· {formatDate(todo.completedAt, locale)}</span>}
+          {open && todo.dueDate && (
+            <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold ${todo.dueDate < today ? "bg-red-50 text-red-600" : "bg-zinc-100 text-zinc-700"}`}>
+              <CalendarDays className="h-3 w-3" aria-hidden="true" />{formatDate(todo.dueDate, locale)} · {formatDeadline(todo.dueDate, today)}
+            </span>
+          )}
           {todo.links.map((link) => (
             <Link key={link.objectId} href={link.href} className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200">
               <Link2 className="h-3 w-3" aria-hidden="true" />{link.name}
@@ -98,21 +102,17 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        <select
-          value={todo.status} disabled={pending} aria-label={`Status of ${todo.name}`}
-          onChange={(event) => { const status = event.target.value; run(() => setTodoStatusAction(todo.id, status)); }}
-          className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-zinc-400 disabled:opacity-50"
-        >
-          {TODO_STATUSES.map((status) => <option key={status} value={status}>{todoStatusLabel(status)}</option>)}
-        </select>
-        <button type="button" onClick={onEdit} aria-label={`Edit ${todo.name}`} className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900"><Pencil className="h-4 w-4" /></button>
-        <button
-          type="button" disabled={pending} aria-label={`Delete ${todo.name}`}
-          onClick={() => run(() => deleteTodoAction(todo.id))}
-          className="rounded-xl p-2 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-        ><Trash2 className="h-4 w-4" /></button>
-      </div>
+      <details className="relative shrink-0">
+        <summary aria-label={`${todo.name} actions`} className="list-none rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><Ellipsis className="h-5 w-5" /></summary>
+        <div className="absolute right-0 z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-lg">
+          <button type="button" onClick={onEdit} className="w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50">Edit</button>
+          <button
+            type="button" disabled={pending}
+            onClick={() => run(() => deleteTodoAction(todo.id))}
+            className="w-full rounded-lg px-3 py-2 text-left text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >Delete</button>
+        </div>
+      </details>
 
       {error && <p role="alert" className="w-full text-sm font-medium text-red-600">{error}</p>}
     </li>
