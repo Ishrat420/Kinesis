@@ -208,11 +208,13 @@ async function saveTemplateFieldValues(
       continue;
     }
 
-    const links = { deleteMany: {}, create: submitted.targetObjectIds.map((targetObjectId, position) => ({ id: crypto.randomUUID(), targetObjectId, position })) };
+    const targets = submitted.targetObjectIds.map((targetObjectId, position) => ({ id: crypto.randomUUID(), targetObjectId, position }));
     if (existing) {
-      await tx.objectField.update({ where: { id: existing.id }, data: { value: submitted.value, links } });
+      // `deleteMany` only makes sense against a row that already exists --
+      // clears out its old targets before the fresh `create` below.
+      await tx.objectField.update({ where: { id: existing.id }, data: { value: submitted.value, links: { deleteMany: {}, create: targets } } });
     } else {
-      await tx.objectField.create({ data: { id: crypto.randomUUID(), objectId, templateFieldId: submitted.templateFieldId, label: "", type, value: submitted.value, position: 0, links } });
+      await tx.objectField.create({ data: { id: crypto.randomUUID(), objectId, templateFieldId: submitted.templateFieldId, label: "", type, value: submitted.value, position: 0, links: { create: targets } } });
     }
   }
 }
