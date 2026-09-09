@@ -150,6 +150,7 @@ KD-026-document-no-reminder-option
 KD-027-todo-reminder-window
 KD-028-goal-lapse-awareness
 KD-030-custom-module-badge-glyph-colour
+KD-037-detach-object-from-template
 
 ## 🧠 Planning Needed
 

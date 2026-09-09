@@ -398,6 +398,9 @@ have to exist to read and write against).
 
 ## Related
 
+* KD-037 — detach a single object from its template; the deferred, nicer
+  version of the escape hatch named in Decision 7, kept as a separate idea
+  rather than built here
 * KD-036 — the sidebar/standalone-object direction this replaces; read for why
   a single-type module and a standalone Object Type screen turned out to be the
   same thing with no reason to be two
