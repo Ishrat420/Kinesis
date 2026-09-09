@@ -16,7 +16,6 @@ import {
   Minus,
   MoreHorizontal,
   Plus,
-  RotateCcw,
   Save,
   Sparkles,
   StickyNote,
@@ -50,8 +49,6 @@ type GoalOption = { id: string; name: string; status: string };
 const initialPeople: Person[] = [
   { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user", selfRelationship: emptySelfRelationship() },
 ];
-
-const initialRelationships: Relationship[] = [];
 
 const icons = { user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House };
 const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866"];
@@ -229,14 +226,6 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     setMultiSelection([]);
     setSelection({ kind: "person", id });
   }
-  function reset() {
-    setPeople(initialPeople.map((person) => ({ ...person, name: userDisplayName })));
-    setRelationships(initialRelationships);
-    setOffset({ x: 0, y: 0 });
-    setScale(0.9);
-    setMultiSelection([]);
-    setSelection({ kind: "person", id: "self" });
-  }
   function startInspectorResize(event: ReactPointerEvent) {
     event.preventDefault();
     const startX = event.clientX;
@@ -259,7 +248,6 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
         description="Love them, tolerate them, call them every Sunday. Map them here."
         actions={<>
           <SaveStatus dirty={dirty} saving={saving} saved={saved} />
-          <button onClick={reset} className="map-button"><RotateCcw /> Reset</button>
           <button onClick={addPerson} className="map-button"><Plus /> Add person</button>
           <button onClick={saveContent} disabled={!dirty || saving} className="map-button map-button-dark disabled:cursor-not-allowed disabled:opacity-40"><Save /> {saving ? "Saving…" : "Save changes"}</button>
         </>}
