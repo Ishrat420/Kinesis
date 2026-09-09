@@ -66,31 +66,34 @@ A template field's `label`, `type`, and `position` live in exactly **one**
 place: the `TemplateField` row. They are never duplicated onto an object at
 creation time. An object stores only its own **value** for each template
 field, plus whatever ad-hoc extras it has of its own. This is what makes
-"add a field" instant and free (see Decision 7), and it's what makes the
-safety rule below precise instead of a proxy:
+"add a field" instant and free (see Decision 7) — nothing to touch on any
+object, since nothing was ever copied to it in the first place:
 
 | Operation | Allowed? |
 | --- | --- |
 | Add a field | ✅ always — nothing to touch on existing objects, since nothing was ever copied to them |
 | Rename a field's label | ✅ always — one edit, read live everywhere, values untouched |
 | Reorder fields | ✅ always |
-| Change a field's type | ✅ **until the first real value is stored under it**, then ❌ forbidden — same rule already enforced per field row in `custom-modules/actions.ts` and `lib/data/documents.ts`, moved from per-record to per-definition |
-| Remove a field | ✅ **until the first real value is stored under it**, then ❌ forbidden outright — no warning, no confirmation, the action is simply unavailable |
+| Change a field's type | ✅ **until any object uses the template**, then ❌ forbidden — same rule already enforced per field row in `custom-modules/actions.ts` and `lib/data/documents.ts`, moved from per-record to per-definition |
+| Remove a field | ✅ **until any object uses the template**, then ❌ forbidden outright — no warning, no confirmation, the action is simply unavailable |
 
 A frozen template was considered and rejected: it does not protect data (adding
 a field is always safe regardless), and it pushes every legitimate change
 through "clone the template, re-link the module," which raises the exact same
 questions a direct edit would, plus loses the point of sharing.
 
-**The gate is "does any value exist for this specific field," not "is the
-template linked to a module."** Those are different facts and can disagree:
-a template can be linked to three modules with zero objects having actually
-filled in a given field yet — that field is still safely editable. A single
-stored value anywhere locks it. This also means there is no blast-radius
-warning to design, and nothing to count across modules — one existence check
-per field (`ObjectField` rows for it, with a non-empty value) settles it, and
-the UI answer is simply: the type control and the remove action are disabled,
-with a tooltip naming why, rather than gone through a confirmation step.
+**The gate is "does any object use this template at all," per Decision 7 —
+one existence check (`EXISTS Object WHERE templateId = X`), and every
+destructive operation reads the same boolean.** Not a per-field check
+against stored values, and not module linkage. This is deliberately
+coarser than it needs to be in one direction — a template used by ten
+objects locks every field, even ones none of them have actually filled
+in — but it's a single, cheap, easy-to-explain fact instead of a query per
+field, and the case it over-locks is exactly what the rename-and-add-new
+workaround already covers well (see Decision 7). The UI answer is simply:
+the type control, the remove action, and the delete-template action are
+all disabled together, with a tooltip naming why, no confirmation step to
+design.
 
 ### 2. One template, many modules
 
@@ -160,10 +163,10 @@ Templates get their own management surface: **Settings → Templates**.
 * **Detail / edit** (`/settings/templates/[templateId]`) — name, and a field
   *definitions* list (label + type, no value — this is a template row, not an
   object's data): add/rename/reorder fields live, per Decision 1; changing a
-  field's type or removing it is disabled once a real value exists under
-  that field, with a tooltip naming why — no confirmation dialog, the action
-  is simply unavailable. A "Used by" list at the bottom links to every
-  module on the template.
+  field's type or removing it, and deleting the template itself, are all
+  disabled together once any object uses the template, with a tooltip naming
+  why — no confirmation dialog, the actions are simply unavailable. A
+  "Used by" list at the bottom links to every module on the template.
 * **Clone** — on the detail screen: name prompt, copies the current field list
   into a new, independent template, opens its detail screen.
 
@@ -199,22 +202,28 @@ module was linked to at the moment that specific object was created. Relinking
 a module later (to the same or a different template) only changes what the
 *next* object gets; nothing retroactively re-templates an existing one.
 
-This also gives the two destructive template operations their real, precise
-gates — neither keyed on module linkage:
-
-* **Deleting a template outright** is blocked while any object's
-  `templateId` still points at it — that object would lose its field
-  structure entirely, not just one field, so this is stricter than the
-  per-field gate below.
-* **Removing a field, or changing its type,** is blocked only once a real
-  value exists under that specific field (Decision 1) — a template can stay
-  linked to modules indefinitely without that ever tripping, since it depends
-  on data, not on linkage.
+This also gives every destructive template operation the same real gate,
+not keyed on module linkage: **does any object have `templateId = X`.**
+One check governs deleting the template outright, changing a field's type,
+and removing a field (Decision 1) — a template can stay linked to modules
+indefinitely without any of that ever tripping, since it depends on whether
+an object actually exists under it, not on whether a module currently
+points at it.
 
 The Settings → Templates list (Decision 6) is worth showing two counts, since
 they answer different questions and can disagree: *"Linked to N modules"*
 (where new objects will keep coming from) and *"Used by N objects"* (what's
-actually keeping the template alive against deletion).
+actually keeping the template locked).
+
+**Freeing up a locked template means removing the objects that use it, not
+unlinking the module** — module linkage was never the gate, so unlinking it
+doesn't change anything. Deleting those objects is the v1 way to do that.
+Detaching a single object from its template — keeping the object and its
+data, but converting its template fields into permanently independent ones
+so it no longer counts toward the gate — is a nicer version of the same
+escape hatch, and a real feature worth having, but it needs its own
+operation (snapshot the template's current fields onto that one object)
+and is deliberately deferred rather than built in v1.
 
 ## Dependencies
 
@@ -239,11 +248,10 @@ object is a *record*. Onboarding should teach these three, not four.
 
 * System fields — name/title, identity, created/updated, archive state — are
   never part of a template's configurable fields and never recreated by hand.
-* A definition's field type is immutable once any real value exists under it
-  (per the operation table above); removing a field is blocked outright at
-  the same point, no confirmation step.
-* Deleting a template outright is blocked while any object still points at it
-  (Decision 7) — distinct from, and stricter than, the per-field gate above.
+* A definition's field type is immutable, a field cannot be removed, and the
+  template itself cannot be deleted, once any object uses the template
+  (Decision 7) — one gate, no confirmation step, the actions are simply
+  disabled.
 * No workflow builders, no formulas, no relations beyond Kinesis Links (KD-034).
 * Reuse the existing field type vocabulary, editor and value storage — the
   definition layer above them is what's new here, not the field types
@@ -272,12 +280,12 @@ every phase leaves `main`/`v1.2.0` in a working, fully-tested state, rather
 than landing as one large change. Sequenced so each phase's UI is checkable
 in the browser before the next one is built on top of it.
 
-The value-existence gate (Decision 1/7) is cheap enough to build from day
-one rather than bolted on later — it's a single existence check, always
-false until Phase 2 gives it anything to be true about — so there's no
-separate phase for it the way an earlier draft of this plan had (a
-blast-radius *count and warning* would have needed its own phase; a plain
-existence check doesn't).
+The one-gate check (Decision 7 — does any object use the template) is cheap
+enough to build from day one rather than bolted on later — it's a single
+existence check, always false until Phase 2 gives it anything to be true
+about — so there's no separate phase for it the way an earlier draft of
+this plan had (a blast-radius *count and warning* would have needed its own
+phase; a plain existence check doesn't).
 
 ### Phase 1 — Template schema + Settings → Templates CRUD (standalone)
 
@@ -303,11 +311,10 @@ Settings.
   modules" / "Used by N objects" per Decision 7 (both trivially zero until
   Phase 2, but the display and the query both exist from here).
 * `/settings/templates/[templateId]` — name field, field-definitions editor
-  (add / rename / reorder always; type change and remove disabled once a
-  real value exists under the field, per Decision 1 — always enabled in
-  this phase, since nothing can hold a value yet), Clone action, and a
-  delete-template action disabled while any object still points at it
-  (Decision 7 — also always enabled in this phase).
+  (add / rename / reorder always; type change, remove, and delete-template
+  all disabled once any object uses the template, per Decision 7 — always
+  enabled in this phase, since no object can exist under a template yet),
+  Clone action.
 * Entry point card on the main Settings page.
 
 **Out of scope for this phase:** module linkage, object rendering (nothing
