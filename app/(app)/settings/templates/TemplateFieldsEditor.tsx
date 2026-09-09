@@ -1,12 +1,15 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, ChevronDown, Clock3, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Minus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELDS_FORM_KEY, type TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 
 type EditorField = TemplateFieldInput & { key: string };
+
+/** The dropdown's sentinel value for Due Date -- not a real `CustomFieldType`, since a due-date field is still `type: "DATE"` underneath (KD-038), just with `isDueDate: true` alongside it. */
+const DUE_DATE_OPTION = "DUE_DATE";
 
 /**
  * A template's field *definitions* -- label and type, never a value. Every
@@ -16,10 +19,15 @@ type EditorField = TemplateFieldInput & { key: string };
  * at least one object currently uses the template). There is no per-field
  * distinction -- the whole set locks or unlocks as one.
  *
- * The one exception is the Due Date field (KD-038 / ADR-011): a distinct
- * kind of field, added through its own button rather than the type
- * dropdown, and never convertible into or out of -- its row never shows a
- * type control at all, locked or not.
+ * The Due Date field (KD-038 / ADR-011, revised by KD-040) is still never
+ * convertible into or out of -- but rather than a separate button, "◷ Due
+ * date" is a selectable option in a *new*, not-yet-saved row's own type
+ * dropdown, since choosing it there converts nothing (the row has no prior
+ * type to convert from). An *existing*, already-saved field's dropdown never
+ * offers it, at any point, editable or not -- and once a row is the Due
+ * Date field, its own dropdown goes back to being a disabled, single-option
+ * control, the same locked look every field's dropdown already gets once a
+ * template is in use, just unconditional from the moment it's created.
  */
 export function TemplateFieldsEditor({ initialFields, locked }: { initialFields: TemplateFieldInput[]; locked: boolean }) {
   const [fields, setFields] = useState<EditorField[]>(
@@ -42,9 +50,12 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
     const key = crypto.randomUUID();
     setFields((current) => [...current, { key, label: "", type: "TEXT" }]);
   };
-  const addDueDateField = () => {
-    const key = crypto.randomUUID();
-    setFields((current) => [...current, { key, label: "Due date", type: "DATE", isDueDate: true }]);
+  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION, currentLabel: string) => {
+    if (value === DUE_DATE_OPTION) {
+      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date" });
+    } else {
+      update(key, { type: value });
+    }
   };
   const hasDueDateField = fields.some((field) => field.isDueDate);
 
@@ -77,20 +88,28 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                 className={FIELD_INPUT_CLASS}
               />
               {field.isDueDate ? (
-                <div className={`flex h-11 items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium text-zinc-600`}>
-                  <Clock3 className="h-4 w-4 text-zinc-400" /> Due date
+                <div className="relative">
+                  <select disabled value={DUE_DATE_OPTION} aria-label={`Field ${index + 1} type`} title="A Due Date field can't be changed into or out of another type." className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}>
+                    <option value={DUE_DATE_OPTION}>◷ Due date</option>
+                  </select>
+                  <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>
               ) : (
                 <div className="relative">
                   <select
                     value={field.type}
                     disabled={locked}
-                    onChange={(event) => update(field.key, { type: event.target.value as CustomFieldType })}
+                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION, field.label)}
                     aria-label={`Field ${index + 1} type`}
                     title={locked ? "This template is in use, so a field's type can't be changed." : undefined}
                     className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}
                   >
                     {CUSTOM_FIELD_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                    {/* Only offered on a brand-new, not-yet-saved row -- an
+                        existing field's dropdown never gets this option, at
+                        any point, which is what keeps "no conversion, ever"
+                        true (KD-038/ADR-011, amended by KD-040). */}
+                    {!field.id && !hasDueDateField && <option value={DUE_DATE_OPTION}>◷ Due date</option>}
                   </select>
                   <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>
@@ -122,23 +141,6 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
         >
           <Plus className="h-4 w-4" /> Add field
         </button>
-        {hasDueDateField ? (
-          <button
-            type="button"
-            disabled
-            className="inline-flex items-center gap-2 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-400"
-          >
-            <Clock3 className="h-4 w-4" /> Due date <Check className="h-4 w-4" /> Added
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={addDueDateField}
-            className="inline-flex items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950"
-          >
-            <Clock3 className="h-4 w-4" /> Add due date field
-          </button>
-        )}
       </div>
     </fieldset>
   );

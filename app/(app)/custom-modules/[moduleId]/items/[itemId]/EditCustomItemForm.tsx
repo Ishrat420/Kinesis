@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CheckCircle2, LayoutTemplate, Link2, LoaderCircle, Save } from "lucide-react";
+import { CheckCircle2, LayoutTemplate, LoaderCircle, Save } from "lucide-react";
 import { promoteFieldToTemplateAction, updateCustomItemAction, type CustomItemState } from "../../../actions";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
@@ -11,7 +11,7 @@ import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/ty
 const initialState: CustomItemState = {};
 
 type EditableItem = {
-  id: string; name: string; notes: string; dueDate: string; link: string; archived: boolean;
+  id: string; name: string; archived: boolean;
   templateId: string | null; templateFields: TemplateFieldValue[]; fields: CustomFieldValue[];
 };
 
@@ -21,10 +21,6 @@ export function EditCustomItemForm({ moduleId, item, linkOptions }: { moduleId: 
   // `saved` once it has -- so there is no separate save-state machine here to
   // keep in step with it.
   const [state, formAction, pending] = useActionState(updateCustomItemAction.bind(null, moduleId, item.id), initialState);
-  // KD-038 Decision 6: the template's own Due Date field, when it has one,
-  // takes over this slot entirely -- the fixed input never renders
-  // alongside it, since both would be editing the same CustomItem.dueDate.
-  const hasTemplateDueDate = item.templateFields.some((field) => field.isDueDate);
 
   return <form action={formAction} className="space-y-5">
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
@@ -37,11 +33,6 @@ export function EditCustomItemForm({ moduleId, item, linkOptions }: { moduleId: 
           field as if it still needed editing here. */}
       <CustomFieldsEditor key={item.fields.map((field) => field.id).join(",")} initialFields={item.fields} linkOptions={linkOptions} />
       {item.templateId && item.fields.length > 0 && <PromoteFields moduleId={moduleId} itemId={item.id} fields={item.fields} />}
-    </div>
-    <label className="block text-sm font-medium text-zinc-600">Notes<textarea name="notes" rows={4} defaultValue={item.notes} className="mt-1.5 w-full resize-none rounded-xl border border-zinc-200 p-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
-    <div className={hasTemplateDueDate ? "" : "grid gap-4 sm:grid-cols-2"}>
-      {!hasTemplateDueDate && <label className="block text-sm font-medium text-zinc-600">Due date<div className="relative mt-1.5"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-zinc-400"/><input name="dueDate" type="date" defaultValue={item.dueDate} className="h-11 w-full rounded-xl border border-zinc-200 pl-11 pr-3 text-zinc-950 outline-none focus:border-zinc-400"/></div></label>}
-      <label className="block text-sm font-medium text-zinc-600">Link<div className="relative mt-1.5"><Link2 className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-zinc-400"/><input name="link" type="url" defaultValue={item.link} placeholder="https://…" className="h-11 w-full rounded-xl border border-zinc-200 pl-11 pr-3 text-zinc-950 outline-none focus:border-zinc-400"/></div></label>
     </div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not Archived"}</button><input type="hidden" name="archived" value={String(archived)}/></div>
     {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}

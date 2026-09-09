@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useState } from "react";
-import { CalendarDays, CheckCircle2, Link2, Plus, X } from "lucide-react";
+import { CheckCircle2, Plus, X } from "lucide-react";
 import { createCustomItemAction, type CustomItemState } from "../actions";
 import { ActionSubmitButton } from "../ActionSubmitButton";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
@@ -14,10 +14,6 @@ const initialState: CustomItemState = {};
 export function NewItemButton({ moduleId, linkOptions, templateFields = [] }: { moduleId: string; linkOptions: KinesisLinkOption[]; templateFields?: TemplateFieldValue[] }) {
   const [open, setOpen] = useState(false);
   const [created, setCreated] = useState(false);
-  // KD-038 Decision 6: the template's own Due Date field, when it has one,
-  // takes over this slot entirely -- the fixed input never renders
-  // alongside it, since both would be editing the same CustomItem.dueDate.
-  const hasTemplateDueDate = templateFields.some((field) => field.isDueDate);
   const createItem = useCallback(async (previousState: CustomItemState, data: FormData) => {
     const result = await createCustomItemAction(moduleId, previousState, data);
     if (result.error) return result;
@@ -37,15 +33,6 @@ export function NewItemButton({ moduleId, linkOptions, templateFields = [] }: { 
           <label className="block text-sm font-semibold">Name<input required autoFocus name="name" maxLength={100} placeholder="Item name" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-zinc-400" /></label>
           {templateFields.length > 0 && <TemplateFieldValues fields={templateFields} linkOptions={linkOptions} />}
           <CustomFieldsEditor linkOptions={linkOptions} />
-          <label className="block text-sm font-semibold">Notes <span className="font-normal text-zinc-400">(optional)</span><textarea name="notes" rows={3} placeholder="Add any useful context…" className="mt-2 w-full resize-none rounded-2xl border border-zinc-200 p-4 font-normal outline-none" /></label>
-          <div className={hasTemplateDueDate ? "" : "grid gap-4 sm:grid-cols-2"}>
-            {/* KD-038 Decision 6: once the module's template has a Due Date
-                field, this fixed input steps aside for it -- the template's
-                own field, rendered above via TemplateFieldValues, is what
-                sets it now. */}
-            {!hasTemplateDueDate && <label className="block text-sm font-semibold">Due date <span className="font-normal text-zinc-400">(optional)</span><div className="relative mt-2"><CalendarDays className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-zinc-400"/><input name="dueDate" type="date" className="h-12 w-full rounded-2xl border border-zinc-200 pl-12 pr-3 font-normal outline-none" /></div></label>}
-            <label className="block text-sm font-semibold">Link <span className="font-normal text-zinc-400">(optional)</span><div className="relative mt-2"><Link2 className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-zinc-400"/><input name="link" type="url" placeholder="https://…" className="h-12 w-full rounded-2xl border border-zinc-200 pl-12 pr-3 font-normal outline-none" /></div></label>
-          </div>
           {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
           <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={() => setOpen(false)} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Cancel</button><ActionSubmitButton idleLabel="Create item" pendingLabel="Creating…" /></div>
         </form>

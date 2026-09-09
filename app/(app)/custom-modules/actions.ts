@@ -76,22 +76,19 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   const ownedModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { id: true, templateId: true } });
   if (!ownedModule) return { error: "This module no longer exists." };
 
-  // The template's own Due Date field (KD-038 Decision 6) takes over the
-  // fixed input's job the moment it exists -- the two are never both live
-  // on the form (NewItemButton), so whichever is actually in play decides
-  // the value (KD-039).
+  // A due date is reachable only through a template's own Due Date field
+  // (KD-040) -- there is no fixed input anymore for a module without one.
   const dueDateField = ownedModule.templateId
     ? await prisma.templateField.findFirst({ where: { templateId: ownedModule.templateId, isDueDate: true }, select: { id: true } })
     : null;
-  const dueDate = dueDateValue(dueDateField ? (templateValues.values.find((value) => value.templateFieldId === dueDateField.id)?.value ?? "") : getValue(data, "dueDate"));
+  const dueDate = dueDateField ? dueDateValue(templateValues.values.find((value) => value.templateFieldId === dueDateField.id)?.value ?? "") : null;
   if (dueDate === undefined) return { error: "Enter a valid due date." };
 
   const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
   await prisma.$transaction(async (tx) => {
     const created = await tx.customItem.create({ data: {
-      id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, notes: getValue(data, "notes") || null,
-      dueDate, link: getValue(data, "link") || null,
+      id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, dueDate,
       // Whatever the module is currently linked to, permanently, per KD-035
       // Decision 7 -- later relinking the module never reaches back to this item.
       object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
@@ -118,11 +115,6 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
   const fields = prepareCustomFields(form.fields);
-  // The fixed Due Date input's own value -- read here in case there's no
-  // template due-date field to defer to instead, resolved below once the
-  // item's template (if any) is known.
-  const fixedDueDate = dueDateValue(getValue(data, "dueDate"));
-  if (fixedDueDate === undefined) return { error: "Enter a valid due date." };
   try {
     await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({
@@ -132,17 +124,13 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     if (!ownedItem) refuse("This item no longer exists.");
     const templateId = ownedItem.object.templateId;
 
-    // The template's own Due Date field (KD-038 Decision 6) takes over the
-    // fixed input's job the moment it exists -- the two are never both
-    // live on the form, so whichever is actually in play decides the value.
+    // A due date is reachable only through a template's own Due Date field
+    // (KD-040) -- an item whose template has none simply has no due date.
     const dueDateField = templateId ? await tx.templateField.findFirst({ where: { templateId, isDueDate: true }, select: { id: true } }) : null;
-    let dueDate = fixedDueDate;
+    let dueDate: Date | null = null;
     if (dueDateField) {
-      const submitted = templateValues.values.find((value) => value.templateFieldId === dueDateField.id);
-      const raw = submitted?.value ?? "";
-      if (!raw) {
-        dueDate = null;
-      } else {
+      const raw = templateValues.values.find((value) => value.templateFieldId === dueDateField.id)?.value ?? "";
+      if (raw) {
         const parsed = parseDateOnly(raw);
         if (!parsed) refuse("Enter a valid due date.");
         dueDate = parsed;
@@ -156,8 +144,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
     await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
-      name, notes: getValue(data, "notes") || null, dueDate,
-      link: getValue(data, "link") || null, archived: data.get("archived") === "true",
+      name, dueDate, archived: data.get("archived") === "true",
     } });
     await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId, templateFieldId: null } });
     // A field's targets are a nested create -- createMany cannot carry those,

@@ -178,10 +178,5 @@ describe("invalid submissions report an error instead of silently doing nothing"
       await expect(createCustomItemAction(MODULE, {}, form({ name: "n".repeat(101) }))).resolves.toEqual({ error: "Keep the item name under 100 characters." });
       noWrites();
     });
-
-    it("rejects a malformed due date", async () => {
-      await expect(createCustomItemAction(MODULE, {}, form({ name: "Passport", dueDate: "next week" }))).resolves.toEqual({ error: "Enter a valid due date." });
-      noWrites();
-    });
   });
 });

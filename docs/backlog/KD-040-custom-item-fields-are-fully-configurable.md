@@ -1,6 +1,6 @@
 # KD-040 — Custom Items: Name Is the Only Fixed Field
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** Medium
 **Tags:** Data Model, UX / UI, Foundation Dependent
 
@@ -115,6 +115,55 @@ existing data to protect, which there isn't (Decision 4):
    open just to answer this.
 2. *Does the Notes/Link migration need to be visible?* Moot — there's no
    migration.
+
+## What shipped
+
+* **Notes and Link inputs removed.** `NewItemButton` (create) and
+  `EditCustomItemForm` (edit) no longer render the fixed Notes textarea or
+  Link input. `createCustomItemAction`/`updateCustomItemAction` stop
+  reading/writing `CustomItem.notes`/`.link` entirely — an item that wants
+  free text or an external link adds a `TEXT`/`LINK` field, template or ad
+  hoc, exactly like any other field.
+* **Due Date input removed for good — not just when a template already
+  supplies one.** The fixed Due Date input (and its "step aside when the
+  template has one" logic from KD-038 Decision 6) is gone from both forms.
+  `createCustomItemAction`/`updateCustomItemAction` now resolve `dueDate`
+  exclusively from the item's template's Due Date field, if it has one —
+  `null` otherwise, with no fallback to a plain form field. Unlike Notes
+  and Link, `CustomItem.dueDate` itself stays fully live — it's still the
+  same column Needs Attention, the calendar, and notifications read; only
+  the fixed-input path to it is gone.
+* **Due Date's add control moved into the type dropdown**
+  (`TemplateFieldsEditor`), replacing the separate "+ Add due date field"
+  button: a brand-new, not-yet-saved row's dropdown now lists "◷ Due
+  date" alongside Text/Number/Date/Checkbox/Link/Kinesis Link. An
+  existing, already-saved row's dropdown never offers it. Once a row is
+  the Due Date field (new or after a page reload), its dropdown renders
+  as the same disabled, single-option control every locked field's
+  dropdown uses — unconditionally, not just once the template is in use.
+  The "◷ Due date" option itself disappears from every other row the
+  moment one field has it, enforcing the one-per-template cap in the
+  control that offers it.
+* **ADR-011 amended** (not reversed) to match: point 1's guarantee — no
+  control ever converts an existing field into a due date or back — holds
+  exactly as before; only the mechanic offering it to a *new* field moved
+  from a button into the dropdown.
+* No data migration, per Decision 4 — nothing existed to migrate.
+
+Test coverage: the KD-039 unit-test file
+(`tests/unit/create-custom-item-template-fields.test.ts`) already covered
+Due Date routing through a template field, so it needed no changes; one
+obsolete unit test asserting the old fixed Due Date input's validation
+(`tests/unit/validation/action-feedback.test.ts`) was removed as no
+longer reachable. The integration test purpose-built for due-date
+behaviour (`tests/integration/custom-modules/due-date.test.ts`) was
+rewritten to route every case through a template's Due Date field instead
+of a plain form field, plus one new case confirming a module whose
+template has no Due Date field never gets one.
+
+Verified with `prisma validate`, a full typecheck and lint (clean, no new
+errors against the pre-existing baseline), the full unit suite passing
+(625 tests), and a production `next build`.
 
 ## Related
 

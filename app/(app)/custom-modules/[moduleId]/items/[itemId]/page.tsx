@@ -25,7 +25,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       iconStyle={{ backgroundColor: `color-mix(in srgb, ${item.module.color} 10%, white)` }}
       actions={<DeleteItemButton action={deleteCustomItemAction.bind(null, moduleId, item.id)} />}
     />
-    <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"><EditCustomItemForm moduleId={moduleId} item={{ id: item.id, name: item.name, notes: item.notes ?? "", dueDate: item.dueDate?.toISOString().slice(0, 10) ?? "", link: item.link ?? "", archived: item.archived, templateId: item.templateId, templateFields: item.templateFields, fields: item.fields }} linkOptions={linkOptions} /></section>
+    <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]"><EditCustomItemForm moduleId={moduleId} item={{ id: item.id, name: item.name, archived: item.archived, templateId: item.templateId, templateFields: item.templateFields, fields: item.fields }} linkOptions={linkOptions} /></section>
     <p className="mt-4 text-sm text-zinc-400">Created {formatDate(item.createdAt, locale)} · Updated {formatDate(item.updatedAt, locale)}</p>
   </ModuleContent>;
 }

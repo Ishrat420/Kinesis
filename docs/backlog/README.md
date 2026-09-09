@@ -161,7 +161,6 @@ KD-032-relationships-bypass-the-object-layer
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
-KD-040-custom-item-fields-are-fully-configurable
 
 
 ## 🚧 In Progress
@@ -179,6 +178,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-040-custom-item-fields-are-fully-configurable
 KD-039-template-fields-on-item-creation
 KD-038-due-date-template-field
 KD-035-module-templates
