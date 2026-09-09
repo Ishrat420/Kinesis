@@ -1,6 +1,6 @@
 # KD-035 — Module Templates: Reusable Field Structure for Custom Modules
 
-**Status:** Accepted — Needs Planning
+**Status:** Accepted
 **Priority:** Medium
 **Tags:** UX / UI, Data Model, Architecture, Foundation Dependent
 
@@ -131,19 +131,44 @@ Two things remove that cost for the common case:
 Anyone using a shipped template pays no extra step at all; anyone building their
 own pays one dropdown.
 
+### 6. Templates are managed from Settings, not born inside module creation
+
+Templates get their own management surface: **Settings → Templates**.
+
+* **List** (`/settings/templates`) — one row per template: name, field count,
+  "Used by N modules." A shipped starter template shows a "Built-in" marker but
+  is editable like any other; there is no locked/read-only tier for v1.
+* **Create** — "New template" opens a blank template straight into the detail
+  screen, no separate creation form.
+* **Detail / edit** (`/settings/templates/[templateId]`) — name, and a field
+  *definitions* list (label + type, no value — this is a template row, not an
+  object's data): add/rename/reorder fields live, per Decision 1; changing a
+  field's type is disabled once the field exists; removing one opens the
+  blast-radius confirmation from Decision 1. A "Used by" list at the bottom
+  links to every module on the template.
+* **Clone** — on the detail screen: name prompt, copies the current field list
+  into a new, independent template, opens its detail screen.
+
+Module creation's "start from" dropdown (Decision 5) *reads* this list — it is
+not a second place templates get created. Saving an in-progress module's ad-hoc
+fields as a new template ("promote to template," inline from module creation)
+is a reasonable later addition, not built here: it would give templates a
+second birthplace to keep in sync with the Settings screen, for a case (someone
+mid-module-creation deciding they want reuse) that "create the template first,
+then start the module from it" already covers.
+
 ## Dependencies
 
-Shared with KD-034 — do not duplicate this work, do it once:
+Shared with KD-034 — do not duplicate this work, do it once. **Both shipped
+with KD-034** (branch `v1.2.0`), so this ticket builds directly on top rather
+than needing either itself:
 
-1. **Unify `DocumentField` and `CustomItemField` into one object-scoped field
-   store.** Both hosts are already `Object`-backed. This ticket's field
-   *definitions* sit above that store; building it twice (or three times, once
-   Goals arrive per KD-033) is the exact duplication this whole effort exists to
-   remove.
-2. **Replace the positional FormData encoding** that currently rejoins field
-   arrays by index (see KD-034 for the detail — `CustomFieldsEditor`'s empty
-   hidden inputs exist purely to keep that alignment, and it cannot survive a
-   field carrying more than it does today).
+1. ~~**Unify `DocumentField` and `CustomItemField` into one object-scoped field
+   store.**~~ Done — `ObjectField`, keyed by `objectId`, is what Documents,
+   Custom Items, and Goals all read and write today.
+2. ~~**Replace the positional FormData encoding.**~~ Done — `CustomFieldsEditor`
+   now submits one JSON payload (`CUSTOM_FIELDS_FORM_KEY`); no index-aligned
+   arrays left to work around.
 
 ## Terminology
 
@@ -179,6 +204,134 @@ object is a *record*. Onboarding should teach these three, not four.
   beyond the shared-edit model in Decision 1–2
 * Arbitrary workflow builders, AI-generated schemas
 * Full Airtable / Notion-style database functionality
+
+## Implementation phases
+
+Four phases, each independently shippable and independently verifiable —
+every phase leaves `main`/`v1.2.0` in a working, fully-tested state, rather
+than landing as one large change. Sequenced so each phase's UI is checkable
+in the browser before the next one is built on top of it, and so the
+riskiest operation (field removal) is built last, on top of plumbing that
+already exists by then rather than growing its own copy.
+
+### Phase 1 — Template schema + Settings → Templates CRUD (standalone)
+
+**Goal:** Templates exist, are fully manageable, and nothing else in the app
+knows about them yet. No module or object reads a template. This is the
+foundation every later phase sits on, and it's the one phase with no
+integration risk — it can be built, tested, and demoed entirely inside
+Settings.
+
+**Data model:**
+* `Template` — `id`, `userId`, `name`, `isStarter` (or similar, to mark
+  shipped defaults for the "Built-in" badge — see open question below on
+  whether starters are seeded per-user or global), timestamps.
+* `TemplateField` — `id`, `templateId`, `label`, `type` (same
+  `CustomFieldType` vocabulary `ObjectField` already uses), `position`. No
+  `value` column — a definition, not data.
+* Ownership follows the existing per-user pattern (`userId` scoping,
+  `requireKinesisUser()`), same as `CustomModule`.
+
+**UI:**
+* `/settings/templates` — list, "New template" action.
+* `/settings/templates/[templateId]` — name field, field-definitions editor
+  (add / rename / reorder always; type change disabled once a field exists,
+  per Decision 1), delete-field confirmation (plain confirmation in this
+  phase — the blast-radius *count* is Phase 4; this phase can name "this
+  field" without yet knowing how many objects hold data in it, since nothing
+  holds data in it yet), "Used by" list (empty in this phase), Clone action,
+  delete-template action.
+* Entry point card on the main Settings page.
+
+**Out of scope for this phase:** module linkage, object rendering, blast
+radius counts (nothing uses templates yet, so both are trivially zero).
+
+**Depends on:** nothing new — `ObjectField`'s `CustomFieldType` vocabulary
+and the existing Settings page are already in place.
+
+### Phase 2 — Module creation reads templates; module and object record which one
+
+**Goal:** A module can be created "starting from" a template, and every
+object it contains knows which template it followed.
+
+**Data model:**
+* `CustomModule.templateId` (nullable — a module with none behaves exactly
+  as today, per Decision 4).
+* `Object.templateId` (nullable) — recorded per Decision 3, on the object
+  rather than only the module, so a future multi-template module needs no
+  further schema change.
+* On object creation inside a templated module: seed the object's fields
+  from the template's current field list (label/type/position copied in as
+  starting `ObjectField` rows, empty values) rather than copying nothing and
+  relying on the template being re-read later — the object's fields are its
+  own from creation, editable and extendable exactly as today.
+
+**UI:**
+* Module creation screen gains a "start from" control (Decision 5): Blank,
+  or any existing template — reading the Phase 1 list directly, including
+  starters.
+* A gallery-style shortcut ("Add Decisions" one-click module+template) can
+  ride on the same underlying action; whether it ships in this phase or
+  waits is a sequencing call to make when this phase is scoped, not a
+  blocker to the phase itself.
+* Template detail screen's "Used by" list now populates for real.
+
+**Out of scope for this phase:** rendering template fields distinctly in the
+object detail view (that's Phase 3 — this phase only needs the fields to
+exist and behave as ordinary `ObjectField` rows); editing a template's
+fields after objects already exist under it (Phase 1's editor already
+allows this mechanically, but the *consequence* — do existing objects gain
+the new field, does the blast-radius warning need real counts — is Phase 4
+territory, since before Phase 2 there was nothing to affect).
+
+**Depends on:** Phase 1 (templates must exist to link).
+
+### Phase 3 — Object detail view renders template fields distinctly
+
+**Goal:** An object created under a template visually separates "these are
+the template's fields, always present, in template order" from "these are
+extras," per Decision 4.
+
+**UI:**
+* Object detail / edit views (Custom Item, and anywhere else fields render)
+  order template-linked fields first, in the template's own order, even when
+  a given field is still empty on this particular object — then extras
+  after.
+* No new data model — this reads `Object.templateId` (Phase 2) plus
+  `ObjectField.templateFieldId`-or-equivalent linkage to know which stored
+  fields came from the template versus were added ad hoc. (Whether that
+  linkage is its own column added in Phase 2 or inferred by label match is
+  worth deciding when Phase 2 is scoped — a column is more robust since
+  labels can be renamed on either side independently.)
+
+**Out of scope for this phase:** "promote an extra into the template" (named
+in the ticket as a reasonable later addition, not v1).
+
+**Depends on:** Phase 2 (needs objects that actually carry a template link
+to render).
+
+### Phase 4 — Field-removal blast-radius query + confirmation UI
+
+**Goal:** Removing a field from a template — the one operation the ticket
+calls out as genuinely dangerous — shows real impact before it happens:
+"Used by 3 modules, 14 objects hold data in this field," not just a generic
+"are you sure."
+
+**Data:**
+* A query, given a `templateFieldId`, counting objects (across every module
+  linked to the template) that hold a non-empty value in the corresponding
+  field — this is why it's sequenced last: it wants Phase 2's linkage and
+  real usage to count against, or it can only ever report zero.
+
+**UI:**
+* Phase 1's plain delete-field confirmation upgrades to name the real count
+  and the affected modules, per the ticket's guardrail. Exact copy, and
+  whether a count above some threshold requires typing a confirmation
+  phrase, is the ticket's still-open UI question — worth settling at the
+  start of this phase rather than carrying it further.
+
+**Depends on:** Phase 2 (object↔template linkage to count against) and,
+for the "which modules" half specifically, nothing beyond that.
 
 ## Open questions
 

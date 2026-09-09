@@ -160,6 +160,7 @@ KD-032-relationships-bypass-the-object-layer
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
+KD-035-module-templates
 
 
 ## 🚧 In Progress
@@ -172,7 +173,6 @@ KD-023-universal-object-connection
 KD-011-unified-todo-view
 KD-017-turn-dashboard-into-decision-surface
 KD-020-mobile-navigation-and-responsive-app
-KD-035-module-templates
 
 ## ⛔ Blocked
 
