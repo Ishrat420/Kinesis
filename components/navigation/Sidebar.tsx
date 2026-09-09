@@ -88,7 +88,7 @@ export async function SidebarNav() {
           />
         ))}
         {customModules.map((customModule) => (
-          <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} color={customModule.color} />
+          <DraggableCustomModuleLink key={customModule.id} id={customModule.id} name={customModule.name} icon={customModule.icon} />
         ))}
         <AddModuleButton templates={templates} />
       </NavSection>
