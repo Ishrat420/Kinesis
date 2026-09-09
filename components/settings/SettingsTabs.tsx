@@ -24,6 +24,10 @@ export function SettingsTabs() {
           <Link
             key={tab.href}
             href={tab.href}
+            // Both tabs are visible at once, so there is no "on hover" to wait
+            // for -- prefetch the one you're not on the moment this bar mounts,
+            // rather than only once the pointer reaches it.
+            prefetch
             role="tab"
             aria-selected={active}
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
