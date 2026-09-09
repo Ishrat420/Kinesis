@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ChevronDown, Minus, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELDS_FORM_KEY, type TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
@@ -33,6 +33,23 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
   const [fields, setFields] = useState<EditorField[]>(
     initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() })),
   );
+  const [resetRevision, setResetRevision] = useState(0);
+  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+
+  // React resets action forms after a successful submission. These fields are
+  // controlled, so repaint them after that native reset rather than briefly
+  // showing their empty/default DOM values (every type dropdown reverting to
+  // its first option, Text) until the page is reopened -- the same fix
+  // CustomFieldsEditor already has for the same quirk.
+  useEffect(() => {
+    const form = fieldsetRef.current?.closest("form");
+    if (!form) return;
+    const restoreControlledValues = () => {
+      window.setTimeout(() => setResetRevision((revision) => revision + 1), 0);
+    };
+    form.addEventListener("reset", restoreControlledValues);
+    return () => form.removeEventListener("reset", restoreControlledValues);
+  }, []);
 
   const update = (key: string, changes: Partial<EditorField>) => {
     setFields((current) => current.map((field) => field.key === key ? { ...field, ...changes } : field));
@@ -65,7 +82,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
   );
 
   return (
-    <fieldset>
+    <fieldset ref={fieldsetRef}>
       <legend className="text-sm font-semibold">Fields</legend>
       <input type="hidden" name={TEMPLATE_FIELDS_FORM_KEY} value={payload} />
 
@@ -78,7 +95,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
       {fields.length > 0 && (
         <div className="mt-3 space-y-2">
           {fields.map((field, index) => (
-            <div key={field.key} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+            <div key={`${field.key}:${resetRevision}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
               <input
                 value={field.label}
                 onChange={(event) => update(field.key, { label: event.target.value })}
