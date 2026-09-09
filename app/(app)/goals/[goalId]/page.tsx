@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Activity, Flag, Gauge, Target, Trash2 } from "lucide-react";
+import { Activity, Flag, Target, Trash2 } from "lucide-react";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
@@ -50,9 +50,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
         <AddMilestoneForm action={milestoneAction} hasTarget={goal.targetValue !== null} unit={goal.unit} goalTargetDate={goal.targetDate} />
       </section>
 
-      <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Measurable target</h2><p className="mt-1 text-sm text-zinc-500">Track the number that defines success.</p></div><Gauge className="h-5 w-5 text-violet-500"/></div>
-        <MeasurableTargetForm action={targetAction} removeAction={removeTarget} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} measuredMilestones={measuredMilestones} />
-      </section>
+      <MeasurableTargetForm action={targetAction} removeAction={removeTarget} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} measuredMilestones={measuredMilestones} />
       <LinkedGoals linked={goalRelationships.linked} availableGoals={goalRelationships.availableGoals} addAction={addGoalRelationshipAction.bind(null, goal.id)} updateAction={updateGoalRelationshipAction.bind(null, goal.id)} removeAction={removeGoalRelationshipAction.bind(null, goal.id)} />
       <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} action={updateGoalFieldsAction.bind(null, goal.id)} />
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
