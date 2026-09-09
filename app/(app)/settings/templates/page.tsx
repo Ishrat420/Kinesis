@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, LayoutTemplate, Plus } from "lucide-react";
+import { Box, ChevronRight, LayoutGrid, LayoutTemplate, Plus } from "lucide-react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getTemplates } from "@/lib/data/templates";
 import { createTemplateAction } from "./actions";
@@ -33,8 +33,10 @@ export default async function TemplatesPage() {
               <h3 className="truncate font-semibold">{template.name}</h3>
               <p className="mt-0.5 truncate text-sm text-zinc-500">{template.fieldCount} field{template.fieldCount === 1 ? "" : "s"}</p>
             </div>
-            <span className="hidden shrink-0 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500 sm:inline">
-              Linked to {template.linkedModules} module{template.linkedModules === 1 ? "" : "s"} · Used by {template.usedByObjects} object{template.usedByObjects === 1 ? "" : "s"}
+            <span className="hidden shrink-0 items-center gap-2.5 text-sm font-medium text-zinc-500 sm:flex">
+              <span className="flex items-center gap-1.5"><LayoutGrid className="h-4 w-4" />{template.linkedModules} module{template.linkedModules === 1 ? "" : "s"}</span>
+              <span className="h-4 w-px bg-zinc-200" />
+              <span className="flex items-center gap-1.5"><Box className="h-4 w-4" />{template.usedByObjects} object{template.usedByObjects === 1 ? "" : "s"}</span>
             </span>
             <ChevronRight className="h-5 w-5 text-zinc-300" />
           </Link>
