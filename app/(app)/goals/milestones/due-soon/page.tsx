@@ -95,7 +95,7 @@ function DueSoonFilter({ active, label, hidden }: { active: boolean; label: stri
     return (
       <Link
         href={MILESTONES_DUE_SOON_HREF}
-        className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-600 shadow-sm transition hover:border-zinc-300 hover:text-zinc-900"
+        className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-600 shadow-sm outline-none transition hover:border-zinc-300 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-violet-400"
       >
         <ListFilter className="h-4 w-4" />
         Only due within {label}
@@ -105,19 +105,22 @@ function DueSoonFilter({ active, label, hidden }: { active: boolean; label: stri
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 py-2 pl-3.5 pr-2 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
+      <span className="inline-flex items-center gap-2 rounded-full bg-violet-50 py-2 pl-3.5 pr-2 text-sm font-semibold text-violet-800 ring-1 ring-violet-200">
         Due within {label}
         <Link
           href={MILESTONES_ALL_HREF}
           aria-label={`Remove the due within ${label} filter`}
-          className="rounded-full p-1 text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-900"
+          className="rounded-full p-1 text-violet-700 outline-none transition hover:bg-violet-100 hover:text-violet-900 focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           <X className="h-3.5 w-3.5" />
         </Link>
       </span>
       {hidden > 0 && (
-        <Link href={MILESTONES_ALL_HREF} className="text-sm font-medium text-zinc-500 transition hover:text-zinc-900">
-          {hidden} more outside this window →
+        <Link
+          href={MILESTONES_ALL_HREF}
+          className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-600 shadow-sm outline-none transition hover:border-zinc-300 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-violet-400"
+        >
+          {hidden} more outside this window
         </Link>
       )}
     </div>
@@ -144,7 +147,7 @@ export default async function MilestonesPage({ searchParams }: { searchParams: P
         backLabel="Back to goals"
         breadcrumbs={[{ label: "Goals", href: "/goals" }, { label: "Milestones" }]}
         icon={<CheckSquare className="h-6 w-6" />}
-        iconClassName="bg-emerald-50 text-emerald-700"
+        iconClassName="bg-violet-50 text-violet-700"
         title="Milestones"
         description={dueSoonOnly
           ? `Milestones due in the next ${label}. Anything overdue is listed regardless.`

@@ -13,7 +13,7 @@ export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, 
   const stats = [
     { icon: Calendar, title: "Expiring soon", value: String(expiringSoon), label: "documents", tone: "bg-blue-50", href: "/documents/expiring-soon" },
     // "See all" carries the same window the number was counted with, so the page lists exactly what the tile counted.
-    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: `due within ${milestoneDueSoonLabel(milestoneLeadDays)}`, tone: "bg-emerald-50", href: MILESTONES_DUE_SOON_HREF },
+    { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: `due within ${milestoneDueSoonLabel(milestoneLeadDays)}`, tone: "bg-violet-50", href: MILESTONES_DUE_SOON_HREF },
     { icon: Target, title: "Goals at risk", value: String(goalsAtRisk), label: "on risk", tone: "bg-violet-50", href: "/goals?filter=at-risk" },
     { icon: TrendingUp, title: "This month", value: formatMoney(netCashFlow, locale, currency), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
   ];
