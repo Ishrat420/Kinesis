@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { ModuleContent } from "@/components/layout/ModuleContent";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getTemplate } from "@/lib/data/templates";
 import { TemplateDetailForm } from "./TemplateDetailForm";
@@ -11,7 +10,7 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
   const template = await getTemplate(templateId);
   if (!template) notFound();
 
-  return <ModuleContent width="standard">
+  return <>
     <ModuleHeader
       backHref="/settings/templates"
       backLabel="Back to templates"
@@ -23,5 +22,5 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
     <div className="mt-8">
       <TemplateDetailForm templateId={template.id} name={template.name} fields={template.fields} locked={template.inUse} />
     </div>
-  </ModuleContent>;
+  </>;
 }

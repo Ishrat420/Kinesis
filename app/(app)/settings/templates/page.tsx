@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ChevronRight, LayoutTemplate, Plus } from "lucide-react";
-import { ModuleContent } from "@/components/layout/ModuleContent";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getTemplates } from "@/lib/data/templates";
 import { createTemplateAction } from "./actions";
@@ -8,10 +7,8 @@ import { createTemplateAction } from "./actions";
 export default async function TemplatesPage() {
   const templates = await getTemplates();
 
-  return <ModuleContent width="standard">
+  return <>
     <ModuleHeader
-      backHref="/settings"
-      backLabel="Back to settings"
       title="Templates"
       description="Reusable field structures a module can start new objects from."
       actions={<form action={createTemplateAction}><button className="inline-flex h-11 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-black"><Plus className="h-4 w-4" /> New template</button></form>}
@@ -44,5 +41,5 @@ export default async function TemplatesPage() {
         ))}
       </div>
     )}
-  </ModuleContent>;
+  </>;
 }
