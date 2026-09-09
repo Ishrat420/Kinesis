@@ -164,7 +164,6 @@ KD-029-be-able-to-create-to-do
 
 
 ## 🚧 In Progress
-KD-035-module-templates
 
 
 ## Accepted — Needs Planning
@@ -179,6 +178,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-035-module-templates
 KD-034-multi-value-kinesis-link-fields
 KD-033-options-for-more-goal-details
 KD-024-universal-object-capablity-layer

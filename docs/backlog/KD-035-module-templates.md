@@ -1,6 +1,6 @@
 # KD-035 — Module Templates: Reusable Field Structure for Custom Modules
 
-**Status:** In Progress — Phases 1–2 shipped
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI, Data Model, Architecture, Foundation Dependent
 
@@ -501,6 +501,67 @@ errors against the existing baseline), the full unit suite passing
 (599 tests, including two new files — `objectFor.customItem`'s template
 passthrough, and `createCustomModuleAction`'s ownership check on a
 submitted template id), and a production `next build`.
+
+## What shipped (Phase 3)
+
+A Custom Item that follows a template now shows that template's current
+fields, live, always present, above its own extras -- and one of those
+extras can become a real template field without leaving the page.
+
+* **`getCustomItem`** now returns `templateFields` (this object's values,
+  merged against the template's *current* field list, live, every call --
+  a field nobody's filled in yet has no matching row and renders empty)
+  alongside `fields`, which is now extras only (`templateFieldId: null`).
+  Nothing about `getCustomModule`'s own list view changed -- its per-item
+  field count still counts every row, template-linked or not, since that's
+  a summary count, not a rendering of structure, and out of this phase's
+  own scope.
+* **UI.** `TemplateFieldValues` (new, alongside `CustomFieldsEditor` rather
+  than folded into it) renders each template field with a fixed label and
+  a value input matched to its type -- `KinesisLinkList` for Kinesis Link,
+  same as extras get, since it's the one control every Kinesis Link
+  surface already shares. No add/rename/reorder/remove here: those are
+  template edits, made from Settings, never from an object's own form.
+* **Saving** a template field's value is a targeted upsert keyed on
+  `templateFieldId`, not the delete-all-and-recreate `updateCustomItemAction`
+  already used for extras -- run alongside it, scoped separately
+  (`objectField.deleteMany`/`.create` for extras now filter to
+  `templateFieldId: null`, so the extras save path can no longer touch a
+  template field's value row by accident). A value that goes blank again
+  gets its row deleted rather than kept around empty, preserving Phase 2's
+  "a row exists only once a value is saved" invariant both ways. A
+  submitted `type` is never trusted from the client -- it's looked up from
+  the template's actual current fields inside the same transaction, both
+  to know a field is legitimate and for the row's own (otherwise unused)
+  `type` column.
+* **"Add to template"** (`promoteExtraFieldToTemplate`, `lib/data/custom-modules.ts`)
+  is a standalone action, not part of the form's own save -- it changes the
+  template and every other object under it, not just this one. Surfaced as
+  a row of small chips below the extras editor ("Add to template: Warranty
+  · Serial Number …") rather than an icon threaded into
+  `CustomFieldsEditor`'s own rows, specifically to avoid touching that
+  component at all: it's shared with Documents and Goals, neither of which
+  has anything to do with templates, and this keeps their behaviour
+  provably unchanged.
+* **Resync after promoting** uses a key computed from the current field
+  list (`item.fields.map(f => f.id).join(",")`, and the equivalent for
+  `templateFields`) rather than a `useEffect` watching props: the lint rule
+  against `setState` inside an effect ruled that out outright, and a
+  content-derived key is the more idiomatic fix regardless -- it forces a
+  clean remount exactly when the underlying data actually changed, never
+  on an unrelated re-render, so an in-progress unsaved edit elsewhere in
+  the same form is never at risk of being clobbered by it.
+* **Not built, deliberately out of this phase's scope:** template fields on
+  the *creation* dialog (`NewItemButton`) -- the phase's own heading says
+  "object detail view," and a Custom Item's detail page has always been
+  its edit form (there's no separate read view to add to), so a new item's
+  template fields are one click away either way, not a second screen.
+
+Verified with a full typecheck and lint (clean, no new errors against the
+existing baseline), the full unit suite passing (612 tests, including
+three new files -- the value-payload parser, the template/value merge in
+`getCustomItem`, and `promoteFieldToTemplateAction`'s refusal handling),
+and a production `next build`.
 
 ## Open questions
 

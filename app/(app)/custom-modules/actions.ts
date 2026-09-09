@@ -8,7 +8,9 @@ import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
+import { parseTemplateFieldValues } from "@/lib/templates/parse";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
+import { promoteExtraFieldToTemplate } from "@/lib/data/custom-modules";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
 import { parseDateOnly } from "@/lib/dates";
@@ -97,25 +99,37 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   if (dueDate === undefined) return { error: "Enter a valid due date." };
   const form = parseCustomFields(data);
   if (!form.ok) return { error: form.error };
-  const unowned = await validateKinesisTargets(form.fields);
+  const templateValues = parseTemplateFieldValues(data);
+  if (!templateValues.ok) return { error: templateValues.error };
+  const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
   const fields = prepareCustomFields(form.fields);
   try {
     await prisma.$transaction(async (tx) => {
-    const ownedItem = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { objectId: true } });
+    const ownedItem = await tx.customItem.findFirst({
+      where: { id: itemId, moduleId, module: { userId: user.id } },
+      select: { objectId: true, object: { select: { templateId: true } } },
+    });
     if (!ownedItem) refuse("This item no longer exists.");
-    const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId }, select: { id: true, type: true } });
+    // Extras only -- a template field's type is changed from the template
+    // it belongs to (Settings), never from here, and this object's own
+    // save form never even offers to.
+    const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId, templateFieldId: null }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
     await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
       name, notes: getValue(data, "notes") || null, dueDate,
       link: getValue(data, "link") || null, archived: data.get("archived") === "true",
     } });
-    await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId } });
+    await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId, templateFieldId: null } });
     // A field's targets are a nested create -- createMany cannot carry those,
     // so each field (with its own links) is created on its own rather than in
     // one batched statement. The count here is always small.
     for (const field of fields) await tx.objectField.create({ data: { ...field, objectId: ownedItem.objectId } });
+
+    if (ownedItem.object.templateId && templateValues.values.length) {
+      await saveTemplateFieldValues(tx, ownedItem.objectId, ownedItem.object.templateId, templateValues.values);
+    }
     });
   } catch (failure) {
     // A refusal raised inside the transaction, which has now rolled back.
@@ -127,6 +141,58 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   }
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Updated", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
+  refresh(moduleId);
+  revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
+  return { saved: true };
+}
+
+/**
+ * Writes an object's values for the template fields it's rendering (KD-035
+ * Phase 3). A value row's `templateFieldId` is what makes it one -- unlike
+ * extras, these are never deleted-and-recreated wholesale: a field with
+ * nothing entered has no row at all (Phase 2's "row only exists once a
+ * value is saved"), so a value that's gone blank again gets its row
+ * deleted rather than kept around empty, and everything else is a plain
+ * upsert keyed on the template field it belongs to.
+ */
+async function saveTemplateFieldValues(
+  tx: Prisma.TransactionClient,
+  objectId: string,
+  templateId: string,
+  values: { templateFieldId: string; value: string; targetObjectIds: string[] }[],
+) {
+  const templateFieldTypes = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true } })).map((field) => [field.id, field.type]));
+  for (const submitted of values) {
+    // Ignore a field id that isn't actually part of this item's template --
+    // stale, or never legitimate. Nothing to write either way.
+    const type = templateFieldTypes.get(submitted.templateFieldId);
+    if (!type) continue;
+
+    const existing = await tx.objectField.findFirst({ where: { objectId, templateFieldId: submitted.templateFieldId } });
+    const isEmpty = !submitted.value && !submitted.targetObjectIds.length;
+
+    if (isEmpty) {
+      if (existing) await tx.objectField.delete({ where: { id: existing.id } });
+      continue;
+    }
+
+    const links = { deleteMany: {}, create: submitted.targetObjectIds.map((targetObjectId, position) => ({ id: crypto.randomUUID(), targetObjectId, position })) };
+    if (existing) {
+      await tx.objectField.update({ where: { id: existing.id }, data: { value: submitted.value, links } });
+    } else {
+      await tx.objectField.create({ data: { id: crypto.randomUUID(), objectId, templateFieldId: submitted.templateFieldId, label: "", type, value: submitted.value, position: 0, links } });
+    }
+  }
+}
+
+export async function promoteFieldToTemplateAction(moduleId: string, itemId: string, fieldId: string): Promise<CustomItemState> {
+  try {
+    await promoteExtraFieldToTemplate(moduleId, itemId, fieldId);
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
   refresh(moduleId);
   revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
   return { saved: true };
