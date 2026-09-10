@@ -185,4 +185,33 @@ describe("phone form controls", () => {
       expect(source).toContain("focus-visible:ring-2");
     }
   });
+
+  it("stacks dense field editors before restoring wider layouts", () => {
+    const documentFields = sources.get(join("app", "(app)", "documents", "DocumentFields.tsx")) ?? "";
+    const customFields = sources.get(join("components", "custom-fields", "CustomFieldsEditor.tsx")) ?? "";
+    const templateValues = sources.get(join("components", "custom-fields", "TemplateFieldValues.tsx")) ?? "";
+    const templateEditor = sources.get(join("app", "(app)", "settings", "templates", "TemplateFieldsEditor.tsx")) ?? "";
+
+    expect(documentFields).toContain("grid-cols-1 gap-2 sm:grid-cols-");
+    expect(customFields).toContain("grid-cols-1 items-start gap-2 transition-all sm:grid-cols-");
+    expect(templateValues).toContain("grid-cols-1 items-start gap-2 sm:grid-cols-");
+    expect(templateEditor).toContain("grid-cols-1 items-center gap-2 md:grid-cols-");
+  });
+
+  it("lets long field content shrink and wrap at the 320px minimum", () => {
+    const audited = [
+      join("app", "(app)", "documents", "DocumentFields.tsx"),
+      join("components", "custom-fields", "CustomFieldsEditor.tsx"),
+      join("components", "custom-fields", "TemplateFieldValues.tsx"),
+      join("app", "(app)", "settings", "templates", "page.tsx"),
+    ];
+
+    for (const path of audited) {
+      const source = sources.get(path) ?? "";
+      expect(source).toContain("min-w-0");
+      expect(source).toContain("break-words");
+    }
+
+    expect(customFieldStyles).toContain("min-w-0");
+  });
 });

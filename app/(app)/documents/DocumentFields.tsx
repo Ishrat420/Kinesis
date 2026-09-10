@@ -41,16 +41,16 @@ export function DocumentFields({
   );
 }
 
-const inputClass = "h-11 w-full rounded-xl border border-zinc-200 px-3 text-base outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm";
+const inputClass = "h-11 min-w-0 w-full rounded-xl border border-zinc-200 px-3 text-base outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm";
 
 function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, onChange }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; onChange?: (value: string) => void }) {
   return (
-    <div className="grid grid-cols-[0.8fr_1.2fr] gap-2">
+    <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
       <EditableLabel name={labelName} initialValue={label} ariaLabel={`${label} field name`} />
       {multiline ? (
-        <textarea name={name} defaultValue={value} aria-label={label} rows={3} className="min-h-11 w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-base outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm" />
+        <textarea name={name} defaultValue={value} aria-label={label} rows={3} className="min-h-11 min-w-0 w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-base outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm" />
       ) : (
-        <div className="relative">
+        <div className="relative min-w-0">
           {icon && <Link2 aria-hidden="true" className="absolute left-3 top-3.5 h-4 w-4 text-zinc-400" />}
           <input name={name} type={type} defaultValue={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} placeholder={icon ? "https://example.com" : undefined} className={`${inputClass} ${icon ? "pl-10" : ""}`} />
         </div>
@@ -76,9 +76,9 @@ function EditableLabel({ name, initialValue, ariaLabel, placeholder }: { name: s
   }
 
   return (
-    <div className="flex h-11 items-center px-3">
+    <div className="flex min-h-11 min-w-0 items-center px-3 py-1">
       <input type="hidden" name={name} value={value} />
-      <button type="button" onDoubleClick={() => setEditing(true)} title="Double-click to edit field name" className="min-h-11 w-full cursor-default truncate rounded-lg text-left text-sm font-medium text-zinc-600 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300">
+      <button type="button" onDoubleClick={() => setEditing(true)} title="Double-click to edit field name" className="min-h-11 min-w-0 w-full cursor-default whitespace-normal break-words rounded-lg text-left text-sm font-medium text-zinc-600 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300">
         {value}
       </button>
     </div>

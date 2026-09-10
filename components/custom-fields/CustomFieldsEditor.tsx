@@ -104,7 +104,7 @@ export function CustomFieldsEditor({
           {fields.map((field, index) => (
             <div
               key={`${field.key}:${resetRevision}`}
-              className="grid min-h-11 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] items-start gap-2 transition-all"
+              className="grid min-h-11 min-w-0 grid-cols-1 items-start gap-2 transition-all sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px]"
             >
               <FieldIdentity
                 field={field}
@@ -118,14 +118,16 @@ export function CustomFieldsEditor({
                 linkOptions={linkOptions}
                 update={(changes) => update(field.key, changes)}
               />
-              <button
-                type="button"
-                aria-label={`Remove field ${index + 1}`}
-                onClick={() => setFields((current) => current.filter(({ key }) => key !== field.key))}
-                className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
+              <div className="flex w-full justify-end sm:block sm:w-auto">
+                <button
+                  type="button"
+                  aria-label={`Remove field ${index + 1}`}
+                  onClick={() => setFields((current) => current.filter(({ key }) => key !== field.key))}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -149,7 +151,7 @@ function FieldIdentity({ field, index, chooseType, update }: {
 }) {
   if (field.phase === "choosing") {
     return (
-      <div className="relative">
+      <div className="relative min-w-0">
         <select
           defaultValue=""
           onChange={(event) => chooseType(event.target.value as CustomFieldType)}
@@ -175,7 +177,7 @@ function FieldIdentity({ field, index, chooseType, update }: {
 
   if (!field.editingName && field.label.trim()) {
     return (
-      <div className="flex h-11 min-w-0 items-center px-3">
+      <div className="flex min-h-11 min-w-0 items-center px-3 py-1">
         <button
           type="button"
           onDoubleClick={() => update({ editingName: true })}
@@ -183,7 +185,7 @@ function FieldIdentity({ field, index, chooseType, update }: {
             if (event.key === "Enter" || event.key === "F2") update({ editingName: true });
           }}
           title="Double-click to rename"
-          className="min-h-11 w-full truncate rounded-lg text-left text-sm font-medium text-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300"
+          className="min-h-11 min-w-0 w-full whitespace-normal break-words rounded-lg text-left text-sm font-medium text-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300"
         >
           {field.label}
         </button>

@@ -57,14 +57,14 @@ export function KinesisLinkList({
   return (
     <div className="space-y-2">
       {chosen.map((option) => (
-        <div key={option.objectId} className="flex items-center gap-2">
+        <div key={option.objectId} className="flex min-w-0 items-center gap-2">
           {name && <input type="hidden" name={name} value={option.objectId} />}
           <KinesisLinkCard option={option} className="flex-1" />
           <button
             type="button"
             aria-label={`Unlink ${option.name}`}
             onClick={() => onChange(values.filter((objectId) => objectId !== option.objectId))}
-            className="shrink-0 rounded-xl p-2 text-zinc-400 transition hover:bg-red-50 hover:text-red-600"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"
           >
             <X className="h-4 w-4" />
           </button>
