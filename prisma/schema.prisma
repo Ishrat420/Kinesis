@@ -668,3 +668,22 @@ model SecurityEvent {
 
   @@index([userId, createdAt])
 }
+
+// What the CSP report-only header in next.config.ts had no address to send
+// to until this existed -- see app/api/csp-report/route.ts. Not user-owned
+// data: a violation report can arrive before Clerk auth resolves (the
+// sign-in page, say), and there is only one owner in this deployment anyway.
+model CspViolationReport {
+  id                String   @id @default(uuid())
+  documentUri       String?
+  violatedDirective String?
+  blockedUri        String?
+  disposition       String?
+  // The full report exactly as the browser sent it. The legacy report-uri
+  // and modern report-to formats shape this differently; nothing here
+  // should assume one or the other.
+  raw               Json
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+}

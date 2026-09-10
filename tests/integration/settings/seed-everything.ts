@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 
 /**
@@ -10,10 +11,19 @@ import { prisma } from "@/lib/data/prisma";
  * both tests, closes that gap for both at once and keeps it closed.
  */
 
+/**
+ * Tables that hold no per-user data at all, so an account-level sweep has
+ * nothing to seed or delete in them -- currently just CspViolationReport,
+ * which records browser CSP reports with no userId (see
+ * lib/security/csp-reports.ts) and can arrive from an unauthenticated page.
+ */
+const NON_USER_TABLES = ["CspViolationReport"];
+
 export async function tableCounts(): Promise<Record<string, number>> {
   const tables = await prisma.$queryRaw<{ tablename: string }[]>`
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public' AND tablename NOT LIKE '\\_prisma%'
+      AND tablename NOT IN (${Prisma.join(NON_USER_TABLES)})
     ORDER BY tablename
   `;
   const counts: Record<string, number> = {};
