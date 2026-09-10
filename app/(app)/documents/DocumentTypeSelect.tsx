@@ -55,9 +55,9 @@ export function DocumentTypeSelect({
             setOpen(true);
             setError("");
           }}
-          className="h-12 w-full rounded-xl border border-zinc-200 px-4 pr-11 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400"
+          className="h-12 w-full rounded-xl border border-zinc-200 px-4 pr-12 text-base outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm"
         />
-        <button type="button" aria-label="Show document types" onClick={() => setOpen((current) => !current)} className="absolute right-1 top-1 flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700">
+        <button type="button" aria-label="Show document types" onClick={() => setOpen((current) => !current)} className="absolute right-0.5 top-0.5 flex h-11 w-11 items-center justify-center rounded-lg text-zinc-400 outline-none hover:bg-zinc-50 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300">
           <ChevronDown className="h-4 w-4" />
         </button>
 
@@ -65,7 +65,7 @@ export function DocumentTypeSelect({
           <div id="document-type-options" className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl">
             {matches.map((option) => (
               <div key={option.name} className="group flex items-center rounded-lg hover:bg-zinc-50">
-                <button type="button" onClick={() => { setValue(option.name); setOpen(false); setError(""); }} className="flex-1 px-3 py-2 text-left text-sm text-zinc-700">
+                <button type="button" onClick={() => { setValue(option.name); setOpen(false); setError(""); }} className="min-h-11 flex-1 rounded-lg px-3 py-2 text-left text-sm text-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300">
                   {option.name}
                 </button>
                 {!option.isDefault && !option.inUse && (
@@ -79,7 +79,7 @@ export function DocumentTypeSelect({
                       if (result.error) setError(result.error);
                       else setOptions((current) => current.filter((item) => item.name !== option.name));
                     })}
-                    className="mr-1 rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    className="mr-1 flex h-11 w-11 items-center justify-center rounded-md text-zinc-400 outline-none hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:opacity-50"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>

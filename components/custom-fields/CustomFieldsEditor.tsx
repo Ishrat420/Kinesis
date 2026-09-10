@@ -104,7 +104,7 @@ export function CustomFieldsEditor({
           {fields.map((field, index) => (
             <div
               key={`${field.key}:${resetRevision}`}
-              className="grid min-h-11 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] items-start gap-2 transition-all"
+              className="grid min-h-11 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] items-start gap-2 transition-all"
             >
               <FieldIdentity
                 field={field}
@@ -122,7 +122,7 @@ export function CustomFieldsEditor({
                 type="button"
                 aria-label={`Remove field ${index + 1}`}
                 onClick={() => setFields((current) => current.filter(({ key }) => key !== field.key))}
-                className="flex h-11 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-red-50 hover:text-red-600"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -133,7 +133,7 @@ export function CustomFieldsEditor({
       <button
         type="button"
         onClick={addField}
-        className={`${fields.length ? "mt-3" : ""} inline-flex items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950`}
+        className={`${fields.length ? "mt-3" : ""} inline-flex min-h-11 items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300`}
       >
         <Plus className="h-4 w-4" /> Add custom field
       </button>
@@ -183,7 +183,7 @@ function FieldIdentity({ field, index, chooseType, update }: {
             if (event.key === "Enter" || event.key === "F2") update({ editingName: true });
           }}
           title="Double-click to rename"
-          className="w-full truncate text-left text-sm font-medium text-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300"
+          className="min-h-11 w-full truncate rounded-lg text-left text-sm font-medium text-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300"
         >
           {field.label}
         </button>

@@ -41,6 +41,9 @@ function sourceFiles(directory: string): string[] {
 const files = SEARCHED.flatMap((directory) => sourceFiles(join(root, directory)));
 const sources = new Map(files.map((path) => [relative(root, path), readFileSync(path, "utf8")]));
 
+const globalStyles = readFileSync(join(root, "app", "globals.css"), "utf8");
+const customFieldStyles = sources.get(join("components", "custom-fields", "field-styles.ts")) ?? "";
+
 /** Every arbitrary column template in the source, with the variants that precede it. */
 function gridTemplates(source: string) {
   return [...source.matchAll(/([a-z0-9:[\]-]*)grid-cols-\[([^\]\s]+)\]/g)].map(([match, variants, template]) => ({
@@ -145,5 +148,41 @@ describe("grid templates", () => {
     const templates = [...sources.values()].flatMap((source) => gridTemplates(source));
     expect(templates.length).toBeGreaterThan(5);
     expect(templates.some((grid) => !grid.unconditional)).toBe(true);
+  });
+});
+
+describe("phone form controls", () => {
+  it("keeps shared controls at 16px until the sm breakpoint", () => {
+    // Mobile Safari enlarges a page when a focused text-like control is below
+    // 16px. These two shared styles cover text, date, number, select, and
+    // textarea controls at both 320px and 375px (both are below `sm`).
+    expect(globalStyles).toMatch(/\.input\s*{[\s\S]*?text-base[\s\S]*?sm:text-sm[\s\S]*?}/);
+    expect(customFieldStyles).toContain("text-base");
+    expect(customFieldStyles).toContain("sm:text-sm");
+  });
+
+  it("keeps the remaining document controls phone-safe", () => {
+    const fields = sources.get(join("app", "(app)", "documents", "DocumentFields.tsx")) ?? "";
+    const typeSelect = sources.get(join("app", "(app)", "documents", "DocumentTypeSelect.tsx")) ?? "";
+
+    expect(fields).toContain("text-base");
+    expect(fields).toContain("sm:text-sm");
+    expect(typeSelect).toContain("text-base");
+    expect(typeSelect).toContain("sm:text-sm");
+  });
+
+  it("gives audited compact actions 44px targets and visible keyboard focus", () => {
+    const audited = [
+      join("app", "(app)", "documents", "DocumentTypeSelect.tsx"),
+      join("components", "custom-fields", "CustomFieldsEditor.tsx"),
+      join("app", "(app)", "settings", "templates", "TemplateFieldsEditor.tsx"),
+    ];
+
+    for (const path of audited) {
+      const source = sources.get(path) ?? "";
+      expect(source).toContain("h-11");
+      expect(source).toContain("w-11");
+      expect(source).toContain("focus-visible:ring-2");
+    }
   });
 });
