@@ -10,6 +10,7 @@ import {
   Cat,
   ChevronDown,
   Heart,
+  Hand,
   House,
   Link2,
   Maximize2,
@@ -45,6 +46,7 @@ type PersonIcon = "user" | "heart" | "baby" | "cat" | "home";
 type Selection = { kind: "person" | "relationship"; id: string } | null;
 type PendingConnection = { from: string; to: string; type: string };
 type GoalOption = { id: string; name: string; status: string };
+type SheetState = "collapsed" | "partial" | "expanded";
 
 const initialPeople: Person[] = [
   { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user", selfRelationship: emptySelfRelationship() },
@@ -64,8 +66,11 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   const [multiSelection, setMultiSelection] = useState<string[]>([]);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [inspectorWidth, setInspectorWidth] = useState(360);
+  const [sheetState, setSheetState] = useState<SheetState>("partial");
+  const [touchPanMode, setTouchPanMode] = useState(false);
   const canvas = useRef<HTMLDivElement>(null);
   const action = useRef<{ kind: "node" | "pan"; id?: string; x: number; y: number; ox: number; oy: number } | null>(null);
+  const sheetDrag = useRef<{ y: number; state: SheetState } | null>(null);
 
   /*
     Saving, in two halves.
@@ -174,6 +179,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     setMultiSelection([]);
     action.current = { kind: "node", id: person.id, x: event.clientX, y: event.clientY, ox: person.x, oy: person.y };
     setSelection({ kind: "person", id: person.id });
+    if (sheetState === "collapsed") setSheetState("partial");
   }
   function multiSelect(personId: string) {
     const next = toggleMultiSelect(multiSelection, personId);
@@ -212,6 +218,9 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   }
   function startPan(event: ReactPointerEvent) {
     if (event.target !== canvas.current) return;
+    // Touch defaults to normal page scrolling. Panning is deliberately gated
+    // behind the visible "Pan map" mode so the map never traps a casual swipe.
+    if (event.pointerType === "touch" && !touchPanMode) return;
     action.current = { kind: "pan", x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y };
     setSelection(null);
     setMultiSelection([]);
@@ -239,6 +248,25 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     window.addEventListener("pointerup", stop);
   }
 
+  function startSheetDrag(event: ReactPointerEvent) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sheetDrag.current = { y: event.clientY, state: sheetState };
+  }
+  function finishSheetDrag(event: ReactPointerEvent) {
+    if (!sheetDrag.current) return;
+    const states: SheetState[] = ["collapsed", "partial", "expanded"];
+    const startIndex = states.indexOf(sheetDrag.current.state);
+    const distance = sheetDrag.current.y - event.clientY;
+    const nextIndex = distance > 48 ? Math.min(2, startIndex + 1) : distance < -48 ? Math.max(0, startIndex - 1) : startIndex;
+    setSheetState(states[nextIndex]);
+    sheetDrag.current = null;
+  }
+
+  const mobileMapControlsPosition = sheetState === "collapsed"
+    ? "bottom-[calc(4.75rem+env(safe-area-inset-bottom))]"
+    : "bottom-[calc(min(48dvh,420px)+0.75rem+env(safe-area-inset-bottom))]";
+
   return (
     <>
       <ModuleHeader
@@ -259,14 +287,15 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
         </p>
       )}
 
-      <div className="relative flex h-[calc(100vh-290px)] min-h-[620px] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)]">
+      <div className="relative flex h-[calc(100dvh-7rem)] min-h-[360px] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)] lg:h-[calc(100vh-290px)] lg:min-h-[620px]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#f7f8f7]">
           <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(#c9ccca_1px,transparent_1px)] [background-size:24px_24px]" />
           <div className="absolute left-5 top-5 z-20 flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white/90 p-1.5 shadow-sm backdrop-blur">
             <span className="px-2 text-xs font-semibold text-zinc-600">My constellation</span><ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
           </div>
+          <p className="absolute left-3 right-3 top-16 z-20 text-center text-[10px] font-medium text-zinc-500 lg:hidden">Tap to select · drag a person to move · use Pan map to move the canvas</p>
           {linkFrom && <div className={`absolute left-1/2 top-5 ${Z_INDEX.chrome} -translate-x-1/2 rounded-2xl bg-zinc-900 px-5 py-3 text-white shadow-lg`}><div className="flex items-start gap-4"><div><p className="text-xs font-semibold">Connect {peopleById.get(linkFrom)?.name} to...</p><p className="mt-0.5 text-[10px] text-zinc-400">Select another person</p></div><button onClick={() => setLinkFrom(null)} aria-label="Cancel connection mode"><X className="h-3.5 w-3.5" /></button></div></div>}
-          <div ref={canvas} onPointerDown={startPan} className="absolute inset-0 cursor-grab active:cursor-grabbing touch-none">
+          <div ref={canvas} onPointerDown={startPan} className={`absolute inset-0 cursor-grab active:cursor-grabbing ${touchPanMode ? "touch-none" : "touch-pan-y"}`}>
             <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }} className="absolute inset-0">
               <svg className="absolute inset-0 h-full w-full overflow-visible">
                 {relationships.map((relationship) => {
@@ -275,7 +304,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
                   const x1 = from.x + from.size / 2, y1 = from.y + from.size / 2, x2 = to.x + to.size / 2, y2 = to.y + to.size / 2;
                   const path = `M ${x1} ${y1} C ${(x1+x2)/2} ${y1}, ${(x1+x2)/2} ${y2}, ${x2} ${y2}`;
                   const chosen = selection?.kind === "relationship" && selection.id === relationship.id;
-                  return <g key={relationship.id} className="group cursor-pointer" onPointerDown={(event) => { event.stopPropagation(); setSelection({ kind: "relationship", id: relationship.id }); }}>
+                  return <g key={relationship.id} className="group cursor-pointer" onPointerDown={(event) => { event.stopPropagation(); setSelection({ kind: "relationship", id: relationship.id }); if (sheetState === "collapsed") setSheetState("partial"); }}>
                     <path d={path} fill="none" stroke="transparent" strokeWidth="18" />
                     <path d={path} fill="none" stroke={chosen ? "#6b6f6c" : "#c7cac8"} strokeWidth={chosen ? 2.4 : 1.6} className="transition-colors group-hover:stroke-[#9da19e]" />
                     <circle cx={x1} cy={y1} r={chosen ? 4 : 3} fill="#f7f8f7" stroke={chosen ? "#6b6f6c" : "#c7cac8"} />
@@ -294,25 +323,26 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
               })}
             </div>
           </div>
-          <div className="absolute bottom-[calc(50%+1.25rem)] left-5 z-20 flex items-center overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm sm:bottom-5">
-            <button onClick={() => setScale((v) => Math.max(.45, v - .1))} className="map-icon"><Minus /></button><span className="w-14 text-center text-xs font-semibold text-zinc-500">{Math.round(scale * 100)}%</span><button onClick={() => setScale((v) => Math.min(1.6, v + .1))} className="map-icon"><Plus /></button><button onClick={() => { setScale(.9); setOffset({x:0,y:0}); }} className="map-icon border-l"><Maximize2 /></button>
+          <div className={`absolute left-3 z-20 items-center overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm lg:bottom-5 lg:left-5 lg:flex ${sheetState === "expanded" ? "hidden" : "flex"} ${mobileMapControlsPosition}`}>
+            <button aria-label="Zoom out" onClick={() => setScale((v) => Math.max(.45, v - .1))} className="map-icon !h-11 !w-11"><Minus /></button><span className="w-12 text-center text-xs font-semibold text-zinc-500">{Math.round(scale * 100)}%</span><button aria-label="Zoom in" onClick={() => setScale((v) => Math.min(1.6, v + .1))} className="map-icon !h-11 !w-11"><Plus /></button><button aria-label="Reset map view" onClick={() => { setScale(.9); setOffset({x:0,y:0}); }} className="map-icon !h-11 !w-11 border-l"><Maximize2 /></button>
           </div>
-          <div className="absolute bottom-5 right-5 z-20 hidden rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm sm:block">Drag to move · Ctrl/Cmd-click two people to link or unlink</div>
+          {sheetState !== "expanded" && <button type="button" aria-pressed={touchPanMode} onClick={() => setTouchPanMode((current) => !current)} className={`absolute right-3 z-20 flex min-h-11 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-sm lg:hidden ${mobileMapControlsPosition} ${touchPanMode ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 bg-white text-zinc-600"}`}><Hand className="h-4 w-4" />{touchPanMode ? "Done panning" : "Pan map"}</button>}
+          <div className="absolute bottom-5 right-5 z-20 hidden rounded-full bg-white/90 px-3 py-2 text-[11px] font-medium text-zinc-400 shadow-sm lg:block">Drag to move · Ctrl/Cmd-click two people to link or unlink</div>
         </div>
 
         {pendingConnection && <ConnectionDialog pending={pendingConnection} relationship={pendingRelationship} people={people} onChange={(type) => setPendingConnection((current) => current ? { ...current, type } : null)} onCancel={() => { setPendingConnection(null); setLinkFrom(null); setMultiSelection([]); }} onConnect={createConnection} onDisconnect={removePendingConnection} />}
 
-        {/*
-          A phone has no room for a 360px panel beside the map, and hiding the
-          panel outright left mobile with a constellation nobody could edit. So
-          below sm it is a bottom sheet over the lower half of the map, and from
-          sm up it is the side panel it has always been -- its dragged width
-          travels as a custom property, because an inline width cannot be held
-          to a breakpoint.
-        */}
-        <aside style={{ "--inspector-width": `${inspectorWidth}px` } as React.CSSProperties} className={`absolute inset-x-0 bottom-0 top-1/2 ${Z_INDEX.chrome} shrink-0 overflow-y-auto border-t border-zinc-200 bg-white shadow-[0_-12px_32px_rgba(24,24,27,0.08)] sm:bottom-0 sm:left-auto sm:right-0 sm:top-0 sm:w-(--inspector-width) sm:max-w-[calc(100%-2rem)] sm:border-l sm:border-t-0 sm:shadow-[-12px_0_32px_rgba(24,24,27,0.08)] lg:relative lg:max-w-[55%] lg:shadow-none`}>
-          <button onPointerDown={startInspectorResize} className={`absolute inset-y-0 left-0 ${Z_INDEX.banner} hidden w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400 sm:block`} aria-label="Resize relationship details" title="Drag to resize details" />
-          {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => { setMultiSelection([]); setLinkFrom(selectedPerson.id); }} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setMultiSelection([]); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
+        {/* Phones get a three-position sheet; dragging the handle moves one
+            position at a time. From lg up this remains the resizable side panel. */}
+        <aside style={{ "--inspector-width": `${inspectorWidth}px` } as React.CSSProperties} className={`absolute inset-x-0 bottom-0 ${sheetState === "collapsed" ? "h-16" : sheetState === "partial" ? "h-[min(48dvh,420px)]" : "h-[calc(100%-max(1rem,env(safe-area-inset-top)))]"} ${Z_INDEX.chrome} flex shrink-0 flex-col border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_32px_rgba(24,24,27,0.08)] transition-[height] duration-200 lg:bottom-0 lg:left-auto lg:right-0 lg:top-0 lg:h-auto lg:w-(--inspector-width) lg:max-w-[calc(100%-2rem)] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:pb-0 lg:shadow-[-12px_0_32px_rgba(24,24,27,0.08)] lg:relative lg:max-w-[55%] lg:shadow-none`}>
+          <button onPointerDown={startInspectorResize} className={`absolute inset-y-0 left-0 ${Z_INDEX.banner} hidden w-3 -translate-x-1/2 cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-zinc-200 hover:after:w-0.5 hover:after:bg-zinc-400 lg:block`} aria-label="Resize relationship details" title="Drag to resize details" />
+          <div className="flex h-16 shrink-0 touch-none items-center gap-2 px-3 lg:hidden" onPointerDown={startSheetDrag} onPointerUp={finishSheetDrag} onPointerCancel={() => { sheetDrag.current = null; }}>
+            <div className="min-w-0 flex-1"><div className="mx-auto mb-1 h-1 w-10 rounded-full bg-zinc-300" /><p className="truncate text-center text-[11px] font-semibold text-zinc-500">{selectedPerson?.name || (selectedRelationship ? "Relationship details" : "Inspector")}</p></div>
+            {(["collapsed", "partial", "expanded"] as SheetState[]).map((state) => <button key={state} type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setSheetState(state)} aria-label={`${state[0].toUpperCase() + state.slice(1)} inspector`} aria-pressed={sheetState === state} className={`h-11 min-w-11 rounded-xl px-2 text-[10px] font-semibold capitalize ${sheetState === state ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"}`}>{state === "collapsed" ? "Close" : state}</button>)}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto" onFocusCapture={() => setSheetState("expanded")}>
+            {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => { setMultiSelection([]); setLinkFrom(selectedPerson.id); }} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setMultiSelection([]); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
+          </div>
         </aside>
       </div>
     </>
