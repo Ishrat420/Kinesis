@@ -95,6 +95,22 @@ describe.sequential("Kinesis Link targets", () => {
       expect(options.every((option) => option.objectId.startsWith("o-"))).toBe(true);
       expect(options).toHaveLength(6);
     });
+
+    /**
+     * A precaution, not a live problem -- this account size is unrealistic --
+     * but the read is unconditional on five page loads whether or not the
+     * picker it feeds is ever opened, so it should not be able to grow
+     * without bound.
+     */
+    it("never returns more than the sanity cap, however many linkable objects the account has", async () => {
+      const count = 501;
+      await prisma.object.createMany({ data: Array.from({ length: count }, (_, index) => ({ id: `bulk-goal-obj-${index}`, type: "GOAL" as const, name: `Bulk goal ${index}`, userId: owner })) });
+      await prisma.goal.createMany({ data: Array.from({ length: count }, (_, index) => ({ id: `bulk-goal-${index}`, name: `Bulk goal ${index}`, userId: owner, objectId: `bulk-goal-obj-${index}` })) });
+
+      const options = await getKinesisLinkOptions();
+
+      expect(options).toHaveLength(500);
+    });
   });
 
   describe("validateKinesisTargets", () => {

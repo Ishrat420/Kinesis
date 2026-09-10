@@ -8,6 +8,14 @@ const isLinkTarget = (location: ObjectLocation): location is ObjectLocation & { 
   KINESIS_LINK_TARGET_TYPES.some((type) => type === location.type);
 
 /**
+ * A sanity bound, not a real-world limit (the same role MAX_PEOPLE plays in
+ * lib/relationships.ts) -- this reads on every page that offers a Kinesis
+ * Link picker, whether or not it's ever opened, so an account's linkable
+ * object count should not be able to grow that read unboundedly.
+ */
+const LINK_OPTIONS_CAP = 500;
+
+/**
  * A link stores an object id and nothing else. The module a target belongs to
  * still decides how it is presented and where it opens, so that mapping lives
  * in lib/objects/locations rather than in the column -- and is shared with every
@@ -18,6 +26,7 @@ export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
     where: { userId: (await requireKinesisUser()).id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
     select: objectLocationSelect,
     orderBy: { name: "asc" },
+    take: LINK_OPTIONS_CAP,
   });
   // Documents, then custom items, then goals, each already by name: the order the
   // picker has always grouped its modules in, read from each type's own `order`.
