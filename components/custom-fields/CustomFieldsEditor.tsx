@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, Minus, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
   CUSTOM_FIELDS_FORM_KEY,
@@ -12,6 +12,7 @@ import {
 import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
+import { useFormResetKey } from "@/lib/hooks/form-reset-key";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
@@ -23,6 +24,22 @@ function toDateInputValue(value: string) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
+function buildFields(source: CustomFieldValue[]): EditorField[] {
+  return source.map((field) => ({
+    ...field,
+    key: field.id ?? crypto.randomUUID(),
+    type: field.type ?? "TEXT",
+    // A date field now edits through a native <input type="date">, which
+    // only ever shows a value already in yyyy-mm-dd. A value saved before
+    // that change (dd/mm/yyyy) is parsed and reformatted here so opening
+    // an old field for editing still shows its actual date instead of a
+    // blank picker.
+    value: field.type === "DATE" ? toDateInputValue(field.value) : field.value,
+    phase: "ready",
+    editingName: false,
+  }));
+}
+
 export function CustomFieldsEditor({
   initialFields = [],
   linkOptions,
@@ -30,36 +47,23 @@ export function CustomFieldsEditor({
   initialFields?: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
 }) {
-  const [fields, setFields] = useState<EditorField[]>(
-    initialFields.map((field) => ({
-      ...field,
-      key: field.id ?? crypto.randomUUID(),
-      type: field.type ?? "TEXT",
-      // A date field now edits through a native <input type="date">, which
-      // only ever shows a value already in yyyy-mm-dd. A value saved before
-      // that change (dd/mm/yyyy) is parsed and reformatted here so opening
-      // an old field for editing still shows its actual date instead of a
-      // blank picker.
-      value: field.type === "DATE" ? toDateInputValue(field.value) : field.value,
-      phase: "ready",
-      editingName: false,
-    })),
-  );
-  const [resetRevision, setResetRevision] = useState(0);
-  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const [fields, setFields] = useState<EditorField[]>(() => buildFields(initialFields));
 
-  // React resets action forms after a successful submission. These fields are
-  // controlled, so repaint them after that native reset rather than briefly
-  // showing their empty/default DOM values until the page is reopened.
-  useEffect(() => {
-    const form = fieldsetRef.current?.closest("form");
-    if (!form) return;
-    const restoreControlledValues = () => {
-      window.setTimeout(() => setResetRevision((revision) => revision + 1), 0);
-    };
-    form.addEventListener("reset", restoreControlledValues);
-    return () => form.removeEventListener("reset", restoreControlledValues);
-  }, []);
+  // The saved field set can change out from under this editor -- "Add to
+  // template" (EditCustomItemForm) moves one of these out of band, a save
+  // elsewhere can add or remove extras too -- so it resyncs itself against
+  // the ids actually present rather than the caller having to notice and
+  // force a remount. Signature-based, not content-based: this only fires
+  // when a field appears or disappears, never on every render, which would
+  // also wipe out whatever's mid-edit here.
+  const fieldSignature = initialFields.map((field) => field.id ?? "").join(",");
+  const [syncedSignature, setSyncedSignature] = useState(fieldSignature);
+  if (fieldSignature !== syncedSignature) {
+    setSyncedSignature(fieldSignature);
+    setFields(buildFields(initialFields));
+  }
+
+  const { fieldsetRef, resetRevision } = useFormResetKey();
 
   const update = (key: string, changes: Partial<EditorField>) => {
     setFields((current) =>

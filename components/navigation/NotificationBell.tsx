@@ -38,11 +38,31 @@ type Anchor = { top: number; right: number };
 
 const DESKTOP_QUERY = "(min-width: 640px)";
 
+function readKeysOf(notifications: NotificationItem[]) {
+  return new Set(notifications.filter((item) => item.readAt).map((item) => item.key));
+}
+
 export function NotificationBell({ notifications, initialUnreadCount }: { notifications: NotificationItem[]; initialUnreadCount: number }) {
   const { locale } = useFormatPreferences();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
-  const [readKeys, setReadKeys] = useState(() => new Set(notifications.filter((item) => item.readAt).map((item) => item.key)));
+  const [readKeys, setReadKeys] = useState(() => readKeysOf(notifications));
+
+  // Topbar is a Server Component: a fresh notifications array and unread
+  // count arrive on every layout render, often with identical content.
+  // Reseeding state from props unconditionally would also discard whatever
+  // was just optimistically marked read locally, in the gap before the
+  // server catches up -- so this resyncs only when the content itself
+  // moved, comparing the same signature that used to be computed by the
+  // caller (Topbar) to force a remount via `key`.
+  const signature = `${initialUnreadCount}:${notifications.map(({ key, readAt }) => `${key}:${readAt?.getTime() ?? "unread"}`).join(",")}`;
+  const [syncedSignature, setSyncedSignature] = useState(signature);
+  if (signature !== syncedSignature) {
+    setSyncedSignature(signature);
+    setUnreadCount(initialUnreadCount);
+    setReadKeys(readKeysOf(notifications));
+  }
+
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const container = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);

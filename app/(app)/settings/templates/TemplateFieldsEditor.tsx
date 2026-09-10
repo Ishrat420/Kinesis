@@ -1,10 +1,11 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ChevronDown, Minus, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELDS_FORM_KEY, type TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
+import { useFormResetKey } from "@/lib/hooks/form-reset-key";
 
 type EditorField = TemplateFieldInput & { key: string };
 
@@ -33,23 +34,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
   const [fields, setFields] = useState<EditorField[]>(
     initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() })),
   );
-  const [resetRevision, setResetRevision] = useState(0);
-  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
-
-  // React resets action forms after a successful submission. These fields are
-  // controlled, so repaint them after that native reset rather than briefly
-  // showing their empty/default DOM values (every type dropdown reverting to
-  // its first option, Text) until the page is reopened -- the same fix
-  // CustomFieldsEditor already has for the same quirk.
-  useEffect(() => {
-    const form = fieldsetRef.current?.closest("form");
-    if (!form) return;
-    const restoreControlledValues = () => {
-      window.setTimeout(() => setResetRevision((revision) => revision + 1), 0);
-    };
-    form.addEventListener("reset", restoreControlledValues);
-    return () => form.removeEventListener("reset", restoreControlledValues);
-  }, []);
+  const { fieldsetRef, resetRevision } = useFormResetKey();
 
   const update = (key: string, changes: Partial<EditorField>) => {
     setFields((current) => current.map((field) => field.key === key ? { ...field, ...changes } : field));

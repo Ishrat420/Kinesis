@@ -15,6 +15,10 @@ function toDateInputValue(value: string) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
+function buildValues(fields: TemplateFieldValue[]) {
+  return fields.map((field) => ({ ...field, value: field.type === "DATE" ? toDateInputValue(field.value) : field.value }));
+}
+
 /**
  * An object's values for the template it follows (KD-035 Phase 3) --
  * always present, in the template's own order, every time it's rendered:
@@ -25,14 +29,20 @@ function toDateInputValue(value: string) {
  *
  * `fields` can change out from under this component -- "Add to template"
  * (`EditCustomItemForm`) turns one of this object's own extras into a new
- * entry here -- but that's a separate action, not this component editing
- * its own props, so the object detail page keys this component off the
- * current field list rather than this component watching for the change
- * itself: a changed key remounts it fresh against the new list, the same
- * way `CustomFieldsEditor` is keyed there for its own extras.
+ * entry here -- so it resyncs itself against the current field-id set
+ * rather than the caller having to notice and force a remount. Only the
+ * identity set is compared, not the full content: this must not fire on
+ * every render, which would also wipe out whatever value is mid-edit here.
  */
 export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateFieldValue[]; linkOptions: KinesisLinkOption[] }) {
-  const [values, setValues] = useState(() => fields.map((field) => ({ ...field, value: field.type === "DATE" ? toDateInputValue(field.value) : field.value })));
+  const [values, setValues] = useState(() => buildValues(fields));
+
+  const fieldSignature = fields.map((field) => field.templateFieldId).join(",");
+  const [syncedSignature, setSyncedSignature] = useState(fieldSignature);
+  if (fieldSignature !== syncedSignature) {
+    setSyncedSignature(fieldSignature);
+    setValues(buildValues(fields));
+  }
 
   const update = (templateFieldId: string, changes: Partial<TemplateFieldValue>) => {
     setValues((current) => current.map((field) => field.templateFieldId === templateFieldId ? { ...field, ...changes } : field));

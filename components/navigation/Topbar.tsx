@@ -37,7 +37,7 @@ export async function Topbar() {
         </div>
 
         <div className="relative ml-auto flex shrink-0 items-center gap-3">
-          {notificationsEnabled && <NotificationBell key={`${unreadCount}:${notifications.map(({ key, readAt }) => `${key}:${readAt?.getTime() ?? "unread"}`).join(",")}`} notifications={notifications} initialUnreadCount={unreadCount} />}
+          {notificationsEnabled && <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} />}
 
           <UserButton appearance={{ elements: { avatarBox: "h-11 w-11 border border-zinc-200/80 shadow-sm" } }}>
             <UserButton.MenuItems>

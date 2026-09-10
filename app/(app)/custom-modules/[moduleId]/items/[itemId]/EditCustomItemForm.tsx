@@ -117,14 +117,9 @@ function EditForm({ moduleId, item, linkOptions, onCancel, onSaved }: { moduleId
 
   return <form action={formAction} className="space-y-5">
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
-    {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues key={item.templateFields.map((field) => field.templateFieldId).join(",")} fields={item.templateFields} linkOptions={linkOptions} /></div>}
+    {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} /></div>}
     <div className="border-t border-zinc-100 pt-5">
-      {/* Keyed off the extras actually present: "Add to template" moves a
-          field out of this list out of band (its own action, not this
-          form's save), so a fresh key here forces a resync to the object's
-          current extras rather than continuing to show an already-promoted
-          field as if it still needed editing here. */}
-      <CustomFieldsEditor key={item.fields.map((field) => field.id).join(",")} initialFields={item.fields} linkOptions={linkOptions} />
+      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} />
       {item.templateId && item.fields.length > 0 && <PromoteFields moduleId={moduleId} itemId={item.id} fields={item.fields} />}
     </div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not Archived"}</button><input type="hidden" name="archived" value={String(archived)}/></div>
