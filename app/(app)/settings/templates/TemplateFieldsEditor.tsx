@@ -80,7 +80,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
       {fields.length > 0 && (
         <div className="mt-3 space-y-2">
           {fields.map((field, index) => (
-            <div key={`${field.key}:${resetRevision}`} className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div key={`${field.key}:${resetRevision}`} className="grid min-w-0 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <input
                 value={field.label}
                 onChange={(event) => update(field.key, { label: event.target.value })}
@@ -90,14 +90,14 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                 className={FIELD_INPUT_CLASS}
               />
               {field.isDueDate ? (
-                <div className="relative">
+                <div className="relative min-w-0">
                   <select disabled value={DUE_DATE_OPTION} aria-label={`Field ${index + 1} type`} title="A Due Date field can't be changed into or out of another type." className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}>
                     <option value={DUE_DATE_OPTION}>◷ Due date</option>
                   </select>
                   <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>
               ) : (
-                <div className="relative">
+                <div className="relative min-w-0">
                   <select
                     value={field.type}
                     disabled={locked}
@@ -116,7 +116,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                   <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>
               )}
-              <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
+              <div className="flex w-full items-center justify-end gap-1 md:w-auto">
                 <button type="button" aria-label={`Move field ${index + 1} up`} disabled={index === 0} onClick={() => move(index, -1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
                 <button type="button" aria-label={`Move field ${index + 1} down`} disabled={index === fields.length - 1} onClick={() => move(index, 1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
                 <button

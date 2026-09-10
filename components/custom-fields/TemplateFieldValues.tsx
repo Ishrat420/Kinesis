@@ -60,10 +60,10 @@ export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateF
       <legend className="sr-only">Template fields</legend>
       <input type="hidden" name={TEMPLATE_FIELD_VALUES_FORM_KEY} value={payload} />
       {values.map((field) => (
-        <div key={field.templateFieldId} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-2">
-          <div className="flex h-11 min-w-0 items-center gap-1.5 px-3">
+        <div key={field.templateFieldId} className="grid min-w-0 grid-cols-1 items-start gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="flex min-h-11 min-w-0 items-center gap-1.5 px-3 py-1">
             {field.isDueDate && <Clock3 className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
-            <span className="truncate text-sm font-medium text-zinc-700">{field.label}</span>
+            <span className="min-w-0 break-words text-sm font-medium text-zinc-700">{field.label}</span>
           </div>
           <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} />
         </div>

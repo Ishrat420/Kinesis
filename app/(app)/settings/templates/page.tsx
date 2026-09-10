@@ -26,12 +26,12 @@ export default async function TemplatesPage() {
           <Link
             key={template.id}
             href={`/settings/templates/${template.id}`}
-            className="grid grid-cols-[44px_minmax(0,1fr)_auto_24px] items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md"
+            className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)_24px] items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white p-4 transition hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md sm:grid-cols-[44px_minmax(0,1fr)_auto_24px] sm:gap-4"
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700"><LayoutTemplate className="h-5 w-5" /></span>
             <div className="min-w-0">
-              <h3 className="truncate font-semibold">{template.name}</h3>
-              <p className="mt-0.5 truncate text-sm text-zinc-500">{template.fieldCount} field{template.fieldCount === 1 ? "" : "s"}</p>
+              <h3 className="break-words font-semibold">{template.name}</h3>
+              <p className="mt-0.5 break-words text-sm text-zinc-500">{template.fieldCount} field{template.fieldCount === 1 ? "" : "s"}</p>
             </div>
             <span className="hidden shrink-0 items-center gap-2.5 text-sm font-medium text-zinc-500 sm:flex">
               <span className="flex items-center gap-1.5"><LayoutGrid className="h-4 w-4" />{template.linkedModules} module{template.linkedModules === 1 ? "" : "s"}</span>
