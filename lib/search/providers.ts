@@ -88,7 +88,7 @@ const customModules: SearchProvider = {
       ...module.items.map((item) => ({
         id: `custom-item:${item.id}`, title: item.name, subtitle: module.name,
         href: `/custom-modules/${module.id}/items/${item.id}`, kind: "Custom" as const, icon: module.icon, color: module.color,
-        keywords: text(item.name, module.name, item.notes, item.link, item.object.fields.flatMap((field) => [field.label, field.value])),
+        keywords: text(item.name, module.name, item.object.fields.flatMap((field) => [field.label, field.value])),
       })),
     ]);
   },

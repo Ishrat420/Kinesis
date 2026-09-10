@@ -86,10 +86,16 @@ any point...") — see the amendment note added to that ADR.
 Kinesis has no real users or data yet, so there is nothing saved under
 the old fixed Notes/Due date/Link inputs that needs a migration path.
 `CustomItem.notes`/`.link`/`.dueDate` simply stop being written or read
-by the app once this ships; whether the columns themselves are dropped
-outright is a follow-up, not part of this ticket. If this ever changes —
-Kinesis gets real users before this ships — this decision is the first
-thing to revisit, not an assumption to carry forward blindly.
+by the app once this ships. If this ever changes — Kinesis gets real
+users before this ships — this decision is the first thing to revisit,
+not an assumption to carry forward blindly.
+
+**Follow-up, done:** `notes` and `link` were dropped from the
+`CustomItem` table outright (`20260920000000_drop_custom_item_notes_link`)
+once nothing referenced them — `lib/search/providers.ts` was still
+indexing both for search keywords, so that read the two columns to the
+very end. `dueDate` stays: it's the live column a template's Due Date
+field (KD-038) still reads and writes.
 
 ## Guardrails
 

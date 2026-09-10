@@ -442,12 +442,10 @@ model CustomItem {
   id            String               @id
   moduleId      String
   name          String
-  notes         String?
   // What this item is due, if anything -- named for what it functionally is,
   // not "reminder": Needs Attention, the notification engine, Upcoming & Due
   // and the Calendar all treat it as a due date, not a bare alert time.
   dueDate       DateTime?
-  link          String?
   archived      Boolean              @default(false)
   module        CustomModule         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   objectId      String               @unique

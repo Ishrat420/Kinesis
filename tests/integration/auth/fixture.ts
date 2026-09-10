@@ -71,7 +71,7 @@ export async function resetAuthorizationDatabase() {
       documentTypes: { create: { id: "owner-a-document-type", name: "Owner A Type" } },
       goals: { create: { id: ids.goalA, objectId: "object-goal-a", name: ids.goalA, note: "owner-a-goal-note", targetValue: 100, currentValue: 10, milestones: { create: { id: ids.milestoneA, name: "owner-a-milestone", dueDate: new Date("2030-01-01T23:59:59.999Z") } } } },
       financeItems: { create: { id: ids.financeA, objectId: "object-finance-a", kind: "asset", name: "owner-a-finance", amount: 100 } },
-      customModules: { create: { id: ids.moduleA, name: "Owner A Module", normalizedName: "owner a module", icon: "star", color: "#111111", items: { create: { id: ids.itemA, objectId: "object-item-a", name: "owner-a-private-item", notes: "owner-a-item-notes" } } } },
+      customModules: { create: { id: ids.moduleA, name: "Owner A Module", normalizedName: "owner a module", icon: "star", color: "#111111", items: { create: { id: ids.itemA, objectId: "object-item-a", name: "owner-a-private-item" } } } },
     },
   });
   await prisma.user.create({
@@ -87,7 +87,7 @@ export async function resetAuthorizationDatabase() {
       documentTypes: { create: { id: "owner-b-document-type", name: "Owner B Type" } },
       goals: { create: { id: ids.goalB, objectId: "object-goal-b", name: ids.goalB, note: "owner-b-goal-note", targetValue: 200, currentValue: 20, milestones: { create: { id: ids.milestoneB, name: "owner-b-milestone", dueDate: new Date("2030-02-01T23:59:59.999Z") } } } },
       financeItems: { create: { id: ids.financeB, objectId: "object-finance-b", kind: "asset", name: "owner-b-finance", amount: 200 } },
-      customModules: { create: { id: ids.moduleB, name: "Owner B Module", normalizedName: "owner b module", icon: "star", color: "#222222", items: { create: { id: ids.itemB, objectId: "object-item-b", name: "owner-b-private-item", notes: "owner-b-item-notes" } } } },
+      customModules: { create: { id: ids.moduleB, name: "Owner B Module", normalizedName: "owner b module", icon: "star", color: "#222222", items: { create: { id: ids.itemB, objectId: "object-item-b", name: "owner-b-private-item" } } } },
     },
   });
   // Notifications are derived, so what an account owns is the record of having
