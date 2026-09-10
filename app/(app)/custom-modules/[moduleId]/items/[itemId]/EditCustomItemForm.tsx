@@ -77,10 +77,14 @@ function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptio
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
   ];
   const metadataFields = fields.filter((field) => field.type !== "KINESIS_LINK");
+  // A field keeps its row here even once every target it pointed at is gone
+  // -- the field itself survives that (see FieldLink's cascade), and hiding it
+  // left the person with no way to know it was still there, blocking an
+  // unrelated save the moment they opened Edit.
   const linkedFields = fields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
     const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find((option) => option.objectId === id) ?? []);
-    return options.length ? [{ field, options }] : [];
+    return [{ field, options }];
   });
 
   if (!fields.length) return <p className="text-sm text-zinc-400">No details added yet.</p>;
@@ -99,7 +103,7 @@ function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptio
     {linkedFields.length > 0 && <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
       {linkedFields.map(({ field, options }) => <div key={field.key} className="min-w-0 space-y-2">
         <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-        {options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />)}
+        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
       </div>)}
     </div>}
   </div>;

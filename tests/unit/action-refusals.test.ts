@@ -106,6 +106,25 @@ describe("validation the owner can read", () => {
     expect(mocks.updateDocument).not.toHaveBeenCalled();
   });
 
+  /**
+   * A Kinesis Link field's targets are cleared, not the field itself, when
+   * every object it pointed at is deleted (FieldLink cascades per target, the
+   * field row stays). Requiring a choice here on every later save, on a field
+   * the person never touched, would lock the whole form until they went and
+   * repaired a link they did not break -- so only a field with no saved id --
+   * one actually being added in this edit -- has to be pointed at something.
+   */
+  it("does not block an update over an existing Kinesis Link field whose own targets were already cleared", async () => {
+    mocks.updateDocument.mockResolvedValue(undefined);
+    await expect(updateDocumentAction("document-id", {}, withCustomFields(
+      { name: "Passport", type: "Identity" },
+      [{ id: "existing-field-id", label: "Related goal", type: "KINESIS_LINK", value: "", targetObjectIds: [] }],
+    ))).resolves.toEqual({ success: true });
+    expect(mocks.updateDocument).toHaveBeenCalledWith("document-id", expect.objectContaining({
+      customFields: [expect.objectContaining({ id: "existing-field-id", label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [] })],
+    }));
+  });
+
   it("does the same for a custom item's fields", async () => {
     await expect(createCustomItemAction("module-id", {}, withCustomFields(
       { name: "Service" },

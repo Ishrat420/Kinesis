@@ -53,10 +53,14 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
 
   const notes = fields.filter((field) => (field.type ?? "TEXT") === "TEXT");
   const links = fields.filter((field) => field.type === "LINK");
+  // A field keeps its row here even once every target it pointed at is gone
+  // -- the field itself survives that (see FieldLink's cascade), and hiding it
+  // left the person with no way to know it was still there, blocking an
+  // unrelated save the moment they opened Edit.
   const kinesisLinks = fields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
     const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find(({ objectId }) => objectId === id) ?? []);
-    return options.length ? [{ field, options }] : [];
+    return [{ field, options }];
   });
   // A field type this section does not have its own group for -- Number,
   // Date, Checkbox -- still saved and shown, plainly, rather than dropped.
@@ -91,7 +95,7 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
             {kinesisLinks.map(({ field, options }) => (
               <div key={field.id ?? field.label} className="min-w-0 space-y-2">
                 <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-                {options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />)}
+                {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
               </div>
             ))}
           </div>

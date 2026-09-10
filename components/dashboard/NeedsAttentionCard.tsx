@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { BellRing, CalendarDays, Circle, CircleAlert, FileWarning, Flag, ListTodo, Pencil, X } from "lucide-react";
 import { dismissAttentionItem } from "@/app/actions";
 import { CustomModuleBadge } from "@/lib/custom-modules/icons";
@@ -68,8 +68,18 @@ function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId
   const [rescheduling, setRescheduling] = useState(false);
   const [state, formAction] = useActionState(updateMilestoneDueDateAction.bind(null, goalId, milestoneId), initialGoalState);
   // Completing reports its outcome too, so a milestone that has since been
-  // deleted says so here rather than throwing past the dashboard.
-  const [completeState, completeAction] = useActionState(() => toggleMilestoneAction(goalId, milestoneId, true), initialGoalState);
+  // deleted says so here rather than throwing past the dashboard. onComplete
+  // removes this row from the parent's list, so it can only run once the save
+  // is confirmed -- calling it on submit, before the action resolves, would
+  // unmount this row (and any error it has to show) right along with it.
+  const [completing, startCompleting] = useTransition();
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const handleComplete = () => startCompleting(async () => {
+    setCompleteError(null);
+    const result = await toggleMilestoneAction(goalId, milestoneId, true);
+    if (result.error) setCompleteError(result.error);
+    else onComplete();
+  });
 
   if (rescheduling) {
     return <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
@@ -84,11 +94,9 @@ function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId
 
   return <div className="flex shrink-0 flex-col items-end gap-1.5" onClick={(event) => event.stopPropagation()}>
     <div className="flex items-center gap-2">
-      <form action={completeAction} onSubmit={onComplete}>
-        <button aria-label="Mark milestone complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600"><Circle className="h-5 w-5" /></button>
-      </form>
+      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark milestone complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"><Circle className="h-5 w-5" /></button>
       <button type="button" onClick={() => setRescheduling(true)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><CalendarDays className="h-3.5 w-3.5" />Reschedule</button>
     </div>
-    {completeState.error && <p role="alert" className="text-xs font-medium text-red-600">{completeState.error}</p>}
+    {completeError && <p role="alert" className="text-xs font-medium text-red-600">{completeError}</p>}
   </div>;
 }

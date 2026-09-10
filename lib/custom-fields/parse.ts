@@ -49,9 +49,17 @@ export function parseCustomFields(data: FormData, key: string = CUSTOM_FIELDS_FO
     const requestedType = asString(entry.type) as CustomFieldType;
     const type = VALID_TYPES.has(requestedType) ? requestedType : "TEXT";
     const targetObjectIds = type === "KINESIS_LINK" ? [...new Set(asStringArray(entry.targetObjectIds).filter(Boolean))] : [];
-    if (type === "KINESIS_LINK" && !targetObjectIds.length) return { ok: false, error: `Choose what “${label}” links to.` };
+    const existingId = asString(entry.id) || undefined;
+    // A brand-new Kinesis Link field is pointless with nothing chosen, so it
+    // is required here. An existing field can reach this with no targets left
+    // through no action of the person editing -- every object it pointed at
+    // was deleted elsewhere, which removes just those FieldLink rows (see the
+    // model's own comment) and leaves the field itself in place -- and
+    // blocking every other change on this form until they come back and
+    // repair it is worse than leaving it empty.
+    if (type === "KINESIS_LINK" && !targetObjectIds.length && !existingId) return { ok: false, error: `Choose what “${label}” links to.` };
     fields.push({
-      id: asString(entry.id) || undefined,
+      id: existingId,
       label,
       value: type === "KINESIS_LINK" ? "" : asString(entry.value).trim(),
       type,
