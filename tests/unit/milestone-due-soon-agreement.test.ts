@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireKinesisUser: vi.fn(),
   settingsFindUnique: vi.fn(async (): Promise<unknown> => null),
-  milestoneFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  milestoneFindMany: vi.fn<(args?: unknown) => Promise<unknown[]>>(async () => []),
 }));
 
 vi.mock("server-only", () => ({}));

@@ -8,6 +8,7 @@
   "db:deploy": "node scripts/deploy-database.mjs",
   "start": "next start",
   "lint": "eslint",
+  "typecheck": "tsc --noEmit -p .",
 
   "test": "vitest --config vitest.config.mts",
   "test:run": "vitest run --config vitest.config.mts",

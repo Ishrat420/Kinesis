@@ -20,7 +20,14 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 import proxy, { config } from "@/proxy";
 
-const invoke = (path: string) => proxy(clerk.auth, new Request(`https://kinesis.test${path}`));
+// vi.mock above swaps clerkMiddleware's runtime behavior so `proxy` really is
+// the inner (auth, request) handler -- but its compile-time type still comes
+// from Clerk's real .d.ts, where clerkMiddleware(...) returns a NextMiddleware
+// of (request, event). The cast documents that mismatch rather than hiding it.
+const invoke = (path: string) =>
+  (proxy as unknown as (auth: typeof clerk.auth, request: Request) => Promise<Response | undefined>)(
+    clerk.auth, new Request(`https://kinesis.test${path}`),
+  );
 
 describe("authentication proxy", () => {
   beforeEach(() => {
