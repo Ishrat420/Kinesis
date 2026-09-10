@@ -17,6 +17,15 @@ cd "$CLAUDE_PROJECT_DIR"
 
 npm install
 
+# npm install's own postinstall generates the client against whatever
+# schema.prisma was checked out when it ran. That's correct the vast majority
+# of the time, but it silently goes stale the moment schema.prisma changes
+# afterward without another install -- a git reset/checkout mid-session, for
+# instance -- and db:deploy below runs with --skip-generate, so nothing else
+# in this script would catch it. Regenerating explicitly here costs a few
+# hundred milliseconds and removes the dependency on install-ordering.
+npx prisma generate
+
 DB_ROLE="kinesis"
 DB_PASSWORD="kinesis"
 DEV_DB="kinesis"
