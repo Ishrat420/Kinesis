@@ -11,6 +11,7 @@ import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refusalOf } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
+import { revalidateShell } from "@/lib/actions/revalidate";
 
 export type DocumentActionState = { error?: string; success?: boolean };
 export type CreateDocumentState = DocumentActionState;
@@ -105,7 +106,7 @@ export async function createDocumentAction(
   // No-op unless quick capture sent the user here to turn a To-Do into this
   // document, in which case the To-Do retires now that the richer record exists.
   await completeCaptureConversion(formData, { moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
-  revalidatePath("/", "layout");
+  revalidateShell();
   redirect(`/documents/${document.id}`);
 }
 
@@ -133,7 +134,7 @@ export async function updateDocumentAction(
     return { error: refused };
   }
   await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
-  revalidatePath("/", "layout");
+  revalidateShell();
   return { success: true };
 }
 

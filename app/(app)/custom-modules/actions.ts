@@ -14,9 +14,10 @@ import { promoteExtraFieldToTemplate } from "@/lib/data/custom-modules";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
 import { parseDateOnly } from "@/lib/dates";
+import { revalidateShell } from "@/lib/actions/revalidate";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
-const refresh = (moduleId: string) => { revalidatePath("/"); revalidatePath(`/custom-modules/${moduleId}`); };
+const refresh = (moduleId: string) => { revalidateShell(); revalidatePath(`/custom-modules/${moduleId}`); };
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
 export type CustomItemState = { error?: string; saved?: boolean };
 
@@ -56,7 +57,7 @@ export async function createCustomModuleAction(_: CreateModuleState, data: FormD
   }
   try {
     const customModule = await prisma.customModule.create({ data: { id: crypto.randomUUID(), userId: user.id, name, normalizedName: name.toLocaleLowerCase(), icon, color, description: getValue(data, "description") || null, templateId } });
-    revalidatePath("/");
+    revalidateShell();
     return { moduleId: customModule.id };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { error: "A module with this name already exists. Names must be unique.", field: "name" };
@@ -262,6 +263,6 @@ export async function deleteCustomModuleAction(moduleId: string) {
     await deleteObjects(tx, customModule.items.map(({ objectId }) => objectId), user.id);
     await tx.customModule.delete({ where: { id: moduleId } });
   });
-  revalidatePath("/");
+  revalidateShell();
   redirect("/");
 }

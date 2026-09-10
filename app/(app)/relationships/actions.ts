@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import {
@@ -16,6 +15,7 @@ import {
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { parseDateOnly } from "@/lib/dates";
+import { revalidateShell } from "@/lib/actions/revalidate";
 
 export type RelationshipMapState = { error?: string; savedAt?: number };
 
@@ -302,6 +302,6 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
     return { error: "The map could not be saved. Your changes are still here — try again." };
   }
 
-  revalidatePath("/", "layout");
+  revalidateShell();
   return { savedAt: Date.now() };
 }

@@ -8,6 +8,7 @@ import { parseDateOnly } from "@/lib/dates";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
+import { revalidateShell } from "@/lib/actions/revalidate";
 
 export type FinanceActionState = { error?: string; saved?: boolean };
 
@@ -29,7 +30,7 @@ export async function recordFinanceActivity(kind: FinanceKind, updated: boolean,
     icon: "finance",
     href: "/finance",
   });
-  revalidatePath("/");
+  revalidateShell();
 }
 
 // `validate` below has already confirmed `isCalendarDate` for any value
@@ -77,7 +78,7 @@ export async function deleteFinanceItem(id: string) {
   const user = await requireKinesisUser();
   const item = await prisma.financeItem.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
   if (item) await deleteObjects(prisma, [item.objectId], user.id);
-  revalidatePath("/", "layout");
+  revalidateShell();
 }
 
 /**

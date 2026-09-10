@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { TodoStatus } from "@prisma/client";
 import { captureTodo, deleteTodo, getTodoLinkOptions, updateTodoDetails } from "@/lib/data/todos";
@@ -8,6 +7,7 @@ import type { ObjectLocation } from "@/lib/objects/locations";
 import { addActivity } from "@/lib/data/activity";
 import { isTodoStatus } from "@/lib/todos/status";
 import { parseDateOnly } from "@/lib/dates";
+import { revalidateShell } from "@/lib/actions/revalidate";
 import { captureCreateHref, DEFAULT_CAPTURE_TARGET, isCaptureTargetType } from "@/lib/capture/targets";
 import { refusalOf } from "@/lib/actions/refusal";
 
@@ -26,7 +26,7 @@ const MAX_TITLE_LENGTH = 200;
  * index and the dashboard's attention surfaces, both of which the shell renders,
  * so the layout is revalidated rather than the To-Do page alone.
  */
-const refresh = () => revalidatePath("/", "layout");
+const refresh = () => revalidateShell();
 
 /**
  * Quick capture (KD-008A). A title, and nothing else, becomes a To-Do.

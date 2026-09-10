@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser, requireRecentVerification } from "@/lib/auth";
 import { isSupportedCurrency, isSupportedLocale, isSupportedTimeZone } from "@/lib/format/preferences";
 import { DELETE_ALL_CONFIRMATION } from "./constants";
+import { revalidateShell } from "@/lib/actions/revalidate";
 
 export type SettingsActionState = { error?: string; message?: string };
 
@@ -54,7 +54,7 @@ export async function updateSettingsAction(
     update: data,
   });
   // Dates and amounts appear on every page, so the whole tree is stale.
-  revalidatePath("/", "layout");
+  revalidateShell();
   return { message: "Settings saved." };
 }
 
@@ -104,6 +104,6 @@ export async function deleteAllDataAction(confirmation: string) {
     //    outlives the data it describes and records this deletion too.
     prisma.securityEvent.create({ data: { event: "ALL_DATA_DELETED", userId: user.id } }),
   ]);
-  revalidatePath("/", "layout");
+  revalidateShell();
   return { success: true };
 }

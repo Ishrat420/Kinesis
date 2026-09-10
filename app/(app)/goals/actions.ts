@@ -11,6 +11,7 @@ import { getFormatPreferences } from "@/lib/format/server";
 import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
 import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
+import { revalidateShell } from "@/lib/actions/revalidate";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
@@ -37,7 +38,7 @@ const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) =
   const { locale } = await getFormatPreferences();
   return `The due date must be before the goal target date of ${formatDate(targetDate, locale)}.`;
 };
-const refresh = (id: string) => { revalidatePath("/"); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); revalidatePath("/calendar"); revalidatePath("/goals/milestones/due-soon"); };
+const refresh = (id: string) => { revalidateShell(); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); revalidatePath("/calendar"); revalidatePath("/goals/milestones/due-soon"); };
 
 /** A goal's identity in the shared Object layer, resolved once and scoped to its owner. */
 const goalObjectId = async (userId: string, goalId: string) =>
@@ -68,7 +69,7 @@ export async function createGoalAction(_previousState: GoalActionState, data: Fo
   await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   // No-op unless quick capture sent the user here to turn a To-Do into this goal.
   await completeCaptureConversion(data, { moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
-  revalidatePath("/");
+  revalidateShell();
   revalidatePath("/goals");
   redirect(`/goals/${goal.id}`);
 }
@@ -118,7 +119,7 @@ export async function deleteGoalAction(id: string) {
   const user = await requireKinesisUser();
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
   if (goal) await deleteObjects(prisma, [goal.objectId], user.id);
-  revalidatePath("/");
+  revalidateShell();
   revalidatePath("/goals");
   redirect("/goals");
 }
