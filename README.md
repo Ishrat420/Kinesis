@@ -134,3 +134,13 @@ curl --fail-with-body \
 
 ## Testing
 See `docs/testing/testing-strategy.md` for the Kinesis testing approach and commands.
+
+### Adding a model a user can own
+
+If it should be covered by "delete all data" or the data export, add it to
+both -- and add one creation for it in
+`tests/integration/settings/seed-everything.ts`. That seed is shared by
+both features' integration tests, which each read the live table list out
+of PostgreSQL rather than a hardcoded one, so a table missing from either
+feature fails its test instead of silently shipping incomplete. See
+"Account-Wide Sweep Coverage" in the testing strategy doc.

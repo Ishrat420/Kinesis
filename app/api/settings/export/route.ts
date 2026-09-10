@@ -6,7 +6,7 @@ export async function GET() {
   if (verification !== true) return verification;
   const kinesisUser = await requireKinesisUser();
   const userId = kinesisUser.id;
-  const [user, settings, objects, objectFields, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, todos, attentionDismissals] = await Promise.all([
+  const [user, settings, objects, objectFields, fieldLinks, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, activityEvents, notificationReads, securityEvents] = await Promise.all([
     prisma.user.findMany({ where: { id: userId }, omit: { clerkUserId: true } }),
     prisma.userSettings.findMany({ where: { userId } }),
     prisma.object.findMany({ where: { userId } }),
@@ -16,6 +16,9 @@ export async function GET() {
     // `customModules` -- the same flat-array-of-owned-rows shape
     // `objectRelationships` already uses for the same reason.
     prisma.objectField.findMany({ where: { object: { userId } } }),
+    // A Kinesis Link's targets, same ownerless-row problem as objectFields
+    // above -- reached the same way, through the field's own object.
+    prisma.fieldLink.findMany({ where: { field: { object: { userId } } } }),
     prisma.objectRelationship.findMany({ where: { userId } }),
     prisma.document.findMany({ where: { userId } }),
     prisma.documentType.findMany({ where: { userId } }),
@@ -25,12 +28,18 @@ export async function GET() {
     prisma.relationship.findMany({ where: { userId }, include: { practices: true, reflections: true, importantDates: true, linkedGoals: true } }),
     prisma.financeItem.findMany({ where: { userId } }),
     prisma.customModule.findMany({ where: { userId }, include: { items: true } }),
+    // Unlike objectFields, a TemplateField belongs to its Template and
+    // nowhere else, so it's nested here rather than flattened.
+    prisma.template.findMany({ where: { userId }, include: { fields: true } }),
     prisma.todo.findMany({ where: { userId } }),
     prisma.attentionDismissal.findMany({ where: { userId } }),
+    prisma.activityEvent.findMany({ where: { userId } }),
+    prisma.notificationRead.findMany({ where: { userId } }),
+    prisma.securityEvent.findMany({ where: { userId } }),
   ]);
   await prisma.securityEvent.create({ data: { event: "DATA_EXPORT_COMPLETED", userId } });
   const exportedAt = new Date().toISOString();
-  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectFields, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, todos, attentionDismissals }, null, 2), {
+  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectFields, fieldLinks, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, activityEvents, notificationReads, securityEvents }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="kinesis-export-${exportedAt.slice(0, 10)}.json"`, "Cache-Control": "no-store" },
   });
 }

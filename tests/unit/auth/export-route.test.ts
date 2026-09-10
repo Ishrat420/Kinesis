@@ -7,13 +7,14 @@ const mocks = vi.hoisted(() => {
     requireRecentVerificationResponse: vi.fn().mockResolvedValue(true),
     prisma: {
       user: { findMany: findMany() }, userSettings: { findMany: findMany() },
-      object: { findMany: findMany() }, objectField: { findMany: findMany() }, objectRelationship: { findMany: findMany() },
+      object: { findMany: findMany() }, objectField: { findMany: findMany() }, fieldLink: { findMany: findMany() }, objectRelationship: { findMany: findMany() },
       document: { findMany: findMany() }, documentType: { findMany: findMany() },
       goal: { findMany: findMany() }, goalUnit: { findMany: findMany() },
       person: { findMany: findMany() }, relationship: { findMany: findMany() },
-      financeItem: { findMany: findMany() }, customModule: { findMany: findMany() },
+      financeItem: { findMany: findMany() }, customModule: { findMany: findMany() }, template: { findMany: findMany() },
       todo: { findMany: findMany() }, attentionDismissal: { findMany: findMany() },
-      securityEvent: { create: vi.fn().mockResolvedValue({}) },
+      activityEvent: { findMany: findMany() }, notificationRead: { findMany: findMany() },
+      securityEvent: { findMany: findMany(), create: vi.fn().mockResolvedValue({}) },
     },
   };
 });
@@ -32,14 +33,18 @@ describe("settings export isolation", () => {
     expect(response.status).toBe(200);
 
     for (const [name, model] of Object.entries(mocks.prisma)) {
-      if (name === "securityEvent") continue;
       expect(model.findMany).toHaveBeenCalledOnce();
       if (name === "user") continue;
-      // ObjectField carries no userId of its own -- a field's ownership is its
-      // parent Object's -- so its scope is expressed through that relation
-      // rather than the flat `where: { userId }` every other model uses.
+      // ObjectField and FieldLink carry no userId of their own -- a field's
+      // (and its link's) ownership is its parent Object's -- so their scope
+      // is expressed through that relation rather than the flat
+      // `where: { userId }` every other model uses.
       if (name === "objectField") {
         expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { object: { userId: "owner-id" } } });
+        continue;
+      }
+      if (name === "fieldLink") {
+        expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { field: { object: { userId: "owner-id" } } } });
         continue;
       }
       expect(model.findMany.mock.calls[0][0]).toMatchObject({ where: { userId: "owner-id" } });

@@ -95,6 +95,34 @@ db-sanity.test.ts verifies that:
 - PostgreSQL is reachable
 - a real SQL query can be executed
 
+## Account-Wide Sweep Coverage
+
+Two features read or write every table a user can own: the data export
+(`app/api/settings/export/route.ts`) and "delete all data"
+(`deleteAllDataAction`). Both name their tables explicitly rather than
+discovering them from the schema, so both can silently fall behind when a
+new model is added elsewhere -- exactly what had already happened to both,
+independently, when this coverage was added: delete-all was missing
+`Template`/`TemplateField`, and export was additionally missing
+`FieldLink`, `ActivityEvent`, and `NotificationRead`.
+
+`tests/integration/settings/seed-everything.ts` is the fix: one seed
+function, creating a row in every user-owned table, shared by both
+features' own integration test. Each test reads the live table list out
+of PostgreSQL (`tableCounts()`, the same technique `db-sanity.test.ts`
+uses to confirm the database itself is reachable) and asserts every
+table the seed populated is accounted for -- delete-all-data.test.ts
+checks that no seeded row survives the sweep, export.test.ts checks that
+every seeded row surfaces somewhere in the exported JSON. Neither test
+names the tables to check; both ask Postgres, so a table added to the
+schema without a matching line in the seed -- or a matching line in
+whichever feature reads/deletes it -- fails the test instead of quietly
+shipping incomplete.
+
+Adding a model that a user can own: add one creation to
+`seedEverything`, wire it into both features, and both tests confirm the
+wiring rather than trusting it.
+
 ## Manual Tests
 
 Manual test cases live under:
