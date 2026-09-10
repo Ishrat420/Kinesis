@@ -9,7 +9,7 @@ import { toggleMilestoneAction, updateMilestoneDueDateAction, type GoalActionSta
 import type { AttentionItem } from "@/lib/data/attention";
 import { formatDate, formatDateInput, formatDeadline, formatExpiry } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
-import { Z_INDEX } from "@/lib/layout/z-index";
+import { Modal } from "@/components/overlay/Modal";
 
 const icons = { document: FileWarning, milestone: ListTodo, todo: CircleAlert };
 
@@ -33,8 +33,7 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
       <div className="mt-6"><p className="text-[38px] font-semibold leading-none tracking-tight">{visible.length}</p><p className="mt-2 text-sm text-zinc-500">items overdue</p></div>
       <p className="mt-6 text-sm font-medium text-zinc-500 transition group-hover:text-zinc-900">See all →</p>
     </button>
-    {open && <div role="dialog" aria-modal="true" aria-labelledby="attention-title" className={`fixed inset-0 ${Z_INDEX.overlay} flex items-end justify-center bg-zinc-950/40 backdrop-blur-sm sm:items-center sm:p-5`} onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-6 shadow-2xl sm:max-w-2xl sm:rounded-[28px]">
+    {open && <Modal labelledBy="attention-title" onClose={() => setOpen(false)} customHeader panelClassName="p-6 sm:max-w-2xl">
         <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><BellRing className="h-5 w-5" /></span><h2 id="attention-title" className="text-2xl font-semibold">Needs attention</h2></div><p className="mt-3 text-sm text-zinc-500">Expired documents, and overdue milestones, to-dos and reminders.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5" /></button></div>
         <div className="mt-6 space-y-3">
           {visible.length ? visible.map((item) => {
@@ -55,8 +54,7 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
             </div>;
           }) : <div className="rounded-2xl border border-dashed border-zinc-200 py-10 text-center"><p className="font-semibold text-zinc-700">Everything is under control</p><p className="mt-1 text-sm text-zinc-400">There are no items that need attention.</p></div>}
         </div>
-      </div>
-    </div>}
+    </Modal>}
   </>;
 }
 

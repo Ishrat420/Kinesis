@@ -1,6 +1,8 @@
+"use client";
+
 import { FileText, UploadCloud, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { Z_INDEX } from "@/lib/layout/z-index";
+import { Modal } from "@/components/overlay/Modal";
 
 type UploadDocumentModalProps = {
   open: boolean;
@@ -17,13 +19,12 @@ export function UploadDocumentModal({
   if (!open) return null;
 
   return (
-    <div className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-black/30 backdrop-blur-sm`}>
-      <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
+    <Modal labelledBy="upload-document-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-2xl">
         {/* Header */}
 
         <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-6">
           <div>
-            <h2 className="text-2xl font-semibold">
+            <h2 id="upload-document-title" className="text-2xl font-semibold">
               Add Document
             </h2>
 
@@ -33,7 +34,9 @@ export function UploadDocumentModal({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close upload document dialog"
             className="rounded-full p-2 transition hover:bg-zinc-100"
           >
             <X className="h-5 w-5" />
@@ -92,8 +95,9 @@ export function UploadDocumentModal({
 
         {/* Footer */}
 
-        <div className="flex justify-end gap-3 border-t border-zinc-200 px-8 py-5">
+        <div className="flex justify-end gap-3 border-t border-zinc-200 px-8 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <button
+            type="button"
             onClick={onClose}
             className="rounded-xl border border-zinc-200 px-5 py-2.5 text-sm font-medium transition hover:bg-zinc-50"
           >
@@ -108,7 +112,6 @@ export function UploadDocumentModal({
             Continue
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

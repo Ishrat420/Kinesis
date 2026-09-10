@@ -1,14 +1,14 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { useActionState, useEffect, useId, useState } from "react";
+import { useActionState, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
 import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
-import { Z_INDEX } from "@/lib/layout/z-index";
+import { Modal } from "@/components/overlay/Modal";
 
 const initialState: CreateDocumentState = {};
 
@@ -24,19 +24,6 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
     createDocumentAction,
     initialState,
   );
-  const titleId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
-
   return (
     <>
       <button
@@ -49,21 +36,10 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
       </button>
 
       {open && (
-        <div
-          className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm`}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
-          >
+        <Modal labelledBy="manual-document-title" onClose={() => setOpen(false)} customHeader panelClassName="p-0 sm:max-w-2xl">
             <div className="flex items-center justify-between border-b border-zinc-200 px-8 py-6">
               <div>
-                <h2 id={titleId} className="text-2xl font-semibold">
+                <h2 id="manual-document-title" className="text-2xl font-semibold">
                   Add document manually
                 </h2>
                 <p className="mt-1 text-sm text-zinc-500">
@@ -112,7 +88,7 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 border-t border-zinc-200 px-8 py-5">
+              <div className="flex justify-end gap-3 border-t border-zinc-200 px-8 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
@@ -129,8 +105,7 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );
