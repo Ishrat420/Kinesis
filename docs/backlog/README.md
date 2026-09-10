@@ -1,6 +1,6 @@
 # Kinesis Backlog
 
-This directory contains planned, proposed, active, blocked, and completed development work for Kinesis. It also contains Bugs. 
+This directory contains planned, proposed, active, blocked, and completed development work for Kinesis. It also contains Bugs and Operations work. 
 
 The backlog acts as a lightweight ticketing system while Kinesis is under active development.
 
@@ -30,6 +30,18 @@ Bug tickets are stored under:
 
 ```text
 backlog/bugs/
+```
+
+### OPS — Operations / DevOps
+
+Infrastructure, tooling, and process work that supports development but isn't itself a product feature: CI, test/build infrastructure, environment and secrets setup, release/deploy tooling, dependency and platform upkeep.
+
+Not a KD, even though KD's own list includes "Infrastructure": a KD ticket is a product decision heading toward something shipped. OPS work doesn't ship to end users, can sit half-done indefinitely without blocking the product, and gets revisited opportunistically rather than scheduled like a feature. Keeping it separate keeps the KD list honest as "what Kinesis the product will do."
+
+OPS tickets are stored under:
+
+```text
+backlog/ops/
 ```
 
 ---
@@ -224,6 +236,32 @@ BUG-006-notification-panel-behind-relationship-inspector
 
 
 ## Won't Fix
+
+
+---
+
+# Ops
+
+## Idea
+
+
+## Planning Needed
+
+OPS-001-test-and-ci-infrastructure
+
+## Accepted
+
+
+## In Progress
+
+
+## Blocked
+
+
+## Done
+
+
+## Dropped
 
 
 ---
