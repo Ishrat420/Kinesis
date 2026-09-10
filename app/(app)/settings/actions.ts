@@ -67,8 +67,14 @@ export async function deleteAllDataAction(confirmation: string) {
   const owned = { userId: user.id };
 
   // Everything the account owns falls into one of three groups, and each row
-  // below states which. The statements are independent of one another: every
-  // record is removed by its own root, not by the order these happen to run in.
+  // below states which. The statements are independent of one another --
+  // every record is removed by its own root, not by the order these happen
+  // to run in -- with one exception: Template must run after group 1.
+  // Object.templateId is onDelete: Restrict (a template can't be deleted out
+  // from under an object still following it), so a template only becomes
+  // deletable once every object that could reference it is already gone.
+  // $transaction's array form runs sequentially, in the order given, so
+  // group 1 finishing first is what makes this safe.
   await prisma.$transaction([
     // 1. Object-backed records, removed through their identity.
     //    Deleting an Object cascades to the typed record that carries it --
@@ -89,6 +95,8 @@ export async function deleteAllDataAction(confirmation: string) {
     prisma.documentType.deleteMany({ where: owned }),
     prisma.goalUnit.deleteMany({ where: owned }),
     prisma.customModule.deleteMany({ where: owned }),
+    // Cascades to every TemplateField; must run after group 1 (see above).
+    prisma.template.deleteMany({ where: owned }),
     prisma.userSettings.deleteMany({ where: owned }),
     prisma.activityEvent.deleteMany({ where: owned }),
 

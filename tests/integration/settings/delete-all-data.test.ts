@@ -122,10 +122,31 @@ async function seedEverything(userId: string, tag: string) {
     },
   });
 
-  await prisma.customModule.create({
-    data: { id: `${tag}-module`, name: "Books", normalizedName: `${tag} books`, icon: "star", color: "#111111", userId },
+  // A template, one of its fields, and an object that follows it -- Object.templateId
+  // is onDelete: Restrict, so this also exercises the ordering delete-all depends on
+  // (Object rows must be gone before Template can be). The KINESIS_LINK field's value
+  // is a FieldLink to the goal object, closing that table's coverage too.
+  await prisma.template.create({
+    data: {
+      id: `${tag}-template`, userId, name: "Reading log",
+      fields: { create: [
+        { id: `${tag}-templatefield`, label: "Author", type: "TEXT", position: 0 },
+        { id: `${tag}-templatefield-link`, label: "Related goal", type: "KINESIS_LINK", position: 1 },
+      ] },
+    },
   });
-  await object("item", "CUSTOM_ITEM", "Item", [{ id: `${tag}-itemfield`, label: "L", value: "V" }]);
+  await prisma.customModule.create({
+    data: { id: `${tag}-module`, name: "Books", normalizedName: `${tag} books`, icon: "star", color: "#111111", userId, templateId: `${tag}-template` },
+  });
+  await prisma.object.create({
+    data: {
+      id: `${tag}-object-item`, type: "CUSTOM_ITEM", name: "Item", userId, templateId: `${tag}-template`,
+      fields: { create: [
+        { id: `${tag}-itemfield`, label: "L", value: "V" },
+        { id: `${tag}-itemfield-link`, label: "", value: "", type: "KINESIS_LINK", templateFieldId: `${tag}-templatefield-link`, links: { create: { id: `${tag}-fieldlink`, targetObjectId: `${tag}-object-goal`, position: 0 } } },
+      ] },
+    },
+  });
   await prisma.customItem.create({
     data: {
       id: `${tag}-item`, name: "Item", moduleId: `${tag}-module`, objectId: `${tag}-object-item`,
