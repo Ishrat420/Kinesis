@@ -1,5 +1,16 @@
 import type { SearchEntry } from "./types";
 
+/**
+ * Below this, a query is too short to mean anything against a corpus that
+ * includes short generic UI text as well as real content -- "hi" is a
+ * substring of the literal word "Relationship" (every untyped connection's
+ * fallback subtitle), so a 1-2 character query reliably surfaces entries
+ * that have nothing to do with what was typed. This is not specific to any
+ * one word; almost any short letter pair hides inside some unrelated word.
+ * Below this length, nothing is searched at all.
+ */
+export const MIN_QUERY_LENGTH = 3;
+
 export const normalize = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /**

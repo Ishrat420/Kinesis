@@ -8,7 +8,7 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 
 import { prisma } from "@/lib/data/prisma";
 import { searchGlobalIndex } from "@/lib/search/engine";
-import { searchTerms } from "@/lib/search/rank";
+import { MIN_QUERY_LENGTH, searchTerms } from "@/lib/search/rank";
 
 /**
  * Search used to read every linkable row on every page load and filter in
@@ -77,6 +77,24 @@ describe.sequential("global search", () => {
   it("returns nothing for an empty query without touching any provider", async () => {
     await expect(searchGlobalIndex("")).resolves.toEqual([]);
     await expect(searchGlobalIndex("   ")).resolves.toEqual([]);
+  });
+
+  /**
+   * "hi" is a substring of the literal word "Relationship" -- every untyped
+   * connection's fallback subtitle -- so without a length floor it would
+   * surface every connection in the account, and any other 1-2 letter query
+   * has the same problem against some other short generic word. Below
+   * MIN_QUERY_LENGTH nothing runs at all, not just "ranks low".
+   */
+  it("refuses a query shorter than the minimum length, rather than matching everything short generic text collides with", async () => {
+    await prisma.object.create({ data: { id: "self-obj", type: "PERSON", name: "Me", userId: owner } });
+    await prisma.person.create({ data: { id: "self-1", name: "Me", isSelf: true, userId: owner, objectId: "self-obj" } });
+    await prisma.object.create({ data: { id: "friend-obj", type: "PERSON", name: "Friend", userId: owner } });
+    await prisma.person.create({ data: { id: "friend-1", name: "Friend", userId: owner, objectId: "friend-obj" } });
+    await prisma.relationship.create({ data: { id: "rel-1", userId: owner, firstPersonId: "self-1", secondPersonId: "friend-1" } });
+
+    await expect(searchGlobalIndex("hi")).resolves.toEqual([]);
+    await expect(searchGlobalIndex("D")).resolves.toEqual([]);
   });
 
   it("finds a document by name, by a custom field's value, and accent-insensitively", async () => {
@@ -206,7 +224,10 @@ describe.sequential("global search", () => {
     expect(entries.length).toBeGreaterThanOrEqual(7);
 
     for (const entry of entries) {
-      const vocabulary = [...new Set(searchTerms([entry.title, entry.subtitle, ...entry.keywords].join(" ")))];
+      // Words shorter than MIN_QUERY_LENGTH are deliberately unsearchable
+      // (see the dedicated test for why) -- excluded here rather than
+      // treated as a gap this test should catch.
+      const vocabulary = [...new Set(searchTerms([entry.title, entry.subtitle, ...entry.keywords].join(" ")))].filter((word) => word.length >= MIN_QUERY_LENGTH);
       for (const word of vocabulary) {
         const ids = (await searchGlobalIndex(word, 50)).map((result) => result.id);
         expect(ids, `"${word}" (from ${entry.id}) found nothing pointing back at it`).toContain(entry.id);

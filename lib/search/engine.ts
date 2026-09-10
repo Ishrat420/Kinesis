@@ -1,5 +1,5 @@
 import { searchProviders } from "./providers";
-import { rankSearchEntries } from "./rank";
+import { MIN_QUERY_LENGTH, rankSearchEntries } from "./rank";
 import type { SearchEntry } from "./types";
 
 /**
@@ -9,9 +9,12 @@ import type { SearchEntry } from "./types";
  * bounded candidate set per table for a real one -- unlike the index this
  * replaced, which read every linkable row in the account on every page
  * load, whether or not search was ever used that visit.
+ *
+ * A query shorter than MIN_QUERY_LENGTH is refused before any provider
+ * runs, not just ranked away afterward -- see MIN_QUERY_LENGTH for why.
  */
 export async function searchGlobalIndex(query: string, limit = 10): Promise<SearchEntry[]> {
-  if (!query.trim()) return [];
+  if (query.trim().length < MIN_QUERY_LENGTH) return [];
   const groups = await Promise.all(searchProviders.map((provider) => provider.getEntries(query)));
   return rankSearchEntries(groups.flat(), query, limit);
 }

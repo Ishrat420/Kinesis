@@ -6,6 +6,7 @@ import { Boxes, Command, FileText, Landmark, ListTodo, Plus, Search, Target, Use
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import type { SearchEntry } from "@/lib/search/types";
+import { MIN_QUERY_LENGTH } from "@/lib/search/rank";
 import { captureCreateHref, captureTargets, DEFAULT_CAPTURE_TARGET, type CaptureTargetType } from "@/lib/capture/targets";
 import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { CaptureDetailsDialog } from "./CaptureDetailsDialog";
@@ -41,18 +42,22 @@ export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const title = query.trim();
-  // Derived, not cleared via setState: an emptied query has no results the
-  // instant it's empty, rather than waiting on an effect to notice and catch up.
-  const results = title ? fetchedResults : [];
-  const searchUnavailable = title.length > 0 && searchFailed;
+  const searchable = title.length >= MIN_QUERY_LENGTH;
+  // Derived, not cleared via setState: an emptied or too-short query has no
+  // results the instant it is too short, rather than waiting on an effect to
+  // notice and catch up. Below MIN_QUERY_LENGTH nothing is fetched at all --
+  // the create options below still work at any length, this only holds back
+  // search results themselves.
+  const results = searchable ? fetchedResults : [];
+  const searchUnavailable = searchable && searchFailed;
   const createOptions = useMemo(() => captureTargets.filter((target) => target.promoted), []);
   const isOpen = isFocused && title.length > 0;
 
   /**
-   * Nothing runs until there's something to search for, and a slow response
-   * from an earlier keystroke can never overwrite what a newer one already
-   * found -- `cancelled` guards that, since a debounce alone only delays the
-   * request, it doesn't order the responses.
+   * Nothing runs until there's something long enough to search for, and a
+   * slow response from an earlier keystroke can never overwrite what a newer
+   * one already found -- `cancelled` guards that, since a debounce alone only
+   * delays the request, it doesn't order the responses.
    *
    * A failure is surfaced rather than swallowed: an unhandled rejection here
    * renders as "nothing matches", which is indistinguishable from a genuinely
@@ -60,7 +65,7 @@ export function CommandBar() {
    * behind what looks like an empty account.
    */
   useEffect(() => {
-    if (!title) return;
+    if (!searchable) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void searchAction(title).then(
@@ -72,7 +77,7 @@ export function CommandBar() {
       );
     }, SEARCH_DEBOUNCE_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [title]);
+  }, [title, searchable]);
 
   /**
    * One list for the keyboard, results first and create options after, so
