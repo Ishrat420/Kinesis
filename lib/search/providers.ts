@@ -30,7 +30,6 @@ const documents: SearchProvider = {
       textColumn('"Document"."name"'),
       textColumn('"Document"."type"'),
       textColumn('"Document"."status"'),
-      textColumn('"Document"."owner"'),
       textColumn('"Document"."documentNumber"'),
       textColumn('"Document"."country"'),
       textColumn('"Document"."notes"'),
@@ -44,7 +43,11 @@ const documents: SearchProvider = {
     return rows.map((document) => ({
       id: `document:${document.id}`, title: document.name, subtitle: document.type,
       href: `/documents/${document.id}`, kind: "Document" as const,
-      keywords: text(document.name, document.type, document.status, document.owner, document.documentNumber, document.country, document.notes, document.link, document.object.fields.flatMap((field) => [field.label, field.value])),
+      // Excludes document.owner deliberately: this is a single-owner
+      // deployment, so every document has the same owner, and matching on
+      // it never actually narrows anything -- it just surfaces every
+      // document whenever the person searches their own name.
+      keywords: text(document.name, document.type, document.status, document.documentNumber, document.country, document.notes, document.link, document.object.fields.flatMap((field) => [field.label, field.value])),
     }));
   },
 };

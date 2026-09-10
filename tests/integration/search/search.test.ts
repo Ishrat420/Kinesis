@@ -90,6 +90,19 @@ describe.sequential("global search", () => {
     await expect(searchGlobalIndex("reunion")).resolves.toEqual([expect.objectContaining({ id: "document:doc-1" })]);
   });
 
+  /**
+   * Every document's `owner` is the account holder's own name -- there is
+   * only ever one owner in this deployment -- so matching on it can never
+   * narrow a search; it would only ever surface every document at once
+   * whenever the person searched their own name.
+   */
+  it("does not surface a document just because its owner field matches", async () => {
+    await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Skincare", userId: owner } });
+    await prisma.document.create({ data: { id: "doc-1", name: "Skincare", type: "Passport", status: "Active", owner: "Ishrat", userId: owner, objectId: "doc-obj" } });
+
+    await expect(searchGlobalIndex("ishrat")).resolves.toEqual([]);
+  });
+
   it("finds a goal by a milestone's name, not just the goal's own fields", async () => {
     await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Fitness", userId: owner } });
     await prisma.goal.create({ data: { id: "goal-1", name: "Fitness", userId: owner, objectId: "goal-obj" } });
