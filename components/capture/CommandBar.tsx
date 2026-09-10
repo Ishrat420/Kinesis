@@ -32,6 +32,7 @@ export function CommandBar() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [fetchedResults, setFetchedResults] = useState<SearchEntry[]>([]);
+  const [searchFailed, setSearchFailed] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [captured, setCaptured] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string>();
@@ -43,6 +44,7 @@ export function CommandBar() {
   // Derived, not cleared via setState: an emptied query has no results the
   // instant it's empty, rather than waiting on an effect to notice and catch up.
   const results = title ? fetchedResults : [];
+  const searchUnavailable = title.length > 0 && searchFailed;
   const createOptions = useMemo(() => captureTargets.filter((target) => target.promoted), []);
   const isOpen = isFocused && title.length > 0;
 
@@ -51,12 +53,23 @@ export function CommandBar() {
    * from an earlier keystroke can never overwrite what a newer one already
    * found -- `cancelled` guards that, since a debounce alone only delays the
    * request, it doesn't order the responses.
+   *
+   * A failure is surfaced rather than swallowed: an unhandled rejection here
+   * renders as "nothing matches", which is indistinguishable from a genuinely
+   * empty result and hides the actual cause -- an un-run migration, say --
+   * behind what looks like an empty account.
    */
   useEffect(() => {
     if (!title) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void searchAction(title).then((entries) => { if (!cancelled) setFetchedResults(entries); });
+      void searchAction(title).then(
+        (entries) => { if (!cancelled) { setFetchedResults(entries); setSearchFailed(false); } },
+        (failure) => {
+          console.error("Search failed", failure);
+          if (!cancelled) { setFetchedResults([]); setSearchFailed(true); }
+        },
+      );
     }, SEARCH_DEBOUNCE_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [title]);
@@ -156,7 +169,9 @@ export function CommandBar() {
               </Link>
             </li>;
           })}</ul>
-        </> : <p className="px-4 pb-2 pt-3 text-xs text-zinc-400">Nothing matches that yet — capture it instead.</p>}
+        </> : searchUnavailable
+          ? <p role="alert" className="px-4 pb-2 pt-3 text-xs font-medium text-red-600">Search isn&rsquo;t responding right now. You can still capture below.</p>
+          : <p className="px-4 pb-2 pt-3 text-xs text-zinc-400">Nothing matches that yet — capture it instead.</p>}
 
         <SectionLabel>Create</SectionLabel>
         <ul aria-label="Create" role="listbox">{createOptions.map((target, index) => {

@@ -8,6 +8,7 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 
 import { prisma } from "@/lib/data/prisma";
 import { searchGlobalIndex } from "@/lib/search/engine";
+import { searchTerms } from "@/lib/search/rank";
 
 /**
  * Search used to read every linkable row on every page load and filter in
@@ -27,6 +28,36 @@ const stranger = "search-stranger";
 
 async function seedOwner(userId: string, tag: string) {
   await prisma.user.create({ data: { id: userId, firstName: "Search", lastName: "Owner", email: `${tag}@example.test` } });
+}
+
+/** One row per provider, each with the nested content that provider also indexes. */
+async function seedOneOfEverything() {
+  await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Passeport", userId: owner } });
+  await prisma.document.create({ data: { id: "doc-1", name: "Passeport", type: "Identity", status: "Active", owner: "Owner", userId: owner, objectId: "doc-obj" } });
+  await prisma.objectField.create({ data: { id: "doc-field", objectId: "doc-obj", label: "Country", value: "Réunion" } });
+
+  await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Fitness", userId: owner } });
+  await prisma.goal.create({ data: { id: "goal-1", name: "Fitness", userId: owner, objectId: "goal-obj" } });
+  await prisma.milestone.create({ data: { id: "milestone-1", goalId: "goal-1", name: "Run a marathon" } });
+
+  await prisma.object.create({ data: { id: "finance-obj", type: "FINANCE_ITEM", name: "Rent", userId: owner } });
+  await prisma.financeItem.create({ data: { id: "finance-1", kind: "expense", name: "Rent", amount: 2450.5, userId: owner, objectId: "finance-obj" } });
+
+  await prisma.object.create({ data: { id: "self-obj", type: "PERSON", name: "Me", userId: owner } });
+  await prisma.person.create({ data: { id: "self-1", name: "Me", isSelf: true, userId: owner, objectId: "self-obj" } });
+  await prisma.object.create({ data: { id: "friend-obj", type: "PERSON", name: "Priya", userId: owner } });
+  await prisma.person.create({ data: { id: "friend-1", name: "Priya", userId: owner, objectId: "friend-obj" } });
+  // Deliberately untyped: its subtitle falls back to the literal "Relationship".
+  await prisma.relationship.create({ data: { id: "rel-1", userId: owner, firstPersonId: "self-1", secondPersonId: "friend-1" } });
+  await prisma.connectionPractice.create({ data: { id: "practice-1", relationshipId: "rel-1", title: "Sunday call", position: 0 } });
+
+  await prisma.customModule.create({ data: { id: "module-1", name: "Recipes", normalizedName: "recipes", icon: "star", color: "#111111", userId: owner } });
+  await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Lasagna", userId: owner } });
+  await prisma.customItem.create({ data: { id: "item-1", name: "Lasagna", moduleId: "module-1", objectId: "item-obj" } });
+  await prisma.objectField.create({ data: { id: "item-field", objectId: "item-obj", label: "Cuisine", value: "Italian" } });
+
+  await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
+  await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", userId: owner, objectId: "todo-obj" } });
 }
 
 describe.sequential("global search", () => {
@@ -134,5 +165,39 @@ describe.sequential("global search", () => {
 
     const results = await searchGlobalIndex("marathon");
     expect(results.map((entry) => entry.id)).toEqual(["goal:goal-a", "goal:goal-b"]);
+  });
+
+  /**
+   * The structural guard for the whole rewrite, rather than a list of cases
+   * someone thought to check.
+   *
+   * `rankSearchEntries` matches against an entry's title, subtitle *and*
+   * keywords -- so every word an entry advertises in any of those is a word
+   * that must find it. The SQL narrowing mirrors columns, which means any
+   * text a provider computes rather than stores ("Active goal", an untyped
+   * connection's "Relationship", the self person's "You", a formatted
+   * amount's cents) is invisible to it unless deliberately declared.
+   *
+   * This caught exactly that: searching "goal" returned no goals at all,
+   * because "goal" lives only in a subtitle the database has never heard of.
+   * It reads each entry's own advertised text back out and demands every
+   * word in it works, so a provider added later cannot quietly index less
+   * than it claims to.
+   */
+  it("finds an entry by every word it advertises in its own title, subtitle, or keywords", async () => {
+    await seedOneOfEverything();
+
+    const seeded = ["Passeport", "Fitness", "Rent", "Priya", "Lasagna", "Recipes", "Renew"];
+    const found = (await Promise.all(seeded.map((name) => searchGlobalIndex(name)))).flat();
+    const entries = [...new Map(found.map((entry) => [entry.id, entry])).values()];
+    expect(entries.length).toBeGreaterThanOrEqual(7);
+
+    for (const entry of entries) {
+      const vocabulary = [...new Set(searchTerms([entry.title, entry.subtitle, ...entry.keywords].join(" ")))];
+      for (const word of vocabulary) {
+        const ids = (await searchGlobalIndex(word, 50)).map((result) => result.id);
+        expect(ids, `"${word}" (from ${entry.id}) found nothing pointing back at it`).toContain(entry.id);
+      }
+    }
   });
 });

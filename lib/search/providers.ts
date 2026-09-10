@@ -49,6 +49,17 @@ const documents: SearchProvider = {
   },
 };
 
+/**
+ * A subtitle is part of what `rankSearchEntries` matches against, alongside
+ * the title and keywords -- and some subtitles are built from literal text
+ * that exists in no column at all ("Active goal", an untyped connection's
+ * "Relationship", your own person's "You"). Those words have to be
+ * represented here too, or the narrowing silently hides rows the ranker
+ * would have matched: searching "goal" stopped returning any goal exactly
+ * this way.
+ */
+const GOAL_SUBTITLE_CONSTANTS = ["goal"].map(normalize);
+
 const goals: SearchProvider = {
   id: "goals",
   async getEntries(query) {
@@ -65,7 +76,7 @@ const goals: SearchProvider = {
       textColumn('"Goal"."currentValue"::text'),
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "Milestone" m WHERE m."goalId" = "Goal"."id" AND ${matchesTerm('m."name"', term)})`,
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "ObjectField" f WHERE f."objectId" = "Goal"."objectId" AND (${matchesTerm('f."label"', term)} OR ${matchesTerm('f."value"', term)}))`,
-    ]);
+    ], GOAL_SUBTITLE_CONSTANTS);
     const candidates = await prisma.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Goal" WHERE "userId" = ${user.id} AND (${where}) LIMIT ${CANDIDATE_LIMIT}`;
     if (!candidates.length) return [];
 
@@ -93,6 +104,12 @@ const finance: SearchProvider = {
       textColumn('"FinanceItem"."amount"::text'),
       textColumn('"FinanceItem"."rate"::text'),
       textColumn('"FinanceItem"."frequency"'),
+      // `formatMoney` renders whole units, rounded -- 2450.5 is shown as
+      // "$2,451" -- so the number a person actually sees, and searches for,
+      // appears in no column: `amount::text` is "2450.5". Rounded through
+      // numeric rather than float8 to round half away from zero, the way
+      // Intl.NumberFormat does, rather than half to even.
+      textColumn(`round("FinanceItem"."amount"::numeric)::text`),
     ]);
     const candidates = await prisma.$queryRaw<{ id: string }[]>`SELECT "id" FROM "FinanceItem" WHERE "userId" = ${user.id} AND (${where}) LIMIT ${CANDIDATE_LIMIT}`;
     if (!candidates.length) return [];
@@ -110,8 +127,15 @@ const finance: SearchProvider = {
   },
 };
 
-/** Normalised once: constant keywords never depend on row data, so their match is decided before any query runs. */
-const PERSON_KEYWORD_CONSTANTS = ["person", "relationship"].map(normalize);
+/**
+ * Normalised once: constant keywords never depend on row data, so their match
+ * is decided before any query runs. "You" is the self person's own subtitle,
+ * and "Relationship" is what a person with no category, or a connection with
+ * no type, falls back to -- see GOAL_SUBTITLE_CONSTANTS on why subtitle text
+ * has to be represented here at all.
+ */
+const PERSON_KEYWORD_CONSTANTS = ["person", "relationship", "you"].map(normalize);
+const CONNECTION_SUBTITLE_CONSTANTS = ["relationship"].map(normalize);
 
 const relationships: SearchProvider = {
   id: "relationships",
@@ -120,7 +144,10 @@ const relationships: SearchProvider = {
     if (!terms.length) return [];
     const user = await requireKinesisUser();
 
-    const peopleWhere = candidateWhere(terms, [textColumn('"Person"."name"'), textColumn('"Person"."category"')], PERSON_KEYWORD_CONSTANTS);
+    // The self person is titled by the owner's preferred name rather than the
+    // stored Person.name, so that name is searchable only if it's named here.
+    const peopleConstants = [...PERSON_KEYWORD_CONSTANTS, normalize(getUserDisplayName(user))];
+    const peopleWhere = candidateWhere(terms, [textColumn('"Person"."name"'), textColumn('"Person"."category"')], peopleConstants);
     const connectionsWhere = candidateWhere(terms, [
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "Person" p WHERE p."id" = "Relationship"."firstPersonId" AND ${matchesTerm('p."name"', term)})`,
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "Person" p WHERE p."id" = "Relationship"."secondPersonId" AND ${matchesTerm('p."name"', term)})`,
@@ -129,7 +156,7 @@ const relationships: SearchProvider = {
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "ConnectionPractice" c WHERE c."relationshipId" = "Relationship"."id" AND (${matchesTerm('c."title"', term)} OR ${matchesTerm('c."cadence"', term)}))`,
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "RelationshipReflection" r WHERE r."relationshipId" = "Relationship"."id" AND ${matchesTerm('r."text"', term)})`,
       (term) => Prisma.sql`EXISTS (SELECT 1 FROM "RelationshipImportantDate" d WHERE d."relationshipId" = "Relationship"."id" AND ${matchesTerm('d."label"', term)})`,
-    ]);
+    ], CONNECTION_SUBTITLE_CONSTANTS);
 
     const [peopleCandidates, connectionCandidates] = await Promise.all([
       prisma.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Person" WHERE "userId" = ${user.id} AND (${peopleWhere}) LIMIT ${CANDIDATE_LIMIT}`,
