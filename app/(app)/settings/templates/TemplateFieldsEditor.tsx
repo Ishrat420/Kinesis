@@ -80,7 +80,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
       {fields.length > 0 && (
         <div className="mt-3 space-y-2">
           {fields.map((field, index) => (
-            <div key={`${field.key}:${resetRevision}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
+            <div key={`${field.key}:${resetRevision}`} className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <input
                 value={field.label}
                 onChange={(event) => update(field.key, { label: event.target.value })}
@@ -116,16 +116,16 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                   <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>
               )}
-              <div className="flex items-center gap-1">
-                <button type="button" aria-label={`Move field ${index + 1} up`} disabled={index === 0} onClick={() => move(index, -1)} className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
-                <button type="button" aria-label={`Move field ${index + 1} down`} disabled={index === fields.length - 1} onClick={() => move(index, 1)} className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
+              <div className="col-span-2 flex items-center justify-end gap-1 sm:col-span-1">
+                <button type="button" aria-label={`Move field ${index + 1} up`} disabled={index === 0} onClick={() => move(index, -1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
+                <button type="button" aria-label={`Move field ${index + 1} down`} disabled={index === fields.length - 1} onClick={() => move(index, 1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
                 <button
                   type="button"
                   aria-label={`Remove field ${index + 1}`}
                   disabled={locked}
                   title={locked ? "This template is in use, so a field can't be removed." : undefined}
                   onClick={() => setFields((current) => current.filter(({ key }) => key !== field.key))}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:pointer-events-none disabled:opacity-30"
                 >
                   <Minus className="h-4 w-4" />
                 </button>
@@ -139,7 +139,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
         <button
           type="button"
           onClick={addField}
-          className="inline-flex items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300"
         >
           <Plus className="h-4 w-4" /> Add field
         </button>
