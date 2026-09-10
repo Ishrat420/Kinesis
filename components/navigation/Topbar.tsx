@@ -4,17 +4,15 @@ import { CommandBar } from "@/components/capture/CommandBar";
 import { NotificationBell } from "./NotificationBell";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { SidebarBrand, SidebarNav } from "./Sidebar";
-import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
-import { getGlobalSearchIndex } from "@/lib/search/engine";
 import { UserButton } from "@clerk/nextjs";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 export async function Topbar() {
-  const [{ enabled: notificationsEnabled, notifications, unreadCount }, user, searchEntries] = await Promise.all([
-    getRecentNotifications(),
-    getCurrentUser(),
-    getGlobalSearchIndex(),
-  ]);
+  // No search index fetched here anymore: CommandBar asks for results itself,
+  // only once someone actually types, instead of every page paying for a full
+  // read across every searchable table whether or not search is ever opened
+  // that visit -- see lib/search/providers.ts.
+  const { enabled: notificationsEnabled, notifications, unreadCount } = await getRecentNotifications();
 
   return (
     <header className={`sticky top-0 ${Z_INDEX.chrome} h-[72px] border-b border-zinc-200/80 bg-white/90 backdrop-blur`}>
@@ -33,7 +31,7 @@ export async function Topbar() {
         </div>
 
         <div className="flex min-w-0 flex-1 md:absolute md:left-8 md:right-40 md:justify-center">
-          <CommandBar entries={searchEntries.map((entry) => entry.id === "person:self" ? { ...entry, title: getUserDisplayName(user) } : entry)} />
+          <CommandBar />
         </div>
 
         <div className="relative ml-auto flex shrink-0 items-center gap-3">

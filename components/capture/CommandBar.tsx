@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { Boxes, Command, FileText, Landmark, ListTodo, Plus, Search, Target, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
-import { rankSearchEntries } from "@/lib/search/rank";
 import type { SearchEntry } from "@/lib/search/types";
 import { captureCreateHref, captureTargets, DEFAULT_CAPTURE_TARGET, type CaptureTargetType } from "@/lib/capture/targets";
 import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { CaptureDetailsDialog } from "./CaptureDetailsDialog";
 import { CaptureConfirmation } from "./CaptureConfirmation";
+import { searchAction } from "./search-actions";
 import { Z_INDEX } from "@/lib/layout/z-index";
+
+/** How long to let someone keep typing before a search actually runs. */
+const SEARCH_DEBOUNCE_MS = 200;
 
 const kindIcons = { Document: FileText, Goal: Target, Finance: Landmark, Relationship: UsersRound, Custom: Boxes, Todo: ListTodo };
 const kindTones = { Document: "bg-blue-50", Goal: "bg-violet-50", Finance: "bg-emerald-50", Relationship: "bg-rose-50", Custom: "bg-zinc-100", Todo: "bg-teal-50" };
@@ -25,9 +28,10 @@ const kindTones = { Document: "bg-blue-50", Goal: "bg-violet-50", Finance: "bg-e
  * create a To-Do -- because ADR-009's whole argument is that capture has to cost
  * nothing, and picking a destination is a cost.
  */
-export function CommandBar({ entries }: { entries: SearchEntry[] }) {
+export function CommandBar() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [fetchedResults, setFetchedResults] = useState<SearchEntry[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const [captured, setCaptured] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string>();
@@ -36,9 +40,26 @@ export function CommandBar({ entries }: { entries: SearchEntry[] }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const title = query.trim();
-  const results = useMemo(() => rankSearchEntries(entries, query), [entries, query]);
+  // Derived, not cleared via setState: an emptied query has no results the
+  // instant it's empty, rather than waiting on an effect to notice and catch up.
+  const results = title ? fetchedResults : [];
   const createOptions = useMemo(() => captureTargets.filter((target) => target.promoted), []);
   const isOpen = isFocused && title.length > 0;
+
+  /**
+   * Nothing runs until there's something to search for, and a slow response
+   * from an earlier keystroke can never overwrite what a newer one already
+   * found -- `cancelled` guards that, since a debounce alone only delays the
+   * request, it doesn't order the responses.
+   */
+  useEffect(() => {
+    if (!title) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void searchAction(title).then((entries) => { if (!cancelled) setFetchedResults(entries); });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [title]);
 
   /**
    * One list for the keyboard, results first and create options after, so

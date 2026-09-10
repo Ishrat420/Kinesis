@@ -1,9 +1,19 @@
 import type { SearchEntry } from "./types";
 
-const normalize = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+export const normalize = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * The exact term list `rankSearchEntries` matches against, exported so a
+ * provider narrowing its own database read to candidate rows agrees with the
+ * ranker on what "the terms" are -- rather than each side deriving its own
+ * and risking the two disagreeing about what one word even means.
+ */
+export function searchTerms(query: string): string[] {
+  return normalize(query).split(/\s+/).filter(Boolean);
+}
 
 export function rankSearchEntries(entries: SearchEntry[], query: string, limit = 10): SearchEntry[] {
-  const terms = normalize(query).split(/\s+/).filter(Boolean);
+  const terms = searchTerms(query);
   if (!terms.length) return [];
 
   return entries.map((entry, order) => {

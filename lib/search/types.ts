@@ -15,5 +15,6 @@ export type SearchEntry = {
 
 export type SearchProvider = {
   id: string;
-  getEntries: () => Promise<SearchEntry[]>;
+  /** Empty terms (nothing typed yet) always returns []: nothing runs speculatively. */
+  getEntries: (query: string) => Promise<SearchEntry[]>;
 };
