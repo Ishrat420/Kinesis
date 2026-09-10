@@ -161,6 +161,47 @@ describe.sequential("cross-user authorization contract", () => {
     expect(await ownerState("ownerB")).toEqual(beforeB);
   });
 
+  /**
+   * Practices, reflections, and important dates are scoped to the ids the
+   * payload names, not to ids independently verified as this account's own --
+   * see lib/relationships/actions.ts's ownerScope. Today a smuggled foreign id
+   * still can't reach that scope: the people/relationships loop above treats
+   * an id it doesn't already own as new and tries to create it, which collides
+   * with the real row's primary key and aborts the whole transaction. This
+   * pins the outcome an owner actually depends on -- a foreign account's
+   * people, connections, and everything hanging off them stay untouched --
+   * so it still catches a regression even if that loop is ever rewritten in a
+   * way that stops colliding (an upsert, say) and the ownerScope check ends up
+   * doing the work alone.
+   */
+  it("keeps a foreign self/relationship id smuggled into the payload, and everything hanging off it, untouched", async () => {
+    await prisma.connectionPractice.create({ data: { id: "owner-b-practice", relationshipId: ids.relationshipB, title: "Weekly call", position: 0 } });
+    await prisma.relationshipReflection.create({ data: { id: "owner-b-reflection", relationshipId: ids.relationshipB, text: "Good chat.", reflectedAt: new Date("2030-01-01") } });
+    await prisma.relationshipImportantDate.create({ data: { id: "owner-b-date", selfPersonId: ids.personB1, label: "Anniversary", date: new Date("2030-06-01") } });
+
+    const beforeA = await ownerState("ownerA");
+    const beforeB = await ownerState("ownerB");
+
+    const result = await saveRelationshipMap({
+      people: [
+        { id: ids.personA1, name: "Owner A self", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship() },
+        { id: ids.personA2, name: "owner-a-private-person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship() },
+        // Smuggled: another account's real, existing person id.
+        { id: ids.personB1, name: "intrusion", detail: "You", x: 2, y: 2, size: 84, color: "#333333", icon: "user", selfRelationship: emptySelfRelationship() },
+        { id: ids.personB2, name: "intrusion", detail: "Friend", x: 3, y: 3, size: 84, color: "#444444", icon: "heart", selfRelationship: emptySelfRelationship() },
+      ],
+      relationships: [
+        { id: ids.relationshipA, from: ids.personA1, to: ids.personA2, type: "Friend", notes: "owner-a-relationship-notes", practices: [], reflections: [], importantDates: [], linkedGoals: [] },
+        // Smuggled: another account's real, existing connection id.
+        { id: ids.relationshipB, from: ids.personB1, to: ids.personB2, type: "intrusion", notes: "intrusion", practices: [], reflections: [], importantDates: [], linkedGoals: [] },
+      ],
+    });
+
+    expect(result.error).toBeTruthy();
+    expect(await ownerState("ownerA")).toEqual(beforeA);
+    expect(await ownerState("ownerB")).toEqual(beforeB);
+  });
+
   it("can switch the shared authentication fixture between both owners", async () => {
     authenticateAs("ownerB");
     await expect(getDocument(ids.documentB)).resolves.toMatchObject({ name: ids.documentB });

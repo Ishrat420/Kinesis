@@ -212,12 +212,22 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
       // One read per table for the entire map, then one write per table. The
       // owner lists come from the payload, and everything not named by them was
       // already removed above, so nothing outside this map is in scope.
-      const ownerScope = { OR: [{ selfPersonId: { in: personIds } }, { relationshipId: { in: relationshipIds } }] };
+      //
+      // personIds/relationshipIds are payload-supplied, not pre-verified as
+      // this user's own -- so ownership is asserted here, through the relation,
+      // rather than assumed from the id lists alone. Nothing upstream should be
+      // relied on to have already ruled out someone else's id reaching this far.
+      const ownerScope = {
+        OR: [
+          { selfPersonId: { in: personIds }, selfPerson: { userId: user.id } },
+          { relationshipId: { in: relationshipIds }, relationship: { userId: user.id } },
+        ],
+      };
       const [practiceRows, reflectionRows, importantDateRows, linkedGoalRows] = await Promise.all([
         tx.connectionPractice.findMany({ where: ownerScope, select: { id: true, title: true, cadence: true, anchorDate: true, position: true, relationshipId: true, selfPersonId: true } }),
         tx.relationshipReflection.findMany({ where: ownerScope, select: { id: true, text: true, reflectedAt: true, relationshipId: true, selfPersonId: true } }),
         tx.relationshipImportantDate.findMany({ where: ownerScope, select: { id: true, label: true, date: true, repeatsYearly: true, relationshipId: true, selfPersonId: true } }),
-        tx.relationshipGoal.findMany({ where: { relationshipId: { in: relationshipIds } }, select: { relationshipId: true, goalId: true } }),
+        tx.relationshipGoal.findMany({ where: { relationshipId: { in: relationshipIds }, relationship: { userId: user.id } }, select: { relationshipId: true, goalId: true } }),
       ]);
 
       const practicesByOwner = groupByOwner(practiceRows);
