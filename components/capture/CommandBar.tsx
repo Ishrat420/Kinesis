@@ -162,7 +162,12 @@ export function CommandBar() {
           <ul aria-label="Search results" role="listbox">{results.map((result, index) => {
             const Icon = result.kind === "Custom" && result.icon && result.icon in CUSTOM_MODULE_ICONS ? CUSTOM_MODULE_ICONS[result.icon as keyof typeof CUSTOM_MODULE_ICONS] : kindIcons[result.kind];
             return <li key={result.id} role="option" aria-selected={index === activeIndex}>
-              <Link id={`command-result-${index}`} href={result.href} onMouseEnter={() => setHighlighted(index)} className={`flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none ${index === activeIndex ? "bg-zinc-50" : ""}`}>
+              {/* Unprefetched: up to ten of these render on every keystroke,
+                  and scanning a dropdown isn't a signal to load all ten
+                  destination pages in the background -- Next's default
+                  prefetch-on-render turned every search into a burst of
+                  requests competing with the search itself for bandwidth. */}
+              <Link id={`command-result-${index}`} href={result.href} prefetch={false} onMouseEnter={() => setHighlighted(index)} className={`flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none ${index === activeIndex ? "bg-zinc-50" : ""}`}>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-700 ${kindTones[result.kind]}`} style={result.color ? { color: result.color } : undefined}><Icon className="h-4 w-4" aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-zinc-900">{result.title}</span><span className="block truncate text-xs text-zinc-500">{result.subtitle}</span></span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{result.kind}</span>
