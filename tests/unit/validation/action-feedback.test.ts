@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   addActivity: vi.fn(),
   goalFindFirst: vi.fn(),
   goalUpdateMany: vi.fn(),
+  goalUpdate: vi.fn(),
   goalCreate: vi.fn(),
   goalUnitUpsert: vi.fn(),
   milestoneCreate: vi.fn(),
@@ -30,7 +31,7 @@ vi.mock("@/lib/data/kinesis-links", () => ({ validateKinesisTargets: mocks.valid
 vi.mock("@/lib/format/server", () => ({ getFormatPreferences: mocks.getFormatPreferences }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
-    goal: { findFirst: mocks.goalFindFirst, updateMany: mocks.goalUpdateMany, create: mocks.goalCreate },
+    goal: { findFirst: mocks.goalFindFirst, updateMany: mocks.goalUpdateMany, update: mocks.goalUpdate, create: mocks.goalCreate },
     goalUnit: { upsert: mocks.goalUnitUpsert },
     milestone: { create: mocks.milestoneCreate, updateMany: mocks.milestoneUpdateMany },
     financeItem: { findFirst: mocks.financeFindFirst, create: mocks.financeCreate, update: mocks.financeUpdate },
@@ -40,7 +41,7 @@ vi.mock("@/lib/data/prisma", () => ({
   },
 }));
 
-import { addMilestoneAction, addTargetAction, createGoalAction, updateGoalStatusAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
+import { addMilestoneAction, addTargetAction, createGoalAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
 import { saveFinanceItem } from "@/app/(app)/finance/actions";
 import { createCustomItemAction } from "@/app/(app)/custom-modules/actions";
 import type { FinanceItem } from "@/lib/finance";
@@ -58,6 +59,8 @@ const TARGET_DATE = new Date("2030-06-01T23:59:59.999Z");
 // Derived through the same formatter the action uses, so the assertion holds
 // on any ICU build and follows the owner's locale.
 const dueDateConflict = `The due date must be before the goal target date of ${formatDate(TARGET_DATE, DEFAULT_FORMAT_PREFERENCES.locale)}.`;
+const MILESTONE_DUE_DATE = new Date("2030-03-01T23:59:59.999Z");
+const milestoneDueDateConflict = `Milestone “Deposit saved” is due ${formatDate(MILESTONE_DUE_DATE, DEFAULT_FORMAT_PREFERENCES.locale)}. The target date must be after it.`;
 const MODULE = "module-id";
 const financeItem = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
   ({ id: "finance-id", kind: "asset", name: "Savings", amount: 100, ...overrides });
@@ -65,6 +68,7 @@ const financeItem = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
 const noWrites = () => {
   expect(mocks.goalCreate).not.toHaveBeenCalled();
   expect(mocks.goalUpdateMany).not.toHaveBeenCalled();
+  expect(mocks.goalUpdate).not.toHaveBeenCalled();
   expect(mocks.milestoneCreate).not.toHaveBeenCalled();
   expect(mocks.milestoneUpdateMany).not.toHaveBeenCalled();
   expect(mocks.financeCreate).not.toHaveBeenCalled();
@@ -130,6 +134,53 @@ describe("invalid submissions report an error instead of silently doing nothing"
       mocks.goalFindFirst.mockResolvedValue({ targetDate: TARGET_DATE });
       const state = await updateMilestoneDueDateAction(GOAL, "milestone-id", {}, form({ dueDate: "2030-06-01" }));
       expect(state.error).toBe(dueDateConflict);
+      noWrites();
+    });
+
+    /**
+     * The other direction of the same rule: `addMilestoneAction`/
+     * `updateMilestoneDueDateAction` above refuse a milestone due date that
+     * lands on or after the goal's target date; moving the target date itself
+     * has to refuse the same overlap from the other side, on the same `>=`
+     * boundary BUG-001 was about (a `<` where a `<=` belonged).
+     */
+    it.each([
+      ["lands exactly on its latest milestone's due date", "2030-03-01"],
+      ["lands before its latest milestone's due date", "2030-02-01"],
+    ])("rejects a target date that %s", async (_name, targetDate) => {
+      mocks.goalFindFirst.mockResolvedValue({ milestones: [{ name: "Deposit saved", dueDate: MILESTONE_DUE_DATE }] });
+      const state = await updateGoalTargetDateAction(GOAL, {}, form({ targetDate }));
+      expect(state.error).toBe(milestoneDueDateConflict);
+      noWrites();
+    });
+
+    it("accepts a target date after its latest milestone's due date", async () => {
+      mocks.goalFindFirst.mockResolvedValue({ milestones: [{ name: "Deposit saved", dueDate: MILESTONE_DUE_DATE }] });
+      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate: "2030-03-02" }))).resolves.toEqual({ saved: true });
+      expect(mocks.goalUpdate).toHaveBeenCalledOnce();
+    });
+
+    it("accepts a target date when no milestone carries a due date to conflict with", async () => {
+      mocks.goalFindFirst.mockResolvedValue({ milestones: [] });
+      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate: "2030-01-01" }))).resolves.toEqual({ saved: true });
+      expect(mocks.goalUpdate).toHaveBeenCalledOnce();
+    });
+
+    it("accepts clearing the target date even with a milestone due date on record", async () => {
+      mocks.goalFindFirst.mockResolvedValue({ milestones: [{ name: "Deposit saved", dueDate: MILESTONE_DUE_DATE }] });
+      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate: "" }))).resolves.toEqual({ saved: true });
+      expect(mocks.goalUpdate).toHaveBeenCalledWith({ where: { id: GOAL }, data: { targetDate: null } });
+    });
+
+    it("rejects a malformed target date", async () => {
+      mocks.goalFindFirst.mockResolvedValue({ milestones: [] });
+      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate: "31-12-2030" }))).resolves.toEqual({ error: "Enter a valid target date." });
+      noWrites();
+    });
+
+    it("does nothing for a goal that no longer exists", async () => {
+      mocks.goalFindFirst.mockResolvedValue(null);
+      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate: "2030-03-02" }))).resolves.toEqual({});
       noWrites();
     });
 
