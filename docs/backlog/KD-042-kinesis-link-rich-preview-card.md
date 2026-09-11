@@ -132,6 +132,26 @@ unusual value and a broken card.
   bigger feature (making native columns user-configurable) and belongs in
   its own ticket if it's ever wanted, not folded into this one.
 
+## Data Model Impact
+
+**This is a UI + storage ticket, not UI-only** — but the storage change is
+narrow and does not touch Kinesis Links' own data model.
+
+* **Untouched:** `FieldLink` and `ObjectField` — a link still just points at
+  a target object, stored and resolved exactly as it is today. "Read live
+  from the linked Object" is a query-time concern (which records to
+  batch-fetch), not a change to how a link itself is created or stored.
+* **New:** `Template` needs a place to persist its chosen preview fields —
+  a small config column (e.g. JSON: the list of selected field ids, capped
+  at 3) — since no such column exists on it today. That's a migration,
+  however small.
+* **No change** for System Modules' config, since it's a hardcoded object
+  in code rather than user data.
+
+Worth calling out explicitly since "Out of Scope: Replacing Object
+Relationships" could otherwise read as "this ticket makes no schema
+changes at all," which isn't quite true.
+
 ## Behaviour
 
 * Preview configuration should belong to the target Module/Object Type, not each individual link.
