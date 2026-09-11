@@ -49,23 +49,88 @@ Support a linked-card display configuration such as:
 ```text
 Linked card preview
 
-Primary field
-[ Name ]
-
-Show
-[ Status ]
-[ Due date ]
-[ Priority ]
+Show on card (choose up to 3)
+[✓] Status        Text
+[✓] Due date       Date
+[ ] Priority       Text
+[ ] Owner          Text
+[ ] Notes          Text
 ```
 
 Allow up to **2–3 preview fields** to avoid turning cards into mini dashboards.
+
+**No "Primary field" picker.** Every example above uses the record's own
+`name` as the card title, with nothing configurable there — picking some
+other field as the title (a Kinesis Link, a long text field) has no example
+that needs it and invites a badly-rendering title for no real benefit. The
+card title is always the linked Object's `name`; configuration only ever
+touches the "Show" list.
 
 Dedicated Modules may provide sensible defaults, for example:
 
 * **Documents** — expiry, status
 * **Goals** — status, target date
 * **Finance** — balance, APR
-* **Custom Modules/Object Types** — user-configurable fields
+* **Custom Modules/Object Types** — user-configurable fields, see
+  "Where this is configured" below.
+
+## Field Formatting
+
+A preview field's raw value (a date, a number, a status string) needs
+type-aware formatting to read like the examples above — "42 days left ·
+Current", "$2,140", "15.2% APR" — not just a picked field dropped onto the
+card unformatted. This is a small, closed set of **display kinds**, each
+with exactly one formatter, reused by every Module and every Custom Module
+field — not one formatter per Module and not a per-field override:
+
+* `date` — relative + absolute, e.g. "42 days left · Current" within a
+  bounded window (roughly 60 days), falling back to a plain absolute date
+  ("14 Nov 2026") once a relative count would read worse than the date
+  itself (an ever-growing "412 days left" is not an improvement).
+* `number` — fixed decimal precision, not the value's raw stored precision.
+* `currency` — number formatting plus the currency symbol, e.g. "$2,140".
+* `percent` — number formatting plus "%", e.g. "15.2%".
+* `status` — rendered as a badge, label truncated to a hard character cap
+  (badges don't wrap).
+* `text` — single-line, ellipsis-truncated at a fixed character budget.
+* `link-count` — a Kinesis Link field's target count, not its full list.
+
+**Resolving a field to a kind:**
+
+* A **custom field** (`ObjectField`/`TemplateField`, typed via the shared
+  `CustomFieldType` enum) maps to a kind almost 1:1 off its stored type —
+  `DATE` → `date`, `TEXT` → `text`, and so on.
+* A **dedicated Module's native column** (Finance's `balance`, `apr`; not
+  an `ObjectField` at all) has no runtime type tag to infer a kind from, so
+  its kind is stated explicitly in that Module's hardcoded preview config
+  (e.g. `balance: currency`, `apr: percent`) rather than inferred.
+
+Either way, the render step only ever deals with `{value, kind}` pairs —
+it doesn't need to know whether a field's value came from a custom field or
+a native column, only which kind it is.
+
+Whatever the value, the card layout itself also caps total lines/characters
+as a backstop, so the formatter is never the only thing standing between an
+unusual value and a broken card.
+
+## Where This Is Configured
+
+* **Custom Modules** — a Custom Item's field set belongs to the `Template`
+  it points to (KD-035), not to the `CustomModule` itself, so preview
+  configuration is scoped to the Template and lives on the existing
+  Template settings page (`app/(app)/settings/templates/[templateId]`),
+  as a new section alongside the existing field-list editor. The field
+  picker is limited to that template's own field list, so it inherits each
+  field's `CustomFieldType` — and therefore its display kind — for free;
+  the user never sees or picks a "kind" directly. A live preview, rendered
+  from one real item under that template (or a placeholder if none exist
+  yet), updates as fields are checked/unchecked.
+* **System Modules** (Documents, Goals, Finance) — these don't have
+  user-editable field lists the way Templates do; their preview fields are
+  a hardcoded config per Module, shipped in code, with no Settings UI in
+  v1. Making a dedicated Module's preview fields user-selectable is a
+  bigger feature (making native columns user-configurable) and belongs in
+  its own ticket if it's ever wanted, not folded into this one.
 
 ## Behaviour
 
