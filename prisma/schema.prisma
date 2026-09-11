@@ -52,6 +52,15 @@ model UserSettings {
   milestoneReminderLeadDays    Int      @default(30)
   relationshipReminderLeadDays Int      @default(30)
   customItemReminderLeadDays   Int      @default(30)
+  // The dashboard's Module Shortcuts grid (KD-005): the four system module
+  // ids ("documents", "goals", "finance", "relationships") always present,
+  // in whatever order the owner dragged them into, plus up to
+  // MAX_CUSTOM_MODULES custom module ids they dropped in alongside. Empty
+  // means no preference recorded yet -- the UI falls back to the default
+  // system order with no custom modules. An ordered array is stored rather
+  // than a per-module position column because the whole point is one small
+  // blob the owner rearranges as a unit; nothing else ever queries by it.
+  dashboardModuleOrder         String[] @default([])
   userId                       String   @unique
   user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt                    DateTime @default(now())

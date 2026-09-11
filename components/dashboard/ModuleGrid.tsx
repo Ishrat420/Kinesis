@@ -6,15 +6,18 @@ import { ModuleShortcuts } from "./ModuleShortcuts";
 import { getFinanceItems } from "@/lib/data/finance";
 import { getRelationshipMap } from "@/lib/data/relationships";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
+import { getSettings } from "@/lib/data/settings";
+import { resolveDashboardOrder } from "@/lib/dashboard/module-order";
 
 export async function ModuleGrid() {
-  const [documentSummary, goalSummary, customModules, financeItems, relationshipMap, upcoming] = await Promise.all([
+  const [documentSummary, goalSummary, customModules, financeItems, relationshipMap, upcoming, settings] = await Promise.all([
     getDocumentSummary(),
     getGoalDashboardSummary(),
     getCustomModulesWithItemCount(),
     getFinanceItems(),
     getRelationshipMap(),
     getUpcomingAndDue(),
+    getSettings(),
   ]);
 
   return (
@@ -38,6 +41,10 @@ export async function ModuleGrid() {
           color: module.color,
           itemCount: module._count.items,
         }))}
+        // Reconciled here, not just carried through: a custom module named
+        // in the saved order can have been deleted since, and the grid must
+        // never render a slot for a module that no longer exists.
+        initialOrder={resolveDashboardOrder(settings.dashboardModuleOrder, new Set(customModules.map((module) => module.id)))}
       />
     </Card>
   );

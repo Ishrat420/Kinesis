@@ -5,6 +5,7 @@ import { requireKinesisUser, requireRecentVerification } from "@/lib/auth";
 import { isSupportedCurrency, isSupportedLocale, isSupportedTimeZone } from "@/lib/format/preferences";
 import { DELETE_ALL_CONFIRMATION } from "./constants";
 import { revalidateShell } from "@/lib/actions/revalidate";
+import { resolveDashboardOrder } from "@/lib/dashboard/module-order";
 
 export type SettingsActionState = { error?: string; message?: string };
 
@@ -56,6 +57,26 @@ export async function updateSettingsAction(
   // Dates and amounts appear on every page, so the whole tree is stale.
   revalidateShell();
   return { message: "Settings saved." };
+}
+
+/**
+ * Persists the dashboard's Module Shortcuts grid (KD-005) -- which modules
+ * are pinned and in what order. Reconciled through the same
+ * `resolveDashboardOrder` the read side restores through, so a submission
+ * naming a since-deleted custom module, a duplicate, or more custom slots
+ * than the grid allows can't corrupt what gets stored.
+ */
+export async function updateDashboardModuleOrderAction(order: string[]): Promise<{ error?: string }> {
+  if (!Array.isArray(order) || order.some((id) => typeof id !== "string")) return { error: "Invalid dashboard order." };
+  const user = await requireKinesisUser();
+  const ownedCustomModules = await prisma.customModule.findMany({ where: { userId: user.id }, select: { id: true } });
+  const dashboardModuleOrder = resolveDashboardOrder(order, new Set(ownedCustomModules.map((module) => module.id)));
+  await prisma.userSettings.upsert({
+    where: { userId: user.id },
+    create: { userId: user.id, dashboardModuleOrder },
+    update: { dashboardModuleOrder },
+  });
+  return {};
 }
 
 export async function deleteAllDataAction(confirmation: string) {

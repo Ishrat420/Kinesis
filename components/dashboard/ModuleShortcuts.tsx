@@ -1,16 +1,16 @@
 "use client";
 
 import { FileText, Target } from "lucide-react";
-import { type DragEvent, useMemo, useState } from "react";
+import { type DragEvent, useMemo, useState, useTransition } from "react";
 import { customModuleIcon } from "@/lib/custom-modules/icons";
 import { FinanceModuleCard } from "./FinanceModuleCard";
 import { ModuleCard } from "./ModuleCard";
 import { RelationshipModuleCard } from "./RelationshipModuleCard";
 import type { FinanceItem } from "@/lib/finance";
+import { updateDashboardModuleOrderAction } from "@/app/(app)/settings/actions";
+import { MAX_CUSTOM_DASHBOARD_MODULES } from "@/lib/dashboard/module-order";
 
 const CUSTOM_MODULE_MIME = "application/x-kinesis-custom-module";
-const SYSTEM_IDS = ["documents", "goals", "finance", "relationships"] as const;
-const MAX_CUSTOM_MODULES = 2;
 
 type CustomModuleSummary = {
   id: string;
@@ -29,16 +29,27 @@ type ModuleShortcutsProps = {
   financeItems: FinanceItem[];
   relationshipPeople: number;
   relationshipUpcomingDates: number;
+  /** Already reconciled against what still exists -- see resolveDashboardOrder in ModuleGrid. */
+  initialOrder: string[];
 };
 
-export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCount, goalsAtRisk, customModules, financeItems, relationshipPeople, relationshipUpcomingDates }: ModuleShortcutsProps) {
-  const [order, setOrder] = useState<string[]>([...SYSTEM_IDS]);
+export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCount, goalsAtRisk, customModules, financeItems, relationshipPeople, relationshipUpcomingDates, initialOrder }: ModuleShortcutsProps) {
+  const [order, setOrder] = useState<string[]>(initialOrder);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
+  const [saveFailed, setSaveFailed] = useState(false);
   const customIds = useMemo(() => new Set(customModules.map(({ id }) => id)), [customModules]);
   const selectedCustomCount = order.filter((id) => customIds.has(id)).length;
 
+  // Applied locally first so dragging feels instant; the save that follows
+  // can fail without undoing it; the grid just says so rather than silently
+  // losing the change back to whatever was last written.
   function saveOrder(nextOrder: string[]) {
     setOrder(nextOrder);
+    startSaving(async () => {
+      const result = await updateDashboardModuleOrderAction(nextOrder);
+      setSaveFailed(Boolean(result.error));
+    });
   }
 
   function reorder(targetId: string) {
@@ -50,7 +61,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
 
   function addCustomModule(event: DragEvent) {
     event.preventDefault();
-    if (draggedId || selectedCustomCount >= MAX_CUSTOM_MODULES) return;
+    if (draggedId || selectedCustomCount >= MAX_CUSTOM_DASHBOARD_MODULES) return;
     const id = event.dataTransfer.getData(CUSTOM_MODULE_MIME);
     if (!customIds.has(id) || order.includes(id)) return;
     saveOrder([...order, id]);
@@ -78,7 +89,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
   return (
     <div
       onDragOver={(event) => {
-        if (selectedCustomCount < MAX_CUSTOM_MODULES) event.preventDefault();
+        if (selectedCustomCount < MAX_CUSTOM_DASHBOARD_MODULES) event.preventDefault();
       }}
       onDrop={addCustomModule}
     >
@@ -115,10 +126,15 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
           );
         })}
       </div>
-      {selectedCustomCount < MAX_CUSTOM_MODULES && (
+      {selectedCustomCount < MAX_CUSTOM_DASHBOARD_MODULES && (
         <div className="mt-3 rounded-2xl border border-dashed border-zinc-100 px-4 py-2.5 text-center text-[11px] text-zinc-300">
-          Drop a custom module here · {MAX_CUSTOM_MODULES - selectedCustomCount} slots available
+          Drop a custom module here · {MAX_CUSTOM_DASHBOARD_MODULES - selectedCustomCount} slots available
         </div>
+      )}
+      {saveFailed && !saving && (
+        <p role="alert" className="mt-3 text-xs font-medium text-red-600">
+          Couldn&apos;t save your dashboard layout. It&apos;ll look like this until you reload, but the change hasn&apos;t been kept — try again.
+        </p>
       )}
     </div>
   );
