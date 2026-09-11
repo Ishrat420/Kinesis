@@ -74,6 +74,8 @@ Dedicated Modules may provide sensible defaults, for example:
 * Empty preview values should be omitted gracefully.
 * Existing compact cards remain the fallback when no preview configuration exists.
 * The whole card should remain clickable and navigate to the linked Object.
+* Preview values must be read live from the linked Object rather than copied onto the Kinesis Link.
+* Changes to the linked Object should automatically be reflected anywhere its preview card is rendered.
 
 ## Principle
 
