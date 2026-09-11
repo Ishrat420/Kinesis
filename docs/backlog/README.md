@@ -220,6 +220,7 @@ KD-036-object-types-navigation-superseded
 ## Open
 
 BUG-007-no-optimistic-concurrency-on-multi-row-saves
+BUG-008-finance-search-results-cannot-deep-link
 
 ## In Progress
 
