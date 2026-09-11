@@ -95,3 +95,6 @@ say so" item, not a launch requirement.
   this decision governs the data-fetching approach for, including its
   Permissions Assumption section this ADR's fourth deciding factor
   supports.
+* ADR-014 — records why the `userId`-scoped schema this ADR's fourth
+  deciding factor leans on is single-tenant policy, not multi-tenant
+  infrastructure.
