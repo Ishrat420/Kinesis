@@ -85,3 +85,8 @@ Dedicated Modules may provide sensible defaults, for example:
 
 * Replacing Object Relationships
 
+## Related
+
+* ADR-013 — records the decision to fetch preview data via batched, narrow
+  live queries rather than a materialized preview cache, and why.
+
