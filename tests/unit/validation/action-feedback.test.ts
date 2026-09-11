@@ -93,8 +93,14 @@ describe("invalid submissions report an error instead of silently doing nothing"
       noWrites();
     });
 
-    it("rejects a malformed target date", async () => {
-      await expect(createGoalAction({}, form({ name: "Buy a home", targetDate: "31-12-2030" }))).resolves.toEqual({ error: "Enter a valid target date." });
+    it.each([
+      ["a malformed target date", "31-12-2030"],
+      // Well-formed but calendar-impossible: the Date constructor normalizes
+      // this to 1 March rather than rejecting it, silently saving a
+      // different date than what was submitted.
+      ["a calendar-impossible target date", "2030-02-30"],
+    ])("rejects %s", async (_name, targetDate) => {
+      await expect(createGoalAction({}, form({ name: "Buy a home", targetDate }))).resolves.toEqual({ error: "Enter a valid target date." });
       noWrites();
     });
 
@@ -125,8 +131,11 @@ describe("invalid submissions report an error instead of silently doing nothing"
       expect(mocks.milestoneCreate).toHaveBeenCalledOnce();
     });
 
-    it("rejects a malformed milestone due date", async () => {
-      await expect(addMilestoneAction(GOAL, {}, form({ name: "Deposit saved", dueDate: "soon" }))).resolves.toEqual({ error: "Enter a valid due date." });
+    it.each([
+      ["a malformed milestone due date", "soon"],
+      ["a calendar-impossible milestone due date", "2030-02-30"],
+    ])("rejects %s", async (_name, dueDate) => {
+      await expect(addMilestoneAction(GOAL, {}, form({ name: "Deposit saved", dueDate }))).resolves.toEqual({ error: "Enter a valid due date." });
       noWrites();
     });
 
@@ -172,9 +181,12 @@ describe("invalid submissions report an error instead of silently doing nothing"
       expect(mocks.goalUpdate).toHaveBeenCalledWith({ where: { id: GOAL }, data: { targetDate: null } });
     });
 
-    it("rejects a malformed target date", async () => {
+    it.each([
+      ["a malformed target date", "31-12-2030"],
+      ["a calendar-impossible target date", "2030-02-30"],
+    ])("rejects %s", async (_name, targetDate) => {
       mocks.goalFindFirst.mockResolvedValue({ milestones: [] });
-      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate: "31-12-2030" }))).resolves.toEqual({ error: "Enter a valid target date." });
+      await expect(updateGoalTargetDateAction(GOAL, {}, form({ targetDate }))).resolves.toEqual({ error: "Enter a valid target date." });
       noWrites();
     });
 

@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
-import { formatDate } from "@/lib/dates";
+import { formatDate, parseDateOnly } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
 import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
 import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
@@ -28,9 +28,14 @@ const numeric = (data: FormData, key: string) => {
 const optionalDate = (data: FormData, key: string) => {
   const raw = value(data, key);
   if (!raw) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
-  const date = new Date(`${raw}T23:59:59.999Z`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  // parseDateOnly round-trips year/month/day rather than trusting the Date
+  // constructor's own parsing, which silently rolls an impossible date like
+  // 30 February into 1 March instead of rejecting it -- the same shared
+  // check every other date-accepting action already goes through.
+  const date = parseDateOnly(raw);
+  if (!date) return undefined;
+  date.setUTCHours(23, 59, 59, 999);
+  return date;
 };
 /** Names the date it clashes with, in the owner's own locale. */
 const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) => {
