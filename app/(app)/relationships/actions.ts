@@ -124,11 +124,16 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
 
   try {
     await prisma.$transaction(async (tx) => {
+      // A goal deleted elsewhere while this map sat open in a tab leaves its
+      // id in `linkedGoals` with nothing behind it. Refusing the whole save
+      // over that used to block every other edit on the map until the page
+      // was reloaded; the id is filtered out below instead, the same way an
+      // orphaned Kinesis Link field's target is left to drop rather than
+      // block an unrelated save.
       const linkedGoalIds = [...new Set(data.relationships.flatMap((relationship) => relationship.linkedGoals))];
-      if (linkedGoalIds.length) {
-        const owned = await tx.goal.count({ where: { id: { in: linkedGoalIds }, userId: user.id } });
-        if (owned !== linkedGoalIds.length) throw new SaveRefused("One or more linked goals were not found.");
-      }
+      const ownedGoalIds = linkedGoalIds.length
+        ? new Set((await tx.goal.findMany({ where: { id: { in: linkedGoalIds }, userId: user.id }, select: { id: true } })).map((goal) => goal.id))
+        : new Set<string>();
 
       // --- People -------------------------------------------------------
       const existingPeople = await tx.person.findMany({
@@ -288,10 +293,13 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
       const linked: Prisma.RelationshipGoalCreateManyInput[] = [];
       for (const relationship of data.relationships) {
         const present = linkedByRelationship.get(relationship.id) ?? new Set<string>();
-        const wanted = new Set(relationship.linkedGoals);
+        // A goal id that no longer resolves is never wanted, whether it was
+        // already linked (present, about to be dropped) or the map is
+        // somehow still carrying it as a fresh addition.
+        const wanted = new Set(relationship.linkedGoals.filter((goalId) => ownedGoalIds.has(goalId)));
         const dropped = [...present].filter((goalId) => !wanted.has(goalId));
         if (dropped.length) unlinked.push({ relationshipId: relationship.id, goalId: { in: dropped } });
-        for (const goalId of relationship.linkedGoals) if (!present.has(goalId)) linked.push({ relationshipId: relationship.id, goalId });
+        for (const goalId of wanted) if (!present.has(goalId)) linked.push({ relationshipId: relationship.id, goalId });
       }
       if (unlinked.length) await tx.relationshipGoal.deleteMany({ where: { OR: unlinked } });
       if (linked.length) await tx.relationshipGoal.createMany({ data: linked });

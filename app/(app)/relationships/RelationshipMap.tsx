@@ -433,7 +433,12 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
       <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
         {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
-        <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); if (!goal) return null; return <LinkedGoal key={goal.id} goal={goal} onUnlink={() => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goal.id) })} />; })}{relationship.linkedGoals.every((goalId) => !goals.some((goal) => goal.id === goalId)) && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
+        {/* A linked goal that's since been deleted keeps its row here rather
+          * than disappearing -- the link itself still exists (see
+          * saveRelationshipMap, which drops it from what gets saved rather
+          * than refusing the save), and hiding it left no way to see it, let
+          * alone remove it, before it silently blocked every other edit. */}
+        <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); const onUnlink = () => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goalId) }); return goal ? <LinkedGoal key={goalId} goal={goal} onUnlink={onUnlink} /> : <UnavailableLinkedGoal key={goalId} onUnlink={onUnlink} />; })}{!relationship.linkedGoals.length && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
       </RelationshipSection>
       <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={relationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about this relationship…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
       <button onClick={onDelete} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove connection</button>
@@ -530,6 +535,13 @@ function LinkedGoal({ goal, onUnlink }: { goal: GoalOption; onUnlink: () => void
   return <div className="group flex items-center gap-1 rounded-xl bg-zinc-50 p-1.5 pl-3">
     <Link href={`/goals/${goal.id}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1 hover:text-violet-700"><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold">{goal.name}</p><div className="mt-1"><GoalStatus status={goal.status} /></div></div><ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-zinc-300 transition-colors group-hover:text-violet-500" aria-hidden="true" /></Link>
     <button type="button" onClick={onUnlink} className="rounded-lg p-2 text-zinc-300 transition hover:bg-white hover:text-red-500" aria-label={`Unlink ${goal.name}`} title="Unlink goal"><X className="h-3.5 w-3.5" /></button>
+  </div>;
+}
+
+function UnavailableLinkedGoal({ onUnlink }: { onUnlink: () => void }) {
+  return <div className="flex items-center gap-1 rounded-xl bg-zinc-50 p-1.5 pl-3">
+    <p className="min-w-0 flex-1 truncate py-1 text-[11px] font-medium text-zinc-400">Goal no longer available</p>
+    <button type="button" onClick={onUnlink} className="rounded-lg p-2 text-zinc-300 transition hover:bg-white hover:text-red-500" aria-label="Remove unavailable goal link" title="Remove link"><X className="h-3.5 w-3.5" /></button>
   </div>;
 }
 

@@ -142,22 +142,26 @@ describe.sequential("cross-user authorization contract", () => {
     await expect(prisma.notificationRead.count({ where: { userId: ids.ownerA, documentId: ids.documentB } })).resolves.toBe(0);
   });
 
-  it("rejects a mixed owned, foreign, and missing relationship-goal payload atomically", async () => {
-    const beforeA = await ownerState("ownerA");
+  it("saves a mixed owned, foreign, and missing relationship-goal payload, linking only the owned goal", async () => {
     const beforeB = await ownerState("ownerB");
-    // The map reports a refusal rather than throwing it, so the canvas can show
-    // the reason instead of the owner losing the edit to a discarded promise.
+    // A foreign or missing goal id used to refuse the whole save -- blocking
+    // the new people and relationship along with it -- rather than just being
+    // left out of what gets linked. ownerB's goal must still never end up
+    // linked to ownerA's relationship; that guarantee is what this now pins,
+    // not a wholesale refusal.
     await expect(saveRelationshipMap({
       people: [
         { id: "replacement-self", name: "Replacement", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship() },
         { id: "replacement-person", name: "Replacement person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship() },
       ],
       relationships: [{
-        id: "replacement-relationship", from: "replacement-self", to: "replacement-person", type: "Friend", notes: "must not be inserted",
+        id: "replacement-relationship", from: "replacement-self", to: "replacement-person", type: "Friend", notes: "must be inserted",
         practices: [], reflections: [], importantDates: [], linkedGoals: [ids.goalA, ids.goalB, "missing-goal"],
       }],
-    })).resolves.toEqual({ error: "One or more linked goals were not found." });
-    expect(await ownerState("ownerA")).toEqual(beforeA);
+    })).resolves.toEqual({ savedAt: expect.any(Number) });
+
+    const relationship = (await ownerState("ownerA")).relationships.find((item) => item.id === "replacement-relationship");
+    expect(relationship?.linkedGoals).toEqual([expect.objectContaining({ goalId: ids.goalA })]);
     expect(await ownerState("ownerB")).toEqual(beforeB);
   });
 

@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   deleteObjects: vi.fn(),
   tx: {
-    goal: { count: vi.fn() },
+    goal: { findMany: vi.fn() },
     person: { findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
     relationship: { findMany: vi.fn(), deleteMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     connectionPractice: { findMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn(), createMany: vi.fn() },
@@ -61,24 +61,59 @@ describe("saveRelationshipMap authorization", () => {
     emptyDatabase();
   });
 
-  it("rejects an unowned linked goal before writing anything", async () => {
-    mocks.tx.goal.count.mockResolvedValue(1);
+  /**
+   * A linked goal deleted elsewhere -- or one never owned by this account in
+   * the first place -- used to refuse the entire save, blocking every other
+   * edit on the map until the page was reloaded. It is silently left out of
+   * what gets linked instead: the save succeeds, and only the goal that
+   * actually resolves to one of this owner's own goals is kept.
+   */
+  it("saves the map and drops a linked goal id that isn't one of the owner's own goals", async () => {
+    mocks.tx.person.findMany.mockResolvedValue([
+      { id: "person-one", objectId: "object-one", name: "person-one", category: "Friend", icon: "user", color: "#292524", isSelf: false, selfNotes: null },
+      { id: "person-two", objectId: "object-two", name: "person-two", category: "Friend", icon: "user", color: "#292524", isSelf: false, selfNotes: null },
+    ]);
+    mocks.tx.relationship.findMany.mockResolvedValue([
+      { id: "relationship-id", firstPersonId: "person-one", secondPersonId: "person-two", type: null, notes: null },
+    ]);
+    mocks.tx.goal.findMany.mockResolvedValue([{ id: "owned-goal" }]);
 
     const result = await saveRelationshipMap(map({
       relationships: [{
         id: "relationship-id", from: "person-one", to: "person-two", type: null,
-        practices: [], reflections: [], linkedGoals: ["owned-goal", "another-users-goal"], importantDates: [], notes: "",
+        practices: [], reflections: [], linkedGoals: ["owned-goal", "not-this-owners-goal"], importantDates: [], notes: "",
       }],
     }));
 
-    expect(result).toEqual({ error: "One or more linked goals were not found." });
-    expect(mocks.tx.goal.count).toHaveBeenCalledWith({
-      where: { id: { in: ["owned-goal", "another-users-goal"] }, userId: "owner-id" },
+    expect(result.savedAt).toEqual(expect.any(Number));
+    expect(mocks.tx.goal.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ["owned-goal", "not-this-owners-goal"] }, userId: "owner-id" },
+      select: { id: true },
     });
-    expect(mocks.tx.person.create).not.toHaveBeenCalled();
-    expect(mocks.tx.relationship.create).not.toHaveBeenCalled();
-    expect(mocks.deleteObjects).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.tx.relationshipGoal.createMany).toHaveBeenCalledWith({ data: [{ relationshipId: "relationship-id", goalId: "owned-goal" }] });
+  });
+
+  it("unlinks an already-linked goal that's since been deleted, rather than refusing the save", async () => {
+    mocks.tx.person.findMany.mockResolvedValue([
+      { id: "person-one", objectId: "object-one", name: "person-one", category: "Friend", icon: "user", color: "#292524", isSelf: false, selfNotes: null },
+      { id: "person-two", objectId: "object-two", name: "person-two", category: "Friend", icon: "user", color: "#292524", isSelf: false, selfNotes: null },
+    ]);
+    mocks.tx.relationship.findMany.mockResolvedValue([
+      { id: "relationship-id", firstPersonId: "person-one", secondPersonId: "person-two", type: null, notes: null },
+    ]);
+    mocks.tx.goal.findMany.mockResolvedValue([]);
+    mocks.tx.relationshipGoal.findMany.mockResolvedValue([{ relationshipId: "relationship-id", goalId: "deleted-goal" }]);
+
+    const result = await saveRelationshipMap(map({
+      relationships: [{
+        id: "relationship-id", from: "person-one", to: "person-two", type: null,
+        practices: [], reflections: [], linkedGoals: ["deleted-goal"], importantDates: [], notes: "",
+      }],
+    }));
+
+    expect(result.savedAt).toEqual(expect.any(Number));
+    expect(mocks.tx.relationshipGoal.deleteMany).toHaveBeenCalledWith({ where: { OR: [{ relationshipId: "relationship-id", goalId: { in: ["deleted-goal"] } }] } });
+    expect(mocks.tx.relationshipGoal.createMany).not.toHaveBeenCalled();
   });
 
   it("refuses a payload that fails validation without opening a transaction", async () => {
