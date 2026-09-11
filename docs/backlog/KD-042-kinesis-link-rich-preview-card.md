@@ -162,6 +162,29 @@ changes at all," which isn't quite true.
 * Preview values must be read live from the linked Object rather than copied onto the Kinesis Link.
 * Changes to the linked Object should automatically be reflected anywhere its preview card is rendered.
 
+## Permissions Assumption
+
+Preview rendering assumes the viewer has the same access to the target
+Object as the Kinesis Link itself. That's true today by construction — a
+link can only be created to target an object the same `userId` owns
+(`lib/data/kinesis-links.ts` scopes both the picker and
+`validateKinesisTargets` by `userId: user.id`), and no sharing, per-object,
+or per-field visibility model exists yet. So there is currently no scenario
+where a user can see a link but not its target, and this ticket doesn't add
+a permission check at render time — there's nothing yet for it to check.
+
+This is a known seam, not an oversight: Kinesis is single-tenant today but
+every table is already scoped by `userId` rather than assuming one implicit
+user, deliberately keeping the door open for a possible future where one
+database container serves multiple people and/or limited collaboration
+(sharing a page, collaborating on a goal) is allowed. If and when that
+ships, preview rendering is exactly where a permission check would need to
+be added — and reading live per render (rather than the materialized-cache
+alternative considered in ADR-013) means that check has a natural home to
+slot into: the same batched fetch step, re-run on every render, rather than
+a cached value that could keep showing data from before access was
+revoked with no re-check point at all.
+
 ## Principle
 
 > **Kinesis Links should behave like live previews of connected records, not passive hyperlinks.**

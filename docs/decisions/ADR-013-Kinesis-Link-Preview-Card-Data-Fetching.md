@@ -41,6 +41,19 @@ actual deployment shape, not a general best-practices comparison:
   The N+1 query pattern (one query per card) is the actual performance
   risk, and it's fully addressed by grouping lookups per Object Type and
   selecting only the 2–3 preview fields, without needing a second table.
+* **It leaves the door open for a permission check with a natural home.**
+  Kinesis is single-tenant today, but every table is already scoped by
+  `userId` rather than assuming one implicit user — a deliberate hedge for
+  a possible future where one database container serves multiple people
+  and/or limited collaboration (sharing a page, collaborating on a goal) is
+  allowed. No sharing or per-object visibility model exists yet, so there
+  is nothing to check today (KD-042's Permissions Assumption section
+  covers this). But if that ever ships, a batched *live* read means the
+  permission check has an obvious place to slot into — the same fetch
+  step, re-run on every render. A materialized cache would have the
+  opposite problem: a cached value has no natural re-check point, so it
+  could keep showing preview data from before access was revoked until
+  the next refresh cycle happened to run.
 
 ## Decision
 
@@ -79,4 +92,6 @@ say so" item, not a launch requirement.
 ## Related
 
 * `docs/backlog/KD-042-kinesis-link-rich-preview-card.md` — the feature
-  this decision governs the data-fetching approach for.
+  this decision governs the data-fetching approach for, including its
+  Permissions Assumption section this ADR's fourth deciding factor
+  supports.
