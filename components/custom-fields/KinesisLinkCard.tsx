@@ -19,7 +19,8 @@ export function KinesisLinkCard({ option, className = "" }: { option: LinkableOb
     <Link
       href={option.href}
       aria-label={`Open ${option.name} in ${option.module}`}
-      className={`group flex min-h-20 min-w-0 items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3.5 transition-colors hover:border-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${className}`}
+      style={{ "--kl-accent": color } as React.CSSProperties}
+      className={`group flex min-h-20 min-w-0 items-center gap-3 rounded-[20px] border bg-white p-4 shadow-sm transition duration-200 ease-out border-[color-mix(in_srgb,var(--kl-accent)_28%,#e4e4e7)] hover:-translate-y-0.5 hover:scale-[1.01] hover:border-[color-mix(in_srgb,var(--kl-accent)_55%,#e4e4e7)] hover:shadow-lg active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${className}`}
     >
       <span
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
@@ -28,10 +29,10 @@ export function KinesisLinkCard({ option, className = "" }: { option: LinkableOb
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block break-words text-xs font-semibold text-zinc-500">{option.module}</span>
-        <span className="mt-1 block break-words text-sm font-semibold text-zinc-800">{option.name}</span>
+        <span className="block break-words text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{option.module}</span>
+        <span className="mt-1.5 block break-words text-[15px] font-bold tracking-tight text-zinc-800">{option.name}</span>
       </span>
-      <ArrowUpRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:text-zinc-700" />
+      <ArrowUpRight className="h-4 w-4 shrink-0 text-zinc-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-zinc-700" />
     </Link>
   );
 }
