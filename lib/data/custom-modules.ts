@@ -63,6 +63,7 @@ async function getTemplateFieldValues(objectId: string, templateId: string, item
         label: field.label,
         type: field.type,
         isDueDate: true,
+        multiline: field.multiline,
         value: itemDueDate ? itemDueDate.toISOString().slice(0, 10) : "",
         targetObjectIds: [],
       };
@@ -73,6 +74,7 @@ async function getTemplateFieldValues(objectId: string, templateId: string, item
       label: field.label,
       type: field.type,
       isDueDate: false,
+      multiline: field.multiline,
       value: value?.value ?? "",
       targetObjectIds: value ? value.links.map((link) => link.targetObjectId) : [],
     };

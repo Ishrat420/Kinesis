@@ -81,6 +81,7 @@ export async function getTemplateFieldsForNewItem(templateId: string): Promise<T
     label: field.label,
     type: field.type,
     isDueDate: field.isDueDate,
+    multiline: field.multiline,
     value: "",
     targetObjectIds: [],
   }));
@@ -107,13 +108,17 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     const owned = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
     if (!owned) refuse("This template no longer exists.");
 
-    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true } });
+    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true, multiline: true } });
     const existingById = new Map(existing.map((field) => [field.id, field]));
     const submittedIds = new Set(fields.flatMap(({ id }) => id ? [id] : []));
     const removedIds = existing.filter(({ id }) => !submittedIds.has(id)).map(({ id }) => id);
     const typeChanged = fields.some(({ id, type }) => id && existingById.has(id) && existingById.get(id)!.type !== type);
+    // Toggling Notes on or off reads like a type change to the person doing
+    // it -- it's the same dropdown -- so it's gated the same way, even
+    // though the stored value itself is never at risk either way.
+    const multilineChanged = fields.some(({ id, multiline }) => id && existingById.has(id) && Boolean(existingById.get(id)!.multiline) !== Boolean(multiline));
 
-    if ((removedIds.length || typeChanged) && await isTemplateInUse(tx, templateId)) {
+    if ((removedIds.length || typeChanged || multilineChanged) && await isTemplateInUse(tx, templateId)) {
       refuse("This template is in use, so its fields can no longer be retyped or removed.");
     }
 
@@ -133,9 +138,9 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     for (const [position, field] of fields.entries()) {
       const existingField = field.id ? existingById.get(field.id) : undefined;
       if (existingField) {
-        await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position, numberFormat: field.numberFormat ?? null } });
+        await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position, numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       } else {
-        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null } });
+        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       }
     }
   });
@@ -155,7 +160,7 @@ export async function cloneTemplate(templateId: string, name: string) {
       userId: user.id,
       name,
       fields: {
-        create: source.fields.map(({ label, type, position, isDueDate, numberFormat }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate, numberFormat })),
+        create: source.fields.map(({ label, type, position, isDueDate, numberFormat, multiline }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate, numberFormat, multiline })),
       },
     },
   });

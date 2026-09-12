@@ -12,6 +12,15 @@ type EditorField = TemplateFieldInput & { key: string };
 /** The dropdown's sentinel value for Due Date -- not a real `CustomFieldType`, since a due-date field is still `type: "DATE"` underneath (KD-038), just with `isDueDate: true` alongside it. */
 const DUE_DATE_OPTION = "DUE_DATE";
 
+/**
+ * The dropdown's sentinel value for Notes -- same shape as Due Date's, but
+ * unlike Due Date this one carries no uniqueness or permanence rule: a
+ * template can have any number of Notes fields, and an existing field can
+ * freely convert into or out of Notes (while unlocked) since the value
+ * underneath is still an ordinary TEXT value either way.
+ */
+const NOTES_OPTION = "NOTES";
+
 /** The Format control's own "no refinement" option, alongside the two real `NumberFieldFormat` values. */
 const NUMBER_FORMAT_OPTIONS: { value: NumberFieldFormat | undefined; label: string; example: string }[] = [
   { value: undefined, label: "Plain", example: "42" },
@@ -58,20 +67,22 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
     const key = crypto.randomUUID();
     setFields((current) => [...current, { key, label: "", type: "TEXT" }]);
   };
-  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION, currentLabel: string) => {
+  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION | typeof NOTES_OPTION, currentLabel: string) => {
     if (value === DUE_DATE_OPTION) {
-      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date", numberFormat: undefined });
+      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date", numberFormat: undefined, multiline: false });
+    } else if (value === NOTES_OPTION) {
+      update(key, { type: "TEXT", multiline: true, numberFormat: undefined });
     } else {
-      // Format only ever means something on a NUMBER field -- leaving the
-      // type drops whatever refinement was chosen rather than carrying a
-      // now-meaningless value along.
-      update(key, { type: value, numberFormat: value === "NUMBER" ? fields.find((field) => field.key === key)?.numberFormat : undefined });
+      // Format and Notes only ever mean something on their own type --
+      // leaving it drops whatever refinement was chosen rather than
+      // carrying a now-meaningless value along.
+      update(key, { type: value, numberFormat: value === "NUMBER" ? fields.find((field) => field.key === key)?.numberFormat : undefined, multiline: false });
     }
   };
   const hasDueDateField = fields.some((field) => field.isDueDate);
 
   const payload = useMemo(
-    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate, numberFormat }) => ({ id, label, type, isDueDate, numberFormat }))),
+    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate, numberFormat, multiline }) => ({ id, label, type, isDueDate, numberFormat, multiline }))),
     [fields],
   );
 
@@ -108,14 +119,19 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
               ) : (
                 <div className="relative min-w-0">
                   <select
-                    value={field.type}
+                    value={field.type === "TEXT" && field.multiline ? NOTES_OPTION : field.type}
                     disabled={locked}
-                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION, field.label)}
+                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION | typeof NOTES_OPTION, field.label)}
                     aria-label={`Field ${index + 1} type`}
                     title={locked ? "This template is in use, so a field's type can't be changed." : undefined}
                     className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}
                   >
                     {CUSTOM_FIELD_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                    {/* A Text variant, freely convertible into and out of --
+                        unlike Due Date, no uniqueness rule and no
+                        permanence, since the value underneath is still an
+                        ordinary TEXT value either way. */}
+                    <option value={NOTES_OPTION}>▤ Notes</option>
                     {/* Only offered on a brand-new, not-yet-saved row -- an
                         existing field's dropdown never gets this option, at
                         any point, which is what keeps "no conversion, ever"

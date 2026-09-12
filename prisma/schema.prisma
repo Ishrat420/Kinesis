@@ -528,6 +528,14 @@ model TemplateField {
   // this is never locked once the template is in use: reformatting a number
   // doesn't invalidate anything already stored against it.
   numberFormat NumberFieldFormat?
+  // Renders a TEXT field's value as a multi-line textarea instead of a
+  // single-line input -- offered as its own "Notes" option in the type
+  // dropdown (same shape as isDueDate), but not a sibling CustomFieldType:
+  // the value is still an ordinary TEXT value underneath, so unlike a real
+  // type change it's locked while the template is in use for consistency
+  // with the rest of the type dropdown, not because toggling it could ever
+  // invalidate stored data.
+  multiline    Boolean         @default(false)
   // Every stored value for this field, across every object that has one
   // (KD-035 Phase 2/3). Restrict, not Cascade or SetNull: a field can only be
   // removed once no object uses its template at all (Decision 7's single

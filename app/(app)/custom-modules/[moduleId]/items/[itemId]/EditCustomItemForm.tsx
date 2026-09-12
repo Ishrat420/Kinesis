@@ -59,7 +59,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
   </>;
 }
 
-type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean };
+type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean; multiline?: boolean };
 
 function displayValue(field: DisplayField, locale: string) {
   if (!field.value) return EMPTY_VALUE;
@@ -73,7 +73,7 @@ function displayValue(field: DisplayField, locale: string) {
 
 function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptions: KinesisLinkOption[]; locale: string }) {
   const fields: DisplayField[] = [
-    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate })),
+    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline })),
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
   ];
   const metadataFields = fields.filter((field) => field.type !== "KINESIS_LINK");
@@ -91,9 +91,9 @@ function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptio
 
   return <div className="space-y-6">
     {metadataFields.length > 0 && <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-      {metadataFields.map((field) => <div key={field.key}>
+      {metadataFields.map((field) => <div key={field.key} className={field.multiline ? "sm:col-span-2 lg:col-span-3" : ""}>
         <dt className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">{field.isDueDate && <Clock3 className="h-3 w-3" />}{field.label}</dt>
-        <dd className="mt-1 break-words text-sm font-medium text-zinc-700">
+        <dd className={`mt-1 text-sm font-medium text-zinc-700 ${field.multiline ? "whitespace-pre-wrap break-words" : "break-words"}`}>
           {field.type === "LINK" && field.value
             ? <a href={field.value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{field.value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a>
             : displayValue(field, locale)}

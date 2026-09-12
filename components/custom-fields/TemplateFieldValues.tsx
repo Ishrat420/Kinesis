@@ -8,7 +8,7 @@ import type { CustomFieldType, KinesisLinkOption } from "@/lib/custom-fields/typ
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
-export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; value: string; targetObjectIds: string[] };
+export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; multiline: boolean; value: string; targetObjectIds: string[] };
 
 function toDateInputValue(value: string) {
   const date = parseDatedFieldValue(value);
@@ -83,6 +83,19 @@ function FieldValueInput({ field, onChange, linkOptions }: { field: TemplateFiel
         <span className="sr-only">{field.label}</span>
         <input type="checkbox" checked={field.value === "true"} onChange={(event) => onChange({ value: String(event.target.checked) })} className="h-5 w-5 rounded border-zinc-300" />
       </label>
+    );
+  }
+
+  if (field.multiline) {
+    return (
+      <textarea
+        value={field.value}
+        onChange={(event) => onChange({ value: event.target.value })}
+        aria-label={field.label}
+        placeholder="Notes"
+        rows={5}
+        className="w-full min-w-0 resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-base outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm"
+      />
     );
   }
 

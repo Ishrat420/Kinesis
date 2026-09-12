@@ -3,7 +3,7 @@ import { CUSTOM_FIELD_TYPES, NUMBER_FIELD_FORMATS, type CustomFieldType, type Nu
 export const TEMPLATE_FIELDS_FORM_KEY = "templateFieldsPayload";
 export const TEMPLATE_FIELD_VALUES_FORM_KEY = "templateFieldValuesPayload";
 
-export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; numberFormat?: NumberFieldFormat };
+export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; numberFormat?: NumberFieldFormat; multiline?: boolean };
 export type ParsedTemplateFields = { ok: true; fields: TemplateFieldInput[] } | { ok: false; error: string };
 
 export type TemplateFieldValueInput = { templateFieldId: string; value: string; targetObjectIds: string[] };
@@ -51,7 +51,9 @@ export function parseTemplateFields(data: FormData, key: string = TEMPLATE_FIELD
     // whatever a stray or tampered payload sent.
     const requestedFormat = asString(entry.numberFormat) as NumberFieldFormat;
     const numberFormat = type === "NUMBER" && VALID_NUMBER_FORMATS.has(requestedFormat) ? requestedFormat : undefined;
-    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate, numberFormat });
+    // Only meaningful on a TEXT field -- same defensive treatment as numberFormat.
+    const multiline = type === "TEXT" && entry.multiline === true;
+    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate, numberFormat, multiline });
   }
   return { ok: true, fields };
 }
