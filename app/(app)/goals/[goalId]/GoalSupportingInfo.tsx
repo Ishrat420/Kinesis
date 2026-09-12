@@ -91,7 +91,7 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
 
       {kinesisLinks.length > 0 && (
         <FieldGroup title="Kinesis Links" icon={<ExternalLink className="h-4 w-4" />}>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
             {kinesisLinks.map(({ field, options }) => (
               <div key={field.id ?? field.label} className="min-w-0 space-y-2">
                 <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>

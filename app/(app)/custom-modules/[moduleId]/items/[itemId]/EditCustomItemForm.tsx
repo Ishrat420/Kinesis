@@ -100,7 +100,7 @@ function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptio
         </dd>
       </div>)}
     </dl>}
-    {linkedFields.length > 0 && <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
+    {linkedFields.length > 0 && <div className={`grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))] ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
       {linkedFields.map(({ field, options }) => <div key={field.key} className="min-w-0 space-y-2">
         <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
         {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
