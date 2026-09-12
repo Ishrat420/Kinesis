@@ -10,6 +10,19 @@ export const CUSTOM_FIELD_TYPES = [
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]["value"];
 
 /**
+ * Display refinement for a `NUMBER` field only -- "$2,140" or "15.2%" instead
+ * of a plain number. Not a `CustomFieldType` of its own: Currency and Percent
+ * are still numbers underneath (same storage, same validation), so this only
+ * ever changes how the value is shown, never how it's stored.
+ */
+export const NUMBER_FIELD_FORMATS = [
+  { value: "CURRENCY", label: "Currency", example: "$1,234" },
+  { value: "PERCENT", label: "Percent", example: "12.5%" },
+] as const;
+
+export type NumberFieldFormat = (typeof NUMBER_FIELD_FORMATS)[number]["value"];
+
+/**
  * Which kinds of object a Kinesis Link offers, and where each sits in the
  * picker. Every `KinesisObjectType` Kinesis has is offered (KD-034): a
  * field's name carries its meaning, not its type, so there is no principled

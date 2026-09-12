@@ -1,15 +1,16 @@
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { CUSTOM_FIELD_TYPES, NUMBER_FIELD_FORMATS, type CustomFieldType, type NumberFieldFormat } from "@/lib/custom-fields/types";
 
 export const TEMPLATE_FIELDS_FORM_KEY = "templateFieldsPayload";
 export const TEMPLATE_FIELD_VALUES_FORM_KEY = "templateFieldValuesPayload";
 
-export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean };
+export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; numberFormat?: NumberFieldFormat };
 export type ParsedTemplateFields = { ok: true; fields: TemplateFieldInput[] } | { ok: false; error: string };
 
 export type TemplateFieldValueInput = { templateFieldId: string; value: string; targetObjectIds: string[] };
 export type ParsedTemplateFieldValues = { ok: true; values: TemplateFieldValueInput[] } | { ok: false; error: string };
 
 const VALID_TYPES = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
+const VALID_NUMBER_FORMATS = new Set(NUMBER_FIELD_FORMATS.map(({ value }) => value));
 
 type Unknown = Record<string, unknown>;
 const isRecord = (value: unknown): value is Unknown => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -46,7 +47,11 @@ export function parseTemplateFields(data: FormData, key: string = TEMPLATE_FIELD
     const isDueDate = entry.isDueDate === true;
     const requestedType = asString(entry.type) as CustomFieldType;
     const type = isDueDate ? "DATE" : VALID_TYPES.has(requestedType) ? requestedType : "TEXT";
-    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate });
+    // Only meaningful on a NUMBER field -- dropped for every other type,
+    // whatever a stray or tampered payload sent.
+    const requestedFormat = asString(entry.numberFormat) as NumberFieldFormat;
+    const numberFormat = type === "NUMBER" && VALID_NUMBER_FORMATS.has(requestedFormat) ? requestedFormat : undefined;
+    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate, numberFormat });
   }
   return { ok: true, fields };
 }

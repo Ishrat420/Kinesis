@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, ChevronDown, Minus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { CUSTOM_FIELD_TYPES, NUMBER_FIELD_FORMATS, type CustomFieldType, type NumberFieldFormat } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELDS_FORM_KEY, type TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { useFormResetKey } from "@/lib/hooks/form-reset-key";
@@ -11,6 +11,12 @@ type EditorField = TemplateFieldInput & { key: string };
 
 /** The dropdown's sentinel value for Due Date -- not a real `CustomFieldType`, since a due-date field is still `type: "DATE"` underneath (KD-038), just with `isDueDate: true` alongside it. */
 const DUE_DATE_OPTION = "DUE_DATE";
+
+/** The Format control's own "no refinement" option, alongside the two real `NumberFieldFormat` values. */
+const NUMBER_FORMAT_OPTIONS: { value: NumberFieldFormat | undefined; label: string; example: string }[] = [
+  { value: undefined, label: "Plain", example: "42" },
+  ...NUMBER_FIELD_FORMATS,
+];
 
 /**
  * A template's field *definitions* -- label and type, never a value. Every
@@ -54,15 +60,18 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
   };
   const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION, currentLabel: string) => {
     if (value === DUE_DATE_OPTION) {
-      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date" });
+      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date", numberFormat: undefined });
     } else {
-      update(key, { type: value });
+      // Format only ever means something on a NUMBER field -- leaving the
+      // type drops whatever refinement was chosen rather than carrying a
+      // now-meaningless value along.
+      update(key, { type: value, numberFormat: value === "NUMBER" ? fields.find((field) => field.key === key)?.numberFormat : undefined });
     }
   };
   const hasDueDateField = fields.some((field) => field.isDueDate);
 
   const payload = useMemo(
-    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate }) => ({ id, label, type, isDueDate }))),
+    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate, numberFormat }) => ({ id, label, type, isDueDate, numberFormat }))),
     [fields],
   );
 
@@ -130,6 +139,27 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                   <Minus className="h-4 w-4" />
                 </button>
               </div>
+              {field.type === "NUMBER" && (
+                <div className="flex flex-wrap items-center gap-2 pl-0.5 md:col-span-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Format</span>
+                  <div className="inline-flex gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+                    {NUMBER_FORMAT_OPTIONS.map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        aria-pressed={field.numberFormat === option.value}
+                        onClick={() => update(field.key, { numberFormat: option.value })}
+                        className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                          field.numberFormat === option.value ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-white hover:text-zinc-800"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="ml-auto text-xs text-zinc-400">e.g. {NUMBER_FORMAT_OPTIONS.find((option) => option.value === field.numberFormat)?.example}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>

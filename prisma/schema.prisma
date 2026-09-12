@@ -521,6 +521,13 @@ model TemplateField {
   // constraint (only ever true on a DATE row) live in the migration SQL --
   // Prisma schema syntax can't express either directly.
   isDueDate    Boolean         @default(false)
+  // Display refinement for a NUMBER field only ("$2,140" vs "15.2%" vs a
+  // plain number) -- deliberately not a sibling CustomFieldType, since
+  // Currency and Percent are still numbers underneath (same storage, same
+  // validation) and only change how the value is *shown*. Unlike `type`,
+  // this is never locked once the template is in use: reformatting a number
+  // doesn't invalidate anything already stored against it.
+  numberFormat NumberFieldFormat?
   // Every stored value for this field, across every object that has one
   // (KD-035 Phase 2/3). Restrict, not Cascade or SetNull: a field can only be
   // removed once no object uses its template at all (Decision 7's single
@@ -540,6 +547,12 @@ enum CustomFieldType {
   CHECKBOX
   LINK
   KINESIS_LINK
+}
+
+/** How a NUMBER-typed TemplateField's value should display -- see TemplateField.numberFormat. */
+enum NumberFieldFormat {
+  CURRENCY
+  PERCENT
 }
 
 enum KinesisObjectType {

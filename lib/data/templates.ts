@@ -46,8 +46,17 @@ export async function getTemplate(id: string) {
     },
   });
   if (!template) return null;
-  const { _count, ...rest } = template;
-  return { ...rest, inUse: _count.objects > 0, linkedModules: _count.customModules, usedByObjects: _count.objects };
+  const { _count, fields, ...rest } = template;
+  return {
+    ...rest,
+    // Prisma reads an unset numberFormat as `null`; the editor's own
+    // TemplateFieldInput treats "no format" as `undefined`, matching every
+    // other optional field on it (isDueDate, id).
+    fields: fields.map((field) => ({ ...field, numberFormat: field.numberFormat ?? undefined })),
+    inUse: _count.objects > 0,
+    linkedModules: _count.customModules,
+    usedByObjects: _count.objects,
+  };
 }
 
 /** The templates a module could start new items from -- just enough to populate that picker. */
@@ -124,9 +133,9 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     for (const [position, field] of fields.entries()) {
       const existingField = field.id ? existingById.get(field.id) : undefined;
       if (existingField) {
-        await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position } });
+        await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position, numberFormat: field.numberFormat ?? null } });
       } else {
-        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate) } });
+        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null } });
       }
     }
   });
@@ -146,7 +155,7 @@ export async function cloneTemplate(templateId: string, name: string) {
       userId: user.id,
       name,
       fields: {
-        create: source.fields.map(({ label, type, position, isDueDate }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate })),
+        create: source.fields.map(({ label, type, position, isDueDate, numberFormat }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate, numberFormat })),
       },
     },
   });
