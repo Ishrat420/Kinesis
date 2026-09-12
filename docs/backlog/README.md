@@ -171,6 +171,7 @@ KD-016-automated-document-field-extraction
 KD-031-goal-dates-stored-at-end-of-day
 KD-032-relationships-bypass-the-object-layer
 KD-041-search-visibility-for-archived-records
+KD-043-field-length-limits
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
