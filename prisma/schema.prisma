@@ -480,6 +480,16 @@ model Template {
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   name          String
   fields        TemplateField[]
+  // Up to 3 of this template's own field ids (KD-042), in display order, shown
+  // on a linked card's preview instead of just its name. An ordered array
+  // rather than a position column on TemplateField for the same reason as
+  // dashboardModuleOrder: this is one small blob the owner rearranges as a
+  // unit, and nothing else ever queries by it. Empty means no preview
+  // configured -- every linked card falls back to today's compact card. An id
+  // no longer present on the template (removed field) or resolving to an
+  // empty value on a given record is dropped at render time, never backfilled
+  // or migrated here -- the same graceful-omission rule either way.
+  previewFields String[]        @default([])
   // Every module currently starting new items from this template, and every
   // object that ever has (KD-035 Phase 2). Two different questions -- see the
   // field comments on CustomModule.templateId and Object.templateId.

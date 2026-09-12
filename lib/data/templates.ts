@@ -4,6 +4,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { refuse } from "@/lib/actions/refusal";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
 import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
+import { resolveKind } from "@/lib/custom-fields/kinds";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
@@ -88,6 +89,31 @@ export async function getTemplateFieldsForNewItem(templateId: string): Promise<T
   }));
 }
 
+/**
+ * One real object's values under this template, for the "Show on card"
+ * picker's live preview (KD-042) -- whichever object was created most
+ * recently, since that's the one most likely to still feel representative.
+ * Empty when nothing exists under the template yet; the picker falls back
+ * to made-up placeholder values in that case rather than showing nothing.
+ */
+export async function getTemplateFieldSample(templateId: string) {
+  const user = await requireKinesisUser();
+  const object = await prisma.object.findFirst({
+    where: { templateId, userId: user.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      customItem: { select: { dueDate: true } },
+      fields: { where: { templateFieldId: { not: null } }, select: { templateFieldId: true, value: true, links: { select: { id: true } } } },
+    },
+  });
+  if (!object) return null;
+  const values: Record<string, { value: string; linkCount: number }> = {};
+  for (const field of object.fields) {
+    values[field.templateFieldId as string] = { value: field.value, linkCount: field.links.length };
+  }
+  return { dueDate: object.customItem?.dueDate ? object.customItem.dueDate.toISOString().slice(0, 10) : "", values };
+}
+
 export async function createTemplate() {
   const user = await requireKinesisUser();
   return prisma.template.create({ data: { id: crypto.randomUUID(), userId: user.id, name: "Untitled template" } });
@@ -102,8 +128,15 @@ export async function createTemplate() {
  * recreating it here would silently orphan every object's stored value the
  * moment someone renamed or reordered a field. Only fields genuinely absent
  * from the submitted list are deleted, and only once confirmed safe to.
+ *
+ * `previewFieldIds` (KD-042) is checked against this same save's own field
+ * list, not the template's previous one -- an id naming a field just removed
+ * in this save, or one whose type/format no longer resolves to a display
+ * kind, is dropped here rather than persisted and left to be dropped again
+ * at render time. It is never gated by `isTemplateInUse`: picking which
+ * fields preview is a display choice, not a type change.
  */
-export async function updateTemplate(templateId: string, name: string, fields: TemplateFieldInput[]) {
+export async function updateTemplate(templateId: string, name: string, fields: TemplateFieldInput[], previewFieldIds: string[] = []) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (tx) => {
     const owned = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
@@ -134,7 +167,13 @@ export async function updateTemplate(templateId: string, name: string, fields: T
       refuse("A template can only have one Due Date field.");
     }
 
-    await tx.template.update({ where: { id: templateId }, data: { name } });
+    const fieldById = new Map(fields.flatMap((field) => field.id ? [[field.id, field]] as const : []));
+    const previewFields = previewFieldIds.filter((id) => {
+      const field = fieldById.get(id);
+      return field && resolveKind(field.type, field.numberFormat) !== null;
+    });
+
+    await tx.template.update({ where: { id: templateId }, data: { name, previewFields } });
     if (removedIds.length) await tx.templateField.deleteMany({ where: { id: { in: removedIds } } });
     for (const [position, field] of fields.entries()) {
       const existingField = field.id ? existingById.get(field.id) : undefined;

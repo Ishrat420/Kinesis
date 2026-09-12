@@ -4,7 +4,7 @@ import { ModuleContent } from "@/components/layout/ModuleContent";
 import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalRelationships, getGoalUnits } from "@/lib/data/goals";
-import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { displayNumber } from "@/lib/goals/format";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalFieldsAction, updateGoalRelationshipAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneAction } from "../actions";
@@ -38,6 +38,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
     : null;
   const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < today);
   const hasMilestoneRisk = overdueMilestones.length > 0;
+  const previews = await getKinesisLinkPreviews(goal.customFields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds ?? [] : []));
 
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
@@ -52,7 +53,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
 
       <MeasurableTargetForm action={targetAction} removeAction={removeTarget} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} measuredMilestones={measuredMilestones} />
       <LinkedGoals linked={goalRelationships.linked} availableGoals={goalRelationships.availableGoals} addAction={addGoalRelationshipAction.bind(null, goal.id)} updateAction={updateGoalRelationshipAction.bind(null, goal.id)} removeAction={removeGoalRelationshipAction.bind(null, goal.id)} />
-      <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} action={updateGoalFieldsAction.bind(null, goal.id)} />
+      <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} previews={previews} action={updateGoalFieldsAction.bind(null, goal.id)} />
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
         <div className="flex items-start gap-4"><div className="rounded-2xl bg-white/80 p-3"><Activity className={`h-5 w-5 ${hasMilestoneRisk || health?.tone === "risk" ? "text-amber-600" : health?.tone === "good" ? "text-emerald-600" : "text-violet-600"}`}/></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-600">Goal health</p><h2 className="mt-2 text-xl font-bold">{hasMilestoneRisk ? "AT RISK" : health?.status}</h2>{health && <p className="mt-2 leading-6 text-zinc-700">{health.message}</p>}{overdueMilestones.map((milestone) => <p key={milestone.id} className="mt-2 font-medium leading-6 text-amber-800">Milestone “{milestone.name}” is past its due date.</p>)}{health?.actualPace === null && <p className="mt-3 text-xs text-zinc-500">Update your current value over time and Kinesis will average your pace automatically.</p>}</div></div>
       </section>}

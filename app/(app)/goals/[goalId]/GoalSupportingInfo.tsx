@@ -5,6 +5,7 @@ import { useActionState, useEffect, useState } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { GoalActionState } from "../actions";
 
 const initialState: GoalActionState = {};
@@ -18,9 +19,10 @@ const initialState: GoalActionState = {};
  * Unobtrusive when empty, per the ticket's own direction: an empty state
  * reads as an invitation rather than three empty headings.
  */
-export function GoalSupportingInfo({ fields, linkOptions, action }: {
+export function GoalSupportingInfo({ fields, linkOptions, previews, action }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -41,14 +43,14 @@ export function GoalSupportingInfo({ fields, linkOptions, action }: {
         {editing ? (
           <EditFields fields={fields} linkOptions={linkOptions} action={action} onDone={() => setEditing(false)} />
         ) : (
-          <ReadFields fields={fields} linkOptions={linkOptions} />
+          <ReadFields fields={fields} linkOptions={linkOptions} previews={previews} />
         )}
       </div>
     </section>
   );
 }
 
-function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkOptions: KinesisLinkOption[] }) {
+function ReadFields({ fields, linkOptions, previews }: { fields: CustomFieldValue[]; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
   if (!fields.length) return <p className="text-sm text-zinc-400">Nothing added yet -- notes, a link to a guide, a related document or account.</p>;
 
   const notes = fields.filter((field) => (field.type ?? "TEXT") === "TEXT");
@@ -95,7 +97,7 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
             {kinesisLinks.map(({ field, options }) => (
               <div key={field.id ?? field.label} className="min-w-0 space-y-2">
                 <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-                {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+                {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
               </div>
             ))}
           </div>

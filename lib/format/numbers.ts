@@ -52,6 +52,6 @@ export function formatSignificant(value: number, locale = DEFAULT_LOCALE, maximu
  * handing it to `Intl.NumberFormat`'s percent style, which otherwise expects
  * the fraction.
  */
-export function formatPercent(value: number, locale = DEFAULT_LOCALE, maximumFractionDigits = 2) {
+export function formatPercent(value: number, locale = DEFAULT_LOCALE, maximumFractionDigits = 1) {
   return formatter(`percent:${maximumFractionDigits}`, locale, { style: "percent", maximumFractionDigits }).format(value / 100);
 }

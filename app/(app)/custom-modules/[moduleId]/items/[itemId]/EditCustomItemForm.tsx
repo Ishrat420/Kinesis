@@ -10,6 +10,7 @@ import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEdito
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import type { CustomFieldType, CustomFieldValue, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { formatDate } from "@/lib/dates";
 import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
@@ -29,13 +30,14 @@ type EditableItem = {
  * the form being the only way this page ever looked, editable the moment you
  * opened it.
  */
-export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, locale, currency, deleteAction }: {
+export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, locale, currency, deleteAction }: {
   moduleId: string;
   item: EditableItem;
   moduleName: string;
   moduleIcon: string;
   moduleColor: string;
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   locale: string;
   currency: string;
   deleteAction: React.ReactNode;
@@ -56,7 +58,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
         ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
-        : <ReadView item={item} linkOptions={linkOptions} locale={locale} currency={currency} />}
+        : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} />}
     </section>
   </>;
 }
@@ -77,7 +79,7 @@ function displayValue(field: DisplayField, locale: string, currency: string) {
   return field.value;
 }
 
-function ReadView({ item, linkOptions, locale, currency }: { item: EditableItem; linkOptions: KinesisLinkOption[]; locale: string; currency: string }) {
+function ReadView({ item, linkOptions, previews, locale, currency }: { item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; locale: string; currency: string }) {
   const fields: DisplayField[] = [
     ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline, numberFormat: field.numberFormat })),
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
@@ -109,7 +111,7 @@ function ReadView({ item, linkOptions, locale, currency }: { item: EditableItem;
     {linkedFields.length > 0 && <div className={`grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))] ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
       {linkedFields.map(({ field, options }) => <div key={field.key} className="min-w-0 space-y-2">
         <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
       </div>)}
     </div>}
   </div>;

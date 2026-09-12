@@ -12,6 +12,7 @@ import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 const initialState: DocumentActionState = {};
@@ -42,7 +43,7 @@ export type EditableDocument = {
   customFields: CustomField[];
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
   const [editing, setEditing] = useState(initialEditing);
   const today = useToday();
   const expiry = getDocumentState({ expiryDate: toUtcDate(document.expiryDate), prompt: document.prompt, archived: document.archived }, today);
@@ -65,13 +66,13 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} history={history} />
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} previews={previews} history={history} />
       )}
     </>
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, history }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; history: DocumentHistoryEntry[] }) {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, previews, history }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[] }) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   // A field keeps its row here even once every target it pointed at is gone
   // -- the field itself survives that (see FieldLink's cascade), and hiding it
@@ -102,7 +103,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
         {linkedFields.length > 0 && <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
           {linkedFields.map(({ field, options }) => <div key={field.id ?? field.label} className="min-w-0 space-y-2">
             <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-            {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+            {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
           </div>
           )}
         </div>}

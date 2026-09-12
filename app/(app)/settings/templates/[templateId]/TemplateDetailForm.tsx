@@ -4,15 +4,21 @@ import { useActionState, useEffect, useRef } from "react";
 import { LoaderCircle, Save } from "lucide-react";
 import { updateTemplateAction, type TemplateActionState } from "../actions";
 import { TemplateFieldsEditor } from "../TemplateFieldsEditor";
+import { PreviewFieldsPicker } from "./PreviewFieldsPicker";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 
 const initialState: TemplateActionState = {};
 
-export function TemplateDetailForm({ templateId, name, fields, locked }: {
+export function TemplateDetailForm({ templateId, name, fields, previewFields, sample, locale, currency, today, locked }: {
   templateId: string;
   name: string;
   fields: TemplateFieldInput[];
+  previewFields: string[];
+  sample: { dueDate: string; values: Record<string, { value: string; linkCount: number }> } | null;
+  locale: string;
+  currency: string;
+  today: string;
   locked: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateTemplateAction.bind(null, templateId), initialState);
@@ -30,6 +36,15 @@ export function TemplateDetailForm({ templateId, name, fields, locked }: {
       <label className="block text-sm font-semibold">Name<input name="name" defaultValue={name} required maxLength={60} className={`mt-2 ${FIELD_INPUT_CLASS}`} /></label>
 
       <TemplateFieldsEditor initialFields={fields} locked={locked} />
+
+      <PreviewFieldsPicker
+        fields={fields.flatMap((field) => field.id ? [{ id: field.id, label: field.label, type: field.type, numberFormat: field.numberFormat, isDueDate: Boolean(field.isDueDate) }] : [])}
+        initialSelected={previewFields}
+        sample={sample}
+        locale={locale}
+        currency={currency}
+        today={today}
+      />
 
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
 

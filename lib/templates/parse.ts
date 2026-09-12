@@ -2,6 +2,7 @@ import { CUSTOM_FIELD_TYPES, NUMBER_FIELD_FORMATS, type CustomFieldType, type Nu
 
 export const TEMPLATE_FIELDS_FORM_KEY = "templateFieldsPayload";
 export const TEMPLATE_FIELD_VALUES_FORM_KEY = "templateFieldValuesPayload";
+export const TEMPLATE_PREVIEW_FIELDS_FORM_KEY = "templatePreviewFieldsPayload";
 
 export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; numberFormat?: NumberFieldFormat; multiline?: boolean };
 export type ParsedTemplateFields = { ok: true; fields: TemplateFieldInput[] } | { ok: false; error: string };
@@ -85,4 +86,30 @@ export function parseTemplateFieldValues(data: FormData, key: string = TEMPLATE_
     values.push({ templateFieldId, value: asString(entry.value).trim(), targetObjectIds: [...new Set(asStringArray(entry.targetObjectIds).filter(Boolean))] });
   }
   return { ok: true, values };
+}
+
+export type ParsedPreviewFields = { ok: true; previewFieldIds: string[] } | { ok: false; error: string };
+
+/**
+ * Reads the "Show on card" picker's JSON payload -- just an ordered list of
+ * field ids, capped at 3 here on the read side too (not only in the
+ * picker's own UI), since this is client-supplied and read defensively like
+ * every other payload in this file. Whether each id still names a real,
+ * eligible field on this template is checked in `updateTemplate`, which has
+ * the submitted field list to check it against -- this function only knows
+ * the shape of the payload, not the fields.
+ */
+export function parsePreviewFields(data: FormData, key: string = TEMPLATE_PREVIEW_FIELDS_FORM_KEY): ParsedPreviewFields {
+  const raw = data.get(key);
+  if (typeof raw !== "string" || !raw) return { ok: true, previewFieldIds: [] };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "The linked card preview's fields could not be read. Please try again." };
+  }
+  if (!Array.isArray(parsed)) return { ok: false, error: "The linked card preview's fields could not be read. Please try again." };
+
+  return { ok: true, previewFieldIds: [...new Set(asStringArray(parsed))].slice(0, 3) };
 }

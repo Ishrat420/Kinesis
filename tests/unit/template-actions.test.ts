@@ -66,7 +66,7 @@ describe("updateTemplateAction", () => {
       { name: "Decision" },
       [{ id: "field-1", label: "Date", type: "DATE" }],
     ))).resolves.toEqual({ saved: true });
-    expect(mocks.updateTemplate).toHaveBeenCalledWith("template-1", "Decision", [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false }]);
+    expect(mocks.updateTemplate).toHaveBeenCalledWith("template-1", "Decision", [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, numberFormat: undefined, multiline: false }], []);
   });
 
   /**

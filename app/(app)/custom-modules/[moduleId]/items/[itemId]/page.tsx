@@ -4,7 +4,7 @@ import { getCustomItem } from "@/lib/data/custom-modules";
 import { deleteCustomItemAction } from "../../../actions";
 import { CustomItemDetailRecord } from "./EditCustomItemForm";
 import { DeleteItemButton } from "./DeleteItemButton";
-import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
 
@@ -12,6 +12,11 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
   const { moduleId, itemId } = await params;
   const [item, linkOptions, { locale, currency }] = await Promise.all([getCustomItem(moduleId, itemId), getKinesisLinkOptions(), getFormatPreferences()]);
   if (!item) notFound();
+  const previewTargets = [
+    ...item.templateFields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds : []),
+    ...item.fields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds ?? [] : []),
+  ];
+  const previews = await getKinesisLinkPreviews(previewTargets);
   return <ModuleContent width="standard">
     <CustomItemDetailRecord
       moduleId={moduleId}
@@ -20,6 +25,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       moduleIcon={item.module.icon}
       moduleColor={item.module.color}
       linkOptions={linkOptions}
+      previews={previews}
       locale={locale}
       currency={currency}
       deleteAction={<DeleteItemButton action={deleteCustomItemAction.bind(null, moduleId, item.id)} />}
