@@ -9,8 +9,9 @@ import { promoteFieldToTemplateAction, updateCustomItemAction, type CustomItemSt
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
-import type { CustomFieldType, CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldType, CustomFieldValue, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
 import { formatDate } from "@/lib/dates";
+import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 const initialState: CustomItemState = {};
@@ -28,7 +29,7 @@ type EditableItem = {
  * the form being the only way this page ever looked, editable the moment you
  * opened it.
  */
-export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, locale, deleteAction }: {
+export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, locale, currency, deleteAction }: {
   moduleId: string;
   item: EditableItem;
   moduleName: string;
@@ -36,6 +37,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
   moduleColor: string;
   linkOptions: KinesisLinkOption[];
   locale: string;
+  currency: string;
   deleteAction: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
@@ -54,26 +56,30 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
         ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
-        : <ReadView item={item} linkOptions={linkOptions} locale={locale} />}
+        : <ReadView item={item} linkOptions={linkOptions} locale={locale} currency={currency} />}
     </section>
   </>;
 }
 
-type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean; multiline?: boolean };
+type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean; multiline?: boolean; numberFormat?: NumberFieldFormat };
 
-function displayValue(field: DisplayField, locale: string) {
+function displayValue(field: DisplayField, locale: string, currency: string) {
   if (!field.value) return EMPTY_VALUE;
   if (field.type === "DATE") {
     const date = parseDatedFieldValue(field.value);
     return date ? formatDate(date, locale) : field.value;
   }
   if (field.type === "CHECKBOX") return field.value === "true" ? "Yes" : "No";
+  if (field.type === "NUMBER" && field.numberFormat) {
+    const amount = Number(field.value);
+    if (Number.isFinite(amount)) return field.numberFormat === "CURRENCY" ? formatMoney(amount, locale, currency) : formatPercent(amount, locale);
+  }
   return field.value;
 }
 
-function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptions: KinesisLinkOption[]; locale: string }) {
+function ReadView({ item, linkOptions, locale, currency }: { item: EditableItem; linkOptions: KinesisLinkOption[]; locale: string; currency: string }) {
   const fields: DisplayField[] = [
-    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline })),
+    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline, numberFormat: field.numberFormat })),
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
   ];
   const metadataFields = fields.filter((field) => field.type !== "KINESIS_LINK");
@@ -96,7 +102,7 @@ function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptio
         <dd className={`mt-1 text-sm font-medium text-zinc-700 ${field.multiline ? "whitespace-pre-wrap break-words" : "break-words"}`}>
           {field.type === "LINK" && field.value
             ? <a href={field.value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{field.value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a>
-            : displayValue(field, locale)}
+            : displayValue(field, locale, currency)}
         </dd>
       </div>)}
     </dl>}

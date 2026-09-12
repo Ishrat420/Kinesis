@@ -10,7 +10,7 @@ import { getFormatPreferences } from "@/lib/format/server";
 
 export default async function CustomItemPage({ params }: { params: Promise<{ moduleId: string; itemId: string }> }) {
   const { moduleId, itemId } = await params;
-  const [item, linkOptions, { locale }] = await Promise.all([getCustomItem(moduleId, itemId), getKinesisLinkOptions(), getFormatPreferences()]);
+  const [item, linkOptions, { locale, currency }] = await Promise.all([getCustomItem(moduleId, itemId), getKinesisLinkOptions(), getFormatPreferences()]);
   if (!item) notFound();
   return <ModuleContent width="standard">
     <CustomItemDetailRecord
@@ -21,6 +21,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       moduleColor={item.module.color}
       linkOptions={linkOptions}
       locale={locale}
+      currency={currency}
       deleteAction={<DeleteItemButton action={deleteCustomItemAction.bind(null, moduleId, item.id)} />}
     />
     <p className="mt-4 text-sm text-zinc-400">Created {formatDate(item.createdAt, locale)} · Updated {formatDate(item.updatedAt, locale)}</p>

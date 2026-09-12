@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { Clock3 } from "lucide-react";
 import { KinesisLinkList } from "./KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "./field-styles";
-import type { CustomFieldType, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldType, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
-export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; multiline: boolean; value: string; targetObjectIds: string[] };
+export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; multiline: boolean; numberFormat?: NumberFieldFormat; value: string; targetObjectIds: string[] };
 
 function toDateInputValue(value: string) {
   const date = parseDatedFieldValue(value);

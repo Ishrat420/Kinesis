@@ -82,6 +82,7 @@ export async function getTemplateFieldsForNewItem(templateId: string): Promise<T
     type: field.type,
     isDueDate: field.isDueDate,
     multiline: field.multiline,
+    numberFormat: field.numberFormat ?? undefined,
     value: "",
     targetObjectIds: [],
   }));

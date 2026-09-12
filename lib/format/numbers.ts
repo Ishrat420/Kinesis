@@ -44,3 +44,14 @@ export function formatDecimal(value: number, locale = DEFAULT_LOCALE, maximumFra
 export function formatSignificant(value: number, locale = DEFAULT_LOCALE, maximumSignificantDigits = 3) {
   return formatter(`significant:${maximumSignificantDigits}`, locale, { maximumSignificantDigits }).format(value);
 }
+
+/**
+ * A percentage from its plain numeric value, e.g. 15.2 -> "15.2%". The stored
+ * value is the percentage itself, not a fraction -- someone typing into a
+ * Discount field types "15.2", not "0.152" -- so this divides by 100 before
+ * handing it to `Intl.NumberFormat`'s percent style, which otherwise expects
+ * the fraction.
+ */
+export function formatPercent(value: number, locale = DEFAULT_LOCALE, maximumFractionDigits = 2) {
+  return formatter(`percent:${maximumFractionDigits}`, locale, { style: "percent", maximumFractionDigits }).format(value / 100);
+}
