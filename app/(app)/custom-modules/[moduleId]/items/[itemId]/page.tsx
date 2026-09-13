@@ -12,11 +12,11 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
   const { moduleId, itemId } = await params;
   const [item, linkOptions, { locale, currency }] = await Promise.all([getCustomItem(moduleId, itemId), getKinesisLinkOptions(), getFormatPreferences()]);
   if (!item) notFound();
-  const previewTargets = [
-    ...item.templateFields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds : []),
-    ...item.fields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds ?? [] : []),
-  ];
-  const previews = await getKinesisLinkPreviews(previewTargets);
+  // Every object the picker could show, not just ones already linked --
+  // choosing a new one in the picker, before saving, should show exactly
+  // the card it'll actually render as (KD-042), not the compact fallback
+  // until the next reload.
+  const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
   return <ModuleContent width="standard">
     <CustomItemDetailRecord
       moduleId={moduleId}

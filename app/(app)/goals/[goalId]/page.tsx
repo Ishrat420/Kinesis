@@ -38,7 +38,11 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
     : null;
   const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < today);
   const hasMilestoneRisk = overdueMilestones.length > 0;
-  const previews = await getKinesisLinkPreviews(goal.customFields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds ?? [] : []));
+  // Every object the picker could show, not just ones already linked --
+  // choosing a new one in the picker, before saving, should show exactly
+  // the card it'll actually render as (KD-042), not the compact fallback
+  // until the next reload.
+  const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
 
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>

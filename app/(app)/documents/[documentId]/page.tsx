@@ -16,10 +16,11 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   if (!document) notFound();
 
   const history = await getActivityForHref(`/documents/${document.id}`);
-  // Every object a Kinesis Link field on this document points at, whatever
-  // field carries it -- previews are looked up by target, not by which
-  // Module's field pointed there (KD-042).
-  const previews = await getKinesisLinkPreviews(document.customFields.flatMap((field) => field.type === "KINESIS_LINK" ? field.targetObjectIds ?? [] : []));
+  // Every object the picker could show, not just ones already linked --
+  // choosing a new one in the picker, before saving, should show exactly
+  // the card it'll actually render as (KD-042), not the compact fallback
+  // until the next reload.
+  const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
 
   return <ModuleContent><DocumentDetailRecord document={{
     id: document.id, name: document.name, type: document.type, status: document.status, archived: document.archived,

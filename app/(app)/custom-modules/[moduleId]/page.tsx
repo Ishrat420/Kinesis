@@ -8,17 +8,21 @@ import { getCustomModule } from "@/lib/data/custom-modules";
 import { getTemplateFieldsForNewItem } from "@/lib/data/templates";
 import { NewItemButton } from "./NewItemButton";
 import { DeleteModuleButton } from "./DeleteModuleButton";
-import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 
 export default async function CustomModulePage({ params }: { params: Promise<{ moduleId: string }> }) {
   const { moduleId } = await params;
   const [customModule, linkOptions] = await Promise.all([getCustomModule(moduleId), getKinesisLinkOptions()]);
   if (!customModule) notFound();
   const templateFields = customModule.templateId ? await getTemplateFieldsForNewItem(customModule.templateId) : [];
+  // Every object the "New item" dialog's picker could show, so choosing one
+  // there, before the item even exists yet, shows exactly the card it'll
+  // actually render as (KD-042), not the compact fallback until reload.
+  const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
   const activeItems = customModule.items.filter((item) => !item.archived);
   const archivedItems = customModule.items.filter((item) => item.archived);
   return <ModuleContent width="standard">
-    <ModuleHeader title={customModule.name} description={customModule.description} actions={<><DeleteModuleButton moduleId={customModule.id} moduleName={customModule.name} itemCount={customModule.items.length} /><NewItemButton moduleId={customModule.id} linkOptions={linkOptions} templateFields={templateFields} /></>} />
+    <ModuleHeader title={customModule.name} description={customModule.description} actions={<><DeleteModuleButton moduleId={customModule.id} moduleName={customModule.name} itemCount={customModule.items.length} /><NewItemButton moduleId={customModule.id} linkOptions={linkOptions} previews={previews} templateFields={templateFields} /></>} />
     {!customModule.items.length ? <div className="mt-16 rounded-[28px] border border-dashed border-zinc-300 bg-white px-6 py-16 text-center"><span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-zinc-700" style={{ backgroundColor: `color-mix(in srgb, ${customModule.color} 10%, white)` }}><CustomModuleIcon name={customModule.icon} className="h-7 w-7" /></span><h2 className="mt-5 text-xl font-semibold">Nothing here yet.</h2><p className="mt-2 text-zinc-500">Create your first object to get started.</p></div> : <div className="mt-10 space-y-8">
       <ItemSection title="Items" items={activeItems} moduleId={customModule.id} color={customModule.color} icon={customModule.icon} />
       {archivedItems.length > 0 && <ItemSection title="Archived" items={archivedItems} moduleId={customModule.id} color={customModule.color} icon={customModule.icon} />}

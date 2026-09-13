@@ -7,11 +7,12 @@ import { ActionSubmitButton } from "../ActionSubmitButton";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 const initialState: CustomItemState = {};
 
-export function NewItemButton({ moduleId, linkOptions, templateFields = [] }: { moduleId: string; linkOptions: KinesisLinkOption[]; templateFields?: TemplateFieldValue[] }) {
+export function NewItemButton({ moduleId, linkOptions, previews = {}, templateFields = [] }: { moduleId: string; linkOptions: KinesisLinkOption[]; previews?: Record<string, KinesisLinkPreviewStat[]>; templateFields?: TemplateFieldValue[] }) {
   const [open, setOpen] = useState(false);
   const [created, setCreated] = useState(false);
   const createItem = useCallback(async (previousState: CustomItemState, data: FormData) => {
@@ -31,8 +32,8 @@ export function NewItemButton({ moduleId, linkOptions, templateFields = [] }: { 
         <div className="flex items-start justify-between"><div><h2 id="new-item-title" className="text-2xl font-semibold">Create a new item</h2><p className="mt-1 text-sm text-zinc-500">Add the essentials now. You can leave anything optional blank.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100"><X className="h-5 w-5" /></button></div>
         <form action={formAction} className="mt-7 space-y-5">
           <label className="block text-sm font-semibold">Name<input required autoFocus name="name" maxLength={100} placeholder="Item name" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-zinc-400" /></label>
-          {templateFields.length > 0 && <TemplateFieldValues fields={templateFields} linkOptions={linkOptions} />}
-          <CustomFieldsEditor linkOptions={linkOptions} />
+          {templateFields.length > 0 && <TemplateFieldValues fields={templateFields} linkOptions={linkOptions} previews={previews} />}
+          <CustomFieldsEditor linkOptions={linkOptions} previews={previews} />
           {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
           <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={() => setOpen(false)} className="rounded-2xl px-5 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-100">Cancel</button><ActionSubmitButton idleLabel="Create item" pendingLabel="Creating…" /></div>
         </form>
