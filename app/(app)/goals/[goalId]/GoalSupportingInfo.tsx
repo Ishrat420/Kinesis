@@ -41,7 +41,7 @@ export function GoalSupportingInfo({ fields, linkOptions, previews, action }: {
       </div>
       <div className="mt-5">
         {editing ? (
-          <EditFields fields={fields} linkOptions={linkOptions} action={action} onDone={() => setEditing(false)} />
+          <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} onDone={() => setEditing(false)} />
         ) : (
           <ReadFields fields={fields} linkOptions={linkOptions} previews={previews} />
         )}
@@ -129,9 +129,10 @@ function FieldGroup({ title, icon, children }: { title: string; icon: React.Reac
   );
 }
 
-function EditFields({ fields, linkOptions, action, onDone }: {
+function EditFields({ fields, linkOptions, previews, action, onDone }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
   onDone: () => void;
 }) {
@@ -140,7 +141,7 @@ function EditFields({ fields, linkOptions, action, onDone }: {
 
   return (
     <form action={formAction} className="space-y-5">
-      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} />
+      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} />
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
       <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5">
         <button type="button" onClick={onDone} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">

@@ -5,6 +5,7 @@ import { Clock3 } from "lucide-react";
 import { KinesisLinkList } from "./KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "./field-styles";
 import type { CustomFieldType, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
@@ -34,7 +35,7 @@ function buildValues(fields: TemplateFieldValue[]) {
  * identity set is compared, not the full content: this must not fire on
  * every render, which would also wipe out whatever value is mid-edit here.
  */
-export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateFieldValue[]; linkOptions: KinesisLinkOption[] }) {
+export function TemplateFieldValues({ fields, linkOptions, previews = {} }: { fields: TemplateFieldValue[]; linkOptions: KinesisLinkOption[]; previews?: Record<string, KinesisLinkPreviewStat[]> }) {
   const [values, setValues] = useState(() => buildValues(fields));
 
   const fieldSignature = fields.map((field) => field.templateFieldId).join(",");
@@ -65,16 +66,16 @@ export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateF
             {field.isDueDate && <Clock3 className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
             <span className="min-w-0 break-words text-sm font-medium text-zinc-700">{field.label}</span>
           </div>
-          <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} />
+          <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} previews={previews} />
         </div>
       ))}
     </fieldset>
   );
 }
 
-function FieldValueInput({ field, onChange, linkOptions }: { field: TemplateFieldValue; onChange: (changes: Partial<TemplateFieldValue>) => void; linkOptions: KinesisLinkOption[] }) {
+function FieldValueInput({ field, onChange, linkOptions, previews }: { field: TemplateFieldValue; onChange: (changes: Partial<TemplateFieldValue>) => void; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
   if (field.type === "KINESIS_LINK") {
-    return <KinesisLinkList options={linkOptions} values={field.targetObjectIds} onChange={(targetObjectIds) => onChange({ targetObjectIds })} ariaLabel={`${field.label} linked objects`} />;
+    return <KinesisLinkList options={linkOptions} values={field.targetObjectIds} onChange={(targetObjectIds) => onChange({ targetObjectIds })} ariaLabel={`${field.label} linked objects`} previews={previews} />;
   }
 
   if (field.type === "CHECKBOX") {

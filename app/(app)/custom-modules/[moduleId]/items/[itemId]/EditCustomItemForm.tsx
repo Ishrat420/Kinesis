@@ -57,7 +57,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     />
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
-        ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
+        ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
         : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} />}
     </section>
   </>;
@@ -117,7 +117,7 @@ function ReadView({ item, linkOptions, previews, locale, currency }: { item: Edi
   </div>;
 }
 
-function EditForm({ moduleId, item, linkOptions, onCancel, onSaved }: { moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; onCancel: () => void; onSaved: () => void }) {
+function EditForm({ moduleId, item, linkOptions, previews, onCancel, onSaved }: { moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: () => void }) {
   const [archived, setArchived] = useState(item.archived);
   const router = useRouter();
   // The action reports both halves of the outcome -- `pending` while it runs,
@@ -129,9 +129,9 @@ function EditForm({ moduleId, item, linkOptions, onCancel, onSaved }: { moduleId
 
   return <form action={formAction} className="space-y-5">
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
-    {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} /></div>}
+    {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} previews={previews} /></div>}
     <div className="border-t border-zinc-100 pt-5">
-      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} />
+      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} previews={previews} />
       {item.templateId && item.fields.length > 0 && <PromoteFields moduleId={moduleId} itemId={item.id} fields={item.fields} />}
     </div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not Archived"}</button><input type="hidden" name="archived" value={String(archived)}/></div>

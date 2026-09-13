@@ -13,6 +13,7 @@ import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { useFormResetKey } from "@/lib/hooks/form-reset-key";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
@@ -43,9 +44,11 @@ function buildFields(source: CustomFieldValue[]): EditorField[] {
 export function CustomFieldsEditor({
   initialFields = [],
   linkOptions,
+  previews = {},
 }: {
   initialFields?: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
+  previews?: Record<string, KinesisLinkPreviewStat[]>;
 }) {
   const [fields, setFields] = useState<EditorField[]>(() => buildFields(initialFields));
 
@@ -116,6 +119,7 @@ export function CustomFieldsEditor({
                 field={field}
                 index={index}
                 linkOptions={linkOptions}
+                previews={previews}
                 update={(changes) => update(field.key, changes)}
               />
               <div className="flex w-full justify-end sm:block sm:w-auto">
@@ -212,10 +216,11 @@ function FieldIdentity({ field, index, chooseType, update }: {
   );
 }
 
-function FieldInput({ field, index, linkOptions, update }: {
+function FieldInput({ field, index, linkOptions, previews, update }: {
   field: EditorField;
   index: number;
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   update: (value: Partial<EditorField>) => void;
 }) {
   if (field.phase !== "ready") {
@@ -229,6 +234,7 @@ function FieldInput({ field, index, linkOptions, update }: {
         values={field.targetObjectIds ?? []}
         onChange={(targetObjectIds) => update({ targetObjectIds })}
         ariaLabel={`Field ${index + 1} linked objects`}
+        previews={previews}
       />
     );
   }
