@@ -46,9 +46,28 @@ const NUMBER_FORMAT_OPTIONS: { value: NumberFieldFormat | undefined; label: stri
  * template is in use, just unconditional from the moment it's created.
  */
 export function TemplateFieldsEditor({ initialFields, locked }: { initialFields: TemplateFieldInput[]; locked: boolean }) {
-  const [fields, setFields] = useState<EditorField[]>(
-    initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() })),
-  );
+  const buildFields = () => initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() }));
+  const [fields, setFields] = useState<EditorField[]>(buildFields);
+  // A save assigns a real id to every field that didn't have one -- fresh
+  // `initialFields` arrive with it, but a plain re-render never resets a
+  // useState already seeded from the old (id-less) values. Without this, the
+  // *next* save still submits `id: undefined` for those fields: the data
+  // layer can't match them against what's actually in the database, treats
+  // every existing field as removed, and recreates all of them with new ids
+  // -- silently, since nothing here is "in use" yet to refuse the save, and
+  // it also means any Kinesis Link preview field chosen against the old ids
+  // (KD-042) can never resolve. Same fix PreviewFieldsPicker and
+  // TemplateFieldValues need for the same reason: re-derive state during
+  // render when a signature of the field identities changes, rather than
+  // trusting what was seeded once at mount. Keyed on ids only, not labels or
+  // types, so renaming or retyping an existing field mid-edit is never
+  // discarded by an unrelated re-render.
+  const initialSignature = initialFields.map((field) => field.id ?? "").join(",");
+  const [syncedSignature, setSyncedSignature] = useState(initialSignature);
+  if (initialSignature !== syncedSignature) {
+    setSyncedSignature(initialSignature);
+    setFields(buildFields());
+  }
   const { fieldsetRef, resetRevision } = useFormResetKey();
 
   const update = (key: string, changes: Partial<EditorField>) => {
