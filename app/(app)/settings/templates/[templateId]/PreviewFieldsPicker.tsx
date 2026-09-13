@@ -48,10 +48,28 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
 }) {
   const eligible = useMemo(() => fields.filter((field) => resolveKind(field.type, field.numberFormat) !== null), [fields]);
   const eligibleIds = useMemo(() => new Set(eligible.map((field) => field.id)), [eligible]);
-  const [selected, setSelected] = useState<string[]>(() => initialSelected.filter((id) => eligibleIds.has(id)).slice(0, MAX_PREVIEW_FIELDS));
-  // After a successful save, React resets the form's native DOM state --
+  const resolveSelected = () => initialSelected.filter((id) => eligibleIds.has(id)).slice(0, MAX_PREVIEW_FIELDS);
+  const [selected, setSelected] = useState<string[]>(resolveSelected);
+  // A save that adds, removes, or retypes a field -- or one that changes
+  // previewFields directly -- sends fresh `fields`/`initialSelected` props,
+  // but a plain re-render never resets a useState already seeded from the
+  // old ones. Same fix TemplateFieldValues already needs for the same
+  // reason (its own fields prop can change underneath it): re-derive
+  // `selected` during render when a signature of what actually determines
+  // it changes, rather than trusting a stale value forever. Without this, a
+  // `selected` id that no longer names an eligible field disables every
+  // other checkbox (three "selected") while showing none of them checked --
+  // and silently saves nothing, since `updateTemplate` drops ids it can't
+  // resolve.
+  const signature = `${[...eligibleIds].join(",")}|${initialSelected.join(",")}`;
+  const [syncedSignature, setSyncedSignature] = useState(signature);
+  if (signature !== syncedSignature) {
+    setSyncedSignature(signature);
+    setSelected(resolveSelected());
+  }
+  // After a successful save, React also resets the form's native DOM state --
   // for a controlled checkbox that can visually snap back to how it looked
-  // at mount even though `selected` (and the save) are correct. Remounting
+  // at mount even when `selected` itself is correct and unchanged. Remounting
   // via a changed key, the same fix TemplateFieldsEditor already needs for
   // the same reason, throws the stale DOM away in favour of fresh nodes.
   const { fieldsetRef, resetRevision } = useFormResetKey();
