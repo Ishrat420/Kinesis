@@ -194,13 +194,27 @@ export async function cloneTemplate(templateId: string, name: string) {
   });
   if (!source) refuse("This template no longer exists.");
 
+  // Generated up front, rather than inline in the nested create below, so
+  // previewFields (KD-042) can be remapped onto them: it names *source*
+  // field ids, but a clone gives every field a fresh one, so the only thing
+  // still tying a cloned field back to the one it came from is its position.
+  const clonedFields = source.fields.map((field) => ({ ...field, id: crypto.randomUUID() }));
+  const newIdByPosition = new Map(clonedFields.map((field) => [field.position, field.id]));
+  const sourcePositionById = new Map(source.fields.map((field) => [field.id, field.position]));
+  const previewFields = source.previewFields.flatMap((id) => {
+    const position = sourcePositionById.get(id);
+    const newId = position !== undefined ? newIdByPosition.get(position) : undefined;
+    return newId ? [newId] : [];
+  });
+
   return prisma.template.create({
     data: {
       id: crypto.randomUUID(),
       userId: user.id,
       name,
+      previewFields,
       fields: {
-        create: source.fields.map(({ label, type, position, isDueDate, numberFormat, multiline }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate, numberFormat, multiline })),
+        create: clonedFields.map(({ id, label, type, position, isDueDate, numberFormat, multiline }) => ({ id, label, type, position, isDueDate, numberFormat, multiline })),
       },
     },
   });
