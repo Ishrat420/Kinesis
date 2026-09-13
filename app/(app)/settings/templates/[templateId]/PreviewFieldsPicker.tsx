@@ -5,6 +5,7 @@ import { PreviewStats } from "@/components/custom-fields/PreviewStats";
 import { resolveKind, formatPreviewValue } from "@/lib/custom-fields/kinds";
 import type { CustomFieldType, NumberFieldFormat } from "@/lib/custom-fields/types";
 import { TEMPLATE_PREVIEW_FIELDS_FORM_KEY } from "@/lib/templates/parse";
+import { useFormResetKey } from "@/lib/hooks/form-reset-key";
 
 const MAX_PREVIEW_FIELDS = 3;
 
@@ -48,6 +49,12 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
   const eligible = useMemo(() => fields.filter((field) => resolveKind(field.type, field.numberFormat) !== null), [fields]);
   const eligibleIds = useMemo(() => new Set(eligible.map((field) => field.id)), [eligible]);
   const [selected, setSelected] = useState<string[]>(() => initialSelected.filter((id) => eligibleIds.has(id)).slice(0, MAX_PREVIEW_FIELDS));
+  // After a successful save, React resets the form's native DOM state --
+  // for a controlled checkbox that can visually snap back to how it looked
+  // at mount even though `selected` (and the save) are correct. Remounting
+  // via a changed key, the same fix TemplateFieldsEditor already needs for
+  // the same reason, throws the stale DOM away in favour of fresh nodes.
+  const { fieldsetRef, resetRevision } = useFormResetKey();
 
   const toggle = (id: string) => {
     setSelected((current) => current.includes(id) ? current.filter((existing) => existing !== id) : current.length < MAX_PREVIEW_FIELDS ? [...current, id] : current);
@@ -67,7 +74,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
   }), [selected, eligible, sample, locale, currency, today]);
 
   return (
-    <fieldset className="border-t border-zinc-100 pt-6">
+    <fieldset ref={fieldsetRef} className="border-t border-zinc-100 pt-6">
       <input type="hidden" name={TEMPLATE_PREVIEW_FIELDS_FORM_KEY} value={JSON.stringify(selected)} />
       <legend className="text-sm font-semibold">Linked card preview</legend>
       <p className="mt-1 text-sm text-zinc-500">Choose up to 3 fields to show on this template&rsquo;s linked cards, instead of just its name.</p>
@@ -82,7 +89,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
             const checked = selected.includes(field.id);
             const disabled = !checked && selected.length >= MAX_PREVIEW_FIELDS;
             return (
-              <label key={field.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${disabled ? "opacity-40" : "hover:bg-zinc-50"}`}>
+              <label key={`${field.id}:${resetRevision}`} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${disabled ? "opacity-40" : "hover:bg-zinc-50"}`}>
                 <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(field.id)} className="h-4 w-4 rounded border-zinc-300" />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-700">{field.label}</span>
                 <span className="text-xs font-medium text-zinc-400">{field.isDueDate ? "Due date" : field.type === "TEXT" ? "Text" : field.type === "NUMBER" ? "Number" : field.type === "DATE" ? "Date" : "Kinesis Link"}</span>
