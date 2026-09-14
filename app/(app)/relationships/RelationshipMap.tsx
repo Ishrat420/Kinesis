@@ -440,7 +440,7 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
       */}
       {!viewingSelf && (
         <>
-          <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAddingDate(true)}>
+          <RelationshipSection icon={CalendarDays} title={`${person.name}'s Important Dates`} addLabel="Add date" onAdd={() => setAddingDate(true)}>
             <p className="mb-2 text-[10px] leading-4 text-zinc-400">Dates that belong to {person.name}, whether or not they&apos;re connected to anyone else here.</p>
             {addingDate && <ImportantDateForm onCancel={() => setAddingDate(false)} onSave={(date) => { changeOwnFacts({ importantDates: [...person.selfRelationship.importantDates, date] }); setAddingDate(false); }} />}
             <div className="space-y-2">{person.selfRelationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => changeOwnFacts({ importantDates: person.selfRelationship.importantDates.filter((item) => item.id !== date.id) })} />)}{person.selfRelationship.importantDates.length === 0 && !addingDate && <EmptyDetail>No important dates yet.</EmptyDetail>}</div>
@@ -477,17 +477,24 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
       {involvesSelf && <>
         <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: relationship.practices.filter((item) => item.id !== practice.id) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
         <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
+        {/*
+          Important Dates and Linked Goals also stay behind involvesSelf: a
+          date about one of the two people now belongs on that person's own
+          tab (PersonInspector), not on every edge they happen to be part of,
+          so a third-party edge (neither end is the account owner) has
+          nothing left to track here beyond its type and a note.
+        */}
+        <RelationshipSection icon={CalendarDays} title="Shared Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Dates about this relationship itself, not about either person -- their own dates belong on their own page.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No shared important dates yet.</EmptyDetail>}</div></RelationshipSection>
+        <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
+          {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
+          {/* A linked goal that's since been deleted keeps its row here rather
+            * than disappearing -- the link itself still exists (see
+            * saveRelationshipMap, which drops it from what gets saved rather
+            * than refusing the save), and hiding it left no way to see it, let
+            * alone remove it, before it silently blocked every other edit. */}
+          <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); const onUnlink = () => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goalId) }); return goal ? <LinkedGoal key={goalId} goal={goal} onUnlink={onUnlink} /> : <UnavailableLinkedGoal key={goalId} onUnlink={onUnlink} />; })}{!relationship.linkedGoals.length && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
+        </RelationshipSection>
       </>}
-      <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
-        {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
-        {/* A linked goal that's since been deleted keeps its row here rather
-          * than disappearing -- the link itself still exists (see
-          * saveRelationshipMap, which drops it from what gets saved rather
-          * than refusing the save), and hiding it left no way to see it, let
-          * alone remove it, before it silently blocked every other edit. */}
-        <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); const onUnlink = () => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goalId) }); return goal ? <LinkedGoal key={goalId} goal={goal} onUnlink={onUnlink} /> : <UnavailableLinkedGoal key={goalId} onUnlink={onUnlink} />; })}{!relationship.linkedGoals.length && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
-      </RelationshipSection>
       <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={relationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about this relationship…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
       <button onClick={onDelete} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove connection</button>
     </div>
