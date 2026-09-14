@@ -72,6 +72,37 @@ This keeps the implementation simple, avoids a new consistency surface
 (cache drift from a missed write-hook, bulk import, or migration bypassing
 it), and matches the load profile Kinesis actually has.
 
+## Field formatting caps (implemented)
+
+KD-042's own Field Formatting section left every threshold qualitative --
+"roughly 60 days," "a hard character cap," "fixed decimal precision" --
+deliberately, pending a visual check once real cards existed to check
+against. That check happened; these are the numbers that shipped, and why:
+
+| Kind         | Cap                          | Source |
+|--------------|-------------------------------|--------|
+| `date`       | 60-day relative/absolute switch | Reused, not chosen: `DAY_COUNT_DISPLAY_LIMIT_DAYS` in `lib/dates/index.ts`, already backing `formatDeadline`/`formatExpiry`/`formatFutureDate` and the notification engine. Preview cards call `formatDeadline` directly rather than introducing a second threshold. |
+| `number`     | 2 decimal places | Reused: `formatDecimal`'s existing default (`lib/format/numbers.ts`). |
+| `currency`   | 0 decimal places | Reused: `formatMoney`'s existing, fixed behaviour -- whole-unit money, e.g. "$2,140". |
+| `percent`    | 1 decimal place | New utility (`formatPercent` didn't exist before KD-042), but the precision was tightened from an initial default of 2 to 1 specifically to match the spec's own "15.2%" example and stay consistent with the same field's formatting on an object's own detail page. |
+| `status`     | 24 characters, then ellipsis | New number -- sized off the card's actual rendered width so a badge never wraps. |
+| `text`       | 40 characters, then ellipsis | New number -- more room than `status` since it's a plain line, not a chip. |
+| `link-count` | no character cap; wording only | "N linked"; a count of 0 is treated as empty and omitted, same as any other blank preview value. |
+
+`date`, `number`, and `currency` needed no new decision at all -- they're
+existing, already-shipped formatting behaviour, reused as-is so a value
+doesn't read differently on a preview card than it does anywhere else in
+the app. Only `percent`, `status`, and `text` are genuinely new numbers,
+and all three are implemented once in `lib/custom-fields/kinds.ts`
+(`formatPreviewValue`), not per Module or per field, per KD-042's own
+"one formatter per kind" rule.
+
+The 2–3 field cap on how many preview fields a Template may configure is
+a related but separate number -- see `Template.previewFields` (capped at
+3 in `lib/templates/parse.ts`'s `parsePreviewFields`) -- included here only
+for cross-reference, since it governs how many of the values above ever
+appear on one card at once.
+
 ## Future consideration
 
 If a materialized preview cache is revisited, it should be because
