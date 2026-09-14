@@ -10,16 +10,17 @@ import { prisma } from "@/lib/data/prisma";
 import { getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 
 /**
- * Documents and Goals have no Template, so their preview fields are the
- * hardcoded builders in lib/data/kinesis-links.ts (getDocumentPreviews,
- * getGoalPreviews) rather than anything driven by user configuration. These
- * cover each builder's own rules directly against the real database, the
- * same way the Custom Item path is already covered end to end.
+ * Documents, Goals and People have no Template, so their preview fields are
+ * the hardcoded builders in lib/data/kinesis-links.ts (getDocumentPreviews,
+ * getGoalPreviews, getPersonPreviews) rather than anything driven by user
+ * configuration. These cover each builder's own rules directly against the
+ * real database, the same way the Custom Item path is already covered end
+ * to end.
  */
 
 const owner = "built-in-preview-owner";
 
-describe.sequential("built-in Module preview cards (Documents, Goals)", () => {
+describe.sequential("built-in Module preview cards (Documents, Goals, People)", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue({ id: owner });
@@ -111,6 +112,35 @@ describe.sequential("built-in Module preview cards (Documents, Goals)", () => {
 
       const previews = await getKinesisLinkPreviews(["goal-obj"]);
       expect(previews["goal-obj"]).toBeUndefined();
+    });
+  });
+
+  describe("People", () => {
+    async function seedPerson(overrides: Partial<{ isSelf: boolean; category: string | null }> = {}) {
+      const object = await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Cat", userId: owner } });
+      await prisma.person.create({ data: {
+        id: "person-1", userId: owner, objectId: object.id, name: "Cat",
+        category: "Family", isSelf: false,
+        ...overrides,
+      } });
+    }
+
+    it("shows the person's category as a status badge", async () => {
+      await seedPerson();
+      const previews = await getKinesisLinkPreviews(["person-obj"]);
+      expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
+    });
+
+    it("falls back to a generic label when no category is set", async () => {
+      await seedPerson({ category: null });
+      const previews = await getKinesisLinkPreviews(["person-obj"]);
+      expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "Relationship" }]);
+    });
+
+    it("shows 'You' for the self person regardless of category", async () => {
+      await seedPerson({ isSelf: true, category: null });
+      const previews = await getKinesisLinkPreviews(["person-obj"]);
+      expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "You" }]);
     });
   });
 

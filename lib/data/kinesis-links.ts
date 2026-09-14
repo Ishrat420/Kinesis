@@ -233,13 +233,43 @@ async function getGoalPreviews(objectIds: string[], userId: string, { locale }: 
 }
 
 /**
+ * A Person has no "relationship type" field of its own -- that's the
+ * Relationship module's `type`, and a Relationship isn't something a
+ * Kinesis Link can point at (only `PERSON` is Object-backed; see KD-032).
+ * `Person.category` is the closest practical equivalent already on the
+ * record itself: the free-text tag ("Friend", "Partner", "Family"...) shown
+ * under a bubble on the map. It's `null` for the self person, since "what
+ * type of relationship is this to yourself" isn't a category anyone picks --
+ * so the self card shows "You" instead of that column, exactly the value
+ * `getRelationshipMap` already computes as `detail` for the same reason.
+ * A single hardcoded stat, like Documents and Goals -- Person has no
+ * Template either.
+ */
+async function getPersonPreviews(objectIds: string[], userId: string, context: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+  const result: Record<string, KinesisLinkPreviewStat[]> = {};
+
+  const people = await prisma.person.findMany({
+    where: { objectId: { in: objectIds }, userId },
+    select: { objectId: true, isSelf: true, category: true },
+  });
+
+  for (const person of people) {
+    const type = person.isSelf ? "You" : person.category || "Relationship";
+    const stat = buildStat("Relationship", "status", { value: type }, context);
+    if (stat) result[person.objectId] = [stat];
+  }
+
+  return result;
+}
+
+/**
  * Rich preview data for a batch of linked objects (KD-042, ADR-013) -- read
  * live, batched by type, narrow (only the configured preview fields), rather
  * than one query per card. Each Object Type this function knows how to
  * preview gets its own builder above and its own query; an object of a type
- * with no builder here (Person, Finance) simply never gets an entry, and its
- * card falls back to the compact one -- that's not a special case, just an
- * empty result for a type nothing has taught this function to look up yet.
+ * with no builder here (Finance) simply never gets an entry, and its card
+ * falls back to the compact one -- that's not a special case, just an empty
+ * result for a type nothing has taught this function to look up yet.
  *
  * An id in `objectIds` with no key in the returned record means "render the
  * compact card": no preview configured (or none possible for that type),
@@ -257,11 +287,12 @@ export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Recor
   const [{ locale, currency }, today] = await Promise.all([getFormatPreferences(), getToday()]);
   const context: PreviewFormatContext = { locale, currency, today };
 
-  const [customItems, documents, goals] = await Promise.all([
+  const [customItems, documents, goals, people] = await Promise.all([
     getCustomItemPreviews(objectIds, user.id, context),
     getDocumentPreviews(objectIds, user.id, context),
     getGoalPreviews(objectIds, user.id, context),
+    getPersonPreviews(objectIds, user.id, context),
   ]);
 
-  return { ...customItems, ...documents, ...goals };
+  return { ...customItems, ...documents, ...goals, ...people };
 }
