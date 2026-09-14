@@ -124,7 +124,7 @@ const finance: SearchProvider = {
     return rows.map((item) => ({
       id: `finance:${item.id}`, title: item.name,
       subtitle: `${item.category || item.kind} · ${formatMoney(item.amount, locale, currency)}`,
-      href: "/finance", kind: "Finance" as const,
+      href: `/finance#finance-${item.id}`, kind: "Finance" as const,
       keywords: text(item.name, item.kind, item.category, item.notes, item.amount, item.rate, item.frequency),
     }));
   },

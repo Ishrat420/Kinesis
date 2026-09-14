@@ -1,7 +1,30 @@
 # BUG-008 — Finance search results can't deep-link to the matched item
 
-**Status:** Open
+**Status:** Fixed
 **Priority:** Low
+
+## Fix
+
+**Option 1 — scroll-to anchor, matching To-Dos.**
+
+Each Finance row (`FinanceDashboard.tsx`'s `ItemSection`) now carries
+`id={`finance-${item.id}`}` and a `scroll-mt-24` class, the same pattern
+`TodoBoard.tsx` already uses (`id={`todo-${todo.id}`}`). The `finance`
+search provider's `href` (`lib/search/providers.ts`) now points at
+`/finance#finance-${item.id}` instead of the flat `/finance`.
+
+Deliberately the cheaper option, not 2 or 3: it lands you on the row rather
+than opening it for editing, but it's a two-line change reusing an
+established pattern rather than teaching `FinanceDashboard.tsx` (a client
+component with no query-param handling today) to read a search param and
+call `openForm` on mount. If searching Finance to *edit* something turns out
+to be the common case rather than just confirming it exists, option 2 or 3
+is still open — this doesn't foreclose them, it just doesn't do the extra
+work speculatively.
+
+Covered by `tests/integration/search/search.test.ts` ("links a finance
+search result to its own row, not just the Finance page"), red/green
+verified against the old `href: "/finance"` before landing.
 
 ## Problem
 

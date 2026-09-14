@@ -136,6 +136,20 @@ describe.sequential("global search", () => {
     await expect(searchGlobalIndex("2450")).resolves.toEqual([expect.objectContaining({ id: "finance:finance-1" })]);
   });
 
+  /**
+   * BUG-008. Every other provider's href already points at the specific
+   * record; finance's used to be the one flat "/finance" regardless of which
+   * item matched. It now points at the row's own anchor, matching the
+   * scroll-to pattern FinanceDashboard's rows and TodoBoard's `#todo-<id>`
+   * already share.
+   */
+  it("links a finance search result to its own row, not just the Finance page", async () => {
+    await prisma.object.create({ data: { id: "finance-obj", type: "FINANCE_ITEM", name: "Emergency fund", userId: owner } });
+    await prisma.financeItem.create({ data: { id: "finance-1", kind: "asset", name: "Emergency fund", amount: 5000, userId: owner, objectId: "finance-obj" } });
+
+    await expect(searchGlobalIndex("emergency")).resolves.toEqual([expect.objectContaining({ id: "finance:finance-1", href: "/finance#finance-finance-1" })]);
+  });
+
   it("finds a connection by either person's name and by a shared practice's title", async () => {
     await prisma.object.create({ data: { id: "self-obj", type: "PERSON", name: "Me", userId: owner } });
     await prisma.person.create({ data: { id: "self-1", name: "Me", isSelf: true, userId: owner, objectId: "self-obj" } });

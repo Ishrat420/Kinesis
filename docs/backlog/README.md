@@ -223,7 +223,6 @@ KD-036-object-types-navigation-superseded
 ## Open
 
 BUG-007-no-optimistic-concurrency-on-multi-row-saves
-BUG-008-finance-search-results-cannot-deep-link
 
 ## In Progress
 
@@ -239,6 +238,7 @@ BUG-003-remove-goal-measure-validation
 BUG-004-calendar-cannot-show-future-reminders
 BUG-005-milestone-tile-and-list-disagree
 BUG-006-notification-panel-behind-relationship-inspector
+BUG-008-finance-search-results-cannot-deep-link
 
 
 ## Won't Fix
