@@ -268,6 +268,11 @@ async function getPersonPreviews(objectIds: string[], userId: string, context: P
     prisma.relationship.findMany({
       where: { userId, OR: [{ firstPersonId: { in: personIds } }, { secondPersonId: { in: personIds } }] },
       select: { firstPersonId: true, secondPersonId: true, type: true },
+      // Deterministic, not just "whatever order the database happens to
+      // return" -- `related[0]` below is a real fallback for someone with
+      // several relationships and none to the self person, and that pick
+      // must not change from one render to the next for the same data.
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 

@@ -146,12 +146,15 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People, Fi
 
       const previews = await getKinesisLinkPreviews([catObjectId, dogObjectId]);
       expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
+      // Dog's own only relationship isn't to self, so falls back to it -- not
+      // affected by Cat having one that took priority for Cat's own card.
+      expect(previews[dogObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Friend" }]);
     });
 
     it("falls back to any relationship when none is to the self person", async () => {
       await seedSelf();
       const catObjectId = await seedPerson("cat", "Cat");
-      const dogObjectId = await seedPerson("dog", "Dog");
+      await seedPerson("dog", "Dog");
       await prisma.relationship.create({ data: { id: "rel-cat-dog", userId: owner, firstPersonId: "cat", secondPersonId: "dog", type: "Friend" } });
 
       const previews = await getKinesisLinkPreviews([catObjectId]);
@@ -181,6 +184,65 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People, Fi
 
       const previews = await getKinesisLinkPreviews(["self-obj", catObjectId]);
       expect(previews["self-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "You" }]);
+    });
+
+    it("deterministically prefers the earliest-created relationship when falling back with several non-self ones", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      const dogObjectId = await seedPerson("dog", "Dog");
+      const birdObjectId = await seedPerson("bird", "Bird");
+      // Created out of alphabetical/id order on purpose, so a passing test
+      // can't be an accident of iteration order matching creation order.
+      await prisma.relationship.create({ data: { id: "rel-cat-bird", userId: owner, firstPersonId: "bird", secondPersonId: "cat", type: "Second", createdAt: new Date("2026-02-01T00:00:00.000Z") } });
+      await prisma.relationship.create({ data: { id: "rel-cat-dog", userId: owner, firstPersonId: "cat", secondPersonId: "dog", type: "First", createdAt: new Date("2026-01-01T00:00:00.000Z") } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId, dogObjectId, birdObjectId]);
+      expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "First" }]);
+    });
+
+    it("keeps each person's own relationship type independent when several are previewed in one batch", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      const dogObjectId = await seedPerson("dog", "Dog");
+      await prisma.relationship.create({ data: { id: "rel-self-cat", userId: owner, firstPersonId: "self-1", secondPersonId: "cat", type: "Family" } });
+      await prisma.relationship.create({ data: { id: "rel-self-dog", userId: owner, firstPersonId: "self-1", secondPersonId: "dog", type: "Friend" } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId, dogObjectId]);
+      expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
+      expect(previews[dogObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Friend" }]);
+    });
+
+    it("never shows another account's relationship, even for a same-shaped person id", async () => {
+      const otherOwner = "built-in-preview-other-owner";
+      await prisma.user.deleteMany({ where: { id: otherOwner } });
+      await prisma.user.create({ data: { id: otherOwner, firstName: "Other", lastName: "Owner", email: "built-in-preview-other@example.test" } });
+      const otherSelfObject = await prisma.object.create({ data: { id: "other-self-obj", type: "PERSON", name: "Someone else", userId: otherOwner } });
+      await prisma.person.create({ data: { id: "other-self", userId: otherOwner, objectId: otherSelfObject.id, name: "Someone else", isSelf: true } });
+      const otherCatObject = await prisma.object.create({ data: { id: "other-cat-obj", type: "PERSON", name: "Other Cat", userId: otherOwner } });
+      await prisma.person.create({ data: { id: "other-cat", userId: otherOwner, objectId: otherCatObject.id, name: "Other Cat", isSelf: false } });
+      await prisma.relationship.create({ data: { id: "other-rel", userId: otherOwner, firstPersonId: "other-self", secondPersonId: "other-cat", type: "Confidential" } });
+
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      await prisma.relationship.create({ data: { id: "rel-1", userId: owner, firstPersonId: "self-1", secondPersonId: "cat", type: "Family" } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId]);
+      expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
+
+      await prisma.user.deleteMany({ where: { id: otherOwner } });
+    });
+
+    it("has no entry for a Person object id that belongs to another account", async () => {
+      const otherOwner = "built-in-preview-other-owner-2";
+      await prisma.user.deleteMany({ where: { id: otherOwner } });
+      await prisma.user.create({ data: { id: otherOwner, firstName: "Other", lastName: "Owner", email: "built-in-preview-other-2@example.test" } });
+      const otherObject = await prisma.object.create({ data: { id: "not-mine-obj", type: "PERSON", name: "Not mine", userId: otherOwner } });
+      await prisma.person.create({ data: { id: "not-mine", userId: otherOwner, objectId: otherObject.id, name: "Not mine", isSelf: false, category: "Friend" } });
+
+      const previews = await getKinesisLinkPreviews(["not-mine-obj"]);
+      expect(previews["not-mine-obj"]).toBeUndefined();
+
+      await prisma.user.deleteMany({ where: { id: otherOwner } });
     });
   });
 
@@ -241,14 +303,26 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People, Fi
     });
   });
 
-  it("previews a Document and a Goal in the same batched call without either clobbering the other", async () => {
+  it("previews every built-in Module in the same batched call without any of them clobbering another", async () => {
     const docObject = await prisma.object.create({ data: { id: "batch-doc-obj", type: "DOCUMENT", name: "Visa", userId: owner } });
     await prisma.document.create({ data: { id: "batch-doc", userId: owner, objectId: docObject.id, name: "Visa", type: "Visa", status: "Active", owner: "Preview Owner", documentNumber: "V999", country: null } });
     const goalObject = await prisma.object.create({ data: { id: "batch-goal-obj", type: "GOAL", name: "Save money", userId: owner } });
     await prisma.goal.create({ data: { id: "batch-goal", userId: owner, objectId: goalObject.id, name: "Save money", targetValue: 1000, currentValue: 250, unit: "$AUD" } });
+    const selfObject = await prisma.object.create({ data: { id: "batch-self-obj", type: "PERSON", name: "Me", userId: owner } });
+    await prisma.person.create({ data: { id: "batch-self", userId: owner, objectId: selfObject.id, name: "Me", isSelf: true } });
+    const personObject = await prisma.object.create({ data: { id: "batch-person-obj", type: "PERSON", name: "Cat", userId: owner } });
+    await prisma.person.create({ data: { id: "batch-person", userId: owner, objectId: personObject.id, name: "Cat", isSelf: false } });
+    await prisma.relationship.create({ data: { id: "batch-rel", userId: owner, firstPersonId: "batch-self", secondPersonId: "batch-person", type: "Family" } });
+    const financeObject = await prisma.object.create({ data: { id: "batch-finance-obj", type: "FINANCE_ITEM", name: "Savings", userId: owner } });
+    await prisma.financeItem.create({ data: { id: "batch-finance", userId: owner, objectId: financeObject.id, name: "Savings", kind: "asset", amount: 1200, category: "Savings" } });
 
-    const previews = await getKinesisLinkPreviews(["batch-doc-obj", "batch-goal-obj"]);
+    const previews = await getKinesisLinkPreviews(["batch-doc-obj", "batch-goal-obj", "batch-person-obj", "batch-finance-obj"]);
     expect(previews["batch-doc-obj"]).toEqual([{ label: "Document number", kind: "text", value: "V999" }]);
     expect(previews["batch-goal-obj"]).toEqual([{ label: "$AUD", kind: "text", value: "$AUD 250 of $AUD 1,000" }]);
+    expect(previews["batch-person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
+    expect(previews["batch-finance-obj"]).toEqual([
+      { label: "Amount", kind: "currency", value: "$1,200" },
+      { label: "Category", kind: "status", value: "Savings" },
+    ]);
   });
 });
