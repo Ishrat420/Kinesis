@@ -161,7 +161,6 @@ KD-015-kinesis-timeline-review
 KD-026-document-no-reminder-option
 KD-027-todo-reminder-window
 KD-028-goal-lapse-awareness
-KD-030-custom-module-badge-glyph-colour
 KD-037-detach-object-from-template
 
 ## 🧠 Planning Needed
@@ -191,6 +190,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-030-custom-module-badge-glyph-colour
 KD-032-relationships-bypass-the-object-layer
 KD-040-custom-item-fields-are-fully-configurable
 KD-039-template-fields-on-item-creation
