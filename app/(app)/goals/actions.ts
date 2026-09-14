@@ -31,11 +31,10 @@ const optionalDate = (data: FormData, key: string) => {
   // parseDateOnly round-trips year/month/day rather than trusting the Date
   // constructor's own parsing, which silently rolls an impossible date like
   // 30 February into 1 March instead of rejecting it -- the same shared
-  // check every other date-accepting action already goes through.
-  const date = parseDateOnly(raw);
-  if (!date) return undefined;
-  date.setUTCHours(23, 59, 59, 999);
-  return date;
+  // check every other date-accepting action already goes through. It also
+  // returns UTC midnight, matching every other calendar date in the app
+  // (KD-031) rather than the end-of-day instant this used to shift to.
+  return parseDateOnly(raw) ?? undefined;
 };
 /** Names the date it clashes with, in the owner's own locale. */
 const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) => {

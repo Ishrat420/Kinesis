@@ -167,7 +167,6 @@ KD-037-detach-object-from-template
 
 KD-007-adding-priority
 KD-016-automated-document-field-extraction
-KD-031-goal-dates-stored-at-end-of-day
 KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 
@@ -190,6 +189,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-031-goal-dates-stored-at-end-of-day
 KD-030-custom-module-badge-glyph-colour
 KD-032-relationships-bypass-the-object-layer
 KD-040-custom-item-fields-are-fully-configurable

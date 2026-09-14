@@ -20,11 +20,9 @@
  * Goals still Active on `today`: not manually closed, and not past their target
  * date.
  *
- * `today` is a day at UTC midnight, in the owner's zone -- not an instant. A
- * target date is stored at the last millisecond of its day, so comparing it
- * against the clock kept a goal alive through the small hours of the following
- * local day: on UTC+10 a goal targeted the 7th stayed Active until 10am on the
- * 8th. Comparing days answers the question that was actually being asked.
+ * `today` and `targetDate` are both UTC midnight (KD-031), so `gte`/`lt`
+ * already compares whole days -- a goal targeted for today stays Active
+ * through all of it, and lapses the instant tomorrow's midnight arrives.
  */
 export function activeGoalWhere(today: Date) {
   return {

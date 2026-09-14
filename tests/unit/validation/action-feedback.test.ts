@@ -55,11 +55,13 @@ const form = (values: Record<string, string>) => {
 };
 
 const GOAL = "goal-id";
-const TARGET_DATE = new Date("2030-06-01T23:59:59.999Z");
+// Goal target dates and milestone due dates are both stored at UTC midnight
+// (KD-031), so these fixtures match what `optionalDate` itself now produces.
+const TARGET_DATE = new Date("2030-06-01T00:00:00.000Z");
 // Derived through the same formatter the action uses, so the assertion holds
 // on any ICU build and follows the owner's locale.
 const dueDateConflict = `The due date must be before the goal target date of ${formatDate(TARGET_DATE, DEFAULT_FORMAT_PREFERENCES.locale)}.`;
-const MILESTONE_DUE_DATE = new Date("2030-03-01T23:59:59.999Z");
+const MILESTONE_DUE_DATE = new Date("2030-03-01T00:00:00.000Z");
 const milestoneDueDateConflict = `Milestone “Deposit saved” is due ${formatDate(MILESTONE_DUE_DATE, DEFAULT_FORMAT_PREFERENCES.locale)}. The target date must be after it.`;
 const MODULE = "module-id";
 const financeItem = (overrides: Partial<FinanceItem> = {}): FinanceItem =>

@@ -21,6 +21,10 @@ describe("calculateGoalHealth: cases where no health can be reported", () => {
   });
 
   it("returns null on the target date itself, when zero days remain", () => {
+    // KD-031: `targetDate` and `today` are both stored/computed at UTC
+    // midnight, so a goal due "today" has genuinely zero days of pace left to
+    // hold, not the ~1 day this read while target dates were stored at the
+    // end of the day.
     expect(calculateGoalHealth({ ...baseGoal, targetDate: now, history: [] })).toBeNull();
   });
 

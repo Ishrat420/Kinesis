@@ -27,11 +27,11 @@ const otherOwner = "lapse-other-owner";
 
 // `today` as `getToday` would return it: a whole UTC day, start-of-day.
 const TODAY = new Date("2030-06-15T00:00:00.000Z");
-// A target date is stored at the last millisecond of its day (see
-// lib/goals/active.ts), so "targeted for today" is not yet lapsed.
-const YESTERDAY_TARGET = new Date("2030-06-14T23:59:59.999Z");
-const TODAY_TARGET = new Date("2030-06-15T23:59:59.999Z");
-const FUTURE_TARGET = new Date("2030-07-01T23:59:59.999Z");
+// A target date is stored at midnight (KD-031), so "targeted for today" is
+// still the same instant as `TODAY` and is not yet lapsed.
+const YESTERDAY_TARGET = new Date("2030-06-14T00:00:00.000Z");
+const TODAY_TARGET = new Date("2030-06-15T00:00:00.000Z");
+const FUTURE_TARGET = new Date("2030-07-01T00:00:00.000Z");
 
 async function makeGoal(id: string, userId: string, status: string, targetDate: Date | null) {
   const object = await prisma.object.create({ data: { id: `object-${id}`, type: "GOAL", name: id, userId } });
