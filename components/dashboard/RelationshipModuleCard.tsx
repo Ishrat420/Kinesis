@@ -5,7 +5,7 @@ export function RelationshipModuleCard({ people, upcomingDates }: { people: numb
   return (
     <ModuleCard
       icon={Users}
-      tone={{ className: "bg-sky-50" }}
+      tone={{ className: "bg-rose-50" }}
       name="Relationships"
       href="/relationships"
       meta={`${people} ${people === 1 ? "person" : "people"} · including yourself`}
