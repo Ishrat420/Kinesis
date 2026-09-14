@@ -184,6 +184,30 @@ describe.sequential("the template data layer", () => {
 
       await expect(cloneTemplate(template.id, "Stolen copy")).rejects.toThrow("This template no longer exists.");
     });
+
+    it("remaps previewFields (KD-042) onto the clone's own field ids, by position", async () => {
+      const source = await createTemplate();
+      await updateTemplate(source.id, "Renewals", [field({ label: "Provider" }), field({ label: "Cost", type: "NUMBER", numberFormat: "CURRENCY" }), field({ label: "Notes" })]);
+      const sourceWithFields = await getTemplate(source.id);
+      const provider = sourceWithFields!.fields.find((row) => row.label === "Provider")!;
+      const cost = sourceWithFields!.fields.find((row) => row.label === "Cost")!;
+      await updateTemplate(
+        source.id, "Renewals",
+        sourceWithFields!.fields.map((row) => ({ id: row.id, label: row.label, type: row.type, isDueDate: row.isDueDate, numberFormat: row.numberFormat ?? undefined, multiline: row.multiline })),
+        [provider.id, cost.id],
+      );
+
+      const clone = await cloneTemplate(source.id, "Renewals copy");
+      const cloneFields = await prisma.templateField.findMany({ where: { templateId: clone.id }, orderBy: { position: "asc" } });
+      const cloneProvider = cloneFields.find((row) => row.label === "Provider")!;
+      const cloneCost = cloneFields.find((row) => row.label === "Cost")!;
+
+      const clonedTemplate = await prisma.template.findUniqueOrThrow({ where: { id: clone.id } });
+      expect(clonedTemplate.previewFields).toEqual([cloneProvider.id, cloneCost.id]);
+      // Not the source's own ids -- those name nothing on the clone.
+      expect(clonedTemplate.previewFields).not.toContain(provider.id);
+      expect(clonedTemplate.previewFields).not.toContain(cost.id);
+    });
   });
 
   describe("deleteTemplate", () => {

@@ -27,7 +27,16 @@ function DocumentSection({
   return (
     <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <div className="mb-5 flex items-center gap-3">
-        <Icon className={`h-5 w-5 ${expired ? "text-rose-600" : "text-blue-600"}`} />
+        {/*
+          Amber for "Upcoming" rather than Documents' own blue: every row here
+          is, by definition, already inside its reminder window (that's what
+          put it on this list), the same "soon" urgency the document's own
+          edit page already colours amber (see STATUS_TONES in
+          EditDocumentForm.tsx) -- this just carries that meaning here too,
+          rather than Documents' plain module colour, which says nothing
+          about urgency.
+        */}
+        <Icon className={`h-5 w-5 ${expired ? "text-rose-600" : "text-amber-600"}`} />
         <h2 className="text-lg font-semibold">{title}</h2>
         <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-500">
           {documents.length}
@@ -44,7 +53,7 @@ function DocumentSection({
                 href={`/documents/${document.id}`}
                 className="group flex items-center gap-4 py-4 first:pt-1 last:pb-0"
               >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${expired ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${expired ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>
                   <FileText className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">

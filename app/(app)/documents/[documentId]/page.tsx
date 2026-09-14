@@ -4,7 +4,7 @@ import { getActivityForHref } from "@/lib/data/activity";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { DocumentDetailRecord } from "./EditDocumentForm";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
-import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { formatDateInput } from "@/lib/dates";
 
 export default async function DocumentDetailPage({ params, searchParams }: { params: Promise<{ documentId: string }>; searchParams: Promise<{ edit?: string }> }) {
@@ -16,6 +16,11 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   if (!document) notFound();
 
   const history = await getActivityForHref(`/documents/${document.id}`);
+  // Every object the picker could show, not just ones already linked --
+  // choosing a new one in the picker, before saving, should show exactly
+  // the card it'll actually render as (KD-042), not the compact fallback
+  // until the next reload.
+  const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
 
   return <ModuleContent><DocumentDetailRecord document={{
     id: document.id, name: document.name, type: document.type, status: document.status, archived: document.archived,
@@ -23,7 +28,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     documentNumber: document.documentNumber ?? "", country: document.country ?? "", notes: document.notes ?? "", link: document.link ?? "", prompt: document.prompt,
     expiryDateLabel: document.expiryDateLabel, issueDateLabel: document.issueDateLabel, documentNumberLabel: document.documentNumberLabel,
     countryLabel: document.countryLabel, notesLabel: document.notesLabel, linkLabel: document.linkLabel, customFields: document.customFields,
-  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} history={history.map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString() }))} initialEditing={edit === "1"} /></ModuleContent>;
+  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString() }))} initialEditing={edit === "1"} /></ModuleContent>;
 }
 
 function toDateInput(date: Date | null) { return date ? formatDateInput(date) : ""; }

@@ -5,6 +5,7 @@ import { useActionState, useEffect, useState } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { GoalActionState } from "../actions";
 
 const initialState: GoalActionState = {};
@@ -18,9 +19,10 @@ const initialState: GoalActionState = {};
  * Unobtrusive when empty, per the ticket's own direction: an empty state
  * reads as an invitation rather than three empty headings.
  */
-export function GoalSupportingInfo({ fields, linkOptions, action }: {
+export function GoalSupportingInfo({ fields, linkOptions, previews, action }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -39,16 +41,16 @@ export function GoalSupportingInfo({ fields, linkOptions, action }: {
       </div>
       <div className="mt-5">
         {editing ? (
-          <EditFields fields={fields} linkOptions={linkOptions} action={action} onDone={() => setEditing(false)} />
+          <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} onDone={() => setEditing(false)} />
         ) : (
-          <ReadFields fields={fields} linkOptions={linkOptions} />
+          <ReadFields fields={fields} linkOptions={linkOptions} previews={previews} />
         )}
       </div>
     </section>
   );
 }
 
-function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkOptions: KinesisLinkOption[] }) {
+function ReadFields({ fields, linkOptions, previews }: { fields: CustomFieldValue[]; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
   if (!fields.length) return <p className="text-sm text-zinc-400">Nothing added yet -- notes, a link to a guide, a related document or account.</p>;
 
   const notes = fields.filter((field) => (field.type ?? "TEXT") === "TEXT");
@@ -91,11 +93,11 @@ function ReadFields({ fields, linkOptions }: { fields: CustomFieldValue[]; linkO
 
       {kinesisLinks.length > 0 && (
         <FieldGroup title="Kinesis Links" icon={<ExternalLink className="h-4 w-4" />}>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
             {kinesisLinks.map(({ field, options }) => (
               <div key={field.id ?? field.label} className="min-w-0 space-y-2">
                 <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-                {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+                {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
               </div>
             ))}
           </div>
@@ -127,9 +129,10 @@ function FieldGroup({ title, icon, children }: { title: string; icon: React.Reac
   );
 }
 
-function EditFields({ fields, linkOptions, action, onDone }: {
+function EditFields({ fields, linkOptions, previews, action, onDone }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
   onDone: () => void;
 }) {
@@ -138,7 +141,7 @@ function EditFields({ fields, linkOptions, action, onDone }: {
 
   return (
     <form action={formAction} className="space-y-5">
-      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} />
+      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} />
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
       <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5">
         <button type="button" onClick={onDone} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">

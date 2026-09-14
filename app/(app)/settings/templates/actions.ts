@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cloneTemplate, createTemplate, deleteTemplate, updateTemplate } from "@/lib/data/templates";
-import { parseTemplateFields } from "@/lib/templates/parse";
+import { parsePreviewFields, parseTemplateFields } from "@/lib/templates/parse";
 import { refusalOf } from "@/lib/actions/refusal";
 
 export type TemplateActionState = { error?: string; saved?: boolean };
@@ -22,9 +22,11 @@ export async function updateTemplateAction(templateId: string, _previousState: T
   if (!name) return { error: "Enter a template name." };
   const form = parseTemplateFields(data);
   if (!form.ok) return { error: form.error };
+  const preview = parsePreviewFields(data);
+  if (!preview.ok) return { error: preview.error };
 
   try {
-    await updateTemplate(templateId, name, form.fields);
+    await updateTemplate(templateId, name, form.fields, preview.previewFieldIds);
   } catch (failure) {
     const refused = refusalOf(failure);
     if (refused === null) throw failure;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarClock, CheckCheck, Clock3, Flag, Heart, ListTodo, TriangleAlert, X } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Clock3, FileText, Flag, Heart, ListTodo, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -147,6 +147,13 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
             {notifications.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-zinc-500"><Bell className="mx-auto mb-3 h-6 w-6 text-zinc-300" />No notifications yet</div>
             ) : notifications.map((notification) => {
+              // Document is a plain actionUrl check rather than a type check
+              // like the others below, for the same reason isMilestone is:
+              // REMINDER_DUE is shared by every source before its deadline
+              // (see lib/notifications/engine.ts), so only EXPIRED alone
+              // identifies a document unambiguously -- the pre-expiry case
+              // needs the URL too.
+              const isDocument = notification.type === "EXPIRED" || notification.actionUrl.startsWith("/documents/");
               const isMilestone = notification.type === "MILESTONE_DUE" || notification.actionUrl.startsWith("/goals/");
               const isRelationshipDate = notification.actionUrl === "/relationships";
               const isCustomItem = notification.type === "CUSTOM_ITEM_DUE" || notification.actionUrl.startsWith("/custom-modules/");
@@ -155,8 +162,20 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
               <Link key={notification.key} href={notification.actionUrl} onClick={() => read(notification)} className={`group flex gap-3 rounded-2xl px-3 py-3.5 transition hover:bg-zinc-50 ${readKeys.has(notification.key) ? "opacity-70" : "bg-zinc-50/70"}`}>
                 {isCustomItem && notification.moduleIcon && notification.moduleColor
                   ? <CustomModuleBadge icon={notification.moduleIcon} color={notification.moduleColor} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />
-                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                      {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                  // Colours match lib/objects/locations.ts's Kinesis Link
+                  // colour for the same module -- Goals violet, Relationships
+                  // rose, To-Dos teal -- so a module never reads as a
+                  // different colour depending which list it turns up on.
+                  // Documents is the one exception: every non-expired
+                  // document notification is, by definition, already inside
+                  // its reminder window, so it gets the same amber "soon"
+                  // treatment the Expiring Documents page's own Upcoming
+                  // section uses, not Documents' plain blue identity colour
+                  // -- there's no notification for a document that isn't
+                  // either that or overdue. Expired is red regardless of
+                  // module, since "overdue" is the more urgent fact there.
+                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isDocument ? "bg-amber-50 text-amber-700" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>
+                      {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isDocument ? <FileText className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                     </span>}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readKeys.has(notification.key) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>

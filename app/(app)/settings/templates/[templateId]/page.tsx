@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
-import { getTemplate } from "@/lib/data/templates";
+import { getTemplate, getTemplateFieldSample } from "@/lib/data/templates";
+import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { TemplateDetailForm } from "./TemplateDetailForm";
 import { CloneTemplateButton } from "./CloneTemplateButton";
 import { DeleteTemplateButton } from "./DeleteTemplateButton";
 
 export default async function TemplateDetailPage({ params }: { params: Promise<{ templateId: string }> }) {
   const { templateId } = await params;
-  const template = await getTemplate(templateId);
+  const [template, sample, { locale, currency }, today] = await Promise.all([getTemplate(templateId), getTemplateFieldSample(templateId), getFormatPreferences(), getToday()]);
   if (!template) notFound();
 
   return <>
@@ -20,7 +21,17 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
     />
 
     <div className="mt-8">
-      <TemplateDetailForm templateId={template.id} name={template.name} fields={template.fields} locked={template.inUse} />
+      <TemplateDetailForm
+        templateId={template.id}
+        name={template.name}
+        fields={template.fields}
+        previewFields={template.previewFields}
+        sample={sample}
+        locale={locale}
+        currency={currency}
+        today={today.toISOString()}
+        locked={template.inUse}
+      />
     </div>
   </>;
 }

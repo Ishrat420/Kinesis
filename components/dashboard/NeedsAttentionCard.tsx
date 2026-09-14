@@ -2,22 +2,38 @@
 
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
-import { BellRing, CalendarDays, Circle, CircleAlert, FileWarning, Flag, ListTodo, Pencil, X } from "lucide-react";
+import { BellRing, CalendarDays, Circle, FileText, Flag, ListTodo, Pencil, Target, X } from "lucide-react";
 import { dismissAttentionItem } from "@/app/actions";
-import { CustomModuleBadge } from "@/lib/custom-modules/icons";
+import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { toggleMilestoneAction, updateMilestoneDueDateAction, type GoalActionState } from "@/app/(app)/goals/actions";
 import type { AttentionItem } from "@/lib/data/attention";
 import { formatDate, formatDateInput, formatDeadline, formatExpiry } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { Modal } from "@/components/overlay/Modal";
 
-const icons = { document: FileWarning, milestone: ListTodo, todo: CircleAlert };
+// Documents' and To-Dos' own module icons; a milestone belongs to a Goal, so
+// it borrows Goals' icon rather than To-Dos' -- ListTodo previously did
+// double duty for both, which made an overdue milestone indistinguishable
+// from an overdue to-do at a glance.
+const icons = { document: FileText, milestone: Target, todo: ListTodo };
 
-/** A custom module object keeps its module's icon and colour; every other kind has one fixed icon. */
+const attentionBadgeClass = "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700";
+
+/**
+ * Every kind shares this list's own warning colour -- amber, the same tone
+ * the header and the "Needs attention" badge already use -- so nothing here
+ * reads as more or less urgent than anything else on it. Only the icon says
+ * which module an item came from; a custom item's icon is its own module's,
+ * the same lookup its own module page uses, just recoloured to match.
+ */
 function AttentionIcon({ item }: { item: AttentionItem }) {
-  if (item.kind === "custom") return <CustomModuleBadge icon={item.icon} color={item.color} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />;
+  // A lookup of which icon component to render, not a component created
+  // during render -- CustomModuleIcon renders its own inline lookup for the
+  // same reason (react-hooks/static-components), so this branches on the
+  // JSX rather than assigning either resolver to an `Icon` variable first.
+  if (item.kind === "custom") return <span className={attentionBadgeClass}><CustomModuleIcon name={item.icon} className="h-5 w-5" /></span>;
   const Icon = icons[item.kind];
-  return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><Icon className="h-5 w-5" /></span>;
+  return <span className={attentionBadgeClass}><Icon className="h-5 w-5" /></span>;
 }
 const initialGoalState: GoalActionState = {};
 

@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, ChevronDown, Minus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@/lib/custom-fields/types";
+import { CUSTOM_FIELD_TYPES, NUMBER_FIELD_FORMATS, type CustomFieldType, type NumberFieldFormat } from "@/lib/custom-fields/types";
 import { TEMPLATE_FIELDS_FORM_KEY, type TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { useFormResetKey } from "@/lib/hooks/form-reset-key";
@@ -11,6 +11,21 @@ type EditorField = TemplateFieldInput & { key: string };
 
 /** The dropdown's sentinel value for Due Date -- not a real `CustomFieldType`, since a due-date field is still `type: "DATE"` underneath (KD-038), just with `isDueDate: true` alongside it. */
 const DUE_DATE_OPTION = "DUE_DATE";
+
+/**
+ * The dropdown's sentinel value for Notes -- same shape as Due Date's, but
+ * unlike Due Date this one carries no uniqueness or permanence rule: a
+ * template can have any number of Notes fields, and an existing field can
+ * freely convert into or out of Notes (while unlocked) since the value
+ * underneath is still an ordinary TEXT value either way.
+ */
+const NOTES_OPTION = "NOTES";
+
+/** The Format control's own "no refinement" option, alongside the two real `NumberFieldFormat` values. */
+const NUMBER_FORMAT_OPTIONS: { value: NumberFieldFormat | undefined; label: string; example: string }[] = [
+  { value: undefined, label: "Plain", example: "42" },
+  ...NUMBER_FIELD_FORMATS,
+];
 
 /**
  * A template's field *definitions* -- label and type, never a value. Every
@@ -31,9 +46,28 @@ const DUE_DATE_OPTION = "DUE_DATE";
  * template is in use, just unconditional from the moment it's created.
  */
 export function TemplateFieldsEditor({ initialFields, locked }: { initialFields: TemplateFieldInput[]; locked: boolean }) {
-  const [fields, setFields] = useState<EditorField[]>(
-    initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() })),
-  );
+  const buildFields = () => initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() }));
+  const [fields, setFields] = useState<EditorField[]>(buildFields);
+  // A save assigns a real id to every field that didn't have one -- fresh
+  // `initialFields` arrive with it, but a plain re-render never resets a
+  // useState already seeded from the old (id-less) values. Without this, the
+  // *next* save still submits `id: undefined` for those fields: the data
+  // layer can't match them against what's actually in the database, treats
+  // every existing field as removed, and recreates all of them with new ids
+  // -- silently, since nothing here is "in use" yet to refuse the save, and
+  // it also means any Kinesis Link preview field chosen against the old ids
+  // (KD-042) can never resolve. Same fix PreviewFieldsPicker and
+  // TemplateFieldValues need for the same reason: re-derive state during
+  // render when a signature of the field identities changes, rather than
+  // trusting what was seeded once at mount. Keyed on ids only, not labels or
+  // types, so renaming or retyping an existing field mid-edit is never
+  // discarded by an unrelated re-render.
+  const initialSignature = initialFields.map((field) => field.id ?? "").join(",");
+  const [syncedSignature, setSyncedSignature] = useState(initialSignature);
+  if (initialSignature !== syncedSignature) {
+    setSyncedSignature(initialSignature);
+    setFields(buildFields());
+  }
   const { fieldsetRef, resetRevision } = useFormResetKey();
 
   const update = (key: string, changes: Partial<EditorField>) => {
@@ -52,17 +86,22 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
     const key = crypto.randomUUID();
     setFields((current) => [...current, { key, label: "", type: "TEXT" }]);
   };
-  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION, currentLabel: string) => {
+  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION | typeof NOTES_OPTION, currentLabel: string) => {
     if (value === DUE_DATE_OPTION) {
-      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date" });
+      update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date", numberFormat: undefined, multiline: false });
+    } else if (value === NOTES_OPTION) {
+      update(key, { type: "TEXT", multiline: true, numberFormat: undefined });
     } else {
-      update(key, { type: value });
+      // Format and Notes only ever mean something on their own type --
+      // leaving it drops whatever refinement was chosen rather than
+      // carrying a now-meaningless value along.
+      update(key, { type: value, numberFormat: value === "NUMBER" ? fields.find((field) => field.key === key)?.numberFormat : undefined, multiline: false });
     }
   };
   const hasDueDateField = fields.some((field) => field.isDueDate);
 
   const payload = useMemo(
-    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate }) => ({ id, label, type, isDueDate }))),
+    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate, numberFormat, multiline }) => ({ id, label, type, isDueDate, numberFormat, multiline }))),
     [fields],
   );
 
@@ -99,14 +138,19 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
               ) : (
                 <div className="relative min-w-0">
                   <select
-                    value={field.type}
+                    value={field.type === "TEXT" && field.multiline ? NOTES_OPTION : field.type}
                     disabled={locked}
-                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION, field.label)}
+                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION | typeof NOTES_OPTION, field.label)}
                     aria-label={`Field ${index + 1} type`}
                     title={locked ? "This template is in use, so a field's type can't be changed." : undefined}
                     className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}
                   >
                     {CUSTOM_FIELD_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                    {/* A Text variant, freely convertible into and out of --
+                        unlike Due Date, no uniqueness rule and no
+                        permanence, since the value underneath is still an
+                        ordinary TEXT value either way. */}
+                    <option value={NOTES_OPTION}>▤ Notes</option>
                     {/* Only offered on a brand-new, not-yet-saved row -- an
                         existing field's dropdown never gets this option, at
                         any point, which is what keeps "no conversion, ever"
@@ -130,6 +174,27 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                   <Minus className="h-4 w-4" />
                 </button>
               </div>
+              {field.type === "NUMBER" && (
+                <div className="flex flex-wrap items-center gap-2 pl-0.5 md:col-span-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Format</span>
+                  <div className="inline-flex gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+                    {NUMBER_FORMAT_OPTIONS.map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        aria-pressed={field.numberFormat === option.value}
+                        onClick={() => update(field.key, { numberFormat: option.value })}
+                        className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                          field.numberFormat === option.value ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-white hover:text-zinc-800"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="ml-auto text-xs text-zinc-400">e.g. {NUMBER_FORMAT_OPTIONS.find((option) => option.value === field.numberFormat)?.example}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -9,8 +9,10 @@ import { promoteFieldToTemplateAction, updateCustomItemAction, type CustomItemSt
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
-import type { CustomFieldType, CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldType, CustomFieldValue, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { formatDate } from "@/lib/dates";
+import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
 const initialState: CustomItemState = {};
@@ -28,14 +30,16 @@ type EditableItem = {
  * the form being the only way this page ever looked, editable the moment you
  * opened it.
  */
-export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, locale, deleteAction }: {
+export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, locale, currency, deleteAction }: {
   moduleId: string;
   item: EditableItem;
   moduleName: string;
   moduleIcon: string;
   moduleColor: string;
   linkOptions: KinesisLinkOption[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   locale: string;
+  currency: string;
   deleteAction: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
@@ -53,27 +57,31 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     />
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
-        ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
-        : <ReadView item={item} linkOptions={linkOptions} locale={locale} />}
+        ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
+        : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} />}
     </section>
   </>;
 }
 
-type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean };
+type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean; multiline?: boolean; numberFormat?: NumberFieldFormat };
 
-function displayValue(field: DisplayField, locale: string) {
+function displayValue(field: DisplayField, locale: string, currency: string) {
   if (!field.value) return EMPTY_VALUE;
   if (field.type === "DATE") {
     const date = parseDatedFieldValue(field.value);
     return date ? formatDate(date, locale) : field.value;
   }
   if (field.type === "CHECKBOX") return field.value === "true" ? "Yes" : "No";
+  if (field.type === "NUMBER" && field.numberFormat) {
+    const amount = Number(field.value);
+    if (Number.isFinite(amount)) return field.numberFormat === "CURRENCY" ? formatMoney(amount, locale, currency) : formatPercent(amount, locale);
+  }
   return field.value;
 }
 
-function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptions: KinesisLinkOption[]; locale: string }) {
+function ReadView({ item, linkOptions, previews, locale, currency }: { item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; locale: string; currency: string }) {
   const fields: DisplayField[] = [
-    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate })),
+    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline, numberFormat: field.numberFormat })),
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
   ];
   const metadataFields = fields.filter((field) => field.type !== "KINESIS_LINK");
@@ -91,25 +99,25 @@ function ReadView({ item, linkOptions, locale }: { item: EditableItem; linkOptio
 
   return <div className="space-y-6">
     {metadataFields.length > 0 && <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-      {metadataFields.map((field) => <div key={field.key}>
+      {metadataFields.map((field) => <div key={field.key} className={field.multiline ? "sm:col-span-2 lg:col-span-3" : ""}>
         <dt className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">{field.isDueDate && <Clock3 className="h-3 w-3" />}{field.label}</dt>
-        <dd className="mt-1 break-words text-sm font-medium text-zinc-700">
+        <dd className={`mt-1 text-sm font-medium text-zinc-700 ${field.multiline ? "whitespace-pre-wrap break-words" : "break-words"}`}>
           {field.type === "LINK" && field.value
             ? <a href={field.value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{field.value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a>
-            : displayValue(field, locale)}
+            : displayValue(field, locale, currency)}
         </dd>
       </div>)}
     </dl>}
-    {linkedFields.length > 0 && <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
+    {linkedFields.length > 0 && <div className={`grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))] ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
       {linkedFields.map(({ field, options }) => <div key={field.key} className="min-w-0 space-y-2">
         <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
       </div>)}
     </div>}
   </div>;
 }
 
-function EditForm({ moduleId, item, linkOptions, onCancel, onSaved }: { moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; onCancel: () => void; onSaved: () => void }) {
+function EditForm({ moduleId, item, linkOptions, previews, onCancel, onSaved }: { moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: () => void }) {
   const [archived, setArchived] = useState(item.archived);
   const router = useRouter();
   // The action reports both halves of the outcome -- `pending` while it runs,
@@ -121,9 +129,9 @@ function EditForm({ moduleId, item, linkOptions, onCancel, onSaved }: { moduleId
 
   return <form action={formAction} className="space-y-5">
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
-    {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} /></div>}
+    {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} previews={previews} /></div>}
     <div className="border-t border-zinc-100 pt-5">
-      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} />
+      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} previews={previews} />
       {item.templateId && item.fields.length > 0 && <PromoteFields moduleId={moduleId} itemId={item.id} fields={item.fields} />}
     </div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not Archived"}</button><input type="hidden" name="archived" value={String(archived)}/></div>

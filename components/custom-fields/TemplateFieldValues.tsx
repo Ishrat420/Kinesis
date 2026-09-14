@@ -4,11 +4,12 @@ import { useMemo, useState } from "react";
 import { Clock3 } from "lucide-react";
 import { KinesisLinkList } from "./KinesisLinkField";
 import { FIELD_INPUT_CLASS } from "./field-styles";
-import type { CustomFieldType, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldType, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 
-export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; value: string; targetObjectIds: string[] };
+export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; multiline: boolean; numberFormat?: NumberFieldFormat; value: string; targetObjectIds: string[] };
 
 function toDateInputValue(value: string) {
   const date = parseDatedFieldValue(value);
@@ -34,7 +35,7 @@ function buildValues(fields: TemplateFieldValue[]) {
  * identity set is compared, not the full content: this must not fire on
  * every render, which would also wipe out whatever value is mid-edit here.
  */
-export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateFieldValue[]; linkOptions: KinesisLinkOption[] }) {
+export function TemplateFieldValues({ fields, linkOptions, previews = {} }: { fields: TemplateFieldValue[]; linkOptions: KinesisLinkOption[]; previews?: Record<string, KinesisLinkPreviewStat[]> }) {
   const [values, setValues] = useState(() => buildValues(fields));
 
   const fieldSignature = fields.map((field) => field.templateFieldId).join(",");
@@ -65,16 +66,16 @@ export function TemplateFieldValues({ fields, linkOptions }: { fields: TemplateF
             {field.isDueDate && <Clock3 className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
             <span className="min-w-0 break-words text-sm font-medium text-zinc-700">{field.label}</span>
           </div>
-          <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} />
+          <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} previews={previews} />
         </div>
       ))}
     </fieldset>
   );
 }
 
-function FieldValueInput({ field, onChange, linkOptions }: { field: TemplateFieldValue; onChange: (changes: Partial<TemplateFieldValue>) => void; linkOptions: KinesisLinkOption[] }) {
+function FieldValueInput({ field, onChange, linkOptions, previews }: { field: TemplateFieldValue; onChange: (changes: Partial<TemplateFieldValue>) => void; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
   if (field.type === "KINESIS_LINK") {
-    return <KinesisLinkList options={linkOptions} values={field.targetObjectIds} onChange={(targetObjectIds) => onChange({ targetObjectIds })} ariaLabel={`${field.label} linked objects`} />;
+    return <KinesisLinkList options={linkOptions} values={field.targetObjectIds} onChange={(targetObjectIds) => onChange({ targetObjectIds })} ariaLabel={`${field.label} linked objects`} previews={previews} />;
   }
 
   if (field.type === "CHECKBOX") {
@@ -83,6 +84,19 @@ function FieldValueInput({ field, onChange, linkOptions }: { field: TemplateFiel
         <span className="sr-only">{field.label}</span>
         <input type="checkbox" checked={field.value === "true"} onChange={(event) => onChange({ value: String(event.target.checked) })} className="h-5 w-5 rounded border-zinc-300" />
       </label>
+    );
+  }
+
+  if (field.multiline) {
+    return (
+      <textarea
+        value={field.value}
+        onChange={(event) => onChange({ value: event.target.value })}
+        aria-label={field.label}
+        placeholder="Notes"
+        rows={5}
+        className="w-full min-w-0 resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-base outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm"
+      />
     );
   }
 

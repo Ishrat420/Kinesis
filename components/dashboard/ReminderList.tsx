@@ -1,15 +1,24 @@
 import Link from "next/link";
 import { CalendarDays, FileText, Flag, ListTodo } from "lucide-react";
-import { CustomModuleBadge } from "@/lib/custom-modules/icons";
+import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import type { UpcomingItem } from "@/lib/data/upcoming";
 import { formatDate, formatDeadline, formatExpiry, formatFutureDate } from "@/lib/dates";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 const icons = { document: FileText, milestone: Flag, relationship: CalendarDays, todo: ListTodo };
-/** A custom module object keeps its module's icon and colour; every other kind has one fixed icon. */
+const upcomingBadgeClass = "flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50";
+
+/**
+ * Every kind, custom modules included, gets the same plain badge here: this
+ * is the dashboard, where several modules' items sit side by side, and a
+ * custom module's own colour would make this one list more colourful than
+ * everything around it rather than reading as one calm summary. A custom
+ * item still shows its own module's icon (via CustomModuleIcon) so it's
+ * still identifiable at a glance -- only the colour is uniform, not the icon.
+ */
 function UpcomingIcon({ item }: { item: UpcomingItem }) {
-  if (item.kind === "custom") return <CustomModuleBadge icon={item.icon} color={item.color} className="h-11 w-11 rounded-xl border border-zinc-200/80" iconClassName="h-5 w-5" />;
+  if (item.kind === "custom") return <div className={upcomingBadgeClass}><CustomModuleIcon name={item.icon} className="h-5 w-5 text-zinc-700" /></div>;
   const Icon = icons[item.kind];
-  return <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50"><Icon className="h-5 w-5 text-zinc-700" /></div>;
+  return <div className={upcomingBadgeClass}><Icon className="h-5 w-5 text-zinc-700" /></div>;
 }
 
 export async function ReminderList({ items }: { items: UpcomingItem[] }) {

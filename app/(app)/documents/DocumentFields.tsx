@@ -4,6 +4,7 @@ import { Link2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 
 export type CustomField = CustomFieldValue;
 
@@ -20,12 +21,14 @@ export function DocumentFields({
   initialCustomFields = [],
   onExpiryDateChange,
   linkOptions,
+  previews,
 }: {
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
   initialCustomFields?: CustomField[];
   onExpiryDateChange?: (value: string) => void;
   linkOptions: KinesisLinkOption[];
+  previews?: Record<string, KinesisLinkPreviewStat[]>;
 }) {
   return (
     <div className="space-y-4">
@@ -36,7 +39,7 @@ export function DocumentFields({
       <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
       <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
-      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} />
+      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} />
     </div>
   );
 }

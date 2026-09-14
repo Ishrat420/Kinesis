@@ -4,6 +4,7 @@ import { ChevronDown, X } from "lucide-react";
 import type { LinkableObject } from "@/lib/objects/locations";
 import { KinesisLinkCard } from "./KinesisLinkCard";
 import { FIELD_INPUT_CLASS } from "./field-styles";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 
 /**
  * Choosing objects to point at -- the one control every surface that links a
@@ -28,6 +29,16 @@ type SharedProps = {
   placeholder?: string;
   /** True while the options are still being fetched. */
   loading?: boolean;
+  /**
+   * Rich preview data (KD-042) for objects already chosen, keyed by objectId
+   * -- the same data a saved record's read view renders, so an already-linked
+   * card looks identical whether you're viewing or editing. A brand-new
+   * selection made during this editing session has no entry here yet (it
+   * wasn't part of the page's own batched fetch) and stays a compact card
+   * until the next save and reload, the same constraint the Template
+   * settings preview picker already accepts for a just-added field.
+   */
+  previews?: Record<string, KinesisLinkPreviewStat[]>;
 };
 
 /**
@@ -43,6 +54,7 @@ export function KinesisLinkList({
   placeholder = "Link something",
   addPlaceholder = "Link something else",
   loading = false,
+  previews = {},
 }: SharedProps & {
   values: string[];
   onChange: (objectIds: string[]) => void;
@@ -59,7 +71,7 @@ export function KinesisLinkList({
       {chosen.map((option) => (
         <div key={option.objectId} className="flex min-w-0 items-center gap-2">
           {name && <input type="hidden" name={name} value={option.objectId} />}
-          <KinesisLinkCard option={option} className="flex-1" />
+          <KinesisLinkCard option={option} className="flex-1" stats={previews[option.objectId] ?? []} />
           <button
             type="button"
             aria-label={`Unlink ${option.name}`}

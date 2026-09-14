@@ -4,6 +4,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { refuse } from "@/lib/actions/refusal";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
 import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
+import { resolveKind } from "@/lib/custom-fields/kinds";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
@@ -46,8 +47,17 @@ export async function getTemplate(id: string) {
     },
   });
   if (!template) return null;
-  const { _count, ...rest } = template;
-  return { ...rest, inUse: _count.objects > 0, linkedModules: _count.customModules, usedByObjects: _count.objects };
+  const { _count, fields, ...rest } = template;
+  return {
+    ...rest,
+    // Prisma reads an unset numberFormat as `null`; the editor's own
+    // TemplateFieldInput treats "no format" as `undefined`, matching every
+    // other optional field on it (isDueDate, id).
+    fields: fields.map((field) => ({ ...field, numberFormat: field.numberFormat ?? undefined })),
+    inUse: _count.objects > 0,
+    linkedModules: _count.customModules,
+    usedByObjects: _count.objects,
+  };
 }
 
 /** The templates a module could start new items from -- just enough to populate that picker. */
@@ -72,9 +82,36 @@ export async function getTemplateFieldsForNewItem(templateId: string): Promise<T
     label: field.label,
     type: field.type,
     isDueDate: field.isDueDate,
+    multiline: field.multiline,
+    numberFormat: field.numberFormat ?? undefined,
     value: "",
     targetObjectIds: [],
   }));
+}
+
+/**
+ * One real object's values under this template, for the "Show on card"
+ * picker's live preview (KD-042) -- whichever object was created most
+ * recently, since that's the one most likely to still feel representative.
+ * Empty when nothing exists under the template yet; the picker falls back
+ * to made-up placeholder values in that case rather than showing nothing.
+ */
+export async function getTemplateFieldSample(templateId: string) {
+  const user = await requireKinesisUser();
+  const object = await prisma.object.findFirst({
+    where: { templateId, userId: user.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      customItem: { select: { dueDate: true } },
+      fields: { where: { templateFieldId: { not: null } }, select: { templateFieldId: true, value: true, links: { select: { id: true } } } },
+    },
+  });
+  if (!object) return null;
+  const values: Record<string, { value: string; linkCount: number }> = {};
+  for (const field of object.fields) {
+    values[field.templateFieldId as string] = { value: field.value, linkCount: field.links.length };
+  }
+  return { dueDate: object.customItem?.dueDate ? object.customItem.dueDate.toISOString().slice(0, 10) : "", values };
 }
 
 export async function createTemplate() {
@@ -91,20 +128,31 @@ export async function createTemplate() {
  * recreating it here would silently orphan every object's stored value the
  * moment someone renamed or reordered a field. Only fields genuinely absent
  * from the submitted list are deleted, and only once confirmed safe to.
+ *
+ * `previewFieldIds` (KD-042) is checked against this same save's own field
+ * list, not the template's previous one -- an id naming a field just removed
+ * in this save, or one whose type/format no longer resolves to a display
+ * kind, is dropped here rather than persisted and left to be dropped again
+ * at render time. It is never gated by `isTemplateInUse`: picking which
+ * fields preview is a display choice, not a type change.
  */
-export async function updateTemplate(templateId: string, name: string, fields: TemplateFieldInput[]) {
+export async function updateTemplate(templateId: string, name: string, fields: TemplateFieldInput[], previewFieldIds: string[] = []) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (tx) => {
     const owned = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
     if (!owned) refuse("This template no longer exists.");
 
-    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true } });
+    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true, multiline: true } });
     const existingById = new Map(existing.map((field) => [field.id, field]));
     const submittedIds = new Set(fields.flatMap(({ id }) => id ? [id] : []));
     const removedIds = existing.filter(({ id }) => !submittedIds.has(id)).map(({ id }) => id);
     const typeChanged = fields.some(({ id, type }) => id && existingById.has(id) && existingById.get(id)!.type !== type);
+    // Toggling Notes on or off reads like a type change to the person doing
+    // it -- it's the same dropdown -- so it's gated the same way, even
+    // though the stored value itself is never at risk either way.
+    const multilineChanged = fields.some(({ id, multiline }) => id && existingById.has(id) && Boolean(existingById.get(id)!.multiline) !== Boolean(multiline));
 
-    if ((removedIds.length || typeChanged) && await isTemplateInUse(tx, templateId)) {
+    if ((removedIds.length || typeChanged || multilineChanged) && await isTemplateInUse(tx, templateId)) {
       refuse("This template is in use, so its fields can no longer be retyped or removed.");
     }
 
@@ -119,14 +167,20 @@ export async function updateTemplate(templateId: string, name: string, fields: T
       refuse("A template can only have one Due Date field.");
     }
 
-    await tx.template.update({ where: { id: templateId }, data: { name } });
+    const fieldById = new Map(fields.flatMap((field) => field.id ? [[field.id, field]] as const : []));
+    const previewFields = previewFieldIds.filter((id) => {
+      const field = fieldById.get(id);
+      return field && resolveKind(field.type, field.numberFormat) !== null;
+    });
+
+    await tx.template.update({ where: { id: templateId }, data: { name, previewFields } });
     if (removedIds.length) await tx.templateField.deleteMany({ where: { id: { in: removedIds } } });
     for (const [position, field] of fields.entries()) {
       const existingField = field.id ? existingById.get(field.id) : undefined;
       if (existingField) {
-        await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position } });
+        await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position, numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       } else {
-        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate) } });
+        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       }
     }
   });
@@ -140,13 +194,27 @@ export async function cloneTemplate(templateId: string, name: string) {
   });
   if (!source) refuse("This template no longer exists.");
 
+  // Generated up front, rather than inline in the nested create below, so
+  // previewFields (KD-042) can be remapped onto them: it names *source*
+  // field ids, but a clone gives every field a fresh one, so the only thing
+  // still tying a cloned field back to the one it came from is its position.
+  const clonedFields = source.fields.map((field) => ({ ...field, id: crypto.randomUUID() }));
+  const newIdByPosition = new Map(clonedFields.map((field) => [field.position, field.id]));
+  const sourcePositionById = new Map(source.fields.map((field) => [field.id, field.position]));
+  const previewFields = source.previewFields.flatMap((id) => {
+    const position = sourcePositionById.get(id);
+    const newId = position !== undefined ? newIdByPosition.get(position) : undefined;
+    return newId ? [newId] : [];
+  });
+
   return prisma.template.create({
     data: {
       id: crypto.randomUUID(),
       userId: user.id,
       name,
+      previewFields,
       fields: {
-        create: source.fields.map(({ label, type, position, isDueDate }) => ({ id: crypto.randomUUID(), label, type, position, isDueDate })),
+        create: clonedFields.map(({ id, label, type, position, isDueDate, numberFormat, multiline }) => ({ id, label, type, position, isDueDate, numberFormat, multiline })),
       },
     },
   });
