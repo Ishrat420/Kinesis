@@ -142,29 +142,9 @@ Modules simply display and organise Objects.
 
 # Relationships
 
-Relationships provide context.
+Relationships provide context and represent the people in life.
 
-Examples:
-
-Passport
-
-→ Owner
-
-→ Trip
-
-→ Visa
-
-→ Reminder
-
-Vehicle
-
-→ Insurance
-
-→ Registration
-
-→ Service History
-
-Relationships transform isolated information into connected knowledge.
+It intentionally maintain relationships without treating people like tasks.
 
 ---
 
@@ -196,10 +176,10 @@ Each card should answer **“Is there something here I should know?”**
 
 Examples:
 
-- Three documents expire this year.
-- No emergency contact is linked.
-- This vehicle has not been serviced recently.
-- You own three subscriptions with annual renewals next month.
+- Three documents expire soon.
+- The goal is at risk 
+- Birthday is coming
+- This vehicle has to be serviced. 
 
 Insights should reduce mental effort.
 
@@ -386,8 +366,8 @@ Modules are consistent views over connected Objects.
 
 Objects are the source of truth.
 
-Relationships create context.
+Relationships create meaning. 
 
 AI enhances understanding.
 
-The Module Framework ensures every area of life feels familiar while remaining deeply connected to every other area.La
+The Module Framework ensures every area of life feels familiar while remaining deeply connected to every other area.

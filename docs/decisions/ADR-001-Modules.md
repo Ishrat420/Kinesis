@@ -12,7 +12,7 @@ Users need structure so the app feels understandable and organised.
 
 At the same time, Kinesis must avoid becoming a set of disconnected mini-applications.
 
-A module is a view and organisational container. It should not duplicate data. Objects are reusable across Kinesis.
+A module is a view and organisational container. It should not duplicate data. Objects are Link-able across Kinesis.
 
 
 ## Decision
@@ -25,17 +25,15 @@ Examples:
 
 - Documents
 - Finance
-- Health
-- Vehicles
 - Goals
 - Relationships
-- Custom modules such as Skincare, Plants, Wedding, Pets, or Travel
+- Custom modules such as Health, Skincare, Pets, or Travel
 
-Modules organise objects.
+Modules organise objects. Modules can govern objects. 
 
-Modules do not own objects.
+However, where possible objects won't be hardcoded to Modules, and Modules won't tightly control objects in a way that prevents it being used or referenced elsewhere. 
 
-Objects exist once and may appear in multiple modules.
+Objects exist once and maybe referenced in multiple modules.
 
 ## Resolved Questions
 
@@ -54,8 +52,7 @@ Examples:
 
 - `/documents`
 - `/finance`
-- `/health`
-- `/vehicles`
+- `/relationships`
 - `/goals`
 
 System Modules may include custom dashboards, integrations, AI extraction flows, and domain-specific views.
