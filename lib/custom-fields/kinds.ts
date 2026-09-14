@@ -16,9 +16,26 @@ export type DisplayKind = "date" | "number" | "currency" | "percent" | "status" 
 const STATUS_CHAR_CAP = 24;
 /** A single preview line's budget -- generous enough to read as a sentence fragment, short enough to never wrap a card. */
 const TEXT_CHAR_CAP = 40;
+/**
+ * A stat tile's label sits above its value in small caps, naming it rather
+ * than describing it -- "Country", "Interest rate", "Relationship" -- so its
+ * budget is tighter than a value's. It's the same cap a status badge gets,
+ * for the same reason: neither wraps, so both need a hard limit rather than
+ * an ellipsis rule that only sometimes applies. Every existing hardcoded
+ * label is well under this; it exists for the labels that aren't hardcoded
+ * (a custom field's name, a document's own relabelled field, a goal's
+ * free-text unit), none of which are length-limited at the point they're
+ * typed in.
+ */
+const LABEL_CHAR_CAP = 24;
 
 function truncate(value: string, cap: number) {
   return value.length > cap ? `${value.slice(0, cap - 1).trimEnd()}…` : value;
+}
+
+/** Caps a preview stat's label the same way a value is capped -- trimmed, then truncated with an ellipsis rather than left to overflow its tile. */
+export function truncateLabel(label: string): string {
+  return truncate(label.trim(), LABEL_CHAR_CAP);
 }
 
 /**

@@ -16,10 +16,10 @@ export function PreviewStats({ stats }: { stats: KinesisLinkPreviewStat[] }) {
   return (
     <div className="flex flex-wrap gap-x-7 gap-y-3">
       {stats.map((stat, index) => (
-        <div key={index} className="flex min-w-0 flex-col gap-0.5">
-          <span className="whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-wide text-zinc-400">{stat.label}</span>
+        <div key={index} className="flex min-w-0 max-w-full flex-col gap-0.5">
+          <span className="max-w-full truncate text-[10.5px] font-semibold uppercase tracking-wide text-zinc-400">{stat.label}</span>
           {stat.kind === "status" ? (
-            <span className="inline-block w-fit rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-700">{stat.value}</span>
+            <span className="inline-block max-w-full truncate rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-700">{stat.value}</span>
           ) : (
             <span className="max-w-full truncate text-sm font-bold text-zinc-800">{stat.value}</span>
           )}

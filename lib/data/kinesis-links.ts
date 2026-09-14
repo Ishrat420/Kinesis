@@ -2,7 +2,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
 import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOption, type KinesisLinkTargetType } from "@/lib/custom-fields/types";
 import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
-import { resolveKind, formatPreviewValue, type DisplayKind } from "@/lib/custom-fields/kinds";
+import { resolveKind, formatPreviewValue, truncateLabel, type DisplayKind } from "@/lib/custom-fields/kinds";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { formatDateInput } from "@/lib/dates";
 import { displayNumber } from "@/lib/goals/format";
@@ -66,10 +66,18 @@ type PreviewFormatContext = { locale: string; currency: string; today: Date };
 /** A `Date` column read back as the `yyyy-mm-dd` string `formatPreviewValue`'s `date` kind (via `parseDatedFieldValue`) already understands, or `""` when there's nothing to show. */
 const toDateOnly = (date: Date | null) => date ? formatDateInput(date) : "";
 
-/** Formats one field and wraps it as a stat, or drops it -- the one place every builder below turns a raw value into (or out of) a card, so "empty means omitted" (KD-042) is enforced once, not per Module. */
+/**
+ * Formats one field and wraps it as a stat, or drops it -- the one place
+ * every builder below turns a raw value into (or out of) a card, so "empty
+ * means omitted" (KD-042) is enforced once, not per Module. The label is
+ * capped here too: unlike the value, nothing about a stat's label goes
+ * through a shared formatter otherwise, and several label sources (a custom
+ * field's name, a document's own relabelled field, a goal's free-text unit)
+ * have no length limit at the point they're typed in.
+ */
 function buildStat(label: string, kind: DisplayKind, raw: { value?: string; linkCount?: number }, context: PreviewFormatContext): KinesisLinkPreviewStat | null {
   const formatted = formatPreviewValue(kind, raw, context);
-  return formatted === null ? null : { label, kind, value: formatted };
+  return formatted === null ? null : { label: truncateLabel(label), kind, value: formatted };
 }
 
 /**
@@ -188,11 +196,14 @@ async function getDocumentPreviews(objectIds: string[], userId: string, context:
  * config. Unlike every other builder here, neither stat is a plain column --
  * both are derived (a count over `milestones`, a fraction of `targetValue`)
  * -- so neither maps onto one of `resolveKind`'s `CustomFieldType`s. They're
- * built as plain sentences instead and passed through the `text` kind purely
- * for its "trim, cap length, drop if empty" behaviour, not because they're a
- * text field. Phrasing matches the goal's own detail page (`GoalPage`,
- * `displayNumber`) so a value never reads differently in the two places it
- * can appear.
+ * built as plain sentences instead and still run through `buildStat` with
+ * the `text` kind, purely for its "cap length, drop if empty" behaviour --
+ * not because they're a text field. Phrasing matches the goal's own detail
+ * page (`GoalPage`, `displayNumber`) so a value never reads differently in
+ * the two places it can appear; the length cap matters here specifically
+ * because `unit` is free text with no limit of its own (a goal's own
+ * "Add unit" input), so an unusually long one is a real, reachable case,
+ * not a hypothetical one.
  *
  * Each stat also honours the same `showMilestoneProgress`/
  * `showTargetProgress` toggles the goal's own page already uses to decide
@@ -201,8 +212,9 @@ async function getDocumentPreviews(objectIds: string[], userId: string, context:
  * meaningful, and a linked card showing it anyway would be a second,
  * disagreeing opinion about the same goal.
  */
-async function getGoalPreviews(objectIds: string[], userId: string, { locale }: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+async function getGoalPreviews(objectIds: string[], userId: string, context: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
   const result: Record<string, KinesisLinkPreviewStat[]> = {};
+  const { locale } = context;
 
   const goals = await prisma.goal.findMany({
     where: { objectId: { in: objectIds }, userId },
@@ -218,12 +230,14 @@ async function getGoalPreviews(objectIds: string[], userId: string, { locale }: 
 
     if (goal.showMilestoneProgress && goal.milestones.length) {
       const completed = goal.milestones.filter((milestone) => milestone.completed).length;
-      stats.push({ label: "Milestones", kind: "text", value: `${completed} of ${goal.milestones.length} complete` });
+      const stat = buildStat("Milestones", "text", { value: `${completed} of ${goal.milestones.length} complete` }, context);
+      if (stat) stats.push(stat);
     }
     if (goal.showTargetProgress && goal.targetValue !== null) {
       const current = displayNumber(goal.currentValue ?? 0, goal.unit, locale);
       const target = displayNumber(goal.targetValue, goal.unit, locale);
-      stats.push({ label: goal.unit || "Target", kind: "text", value: `${current} of ${target}` });
+      const stat = buildStat(goal.unit || "Target", "text", { value: `${current} of ${target}` }, context);
+      if (stat) stats.push(stat);
     }
 
     if (stats.length) result[goal.objectId] = stats;

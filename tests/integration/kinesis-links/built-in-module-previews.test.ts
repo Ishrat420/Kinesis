@@ -68,6 +68,23 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People, Fi
       const previews = await getKinesisLinkPreviews(["doc-obj"]);
       expect(previews["doc-obj"]).toBeUndefined();
     });
+
+    /**
+     * A document's field labels are free text with no length limit where
+     * they're renamed (the "documentNumberLabel" input has no maxLength),
+     * so an unusually long one reached the card unbounded before buildStat
+     * started capping labels.
+     */
+    it("truncates an unusually long custom field label", async () => {
+      await seedDocument();
+      const longLabel = "The number printed on the front of this particular passport document";
+      await prisma.document.update({ where: { id: "doc-1" }, data: { documentNumberLabel: longLabel } });
+
+      const previews = await getKinesisLinkPreviews(["doc-obj"]);
+      const stat = previews["doc-obj"]!.find((entry) => entry.value === "P1234567")!;
+      expect(stat.label.length).toBeLessThanOrEqual(24);
+      expect(stat.label.endsWith("…")).toBe(true);
+    });
   });
 
   describe("Goals", () => {
@@ -113,6 +130,26 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People, Fi
 
       const previews = await getKinesisLinkPreviews(["goal-obj"]);
       expect(previews["goal-obj"]).toBeUndefined();
+    });
+
+    /**
+     * The bug this guards against: getGoalPreviews built its two stats as
+     * plain object literals instead of going through buildStat, so neither
+     * the value nor the label was ever capped -- unlike every other
+     * builder. `unit` is free text with no length limit at the "Add unit"
+     * input, so a long one is a real, reachable case: it used to produce a
+     * ~170-character value and an unbounded label.
+     */
+    it("caps both the label and value for a goal with an unusually long custom unit", async () => {
+      const longUnit = "Kilometres run towards my personal marathon training goal this year and beyond";
+      await seedGoal({ unit: longUnit });
+
+      const previews = await getKinesisLinkPreviews(["goal-obj"]);
+      const targetStat = previews["goal-obj"]!.find((entry) => entry.label !== "Milestones")!;
+      expect(targetStat.label.length).toBeLessThanOrEqual(24);
+      expect(targetStat.label.endsWith("…")).toBe(true);
+      expect(targetStat.value.length).toBeLessThanOrEqual(40);
+      expect(targetStat.value.endsWith("…")).toBe(true);
     });
   });
 
