@@ -4,6 +4,8 @@ import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOpti
 import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 import { resolveKind, formatPreviewValue, type DisplayKind } from "@/lib/custom-fields/kinds";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
+import { formatDateInput } from "@/lib/dates";
+import { displayNumber } from "@/lib/goals/format";
 
 /** One configured preview field, already resolved and formatted, ready to render. */
 export type KinesisLinkPreviewStat = { label: string; kind: DisplayKind; value: string };
@@ -58,32 +60,31 @@ export async function validateKinesisTargets(fields: Array<{ targetObjectIds?: s
   return owned === targetIds.length ? null : "One of the linked items no longer exists. Reopen the link field and choose again.";
 }
 
-/**
- * Rich preview data for a batch of linked objects (KD-042, ADR-013) -- read
- * live, batched by type, narrow (only the configured preview fields), rather
- * than one query per card. Phase 1: only Custom Items carry preview
- * configuration (`Template.previewFields`), so every other object type
- * resolves to nothing here and its card falls back to the compact one --
- * that's not a special case, just an empty result for a type this function
- * doesn't know how to look up yet.
- *
- * An id in `objectIds` with no key in the returned record means "render the
- * compact card": no preview configured, no template, or every configured
- * field came back empty -- KD-042 treats all three the same way.
- *
- * A plain record rather than a Map, since every caller passes this straight
- * on as a prop into a Client Component (`KinesisLinkCard`'s consumers) --
- * always JSON-safe, unlike a Map.
- */
-export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Record<string, KinesisLinkPreviewStat[]>> {
-  const result: Record<string, KinesisLinkPreviewStat[]> = {};
-  if (!objectIds.length) return result;
+/** What every per-Module preview builder below needs to format a raw value, gathered once rather than per builder. */
+type PreviewFormatContext = { locale: string; currency: string; today: Date };
 
-  const user = await requireKinesisUser();
-  const [{ locale, currency }, today] = await Promise.all([getFormatPreferences(), getToday()]);
+/** A `Date` column read back as the `yyyy-mm-dd` string `formatPreviewValue`'s `date` kind (via `parseDatedFieldValue`) already understands, or `""` when there's nothing to show. */
+const toDateOnly = (date: Date | null) => date ? formatDateInput(date) : "";
+
+/** Formats one field and wraps it as a stat, or drops it -- the one place every builder below turns a raw value into (or out of) a card, so "empty means omitted" (KD-042) is enforced once, not per Module. */
+function buildStat(label: string, kind: DisplayKind, raw: { value?: string; linkCount?: number }, context: PreviewFormatContext): KinesisLinkPreviewStat | null {
+  const formatted = formatPreviewValue(kind, raw, context);
+  return formatted === null ? null : { label, kind, value: formatted };
+}
+
+/**
+ * Custom Items' preview fields come from the `Template` they point to
+ * (KD-035) rather than being hardcoded, since their field set is entirely
+ * user-defined -- see `Template.previewFields` and the Template settings
+ * page's "Show on card" picker. `templateId` lives on `Object`, not
+ * `CustomItem`, so this reads `Object` first rather than `CustomItem`
+ * directly, unlike the Document/Goal builders below.
+ */
+async function getCustomItemPreviews(objectIds: string[], userId: string, context: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+  const result: Record<string, KinesisLinkPreviewStat[]> = {};
 
   const objects = await prisma.object.findMany({
-    where: { id: { in: objectIds }, userId: user.id, type: "CUSTOM_ITEM", templateId: { not: null } },
+    where: { id: { in: objectIds }, userId, type: "CUSTOM_ITEM", templateId: { not: null } },
     select: { id: true, templateId: true, customItem: { select: { dueDate: true } } },
   });
   if (!objects.length) return result;
@@ -132,17 +133,135 @@ export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Recor
       if (!kind) continue;
 
       const raw = field.isDueDate
-        ? { value: object.customItem?.dueDate ? object.customItem.dueDate.toISOString().slice(0, 10) : "" }
+        ? { value: toDateOnly(object.customItem?.dueDate ?? null) }
         : kind === "link-count"
         ? { linkCount: valueByKey.get(`${object.id}:${field.id}`)?.links.length ?? 0 }
         : { value: valueByKey.get(`${object.id}:${field.id}`)?.value ?? "" };
 
-      const formatted = formatPreviewValue(kind, raw, { locale, currency, today });
-      if (formatted !== null) stats.push({ label: field.label, kind, value: formatted });
+      const stat = buildStat(field.label, kind, raw, context);
+      if (stat) stats.push(stat);
     }
 
     if (stats.length) result[object.id] = stats;
   }
 
   return result;
+}
+
+/**
+ * Documents have no Template, so their preview fields are a hardcoded
+ * config shipped in code rather than something a Settings page configures
+ * (KD-042's "Where This Is Configured" -- System Modules get no picker in
+ * v1). `documentNumber`, `expiryDate` and `country` were chosen because
+ * they're a document's own identity, not because they're the only option;
+ * each already carries its own per-document label (`documentNumberLabel`
+ * etc.), so the card reuses exactly the label the document itself was
+ * given rather than a second, generic one.
+ */
+async function getDocumentPreviews(objectIds: string[], userId: string, context: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+  const result: Record<string, KinesisLinkPreviewStat[]> = {};
+
+  const documents = await prisma.document.findMany({
+    where: { objectId: { in: objectIds }, userId },
+    select: {
+      objectId: true,
+      documentNumber: true, documentNumberLabel: true,
+      expiryDate: true, expiryDateLabel: true,
+      country: true, countryLabel: true,
+    },
+  });
+
+  for (const document of documents) {
+    const stats = [
+      buildStat(document.documentNumberLabel, "text", { value: document.documentNumber ?? "" }, context),
+      buildStat(document.expiryDateLabel, "date", { value: toDateOnly(document.expiryDate) }, context),
+      buildStat(document.countryLabel, "text", { value: document.country ?? "" }, context),
+    ].filter((stat): stat is KinesisLinkPreviewStat => stat !== null);
+    if (stats.length) result[document.objectId] = stats;
+  }
+
+  return result;
+}
+
+/**
+ * Goals have no Template either, so like Documents this is a hardcoded
+ * config. Unlike every other builder here, neither stat is a plain column --
+ * both are derived (a count over `milestones`, a fraction of `targetValue`)
+ * -- so neither maps onto one of `resolveKind`'s `CustomFieldType`s. They're
+ * built as plain sentences instead and passed through the `text` kind purely
+ * for its "trim, cap length, drop if empty" behaviour, not because they're a
+ * text field. Phrasing matches the goal's own detail page (`GoalPage`,
+ * `displayNumber`) so a value never reads differently in the two places it
+ * can appear.
+ *
+ * Each stat also honours the same `showMilestoneProgress`/
+ * `showTargetProgress` toggles the goal's own page already uses to decide
+ * whether that progress is worth showing at all -- a goal that hides its
+ * milestone bar on its own page has already said that count isn't
+ * meaningful, and a linked card showing it anyway would be a second,
+ * disagreeing opinion about the same goal.
+ */
+async function getGoalPreviews(objectIds: string[], userId: string, { locale }: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+  const result: Record<string, KinesisLinkPreviewStat[]> = {};
+
+  const goals = await prisma.goal.findMany({
+    where: { objectId: { in: objectIds }, userId },
+    select: {
+      objectId: true, unit: true, targetValue: true, currentValue: true,
+      showMilestoneProgress: true, showTargetProgress: true,
+      milestones: { select: { completed: true } },
+    },
+  });
+
+  for (const goal of goals) {
+    const stats: KinesisLinkPreviewStat[] = [];
+
+    if (goal.showMilestoneProgress && goal.milestones.length) {
+      const completed = goal.milestones.filter((milestone) => milestone.completed).length;
+      stats.push({ label: "Milestones", kind: "text", value: `${completed} of ${goal.milestones.length} complete` });
+    }
+    if (goal.showTargetProgress && goal.targetValue !== null) {
+      const current = displayNumber(goal.currentValue ?? 0, goal.unit, locale);
+      const target = displayNumber(goal.targetValue, goal.unit, locale);
+      stats.push({ label: goal.unit || "Target", kind: "text", value: `${current} of ${target}` });
+    }
+
+    if (stats.length) result[goal.objectId] = stats;
+  }
+
+  return result;
+}
+
+/**
+ * Rich preview data for a batch of linked objects (KD-042, ADR-013) -- read
+ * live, batched by type, narrow (only the configured preview fields), rather
+ * than one query per card. Each Object Type this function knows how to
+ * preview gets its own builder above and its own query; an object of a type
+ * with no builder here (Person, Finance) simply never gets an entry, and its
+ * card falls back to the compact one -- that's not a special case, just an
+ * empty result for a type nothing has taught this function to look up yet.
+ *
+ * An id in `objectIds` with no key in the returned record means "render the
+ * compact card": no preview configured (or none possible for that type),
+ * or every configured field came back empty -- KD-042 treats all three the
+ * same way.
+ *
+ * A plain record rather than a Map, since every caller passes this straight
+ * on as a prop into a Client Component (`KinesisLinkCard`'s consumers) --
+ * always JSON-safe, unlike a Map.
+ */
+export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+  if (!objectIds.length) return {};
+
+  const user = await requireKinesisUser();
+  const [{ locale, currency }, today] = await Promise.all([getFormatPreferences(), getToday()]);
+  const context: PreviewFormatContext = { locale, currency, today };
+
+  const [customItems, documents, goals] = await Promise.all([
+    getCustomItemPreviews(objectIds, user.id, context),
+    getDocumentPreviews(objectIds, user.id, context),
+    getGoalPreviews(objectIds, user.id, context),
+  ]);
+
+  return { ...customItems, ...documents, ...goals };
 }
