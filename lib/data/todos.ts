@@ -25,13 +25,14 @@ export type TodoRecord = {
   status: TodoStatus;
   dueDate: Date | null;
   completedAt: Date | null;
+  notes: string | null;
   createdAt: Date;
   /** The objects this To-Do concerns, resolved to where each one lives. */
   links: ObjectLocation[];
 };
 
 const todoSelect = {
-  id: true, name: true, status: true, dueDate: true, completedAt: true, createdAt: true,
+  id: true, name: true, status: true, dueDate: true, completedAt: true, notes: true, createdAt: true,
   object: {
     select: {
       outgoingRelationships: { select: { targetObject: { select: objectLocationSelect } }, orderBy: { createdAt: "asc" } },
@@ -87,15 +88,15 @@ export async function captureTodo(name: string) {
   });
 }
 
-export type NewTodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObjectIds?: string[] };
+export type NewTodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: string | null; linkObjectIds?: string[] };
 
 /**
  * The in-page "Add to-do" button's create, as opposed to quick capture's
- * title-only `captureTodo` above: status, due date and links go in with the
- * title in one transaction, so a to-do with an unresolved link is never left
- * half-created.
+ * title-only `captureTodo` above: status, due date, notes and links go in
+ * with the title in one transaction, so a to-do with an unresolved link is
+ * never left half-created.
  */
-export async function createTodo(name: string, { status = "TODO", dueDate = null, linkObjectIds = [] }: NewTodoDetails = {}) {
+export async function createTodo(name: string, { status = "TODO", dueDate = null, notes = null, linkObjectIds = [] }: NewTodoDetails = {}) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
     const todo = await transaction.todo.create({
@@ -104,6 +105,7 @@ export async function createTodo(name: string, { status = "TODO", dueDate = null
         name,
         status,
         dueDate,
+        notes,
         completedAt: isOpenTodoStatus(status) ? null : new Date(),
         user: { connect: { id: user.id } },
         object: objectFor.todo(name, user.id),
@@ -129,7 +131,7 @@ export async function createTodo(name: string, { status = "TODO", dueDate = null
   });
 }
 
-export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObjectIds?: string[] };
+export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: string | null; linkObjectIds?: string[] };
 
 /**
  * The "Add details" step. Every field is optional and independent: a caller
@@ -140,19 +142,20 @@ export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObje
  * a choice the user can make, and applied -- while `undefined` leaves the
  * existing links alone.
  */
-export async function updateTodoDetails(id: string, { status, dueDate, linkObjectIds }: TodoDetails) {
+export async function updateTodoDetails(id: string, { status, dueDate, notes, linkObjectIds }: TodoDetails) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
     const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, status: true } });
     if (!todo) refuse("This to-do no longer exists.");
 
-    if (status !== undefined || dueDate !== undefined) {
+    if (status !== undefined || dueDate !== undefined || notes !== undefined) {
       const nextStatus = status ?? todo.status;
       await transaction.todo.update({
         where: { id },
         data: {
           ...(status !== undefined ? { status } : {}),
           ...(dueDate !== undefined ? { dueDate } : {}),
+          ...(notes !== undefined ? { notes } : {}),
           // completedAt tracks the status rather than being set alongside it, so
           // a To-Do reopened from Done cannot keep a completion date.
           ...(status !== undefined ? { completedAt: isOpenTodoStatus(nextStatus) ? null : new Date() } : {}),

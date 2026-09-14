@@ -601,6 +601,7 @@ model Todo {
   status      TodoStatus @default(TODO)
   dueDate     DateTime?
   completedAt DateTime?
+  notes       String?
   userId      String
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   objectId    String     @unique

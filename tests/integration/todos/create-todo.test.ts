@@ -47,23 +47,23 @@ describe.sequential("create to-do", () => {
     await prisma.$disconnect();
   });
 
-  it("creates a To-Do with its status, due date and link in one submit", async () => {
+  it("creates a To-Do with its status, due date, notes and link in one submit", async () => {
     const result = await createTodoAction({}, form({
-      name: "Renew car registration", status: "WAITING", dueDate: "2026-12-01", linkObjectId: "create-todo-passport-object",
+      name: "Renew car registration", status: "WAITING", dueDate: "2026-12-01", notes: "Needs the odometer photo", linkObjectId: "create-todo-passport-object",
     }));
 
     expect(result).toEqual({ created: true });
     const [todo] = await getTodos();
-    expect(todo).toMatchObject({ name: "Renew car registration", status: "WAITING", dueDate: new Date("2026-12-01T00:00:00.000Z") });
+    expect(todo).toMatchObject({ name: "Renew car registration", status: "WAITING", dueDate: new Date("2026-12-01T00:00:00.000Z"), notes: "Needs the odometer photo" });
     expect(todo.links).toEqual([expect.objectContaining({ name: "Passport Somalia" })]);
   });
 
-  it("defaults to To do and no due date when only a title is given", async () => {
+  it("defaults to To do, no due date and no notes when only a title is given", async () => {
     const result = await createTodoAction({}, form({ name: "Something small" }));
 
     expect(result).toEqual({ created: true });
     const [todo] = await getTodos();
-    expect(todo).toMatchObject({ status: "TODO", dueDate: null });
+    expect(todo).toMatchObject({ status: "TODO", dueDate: null, notes: null });
     expect(todo.links).toEqual([]);
   });
 

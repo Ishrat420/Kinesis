@@ -14,7 +14,7 @@ const initialState: TodoDetailsState = {};
 /** How a dropped detail is described to the user, in the terms they entered it. */
 const DETAIL_LABELS: Record<CaptureDetail, string> = { status: "status", dueDate: "due date", link: "link" };
 
-export type CaptureDetailsDefaults = { status?: TodoStatus; dueDate?: string; linkObjectIds?: string[] };
+export type CaptureDetailsDefaults = { status?: TodoStatus; dueDate?: string; notes?: string; linkObjectIds?: string[] };
 
 /**
  * The optional second step of a capture (KD-008).
@@ -38,6 +38,7 @@ export function CaptureDetailsDialog({
   const [target, setTarget] = useState<CaptureTargetType>(DEFAULT_CAPTURE_TARGET);
   const [status, setStatus] = useState<TodoStatus>(defaults.status ?? "TODO");
   const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
+  const [notes, setNotes] = useState(defaults.notes ?? "");
   const [linkObjectIds, setLinkObjectIds] = useState<string[]>(defaults.linkObjectIds ?? []);
   const [state, formAction, pending] = useActionState(saveTodoDetailsAction.bind(null, todo.id), initialState);
 
@@ -112,6 +113,16 @@ export function CaptureDetailsDialog({
             <input
               type="date" name="dueDate" value={dueDate} onChange={(event) => setDueDate(event.target.value)}
               className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none transition focus:border-zinc-400"
+            />
+          </label>
+        )}
+
+        {stayingATodo && (
+          <label className="block text-sm font-semibold">
+            Notes <span className="font-normal text-zinc-400">(optional)</span>
+            <textarea
+              name="notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3}
+              className="mt-2 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-normal outline-none transition focus:border-zinc-400"
             />
           </label>
         )}

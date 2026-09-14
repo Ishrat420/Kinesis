@@ -78,12 +78,14 @@ export async function createTodoAction(_previousState: CreateTodoState, formData
   if (dueDateValue && !parseDateOnly(dueDateValue)) return { error: "Enter a valid due date." };
 
   const linkObjectIds = formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean);
+  const notes = text(formData, "notes");
 
   let todo;
   try {
     todo = await createTodo(name, {
       status: statusValue ? (statusValue as TodoStatus) : undefined,
       dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
+      notes: notes || null,
       linkObjectIds,
     });
   } catch (failure) {
@@ -127,6 +129,7 @@ export async function saveTodoDetailsAction(id: string, _previousState: TodoDeta
     await updateTodoDetails(id, {
       status: statusValue ? (statusValue as TodoStatus) : undefined,
       dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
+      notes: text(formData, "notes") || null,
       // The form submits one entry per linked object, so the whole set arrives
       // together and an empty set legitimately means "no longer concerns anything".
       linkObjectIds: formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean),

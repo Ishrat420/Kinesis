@@ -41,6 +41,7 @@ export function AddTodoButton({ linkOptions }: { linkOptions: ObjectLocation[] }
 function AddTodoForm({ linkOptions, onClose }: { linkOptions: ObjectLocation[]; onClose: () => void }) {
   const [status, setStatus] = useState<TodoStatus>("TODO");
   const [dueDate, setDueDate] = useState("");
+  const [notes, setNotes] = useState("");
   const [linkObjectIds, setLinkObjectIds] = useState<string[]>([]);
   const [state, formAction, pending] = useActionState(createTodoAction, initialState);
 
@@ -55,7 +56,6 @@ function AddTodoForm({ linkOptions, onClose }: { linkOptions: ObjectLocation[]; 
           <h2 id="add-todo-title" className="text-2xl font-semibold">
             Add a to-do
           </h2>
-          <p className="mt-1 text-sm text-zinc-500">Capture what needs doing, with as much detail as you have.</p>
         </div>
         <button
           type="button"
@@ -121,6 +121,17 @@ function AddTodoForm({ linkOptions, onClose }: { linkOptions: ObjectLocation[]; 
               />
             </div>
           </div>
+
+          <label className="block text-sm font-medium text-zinc-700">
+            Notes <span className="font-normal text-zinc-400">(optional)</span>
+            <textarea
+              name="notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={3}
+              className="mt-2 w-full rounded-xl border border-zinc-200 px-4 py-3 outline-none transition focus:border-zinc-400"
+            />
+          </label>
 
           {state.error && (
             <p role="alert" className="text-sm font-medium text-red-600">

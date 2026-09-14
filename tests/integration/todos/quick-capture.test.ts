@@ -81,18 +81,27 @@ describe.sequential("quick capture", () => {
     expect(await prisma.object.count({ where: { userId: owner, type: "TODO" } })).toBe(0);
   });
 
-  it("records a status and due date, and links the To-Do to what it concerns", async () => {
+  it("records a status, due date and notes, and links the To-Do to what it concerns", async () => {
     const { captured } = await captureTodoAction("Update new passport details");
 
     await saveTodoDetailsAction(captured!.id, {}, form({
-      target: "TODO", status: "WAITING", dueDate: "2026-12-01", linkObjectId: "capture-passport-object",
+      target: "TODO", status: "WAITING", dueDate: "2026-12-01", notes: "Waiting on the passport office to call back", linkObjectId: "capture-passport-object",
     }));
 
     const [todo] = await getTodos();
-    expect(todo).toMatchObject({ status: "WAITING", dueDate: new Date("2026-12-01T00:00:00.000Z") });
+    expect(todo).toMatchObject({ status: "WAITING", dueDate: new Date("2026-12-01T00:00:00.000Z"), notes: "Waiting on the passport office to call back" });
     // The link is an ObjectRelationship, not a column, so a To-Do can concern
     // any kind of record without the table learning about that kind.
     expect(todo.links).toEqual([expect.objectContaining({ name: "Passport Somalia", module: "Documents", href: "/documents/capture-passport" })]);
+  });
+
+  it("clears notes when the form comes back with an empty field", async () => {
+    const { captured } = await captureTodoAction("Update new passport details");
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", notes: "A note to remove later" }));
+
+    await saveTodoDetailsAction(captured!.id, {}, form({ target: "TODO", notes: "" }));
+
+    expect((await getTodos())[0].notes).toBeNull();
   });
 
   it("clears the completion date when a done To-Do is reopened", async () => {

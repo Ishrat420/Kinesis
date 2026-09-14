@@ -68,6 +68,7 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
           defaults={{
             status: editing.status,
             dueDate: editing.dueDate ? formatDateInput(editing.dueDate) : "",
+            notes: editing.notes ?? "",
             linkObjectIds: editing.links.map((link) => link.objectId),
           }}
           onClose={() => setEditing(null)}
