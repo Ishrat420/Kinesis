@@ -1,8 +1,23 @@
 # KD-032 — Relationships bypass the universal object layer
 
-**Status:** Planning Needed
+**Status:** Accepted
 **Priority:** Medium
 **Tags:** Architecture, Data Model, Technical Debt, Foundation Dependent, Security
+
+## Decision
+
+**Option 3 — record the exemption — plus Option 4 (both halves) regardless.** `Relationship` stays outside the universal object layer. `RelationshipGoal` stays. Neither gets an `objectId`, and the person-to-person edge is never expressed as an `ObjectRelationship` row.
+
+This reverses the direction the ticket originally leaned ("bring `Relationship` onto the object layer" as the presumed right long-term shape). What changed it was working through what the universal layer would actually be *for* here, against how the module is actually used:
+
+* **Nothing needs to link to a relationship edge.** The scenario that would justify Option 1 — a Document or Goal attaching to "the relationship between two people" rather than to a person — doesn't occur in how this module is used. Things attach to *people* (a document about Peach attaches to Peach, not to "Mel & Peach"). Without that need, the main capability Option 1 buys — letting other modules point at a `Relationship` the way they point at a `Document` or `Goal` — has no consumer.
+* **The delete behaviour the module needs already works, and doesn't depend on this decision.** Deleting a person cascades their edges (`onDelete: Cascade` on `firstPersonId`/`secondPersonId`) without touching the people on the other side of *those* people's other edges — delete Mel, and your independent bond with her son survives untouched, because it's a separate `Relationship` row. That's ordinary FK cascade behaviour on the schema as it stands today; nothing about giving `Relationship` an `objectId` would change it, and nothing about withholding one breaks it.
+* **Search visibility is orthogonal, not a consequence of this decision.** `Relationship` already appears in search today (`lib/search/providers.ts`'s `relationships` provider), via its own hand-written provider — every module here has one, independent of `Object` status. Object-backing `Relationship` would not add it to search; leaving `Relationship` alone does not remove it either. If search inclusion for connections needs revisiting, that's a separate, small, unrelated change.
+* **The domain doesn't want the generic vocabulary.** `ObjectRelationshipType` (`SUPPORTS` / `BLOCKS` / `DEPENDS_ON` / `RELATES_TO` / `ALONGSIDE`) was designed for capability composition between records, not for describing that two people are friends, family, or dating. Forcing the person-to-person edge through that enum would mean modeling a shape that doesn't fit, for a link the module has been explicit is meant to stay free-text and creative rather than governed by a fixed vocabulary (see Open Questions, resolved below).
+
+Option 1 remains the technically correct move *if* a future need appears for another module to reference a relationship edge directly — nothing here forecloses it, and the two originally-open modeling risks (pair ordering, enum fit) are now resolved in Option 1's favour too, should that day come. It simply isn't buying anything today, at real cost (the ticket's own estimate: "the largest piece of work in the v1.2.0 consistency set").
+
+**Option 4 is accepted independent of the 1-vs-3 call**, per the ticket's own framing — both halves close a real, currently-silent data-integrity gap regardless of which architecture wins.
 
 ## Summary
 
@@ -52,23 +67,25 @@ The same shape recurs outside the module: `NotificationRead` carries five mutual
 
 The universal object layer's value is that a capability written once applies everywhere. Every capability added to `ObjectRelationship` from here — link types, traversal, a relationship graph, "what does this support?" — arrives for Goals, Documents, To-Dos and Custom Items and stops at the Relationships module boundary. The module most likely to want a typed link between two records is the one that cannot use them.
 
+**This argument is real, and the decision above overrides it anyway.** It's an argument that a capability *would* be valuable if the module wanted it — it isn't evidence the module does. Kinesis is single-owner, so the module's whole graph is one person's own subjective map of the people in their life; there is no second account for a "which two records get linked" traversal to arbitrate between, and nothing in how the module is used has asked for a relationship edge to be a link *target* for anything else. The capability this section describes stays real and available the day that changes — Option 1 isn't ruled out, just not worth its cost against a need that hasn't shown up.
+
 ## Options
 
-### 1. Bring `Relationship` onto the object layer
+### 1. Bring `Relationship` onto the object layer — not chosen
 
 Give `Relationship` an `objectId`, express person-to-person links as `ObjectRelationship` rows, and retire `RelationshipGoal` in favour of a goal-to-relationship `ObjectRelationship`.
 
-The right long-term shape, and the largest piece of work in the v1.2.0 consistency set: schema migration, backfill for existing rows, every read and write path in the module, plus the delete path moving to `deleteObjects`. The `@@unique([userId, firstPersonId, secondPersonId])` guarantee has to survive the move — `pairKey` is the existing mechanism for exactly that, and needs checking against the two-people case before anything is migrated.
+The right long-term shape *if the need shows up*, and the largest piece of work in the v1.2.0 consistency set: schema migration, backfill for existing rows, every read and write path in the module, plus the delete path moving to `deleteObjects`. The `@@unique([userId, firstPersonId, secondPersonId])` guarantee has to survive the move — `pairKey` is the existing mechanism for exactly that, and needs checking against the two-people case before anything is migrated. Not chosen: see Decision above — nothing currently needs another module to link to a relationship edge, so the cost buys nothing today.
 
-### 2. Retire only `RelationshipGoal`
+### 2. Retire only `RelationshipGoal` — not chosen, same reason as 1
 
-The narrower half. `Goal` is Object-backed; if `Relationship` becomes one, its link to a goal is an ordinary `ObjectRelationship`. Not separable from option 1 in practice — it needs `Relationship` to have an `objectId` first — but worth naming, because it is the part with a visible payoff: goal-linked relationships (KD-022) would surface through the same traversal as every other goal link.
+The narrower half. `Goal` is Object-backed; if `Relationship` becomes one, its link to a goal is an ordinary `ObjectRelationship`. Not separable from option 1 in practice — it needs `Relationship` to have an `objectId` first — so it is declined for the same reason as option 1, not independently. `RelationshipGoal` stays as the goal-linking mechanism.
 
-### 3. Record the exemption and move on
+### 3. Record the exemption and move on — chosen
 
-Say in `docs/decisions` that the Relationships module models its own domain and is deliberately outside the universal layer, and drop the expectation. Cheap and honest if the module is not going to grow more link types. It does mean KD-023's "any object to any object" claim is qualified from here on, and the qualification belongs in ADR-006 and KD-024 rather than being folk knowledge.
+Say in `docs/decisions` that the Relationships module models its own domain and is deliberately outside the universal layer, and drop the expectation. Cheap and honest if the module is not going to grow more link types. It does mean KD-023's "any object to any object" claim is qualified from here on, and the qualification belongs in ADR-006 and KD-024 rather than being folk knowledge. **This is the chosen option — see Decision above.** Follow-up: reflect this qualification in ADR-006 / KD-024 (not yet done; this ticket records the decision, the cross-references still need the note added).
 
-### 4. Add the missing database enforcement regardless
+### 4. Add the missing database enforcement regardless — accepted, independent of 1 vs 3
 
 Independent of 1–3, and worth doing on its own — two mechanisms, for the two shapes above:
 
@@ -77,25 +94,42 @@ Independent of 1–3, and worth doing on its own — two mechanisms, for the two
 
 Both close a class of silent corruption that currently only application code prevents. 4b is the half that would matter most the day a second account exists — a cross-account data-integrity gap in its own right, independent of whatever gets decided between options 1–3.
 
-## Proposed shape
+## Proposed shape (resolved — see Decision)
 
-Option 4 first (4a and 4b both) — cheap relative to 1–3, independent of whichever of them is chosen, and useful whichever way that decision goes.
+The original plan here was "Option 4 first, then decide between 1 and 3 before v1.2.0 work is scheduled." The decision is now made: **3, plus 4.** Remaining work is entirely Option 4:
 
-Then a decision between 1 and 3 *before* v1.2.0 work is scheduled, because option 1 is large enough to consume the release on its own and option 3 costs nothing. What must not happen is the current state: the exemption existing without anyone having chosen it.
+* **4a.** CHECK constraints for gap A, on `ConnectionPractice`, `RelationshipReflection`, `RelationshipImportantDate` (exactly one parent), and `NotificationRead`, `AttentionDismissal` (at most one).
+* **4b.** Ownership-agreement triggers for gap B, extending `kinesis_assert_object_attachment` to `Relationship` (both `Person` endpoints, built directly against today's `firstPersonId`/`secondPersonId` — no longer blocked on the 1-vs-3 call), `ObjectRelationship` (both `Object` endpoints), and `FieldLink` (the field's object and its target).
+
+Neither is scheduled yet; this ticket records the decision that unblocks them, not the implementation.
 
 ## Open questions
 
-* Does `pairKey` express an unordered person pair correctly, or does `Relationship`'s ordered `firstPerson` / `secondPerson` carry meaning that would be lost?
-* Do the child tables (`practices`, `reflections`, `importantDates`) stay hung off `Relationship` under option 1, or do they hang off its `Object` too?
-* Is a person-to-person link ever going to want the `ObjectRelationshipType` vocabulary (`SUPPORTS`, `BLOCKS`, …), or is its own free-text `type` the right model for a domain the enum was not designed for? If the enum does not fit, that is an argument for option 3.
-* Does `Relationship`'s half of gap B (4b) get built against today's `firstPersonId`/`secondPersonId` columns, or does it wait for a decision between options 1 and 3 — a person-ownership trigger written now would need rework if option 1 later moves `Relationship` onto the Object layer entirely. `ObjectRelationship`'s and `FieldLink`'s halves aren't affected either way and don't need to wait.
+Resolved:
+
+* ~~Does `pairKey` express an unordered person pair correctly, or does `Relationship`'s ordered `firstPerson` / `secondPerson` carry meaning that would be lost?~~ **No meaning would be lost** — confirmed. Moot now that the edge isn't moving onto `ObjectRelationship`, but recorded here since it also clears the way for Option 1 later, should the need arise.
+* ~~Is a person-to-person link ever going to want the `ObjectRelationshipType` vocabulary, or is its own free-text `type` the right model?~~ **Free-text is right, and always will be** — relationship type is domain vocabulary (friends, family, dating), not capability vocabulary (`SUPPORTS`/`BLOCKS`). This was one of the two things that tipped the decision to Option 3.
+* ~~Do the child tables stay hung off `Relationship` under option 1, or do they hang off its `Object` too?~~ Moot — option 1 not taken, children stay exactly where they are, hung off `Relationship.id` (or `Person.id` for KD-021's self-relationship case, see Related Findings below).
+* ~~Does `Relationship`'s half of gap B (4b) get built against today's `firstPersonId`/`secondPersonId` columns, or does it wait for a decision between 1 and 3?~~ Build it now, against today's columns — the decision is made, those columns aren't moving.
+
+Still open:
+
 * `ObjectRelationship` and `FieldLink` aren't part of the Relationships module at all — they're named here only because this ticket is where gap A was already on record. Worth a call on whether 4b for those two stays here or moves to its own ticket once scoped, so this one doesn't quietly become the catch-all for every cross-table ownership gap in the schema.
+
+## Related findings (out of scope for this ticket)
+
+Working through the Decision above with real examples (a step-parent-like bond that should survive independently of the relationship that introduced it; a pet's birthday known only through someone else) surfaced two more concrete gaps in the Relationships module's own data model — not about the universal object layer, so deliberately not folded into this ticket's scope:
+
+* **A person's own facts are already modeled generically, but only exposed for the self-person.** `reconcileChildren` in `app/(app)/relationships/actions.ts` already loops over every `Person` — not just the one with `isSelf: true` — and persists a `practices`/`reflections`/`importantDates` bucket hung directly off that person via `selfPersonId`, independent of any relationship edge. Nothing in the schema restricts this to the self-person; the restriction is UI-only (`SelfRelationshipInspector` in `RelationshipMap.tsx` renders only `if (viewingSelf)`). A person with no edge at all currently has nowhere to record anything about them ("Connect this person to someone to add relationship details."). Candidate fix: expose the same panel for any person, not just "You" — this generalizes KD-021 rather than requiring new schema.
+* **A relationship edge between two other people gets the same UI as a relationship the account owner is in.** "Connection Practices" and "Reflections" ("ongoing behaviours that maintain this relationship", "how this relationship is going") are inherently first-person — they don't make sense for an edge the account owner is recording as context rather than participating in (e.g. two other people's own relationship to each other). Once the previous point moves person-specific facts onto the person, what's left on a third-party edge is really just its `type`; practices/reflections should probably only be prompted for when the self-person is one of the edge's two ends. Computable today from existing data (`Person.isSelf`) — no schema change.
+
+Recommend filing these as their own ticket(s) once scoped, rather than expanding this one.
 
 ## Related
 
-* KD-023 — universal object connection.
-* KD-024 — universal object capability layer (Done); this is the gap left in it.
-* KD-021 — relationship with oneself; the reason the children carry two nullable parents.
-* KD-022 — goal-linked relationships; the feature `RelationshipGoal` exists for.
-* ADR-006 — Relationship module.
+* KD-023 — universal object connection. Its "any object to any object" claim is now qualified by this ticket's Decision; the qualification still needs adding to KD-023 itself.
+* KD-024 — universal object capability layer (Done); this is the gap left in it, now deliberately left open rather than closed.
+* KD-021 — relationship with oneself; the reason the children carry two nullable parents, and the origin of the `selfPersonId` mechanism the Related Findings above propose generalizing.
+* KD-022 — goal-linked relationships; the feature `RelationshipGoal` exists for, and continues to exist for under this decision.
+* ADR-006 — Relationship module. Still needs the exemption noted per Option 3 (not yet done).
 * `20260903000000_object_integrity_invariants` / `20260904000000_object_ownership_integrity` — the trigger-based pattern gap B (4b) would extend to `Relationship`, `ObjectRelationship`, and `FieldLink`.
