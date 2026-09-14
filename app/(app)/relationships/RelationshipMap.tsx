@@ -409,8 +409,14 @@ function RelationshipChoice({ person, relationship, relationships, people, onCha
 }
 
 function PersonInspector({ person, relationships, people, onChange, onLink, onRemoveRelationship, onDelete }: { person: Person; relationships: Relationship[]; people: Person[]; onChange: (patch: Partial<Person>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDelete: () => void }) {
+  const { locale } = useFormatPreferences();
   const related = relationships.filter((relationship) => relationship.from === person.id || relationship.to === person.id);
   const Icon = icons[person.icon];
+  // "Relationship with myself" already covers this for the self person, in its
+  // own dedicated tab -- repeating it here would just be the same facts twice.
+  const viewingSelf = isSelfPerson(person);
+  const [addingDate, setAddingDate] = useState(false);
+  const changeOwnFacts = (patch: Partial<SelfRelationship>) => onChange({ selfRelationship: { ...person.selfRelationship, ...patch } });
   return <div>
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Person details</p><p className="mt-0.5 text-[11px] text-zinc-400">Make this bubble feel like them</p></div><MoreHorizontal className="h-5 w-5 text-zinc-400" /></div>
     <div className="px-5 py-5">
@@ -420,6 +426,29 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
       <div className="mb-5"><div className="mb-2 flex items-center justify-between"><InspectorLabel>Bubble size</InspectorLabel><span className="text-[11px] font-medium text-zinc-400">{person.size}px</span></div><input type="range" min="64" max="148" value={person.size} onChange={(e) => onChange({size:Number(e.target.value)})} className="w-full accent-zinc-800" /></div>
       <div className="mb-3 flex items-center justify-between"><InspectorLabel>Connections</InspectorLabel><button onClick={onLink} className="flex items-center gap-1 text-[11px] font-semibold text-zinc-700"><Link2 className="h-3 w-3"/> Connect</button></div>
       <div className="space-y-2">{related.map((relationship) => { const otherId = relationship.from === person.id ? relationship.to : relationship.from; const other = people.find((p) => p.id === otherId); return <div key={relationship.id} className="flex items-center gap-2 rounded-xl bg-zinc-50 p-2.5"><span style={{backgroundColor:other?.color}} className="h-7 w-7 rounded-full"/><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{other?.name}</p><p className="text-[10px] text-zinc-400">{relationship.type}</p></div><button onClick={() => onRemoveRelationship(relationship.id)} className="text-zinc-300 hover:text-red-500" aria-label="Remove relationship"><X className="h-3.5 w-3.5"/></button></div>})}</div>
+
+      {/*
+        A person's own facts (KD-032 review): a birthday belongs to them, not
+        to whichever relationship line happens to be drawn to them -- and
+        someone with no line drawn at all previously had nowhere at all to
+        record one. These live on the person via `selfRelationship`, the same
+        column KD-021 already uses for the self person, just no longer gated
+        to only the self person. "Connection Practices" and "Reflections"
+        stay off this tab: those are about a specific two-person dynamic, so
+        they belong on a drawn relationship line, not floating on a person
+        with none.
+      */}
+      {!viewingSelf && (
+        <>
+          <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAddingDate(true)}>
+            <p className="mb-2 text-[10px] leading-4 text-zinc-400">Dates that belong to {person.name}, whether or not they&apos;re connected to anyone else here.</p>
+            {addingDate && <ImportantDateForm onCancel={() => setAddingDate(false)} onSave={(date) => { changeOwnFacts({ importantDates: [...person.selfRelationship.importantDates, date] }); setAddingDate(false); }} />}
+            <div className="space-y-2">{person.selfRelationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => changeOwnFacts({ importantDates: person.selfRelationship.importantDates.filter((item) => item.id !== date.id) })} />)}{person.selfRelationship.importantDates.length === 0 && !addingDate && <EmptyDetail>No important dates yet.</EmptyDetail>}</div>
+          </RelationshipSection>
+          <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={person.selfRelationship.notes} onChange={(event) => changeOwnFacts({ notes: event.target.value })} placeholder={`Add a note about ${person.name}…`} className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
+        </>
+      )}
+
       <button onClick={onDelete} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove person</button>
       <div className="mt-5 rounded-xl bg-[#f7f5f1] p-3 text-[10px] leading-4 text-zinc-400"><Sparkles className="mr-1 inline h-3 w-3"/> Size and position are yours to define—they don&apos;t imply importance.</div>
     </div>
@@ -431,15 +460,24 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
   const first = people.find((person) => person.id === relationship.from);
   const second = people.find((person) => person.id === relationship.to);
   const [from, to] = second && isSelfPerson(second) ? [second, first] : [first, second];
+  // Whether the account owner is one of the two ends -- KD-032's review found
+  // "Connection Practices" and "Reflections" only make sense from inside a
+  // relationship, not for one recorded between two other people. A line
+  // between, say, a partner and their child is real and worth having on the
+  // map, but it isn't a bond the account owner is maintaining or reflecting
+  // on, so those two sections don't apply to it.
+  const involvesSelf = Boolean((from && isSelfPerson(from)) || (to && isSelfPerson(to)));
   const [adding, setAdding] = useState<"practice" | "reflection" | "date" | "goal" | null>(null);
   const today = formatDateInput(useToday());
   return <div>
-    <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship details</p><p className="mt-0.5 text-[11px] text-zinc-400">Shared between two people</p></div><Link2 className="h-4 w-4 text-zinc-400" /></div>
+    <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship details</p><p className="mt-0.5 text-[11px] text-zinc-400">{involvesSelf ? "Shared between two people" : "A connection between two people in your life"}</p></div><Link2 className="h-4 w-4 text-zinc-400" /></div>
     <div className="px-5 py-5">
       <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1 text-center"><p className="truncate text-base font-semibold">{from?.name} <span className="font-normal text-zinc-300">↔</span> {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">{relationship.type}</p></div><PersonDot person={to} /></div>
       <InspectorLabel>Relationship type</InspectorLabel><input value={relationship.type ?? ""} onChange={(event) => onChange({ type: event.target.value || null })} placeholder="Choose a relationship type" className="input mb-5 !py-2.5" />
-      <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: relationship.practices.filter((item) => item.id !== practice.id) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
+      {involvesSelf && <>
+        <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: relationship.practices.filter((item) => item.id !== practice.id) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
+        <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
+      </>}
       <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
         {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
