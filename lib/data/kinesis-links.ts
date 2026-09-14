@@ -263,11 +263,45 @@ async function getPersonPreviews(objectIds: string[], userId: string, context: P
 }
 
 /**
+ * FinanceItem has no Template either, but unlike Document/Goal/Person it has
+ * no single fixed field set -- which fields even apply genuinely differs by
+ * `kind` (see ADR-013's "Built-in Module preview configs" for why this one
+ * gets its own decision instead of just copying the others). The edit form
+ * already draws this same line: `category`/`rate` only render for
+ * asset/liability, `frequency` only for income/expense. A liability's
+ * `amount` is also labelled "Balance" there, not "Amount" -- carried onto
+ * the card so it never disagrees with the item's own edit page.
+ */
+async function getFinanceItemPreviews(objectIds: string[], userId: string, context: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
+  const result: Record<string, KinesisLinkPreviewStat[]> = {};
+
+  const items = await prisma.financeItem.findMany({
+    where: { objectId: { in: objectIds }, userId },
+    select: { objectId: true, kind: true, amount: true, category: true, rate: true, frequency: true },
+  });
+
+  for (const item of items) {
+    const isBalance = item.kind === "liability";
+    const isRecurring = item.kind === "income" || item.kind === "expense";
+    const amountStat = buildStat(isBalance ? "Balance" : "Amount", "currency", { value: String(item.amount) }, context);
+
+    const stats = (isRecurring
+      ? [amountStat, buildStat("Frequency", "status", { value: item.frequency ?? "" }, context)]
+      : [amountStat, buildStat("Category", "status", { value: item.category ?? "" }, context), buildStat("Interest rate", "percent", { value: item.rate !== null ? String(item.rate) : "" }, context)]
+    ).filter((stat): stat is KinesisLinkPreviewStat => stat !== null);
+
+    if (stats.length) result[item.objectId] = stats;
+  }
+
+  return result;
+}
+
+/**
  * Rich preview data for a batch of linked objects (KD-042, ADR-013) -- read
  * live, batched by type, narrow (only the configured preview fields), rather
  * than one query per card. Each Object Type this function knows how to
  * preview gets its own builder above and its own query; an object of a type
- * with no builder here (Finance) simply never gets an entry, and its card
+ * with no builder here (To-Do) simply never gets an entry, and its card
  * falls back to the compact one -- that's not a special case, just an empty
  * result for a type nothing has taught this function to look up yet.
  *
@@ -287,12 +321,13 @@ export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Recor
   const [{ locale, currency }, today] = await Promise.all([getFormatPreferences(), getToday()]);
   const context: PreviewFormatContext = { locale, currency, today };
 
-  const [customItems, documents, goals, people] = await Promise.all([
+  const [customItems, documents, goals, people, financeItems] = await Promise.all([
     getCustomItemPreviews(objectIds, user.id, context),
     getDocumentPreviews(objectIds, user.id, context),
     getGoalPreviews(objectIds, user.id, context),
     getPersonPreviews(objectIds, user.id, context),
+    getFinanceItemPreviews(objectIds, user.id, context),
   ]);
 
-  return { ...customItems, ...documents, ...goals, ...people };
+  return { ...customItems, ...documents, ...goals, ...people, ...financeItems };
 }

@@ -10,9 +10,10 @@ import { prisma } from "@/lib/data/prisma";
 import { getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 
 /**
- * Documents, Goals and People have no Template, so their preview fields are
- * the hardcoded builders in lib/data/kinesis-links.ts (getDocumentPreviews,
- * getGoalPreviews, getPersonPreviews) rather than anything driven by user
+ * Documents, Goals, People and Finance items have no Template, so their
+ * preview fields are the hardcoded builders in lib/data/kinesis-links.ts
+ * (getDocumentPreviews, getGoalPreviews, getPersonPreviews,
+ * getFinanceItemPreviews) rather than anything driven by user
  * configuration. These cover each builder's own rules directly against the
  * real database, the same way the Custom Item path is already covered end
  * to end.
@@ -20,7 +21,7 @@ import { getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 
 const owner = "built-in-preview-owner";
 
-describe.sequential("built-in Module preview cards (Documents, Goals, People)", () => {
+describe.sequential("built-in Module preview cards (Documents, Goals, People, Finance)", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue({ id: owner });
@@ -141,6 +142,63 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People)", 
       await seedPerson({ isSelf: true, category: null });
       const previews = await getKinesisLinkPreviews(["person-obj"]);
       expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "You" }]);
+    });
+  });
+
+  describe("Finance", () => {
+    async function seedFinanceItem(kind: string, overrides: Partial<{ category: string | null; rate: number | null; frequency: string | null }> = {}) {
+      const object = await prisma.object.create({ data: { id: "finance-obj", type: "FINANCE_ITEM", name: "Item", userId: owner } });
+      await prisma.financeItem.create({ data: {
+        id: "finance-1", userId: owner, objectId: object.id, name: "Item", kind, amount: 500,
+        ...overrides,
+      } });
+    }
+
+    it("shows amount, category and interest rate for an asset", async () => {
+      await seedFinanceItem("asset", { category: "Savings", rate: 4.5 });
+      const previews = await getKinesisLinkPreviews(["finance-obj"]);
+      expect(previews["finance-obj"]).toEqual([
+        { label: "Amount", kind: "currency", value: "$500" },
+        { label: "Category", kind: "status", value: "Savings" },
+        { label: "Interest rate", kind: "percent", value: "4.5%" },
+      ]);
+    });
+
+    it("labels the amount 'Balance' for a liability, not 'Amount'", async () => {
+      await seedFinanceItem("liability", { category: "Credit Card", rate: 19.9 });
+      const previews = await getKinesisLinkPreviews(["finance-obj"]);
+      expect(previews["finance-obj"]).toEqual([
+        { label: "Balance", kind: "currency", value: "$500" },
+        { label: "Category", kind: "status", value: "Credit Card" },
+        { label: "Interest rate", kind: "percent", value: "19.9%" },
+      ]);
+    });
+
+    it("drops the interest rate when none is set, keeping amount and category", async () => {
+      await seedFinanceItem("asset", { category: "Vehicle", rate: null });
+      const previews = await getKinesisLinkPreviews(["finance-obj"]);
+      expect(previews["finance-obj"]).toEqual([
+        { label: "Amount", kind: "currency", value: "$500" },
+        { label: "Category", kind: "status", value: "Vehicle" },
+      ]);
+    });
+
+    it("shows amount and frequency for income, never category or interest rate", async () => {
+      await seedFinanceItem("income", { frequency: "Monthly" });
+      const previews = await getKinesisLinkPreviews(["finance-obj"]);
+      expect(previews["finance-obj"]).toEqual([
+        { label: "Amount", kind: "currency", value: "$500" },
+        { label: "Frequency", kind: "status", value: "Monthly" },
+      ]);
+    });
+
+    it("shows amount and frequency for an expense", async () => {
+      await seedFinanceItem("expense", { frequency: "Weekly" });
+      const previews = await getKinesisLinkPreviews(["finance-obj"]);
+      expect(previews["finance-obj"]).toEqual([
+        { label: "Amount", kind: "currency", value: "$500" },
+        { label: "Frequency", kind: "status", value: "Weekly" },
+      ]);
     });
   });
 
