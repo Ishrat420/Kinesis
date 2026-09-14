@@ -30,6 +30,21 @@ const BASELINES = [
 // of the failure is all that blocks the corrected migration from applying.
 const SUPERSEDED_FAILURES = ["20260901000100_universal_object_identity"];
 
+// Three migrations were renamed after already being applied elsewhere, to fix
+// an ordering bug: they altered TemplateField/Template before the migration
+// that creates those tables, which failed any deploy starting from scratch.
+// A database that ran them under their old names already has their effect --
+// the column or type each one adds -- but no history row under the new name,
+// so `migrate deploy` tries to re-run SQL that already happened and fails the
+// same way the ordering bug did ("already exists"). `evidence` is something
+// only that migration's own SQL could have produced, standing in for the
+// old, now-absent history row.
+const RENAMED_MIGRATIONS = [
+  { name: "20260917000010_add_template_field_number_format", evidence: (state) => state.hasNumberFieldFormatType },
+  { name: "20260917000020_add_template_field_multiline", evidence: (state) => state.hasTemplateFieldMultilineColumn },
+  { name: "20260917000030_add_template_preview_fields", evidence: (state) => state.hasTemplatePreviewFieldsColumn },
+];
+
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const prismaBinary = fileURLToPath(new URL(`../node_modules/.bin/prisma${process.platform === "win32" ? ".cmd" : ""}`, import.meta.url));
 
@@ -115,7 +130,16 @@ async function readDeploymentState() {
     const { rows: [tables] } = await client.query(`
       SELECT to_regclass('public."User"') IS NOT NULL AS "hasUserTable",
              to_regclass('public."Object"') IS NOT NULL AS "hasObjectTable",
-             to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasHistoryTable"
+             to_regclass('public."_prisma_migrations"') IS NOT NULL AS "hasHistoryTable",
+             to_regtype('"NumberFieldFormat"') IS NOT NULL AS "hasNumberFieldFormatType",
+             EXISTS (
+               SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'TemplateField' AND column_name = 'multiline'
+             ) AS "hasTemplateFieldMultilineColumn",
+             EXISTS (
+               SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'Template' AND column_name = 'previewFields'
+             ) AS "hasTemplatePreviewFieldsColumn"
     `);
     if (!tables.hasHistoryTable) return { ...tables, applied: [], failed: [] };
     const { rows } = await client.query(`
@@ -157,6 +181,17 @@ for (const migration of state.failed) {
   if (unrecorded.includes(migration) || !SUPERSEDED_FAILURES.includes(migration)) continue;
   console.log(`Clearing the superseded failed migration ${migration} so the corrected one can apply.`);
   runPrisma("migrate", "resolve", "--rolled-back", migration);
+}
+
+// Record a renamed migration as applied wherever its evidence shows this
+// database already ran it under the old name. A failed row under the new
+// name (from a previous deploy attempting to re-run it) is cleared first,
+// the same as any other resolved failure.
+for (const { name, evidence } of RENAMED_MIGRATIONS) {
+  if (state.applied.includes(name) || !evidence(state)) continue;
+  console.log(`Recording ${name} as applied: this database already has its effect from before the migration was renamed.`);
+  if (state.failed.includes(name)) runPrisma("migrate", "resolve", "--rolled-back", name);
+  runPrisma("migrate", "resolve", "--applied", name);
 }
 
 await runMigrateDeployWithRetry();
