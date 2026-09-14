@@ -87,6 +87,48 @@ export async function captureTodo(name: string) {
   });
 }
 
+export type NewTodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObjectIds?: string[] };
+
+/**
+ * The in-page "Add to-do" button's create, as opposed to quick capture's
+ * title-only `captureTodo` above: status, due date and links go in with the
+ * title in one transaction, so a to-do with an unresolved link is never left
+ * half-created.
+ */
+export async function createTodo(name: string, { status = "TODO", dueDate = null, linkObjectIds = [] }: NewTodoDetails = {}) {
+  const user = await requireKinesisUser();
+  return prisma.$transaction(async (transaction) => {
+    const todo = await transaction.todo.create({
+      data: {
+        id: crypto.randomUUID(),
+        name,
+        status,
+        dueDate,
+        completedAt: isOpenTodoStatus(status) ? null : new Date(),
+        user: { connect: { id: user.id } },
+        object: objectFor.todo(name, user.id),
+      },
+      select: { id: true, name: true, objectId: true },
+    });
+
+    const targets = [...new Set(linkObjectIds.filter(Boolean))];
+    if (targets.length) {
+      // One count, not one lookup per id: either every target is the user's
+      // or the whole create is refused.
+      const owned = await transaction.object.count({ where: { id: { in: targets }, userId: user.id } });
+      if (owned !== targets.length) refuse("One of the linked items no longer exists.");
+      await transaction.objectRelationship.createMany({
+        data: targets.map((targetObjectId) => ({
+          userId: user.id, sourceObjectId: todo.objectId, targetObjectId,
+          pairKey: objectPairKey(todo.objectId, targetObjectId), type: CONCERNS,
+        })),
+      });
+    }
+
+    return { id: todo.id, name: todo.name };
+  });
+}
+
 export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; linkObjectIds?: string[] };
 
 /**

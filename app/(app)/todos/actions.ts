@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import type { TodoStatus } from "@prisma/client";
-import { captureTodo, deleteTodo, getTodoLinkOptions, updateTodoDetails } from "@/lib/data/todos";
+import { captureTodo, createTodo, deleteTodo, getTodoLinkOptions, updateTodoDetails } from "@/lib/data/todos";
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { addActivity } from "@/lib/data/activity";
 import { isTodoStatus } from "@/lib/todos/status";
@@ -15,6 +15,7 @@ export type CaptureState = { error?: string; captured?: { id: string; name: stri
 /** What a row-level action reports back to the board. */
 export type TodoActionState = { error?: string };
 export type TodoDetailsState = { error?: string; saved?: boolean };
+export type CreateTodoState = { error?: string; created?: boolean };
 
 const text = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 
@@ -54,6 +55,46 @@ export async function captureTodoAction(rawName: string): Promise<CaptureState> 
 export async function undoCaptureAction(id: string) {
   await deleteTodo(id);
   refresh();
+}
+
+/**
+ * The in-page "Add to-do" button's create, as opposed to quick capture above:
+ * status, due date and Kinesis Link go in alongside the title in one submit,
+ * since asking someone to create first and edit afterwards for details they
+ * already had in hand is exactly the friction quick capture exists to avoid.
+ *
+ * There is no "Turn into" here -- that only makes sense once a To-Do already
+ * exists to turn into something else, so it stays on the details dialog below.
+ */
+export async function createTodoAction(_previousState: CreateTodoState, formData: FormData): Promise<CreateTodoState> {
+  const name = text(formData, "name");
+  if (!name) return { error: "Type what you need to do." };
+  if (name.length > MAX_TITLE_LENGTH) return { error: `Keep it under ${MAX_TITLE_LENGTH} characters.` };
+
+  const statusValue = text(formData, "status");
+  if (statusValue && !isTodoStatus(statusValue)) return { error: "Choose a valid status." };
+
+  const dueDateValue = text(formData, "dueDate");
+  if (dueDateValue && !parseDateOnly(dueDateValue)) return { error: "Enter a valid due date." };
+
+  const linkObjectIds = formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean);
+
+  let todo;
+  try {
+    todo = await createTodo(name, {
+      status: statusValue ? (statusValue as TodoStatus) : undefined,
+      dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
+      linkObjectIds,
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
+
+  await addActivity({ action: "Added", moduleName: "To-Do", objectName: todo.name, icon: "todos", href: "/todos" });
+  refresh();
+  return { created: true };
 }
 
 /**
