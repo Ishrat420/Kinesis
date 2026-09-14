@@ -441,8 +441,8 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
       {!viewingSelf && (
         <>
           <RelationshipSection icon={CalendarDays} title={`${person.name}'s Important Dates`} addLabel="Add date" onAdd={() => setAddingDate(true)}>
-            <p className="mb-2 text-[10px] leading-4 text-zinc-400">Dates that belong to {person.name}, whether or not they&apos;re connected to anyone else here.</p>
-            {addingDate && <ImportantDateForm onCancel={() => setAddingDate(false)} onSave={(date) => { changeOwnFacts({ importantDates: [...person.selfRelationship.importantDates, date] }); setAddingDate(false); }} />}
+            <p className="mb-2 text-[10px] leading-4 text-zinc-400">{person.name}&apos;s own important dates.</p>
+            {addingDate && <ImportantDateForm exampleLabel="Birthday" onCancel={() => setAddingDate(false)} onSave={(date) => { changeOwnFacts({ importantDates: [...person.selfRelationship.importantDates, date] }); setAddingDate(false); }} />}
             <div className="space-y-2">{person.selfRelationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => changeOwnFacts({ importantDates: person.selfRelationship.importantDates.filter((item) => item.id !== date.id) })} />)}{person.selfRelationship.importantDates.length === 0 && !addingDate && <EmptyDetail>No important dates yet.</EmptyDetail>}</div>
           </RelationshipSection>
           <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={person.selfRelationship.notes} onChange={(event) => changeOwnFacts({ notes: event.target.value })} placeholder={`Add a note about ${person.name}…`} className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
@@ -484,7 +484,7 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
           so a third-party edge (neither end is the account owner) has
           nothing left to track here beyond its type and a note.
         */}
-        <RelationshipSection icon={CalendarDays} title="Shared Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Dates about this relationship itself, not about either person -- their own dates belong on their own page.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No shared important dates yet.</EmptyDetail>}</div></RelationshipSection>
+        <RelationshipSection icon={CalendarDays} title="Shared Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Important dates specific to this relationship.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...relationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{relationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: relationship.importantDates.filter((item) => item.id !== date.id) })} />)}{relationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No shared important dates yet.</EmptyDetail>}</div></RelationshipSection>
         <RelationshipSection icon={Target} title="Linked Goals" addLabel="Link goal" onAdd={() => setAdding(adding === "goal" ? null : "goal")}>
           {adding === "goal" && <GoalPicker goals={goals} linkedGoalIds={relationship.linkedGoals} onLink={(goalId) => onChange({ linkedGoals: [...relationship.linkedGoals, goalId] })} />}
           {/* A linked goal that's since been deleted keeps its row here rather
@@ -563,14 +563,14 @@ function ReflectionForm({ today, onSave, onCancel }: { today: string; onSave: (r
   </form>;
 }
 
-function ImportantDateForm({ onSave, onCancel }: { onSave: (date: ImportantDateEntry) => void; onCancel: () => void }) {
+function ImportantDateForm({ exampleLabel = "Anniversary", onSave, onCancel }: { exampleLabel?: string; onSave: (date: ImportantDateEntry) => void; onCancel: () => void }) {
   const [label, setLabel] = useState("");
   const [date, setDate] = useState("");
   // Most important dates -- birthdays, anniversaries -- come back every year,
   // so that is the default; a one-off event is the exception a person unchecks.
   const [repeatsYearly, setRepeatsYearly] = useState(true);
   return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (label.trim() && date) onSave({ id: crypto.randomUUID(), label: label.trim(), date, repeatsYearly }); }}>
-    <input autoFocus required value={label} onChange={(event) => setLabel(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder="Occasion, e.g. Anniversary" aria-label="Date name" />
+    <input autoFocus required value={label} onChange={(event) => setLabel(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder={`Occasion, e.g. ${exampleLabel}`} aria-label="Date name" />
     <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Important date" />
     <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11px] font-medium text-zinc-600"><input type="checkbox" checked={repeatsYearly} onChange={(event) => setRepeatsYearly(event.target.checked)} className="h-3.5 w-3.5 accent-zinc-900" />Yearly</label>
     <FormActions onCancel={onCancel} />
