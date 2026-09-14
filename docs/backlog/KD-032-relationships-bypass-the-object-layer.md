@@ -1,6 +1,6 @@
 # KD-032 — Relationships bypass the universal object layer
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** Medium
 **Tags:** Architecture, Data Model, Technical Debt, Foundation Dependent, Security
 
@@ -17,7 +17,7 @@ This reverses the direction the ticket originally leaned ("bring `Relationship` 
 
 Option 1 remains the technically correct move *if* a future need appears for another module to reference a relationship edge directly — nothing here forecloses it, and the two originally-open modeling risks (pair ordering, enum fit) are now resolved in Option 1's favour too, should that day come. It simply isn't buying anything today, at real cost (the ticket's own estimate: "the largest piece of work in the v1.2.0 consistency set").
 
-**Option 4 is accepted independent of the 1-vs-3 call**, per the ticket's own framing — both halves close a real, currently-silent data-integrity gap regardless of which architecture wins.
+**Option 4 is implemented, independent of the 1-vs-3 call**, per the ticket's own framing — both halves close a real, currently-silent data-integrity gap regardless of which architecture wins. See "Proposed shape" below for what was actually built.
 
 ## Summary
 
@@ -85,23 +85,23 @@ The narrower half. `Goal` is Object-backed; if `Relationship` becomes one, its l
 
 Say in `docs/decisions` that the Relationships module models its own domain and is deliberately outside the universal layer, and drop the expectation. Cheap and honest if the module is not going to grow more link types. It does mean KD-023's "any object to any object" claim is qualified from here on, and the qualification belongs in ADR-006 and KD-024 rather than being folk knowledge. **This is the chosen option — see Decision above.** Follow-up: reflect this qualification in ADR-006 / KD-024 (not yet done; this ticket records the decision, the cross-references still need the note added).
 
-### 4. Add the missing database enforcement regardless — accepted, independent of 1 vs 3
+### 4. Add the missing database enforcement regardless — done
 
 Independent of 1–3, and worth doing on its own — two mechanisms, for the two shapes above:
 
-* **4a. CHECK constraints for gap A.** Enforce "exactly one parent" in the database for the three relationship child tables, and "at most one" for `NotificationRead` and `AttentionDismissal`. Small, mechanical, no API change.
+* **4a. CHECK constraints for gap A.** Enforce "exactly one parent" in the database for the three relationship child tables, and for `NotificationRead` and `AttentionDismissal`. Small, mechanical, no API change.
 * **4b. Ownership-agreement triggers for gap B.** Extend the `20260904000000_object_ownership_integrity` pattern to `Relationship` (both `Person` endpoints), `ObjectRelationship` (both `Object` endpoints), and `FieldLink` (the field's object and its target). More work than 4a — it's the same shape of migration as 20260903/20260904, including the pre-migration scan that refuses to install a trigger over data that already violates it — but no new design: the function to extend already exists and is already proven in production use.
 
 Both close a class of silent corruption that currently only application code prevents. 4b is the half that would matter most the day a second account exists — a cross-account data-integrity gap in its own right, independent of whatever gets decided between options 1–3.
 
-## Proposed shape (resolved — see Decision)
+## Proposed shape (done — see Decision)
 
-The original plan here was "Option 4 first, then decide between 1 and 3 before v1.2.0 work is scheduled." The decision is now made: **3, plus 4.** Remaining work is entirely Option 4:
+The original plan here was "Option 4 first, then decide between 1 and 3 before v1.2.0 work is scheduled." The decision is made (3, plus 4), and Option 4 is now built:
 
-* **4a.** CHECK constraints for gap A, on `ConnectionPractice`, `RelationshipReflection`, `RelationshipImportantDate` (exactly one parent), and `NotificationRead`, `AttentionDismissal` (at most one).
-* **4b.** Ownership-agreement triggers for gap B, extending `kinesis_assert_object_attachment` to `Relationship` (both `Person` endpoints, built directly against today's `firstPersonId`/`secondPersonId` — no longer blocked on the 1-vs-3 call), `ObjectRelationship` (both `Object` endpoints), and `FieldLink` (the field's object and its target).
+* **4a — `20260925000000_relationship_exactly_one_parent`.** `num_nonnulls(...) = 1` CHECK constraints on `ConnectionPractice`, `RelationshipReflection`, `RelationshipImportantDate` (`relationshipId`, `selfPersonId`), `NotificationRead` (its 5 target columns), and `AttentionDismissal` (its 3). One correction along the way: the ticket originally called for "at most one" (allowing zero) on the latter two, matching an overly cautious first read. Checking the actual write paths (`linkFor` in `lib/data/notifications.ts` and the `LINK_FIELD` spread in `app/actions.ts`) shows every real row always sets exactly one, matching what the schema comments already said ("One of these is set") — so these two get the same exactly-one constraint as the other three, not a looser one.
+* **4b — `20260926000000_relationship_ownership_integrity`.** Three new trigger functions — `kinesis_assert_relationship_ownership`, `kinesis_assert_object_relationship_ownership`, `kinesis_assert_field_link_ownership` — one each rather than one shared function, because unlike the five identically-shaped Object-backed models in 20260904, these three don't share a shape with each other (two Person endpoints against an owner column; two Object endpoints against an owner column; two Objects with no owner column of their own to compare against, so they're checked against each other). Deliberately **not** included: a mirror-direction guard on `Person.userId`/`Object.userId` changing out from under an existing reference. `Object.userId` is already pinned by `kinesis_object_owner_integrity`, `Person.userId` is already pinned transitively through `kinesis_assert_object_attachment`, and no code path in this application updates either column after creation — see the migration's own header comment for the full reasoning, and for why extending it later (should that ever change) is additive, not a redesign.
 
-Neither is scheduled yet; this ticket records the decision that unblocks them, not the implementation.
+Both migrations were verified against a real Postgres database, not just read for correctness: a fresh database applies both cleanly with zero schema drift afterward; a database seeded with pre-existing violations (a cross-account `Relationship`, a parentless `ConnectionPractice`, a cross-account `ObjectRelationship`) is correctly refused by `prisma migrate deploy` with the intended diagnostic message, and recovers cleanly once the bad rows are fixed — exactly the same "resolve these rows, then re-run" story `20260903`/`20260904` already established. `tests/integration/relationships/ownership-integrity.test.ts` now exercises all of it permanently (12 cases: every valid shape accepted, every violation refused, using the real Prisma client rather than raw SQL). Fixing this also required a small, unrelated correction to a shared test fixture (`tests/integration/settings/seed-everything.ts`), which had been creating an `AttentionDismissal` and a `NotificationRead` naming no target at all — never something any real code path does, and now something the database itself refuses.
 
 ## Open questions
 
@@ -112,9 +112,9 @@ Resolved:
 * ~~Do the child tables stay hung off `Relationship` under option 1, or do they hang off its `Object` too?~~ Moot — option 1 not taken, children stay exactly where they are, hung off `Relationship.id` (or `Person.id` for KD-021's self-relationship case, see Related Findings below).
 * ~~Does `Relationship`'s half of gap B (4b) get built against today's `firstPersonId`/`secondPersonId` columns, or does it wait for a decision between 1 and 3?~~ Build it now, against today's columns — the decision is made, those columns aren't moving.
 
-Still open:
+Resolved by implementation:
 
-* `ObjectRelationship` and `FieldLink` aren't part of the Relationships module at all — they're named here only because this ticket is where gap A was already on record. Worth a call on whether 4b for those two stays here or moves to its own ticket once scoped, so this one doesn't quietly become the catch-all for every cross-table ownership gap in the schema.
+* ~~`ObjectRelationship` and `FieldLink` aren't part of the Relationships module at all... Worth a call on whether 4b for those two stays here or moves to its own ticket.~~ Built here, in the same migration as `Relationship`'s half — splitting one migration across two tickets would have been the worse outcome. This ticket does not become a general catch-all going forward: it closes now, and a *new* cross-table ownership gap (unrelated to Relationships) should get its own ticket rather than reopening this one.
 
 ## Related findings (fixed as part of this ticket)
 
@@ -137,4 +137,13 @@ No schema or data-layer change was needed for either — `lib/relationships.ts`,
 * KD-021 — relationship with oneself; the reason the children carry two nullable parents, and the origin of the `selfPersonId` mechanism the Related Findings above generalize to every person.
 * KD-022 — goal-linked relationships; the feature `RelationshipGoal` exists for, and continues to exist for under this decision.
 * ADR-006 — Relationship module. Still needs the exemption noted per Option 3 (not yet done).
-* `20260903000000_object_integrity_invariants` / `20260904000000_object_ownership_integrity` — the trigger-based pattern gap B (4b) would extend to `Relationship`, `ObjectRelationship`, and `FieldLink`.
+* `20260903000000_object_integrity_invariants` / `20260904000000_object_ownership_integrity` — the trigger-based pattern 4b extends to `Relationship`, `ObjectRelationship`, and `FieldLink`.
+* `20260925000000_relationship_exactly_one_parent` / `20260926000000_relationship_ownership_integrity` — this ticket's own migrations, implementing 4a and 4b.
+* `tests/integration/relationships/ownership-integrity.test.ts` — permanent coverage for both.
+
+## Remaining follow-up (not blocking, not forgotten)
+
+Two small documentation updates this ticket's Decision obligates, not yet done:
+
+* Note the qualification to KD-023's "any object to any object" claim, in KD-023 itself.
+* Record the exemption in `ADR-006-Relationship.md` (or a new ADR), per Option 3.

@@ -44,7 +44,6 @@ export async function seedEverything(userId: string, tag: string) {
   await prisma.userSettings.create({ data: { userId } });
   await prisma.documentType.create({ data: { id: `${tag}-doctype`, name: "Passport", userId } });
   await prisma.goalUnit.create({ data: { id: `${tag}-unit`, name: "kg", userId } });
-  await prisma.attentionDismissal.create({ data: { id: `${tag}-dismissal`, itemKey: "k", userId } });
   await prisma.activityEvent.create({
     data: { id: `${tag}-activity`, action: "Added", moduleName: "Goals", objectName: "x", icon: "goals", userId },
   });
@@ -76,13 +75,15 @@ export async function seedEverything(userId: string, tag: string) {
     },
   });
 
-  // One read marker hanging off a document, one owned only by the user -- the
-  // second is what an account-level sweep has to catch, since no record's
-  // cascade will ever reach it.
+  // Two read markers, on two different target columns -- every real one names
+  // exactly one (KD-032's exactly-one-parent CHECK constraint refuses a row
+  // naming none: the FK it would otherwise leave null is onDelete: Cascade,
+  // so a marker whose target is later deleted goes with it rather than
+  // surviving as an orphan with nothing set).
   await prisma.notificationRead.createMany({
     data: [
       { id: `${tag}-notif-doc`, itemKey: `document:${tag}-doc:EXPIRED:2030-01-01`, documentId: `${tag}-doc`, userId },
-      { id: `${tag}-notif-bare`, itemKey: `document:${tag}-gone:EXPIRED:2030-01-01`, userId },
+      { id: `${tag}-notif-milestone`, itemKey: `milestone:${tag}-milestone:DUE_SOON:2030-01-01`, milestoneId: `${tag}-milestone`, userId },
     ],
   });
 
@@ -147,4 +148,8 @@ export async function seedEverything(userId: string, tag: string) {
   await prisma.todo.create({
     data: { id: `${tag}-todo`, name: "Renew passport", userId, objectId: `${tag}-object-todo`, dueDate: new Date() },
   });
+  // Naming an actual target, same as every real dismissal does (app/actions.ts
+  // always sets exactly one of these) -- KD-032's exactly-one-parent CHECK
+  // constraint refuses a dismissal naming none.
+  await prisma.attentionDismissal.create({ data: { id: `${tag}-dismissal`, itemKey: "k", userId, todoId: `${tag}-todo` } });
 }

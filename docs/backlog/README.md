@@ -174,7 +174,6 @@ KD-043-field-length-limits
 
 ## ✓ Accepted
 KD-029-be-able-to-create-to-do
-KD-032-relationships-bypass-the-object-layer
 
 
 ## 🚧 In Progress
@@ -192,6 +191,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-032-relationships-bypass-the-object-layer
 KD-040-custom-item-fields-are-fully-configurable
 KD-039-template-fields-on-item-creation
 KD-038-due-date-template-field
