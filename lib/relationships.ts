@@ -30,11 +30,15 @@ export type ReflectionEntry = { id: string; text: string; date: string };
 export type ImportantDateEntry = { id: string; label: string; date: string; repeatsYearly: boolean };
 /** The private space a person keeps for the relationship they have with themselves (KD-021). Deliberately has no linked goals. */
 export type SelfRelationship = { practices: ConnectionPracticeEntry[]; reflections: ReflectionEntry[]; importantDates: ImportantDateEntry[]; notes: string };
-export type RelationshipPerson = { id: string; name: string; detail: string; x: number; y: number; size: number; color: string; icon: "user" | "heart" | "baby" | "cat" | "home"; selfRelationship: SelfRelationship };
+export type RelationshipPerson = { id: string; name: string; detail: string; x: number; y: number; size: number; color: string; icon: PersonIconName; selfRelationship: SelfRelationship };
 export type RelationshipRecord = { id: string; from: string; to: string; type: string | null; practices: ConnectionPracticeEntry[]; reflections: ReflectionEntry[]; linkedGoals: string[]; importantDates: ImportantDateEntry[]; notes: string };
 export type RelationshipMapData = { people: RelationshipPerson[]; relationships: RelationshipRecord[] };
 
-export const PERSON_ICONS = ["user", "heart", "baby", "cat", "home"] as const;
+export const PERSON_ICONS = [
+  "user", "heart", "baby", "cat", "home",
+  "building-complex", "stethoscope", "biceps-flexed", "graduation-cap", "gamepad-2", "paw-print", "face-slightly-smiling",
+] as const;
+export type PersonIconName = (typeof PERSON_ICONS)[number];
 
 export function emptySelfRelationship(): SelfRelationship {
   return { practices: [], reflections: [], importantDates: [], notes: "" };

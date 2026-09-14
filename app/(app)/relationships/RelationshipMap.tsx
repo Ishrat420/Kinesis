@@ -5,10 +5,15 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Baby,
+  BicepsFlexed,
   BookOpen,
+  BuildingComplex,
   CalendarDays,
   Cat,
   ChevronDown,
+  FaceSlightlySmiling,
+  Gamepad2,
+  GraduationCap,
   Heart,
   Hand,
   House,
@@ -16,9 +21,11 @@ import {
   Maximize2,
   Minus,
   MoreHorizontal,
+  PawPrint,
   Plus,
   Save,
   Sparkles,
+  Stethoscope,
   StickyNote,
   Target,
   Trash2,
@@ -40,9 +47,8 @@ import { formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { saveMapGeometry, saveRelationshipMap } from "./actions";
 import { Z_INDEX } from "@/lib/layout/z-index";
-import { contentFingerprint, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
+import { contentFingerprint, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
-type PersonIcon = "user" | "heart" | "baby" | "cat" | "home";
 type Selection = { kind: "person" | "relationship"; id: string } | null;
 type PendingConnection = { from: string; to: string; type: string };
 type GoalOption = { id: string; name: string; status: string };
@@ -52,8 +58,15 @@ const initialPeople: Person[] = [
   { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user", selfRelationship: emptySelfRelationship() },
 ];
 
-const icons = { user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House };
-const colors = ["#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866"];
+const icons: Record<PersonIconName, React.ElementType> = {
+  user: UserRound, heart: Heart, baby: Baby, cat: Cat, home: House,
+  "building-complex": BuildingComplex, stethoscope: Stethoscope, "biceps-flexed": BicepsFlexed,
+  "graduation-cap": GraduationCap, "gamepad-2": Gamepad2, "paw-print": PawPrint, "face-slightly-smiling": FaceSlightlySmiling,
+};
+const colors = [
+  "#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866",
+  "#4d7a74", "#b98a94", "#7c5468", "#8a8f5c", "#4f5b66", "#a35d4a", "#8f7a3a", "#8c8a85",
+];
 
 export function RelationshipMap({ goals, userDisplayName, initialData }: { goals: GoalOption[]; userDisplayName: string; initialData: RelationshipMapData }) {
   const startingPeople = initialData.people.length ? initialData.people : initialPeople.map((person) => ({ ...person, name: userDisplayName }));
@@ -421,7 +434,7 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Person details</p><p className="mt-0.5 text-[11px] text-zinc-400">Make this bubble feel like them</p></div><MoreHorizontal className="h-5 w-5 text-zinc-400" /></div>
     <div className="px-5 py-5">
       <div className="mb-5 flex items-center gap-3"><div style={{backgroundColor: person.color}} className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-md"><Icon className="h-6 w-6" /></div><div className="min-w-0"><input value={person.name} onChange={(e) => onChange({name:e.target.value})} className="w-full border-0 bg-transparent p-0 text-lg font-semibold outline-none"/><input value={person.detail} onChange={(e) => onChange({detail:e.target.value})} className="w-full border-0 bg-transparent p-0 text-xs text-zinc-400 outline-none"/></div></div>
-      <InspectorLabel>Icon</InspectorLabel><div className="mb-5 grid grid-cols-5 gap-2">{(Object.keys(icons) as PersonIcon[]).map((name) => { const Choice = icons[name]; return <button key={name} onClick={() => onChange({icon:name})} className={`flex aspect-square items-center justify-center rounded-xl border ${person.icon === name ? "border-zinc-800 bg-zinc-900 text-white" : "border-zinc-200 text-zinc-400 hover:bg-zinc-50"}`}><Choice className="h-4 w-4" /></button>})}</div>
+      <InspectorLabel>Icon</InspectorLabel><div className="mb-5 grid grid-cols-6 gap-2">{(Object.keys(icons) as PersonIconName[]).map((name) => { const Choice = icons[name]; return <button key={name} onClick={() => onChange({icon:name})} className={`flex aspect-square items-center justify-center rounded-xl border ${person.icon === name ? "border-zinc-800 bg-zinc-900 text-white" : "border-zinc-200 text-zinc-400 hover:bg-zinc-50"}`}><Choice className="h-4 w-4" /></button>})}</div>
       <InspectorLabel>Bubble colour</InspectorLabel><div className="mb-5 flex flex-wrap gap-2">{colors.map((color) => <button key={color} onClick={() => onChange({color})} style={{backgroundColor:color}} className={`h-7 w-7 rounded-full border-2 border-white shadow-sm ${person.color === color ? "outline outline-2 outline-offset-1 outline-zinc-700" : ""}`} aria-label={`Use ${color}`} />)}</div>
       <div className="mb-5"><div className="mb-2 flex items-center justify-between"><InspectorLabel>Bubble size</InspectorLabel><span className="text-[11px] font-medium text-zinc-400">{person.size}px</span></div><input type="range" min="64" max="148" value={person.size} onChange={(e) => onChange({size:Number(e.target.value)})} className="w-full accent-zinc-800" /></div>
       <div className="mb-3 flex items-center justify-between"><InspectorLabel>Connections</InspectorLabel><button onClick={onLink} className="flex items-center gap-1 text-[11px] font-semibold text-zinc-700"><Link2 className="h-3 w-3"/> Connect</button></div>
