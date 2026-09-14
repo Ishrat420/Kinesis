@@ -26,6 +26,48 @@ Covered by `tests/integration/search/search.test.ts` ("links a finance
 search result to its own row, not just the Finance page"), red/green
 verified against the old `href: "/finance"` before landing.
 
+### Follow-up: the anchor still didn't scroll, for an unrelated reason
+
+After landing the above, reported as "search works but anchor-scroll to the
+row does not work" — a second, independent bug, not a symptom of the first.
+
+Root cause: `app/(app)/finance/page.tsx` renders behind
+`app/(app)/finance/loading.tsx`. Next's own hash-to-element scroll
+(`layout-router.js`'s `ScrollAndFocusHandler`) runs as soon as the
+`loading.tsx` fallback mounts — before `getFinanceItems()` resolves and the
+real rows exist — finds no element with the matching id, and falls back to
+scrolling the loading skeleton into view instead (a no-op, since it's
+already at the top). Critically, it then clears `focusAndScrollRef.hashFragment`
+regardless of whether it found the real target, so the retry that would
+otherwise happen when the real content streams in and re-renders never
+happens — the one attempt is spent on the fallback and never repeated.
+
+This is undocumented in the bundled Next 16 docs (checked, per AGENTS.md,
+before assuming any behavior) and isn't specific to Finance — any route
+with both a `loading.tsx` and a `#id`-anchored search result is exposed to
+it, `/todos#todo-${id}` included, whenever the underlying data fetch is
+slow enough for the fallback to actually paint. Confirmed with an isolated
+Next 16.2.9 + Turbopack reproduction outside Clerk auth (sticky header +
+`loading.tsx` + a deliberately slow data fetch): `window.scrollY` stayed
+`0` and the target row's viewport position was `2297px`, i.e. no scroll
+happened at all, even though the element existed a moment later.
+
+Fixed with a client-side fallback in `FinanceDashboard.tsx`: a mount-only
+`useEffect` reads `window.location.hash` and calls
+`document.getElementById(hash)?.scrollIntoView()` itself once the real
+component (never the `loading.tsx` fallback) has actually mounted with its
+rows in the DOM. Re-verified against the same isolated reproduction with
+the equivalent effect added: the target row landed exactly at its
+`scroll-mt` offset (96px, just under the sticky header) instead of not
+scrolling at all.
+
+Not fixed here, and worth its own ticket if it turns out to matter:
+`/todos#todo-${id}` shares the identical `loading.tsx` + hash-anchor shape
+and is exposed to the same race — it just hasn't been reported, most likely
+because `getTodos()` resolves fast enough in practice that the fallback
+rarely actually paints. No code change made to `TodoBoard.tsx` — this ticket
+is scoped to Finance, matching what was reported.
+
 ## Problem
 
 Every Finance entry's search result shares one static `href`: `/finance`.

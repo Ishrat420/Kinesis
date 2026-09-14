@@ -43,6 +43,21 @@ export function FinanceDashboard({ items }: { items: FinanceItem[] }) {
   const [editing, setEditing] = useState<FinanceItem | null>(null);
   const [deleting, setDeleting] = useState<FinanceItem | null>(null);
 
+  /**
+   * A finance search result deep-links here as /finance#finance-<id>
+   * (BUG-008), but this route renders behind loading.tsx. Next's own
+   * hash-to-element scroll fires as soon as that fallback mounts -- before
+   * any row with a matching id exists -- finds nothing, and never retries
+   * once the real rows stream in: the attempt is consumed regardless of
+   * whether it found its target. This repeats the lookup once this
+   * component -- the real content, never the fallback -- has actually
+   * mounted with its rows in the DOM.
+   */
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) document.getElementById(hash)?.scrollIntoView({ block: "start" });
+  }, []);
+
   const totals = useMemo(() => {
     const sum = (kind: Kind) => items.filter((item) => item.kind === kind).reduce((total, item) => total + item.amount, 0);
     const assets = sum("asset"), liabilities = sum("liability");
