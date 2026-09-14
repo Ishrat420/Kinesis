@@ -93,12 +93,22 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     const fingerprint = contentFingerprint(snapshot);
     setSaveError(null);
     startSaving(async () => {
-      const result = await saveRelationshipMap(snapshot);
-      if (result.error) { setSaveError(result.error); return; }
-      // The snapshot's fingerprint, not the live one: anything edited while the
-      // save was in flight is still unsaved and must stay that way.
-      setSavedContent(fingerprint);
-      setSaved(true);
+      // A rejected Server Action (a network blip, a dropped connection) is not
+      // one of `saveRelationshipMap`'s own `{ error }` returns and would
+      // otherwise propagate out of this transition uncaught -- leaving the map
+      // permanently stuck mid-save, with "Save changes" disabled and nothing
+      // in the UI saying why, until the page happened to be reloaded.
+      try {
+        const result = await saveRelationshipMap(snapshot);
+        if (result.error) { setSaveError(result.error); return; }
+        // The snapshot's fingerprint, not the live one: anything edited while the
+        // save was in flight is still unsaved and must stay that way.
+        setSavedContent(fingerprint);
+        setSaved(true);
+      } catch (error) {
+        console.error("Failed to save the relationship map", error);
+        setSaveError("The map could not be saved. Your changes are still here — try again.");
+      }
     });
   }
 
