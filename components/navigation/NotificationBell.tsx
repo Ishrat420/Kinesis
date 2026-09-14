@@ -163,12 +163,18 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
                 {isCustomItem && notification.moduleIcon && notification.moduleColor
                   ? <CustomModuleBadge icon={notification.moduleIcon} color={notification.moduleColor} className="h-10 w-10 rounded-xl" iconClassName="h-5 w-5" />
                   // Colours match lib/objects/locations.ts's Kinesis Link
-                  // colour for the same module: Documents blue, Goals
-                  // violet, Relationships rose, To-Dos teal -- so a module
-                  // never reads as a different colour depending which list
-                  // it turns up on. Expired is red regardless of module,
-                  // since "overdue" is the more urgent fact there.
-                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isDocument ? "bg-blue-50 text-blue-700" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>
+                  // colour for the same module -- Goals violet, Relationships
+                  // rose, To-Dos teal -- so a module never reads as a
+                  // different colour depending which list it turns up on.
+                  // Documents is the one exception: every non-expired
+                  // document notification is, by definition, already inside
+                  // its reminder window, so it gets the same amber "soon"
+                  // treatment the Expiring Documents page's own Upcoming
+                  // section uses, not Documents' plain blue identity colour
+                  // -- there's no notification for a document that isn't
+                  // either that or overdue. Expired is red regardless of
+                  // module, since "overdue" is the more urgent fact there.
+                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isDocument ? "bg-amber-50 text-amber-700" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>
                       {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isDocument ? <FileText className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                     </span>}
                 <span className="min-w-0 flex-1">
