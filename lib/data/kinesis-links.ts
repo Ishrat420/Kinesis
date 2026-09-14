@@ -233,29 +233,54 @@ async function getGoalPreviews(objectIds: string[], userId: string, { locale }: 
 }
 
 /**
- * A Person has no "relationship type" field of its own -- that's the
- * Relationship module's `type`, and a Relationship isn't something a
- * Kinesis Link can point at (only `PERSON` is Object-backed; see KD-032).
- * `Person.category` is the closest practical equivalent already on the
- * record itself: the free-text tag ("Friend", "Partner", "Family"...) shown
- * under a bubble on the map. It's `null` for the self person, since "what
- * type of relationship is this to yourself" isn't a category anyone picks --
- * so the self card shows "You" instead of that column, exactly the value
- * `getRelationshipMap` already computes as `detail` for the same reason.
- * A single hardcoded stat, like Documents and Goals -- Person has no
- * Template either.
+ * A Person has no "relationship type" column of its own -- that lives on
+ * `Relationship.type`, the row connecting two people, not on either Person.
+ * `Person.category` looked like a stand-in at first glance (also a
+ * free-text tag on the record), but it isn't the same thing at all: it's
+ * the subtitle under a bubble on the map ("Relationship" by default, from
+ * `addPerson()`), edited on the Person details tab -- completely
+ * independent of the type set on the Relationship details tab. Reading it
+ * here showed that default placeholder instead of the actual relationship
+ * type, which is what this now reads instead.
+ *
+ * `Relationship` isn't Object-backed (KD-032), so a Kinesis Link can only
+ * ever target the Person, never a specific connection -- and a person can
+ * have more than one (to the self person, and to others on the map). This
+ * prefers the relationship to the self person, the same "preferred" choice
+ * `PersonInspectorTabs` already falls back to when someone has several,
+ * since that's the connection most likely to be the one worth showing.
+ * With no relationship at all (an isolated person, or one only connected to
+ * others with no type set), there's nothing to show and the card falls
+ * back to the compact one, same as any other empty preview.
  */
 async function getPersonPreviews(objectIds: string[], userId: string, context: PreviewFormatContext): Promise<Record<string, KinesisLinkPreviewStat[]>> {
   const result: Record<string, KinesisLinkPreviewStat[]> = {};
 
   const people = await prisma.person.findMany({
     where: { objectId: { in: objectIds }, userId },
-    select: { objectId: true, isSelf: true, category: true },
+    select: { objectId: true, id: true, isSelf: true },
   });
+  if (!people.length) return result;
+
+  const personIds = people.map((person) => person.id);
+  const [selfPerson, relationships] = await Promise.all([
+    prisma.person.findFirst({ where: { userId, isSelf: true }, select: { id: true } }),
+    prisma.relationship.findMany({
+      where: { userId, OR: [{ firstPersonId: { in: personIds } }, { secondPersonId: { in: personIds } }] },
+      select: { firstPersonId: true, secondPersonId: true, type: true },
+    }),
+  ]);
 
   for (const person of people) {
-    const type = person.isSelf ? "You" : person.category || "Relationship";
-    const stat = buildStat("Relationship", "status", { value: type }, context);
+    if (person.isSelf) {
+      const stat = buildStat("Relationship", "status", { value: "You" }, context);
+      if (stat) result[person.objectId] = [stat];
+      continue;
+    }
+
+    const related = relationships.filter((relationship) => relationship.firstPersonId === person.id || relationship.secondPersonId === person.id);
+    const preferred = related.find((relationship) => relationship.firstPersonId === selfPerson?.id || relationship.secondPersonId === selfPerson?.id) ?? related[0];
+    const stat = preferred ? buildStat("Relationship", "status", { value: preferred.type ?? "" }, context) : null;
     if (stat) result[person.objectId] = [stat];
   }
 

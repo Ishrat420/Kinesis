@@ -117,31 +117,70 @@ describe.sequential("built-in Module preview cards (Documents, Goals, People, Fi
   });
 
   describe("People", () => {
-    async function seedPerson(overrides: Partial<{ isSelf: boolean; category: string | null }> = {}) {
-      const object = await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Cat", userId: owner } });
-      await prisma.person.create({ data: {
-        id: "person-1", userId: owner, objectId: object.id, name: "Cat",
-        category: "Family", isSelf: false,
-        ...overrides,
-      } });
+    async function seedSelf() {
+      const object = await prisma.object.create({ data: { id: "self-obj", type: "PERSON", name: "Me", userId: owner } });
+      await prisma.person.create({ data: { id: "self-1", userId: owner, objectId: object.id, name: "Me", isSelf: true } });
     }
 
-    it("shows the person's category as a status badge", async () => {
-      await seedPerson();
-      const previews = await getKinesisLinkPreviews(["person-obj"]);
-      expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
+    async function seedPerson(id: string, name: string) {
+      const object = await prisma.object.create({ data: { id: `${id}-obj`, type: "PERSON", name, userId: owner } });
+      await prisma.person.create({ data: { id, userId: owner, objectId: object.id, name, isSelf: false } });
+      return `${id}-obj`;
+    }
+
+    it("shows the type of the person's relationship to the self person, not Person.category", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      await prisma.relationship.create({ data: { id: "rel-1", userId: owner, firstPersonId: "self-1", secondPersonId: "cat", type: "Family" } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId]);
+      expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
     });
 
-    it("falls back to a generic label when no category is set", async () => {
-      await seedPerson({ category: null });
-      const previews = await getKinesisLinkPreviews(["person-obj"]);
-      expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "Relationship" }]);
+    it("prefers the relationship to the self person when there's more than one", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      const dogObjectId = await seedPerson("dog", "Dog");
+      await prisma.relationship.create({ data: { id: "rel-self-cat", userId: owner, firstPersonId: "cat", secondPersonId: "self-1", type: "Family" } });
+      await prisma.relationship.create({ data: { id: "rel-cat-dog", userId: owner, firstPersonId: "cat", secondPersonId: "dog", type: "Friend" } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId, dogObjectId]);
+      expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Family" }]);
     });
 
-    it("shows 'You' for the self person regardless of category", async () => {
-      await seedPerson({ isSelf: true, category: null });
-      const previews = await getKinesisLinkPreviews(["person-obj"]);
-      expect(previews["person-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "You" }]);
+    it("falls back to any relationship when none is to the self person", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      const dogObjectId = await seedPerson("dog", "Dog");
+      await prisma.relationship.create({ data: { id: "rel-cat-dog", userId: owner, firstPersonId: "cat", secondPersonId: "dog", type: "Friend" } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId]);
+      expect(previews[catObjectId]).toEqual([{ label: "Relationship", kind: "status", value: "Friend" }]);
+    });
+
+    it("has no entry for a person with no relationships at all", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      const previews = await getKinesisLinkPreviews([catObjectId]);
+      expect(previews[catObjectId]).toBeUndefined();
+    });
+
+    it("has no entry when the relationship has no type set", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      await prisma.relationship.create({ data: { id: "rel-1", userId: owner, firstPersonId: "self-1", secondPersonId: "cat", type: null } });
+
+      const previews = await getKinesisLinkPreviews([catObjectId]);
+      expect(previews[catObjectId]).toBeUndefined();
+    });
+
+    it("shows 'You' for the self person regardless of their relationships", async () => {
+      await seedSelf();
+      const catObjectId = await seedPerson("cat", "Cat");
+      await prisma.relationship.create({ data: { id: "rel-1", userId: owner, firstPersonId: "self-1", secondPersonId: "cat", type: "Family" } });
+
+      const previews = await getKinesisLinkPreviews(["self-obj", catObjectId]);
+      expect(previews["self-obj"]).toEqual([{ label: "Relationship", kind: "status", value: "You" }]);
     });
   });
 
