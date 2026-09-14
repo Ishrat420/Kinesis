@@ -4,6 +4,7 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getTodos, getTodoSummary } from "@/lib/data/todos";
 import { getFormatPreferences } from "@/lib/format/server";
 import { DEFAULT_TODO_SCOPE, isTodoScope, type TodoScope } from "@/lib/todos/scopes";
+import { AddTodoButton } from "./AddTodoButton";
 import { TodoBoard } from "./TodoBoard";
 
 /**
@@ -29,6 +30,7 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
         title="To-Dos"
         description="Things you have captured, whether or not you have decided where they belong yet."
         icon={<ListTodo className="h-6 w-6" />}
+        actions={<AddTodoButton />}
       />
 
       <div className="mt-8 grid gap-4 md:grid-cols-3">
