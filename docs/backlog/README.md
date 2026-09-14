@@ -208,6 +208,8 @@ KD-014-kinesis-calendar
 KD-001-improve-milestones
 KD-002-kinesis-internal-link-field
 KD-003-custom-object-fields
+KD-005-customisable-module-widgets
+KD-029-be-able-to-create-to-do
 
 ## 🗑 Dropped
 KD-004-templates-object-types

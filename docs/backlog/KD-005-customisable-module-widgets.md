@@ -1,13 +1,13 @@
 # KD-005 — Customisable Module Widgets
 
-**Status:** Idea
+**Status:** Done
 **Priority:** Medium
 
 ## Summary
 
 Allow users to customise which modules appear in the dashboard's module/widget area.
 
-Modules can be added by dragging them from the current **Areas** (will be renamed) sidebar into the dashboard module area.
+Modules can be added by dragging them from the current **Areas** (will be renamed) sidebar into "Module Shortcuts"
 
 Users can also remove modules from the dashboard without removing the actual module from Kinesis.
 
@@ -21,7 +21,7 @@ Goals
 Skincare
 ```
 
-The dashboard area acts as a collection of shortcuts/widgets for the modules most important to the user.
+The dashboard Module Shortcuts area acts as a collection of shortcuts/widgets for the modules most important to the user.
 
 ## Notes
 

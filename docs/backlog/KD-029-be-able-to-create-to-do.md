@@ -1,6 +1,6 @@
 # KD-030 — Create To-Do from To-Do Screen
 
-**Status:** Accepted 
+**Status:** Done
 **Priority:** High  
 **Tags:** UX/UI
 
