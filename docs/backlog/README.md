@@ -168,6 +168,7 @@ KD-037-detach-object-from-template
 
 KD-007-adding-priority
 KD-016-automated-document-field-extraction
+KD-017-turn-dashboard-into-decision-surface
 KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 KD-044-finance-interest-and-repayment-arithmetic
@@ -183,7 +184,6 @@ KD-044-finance-interest-and-repayment-arithmetic
 KD-025-to-do-board
 KD-023-universal-object-connection
 KD-011-unified-todo-view
-KD-017-turn-dashboard-into-decision-surface
 KD-020-mobile-navigation-and-responsive-app
 
 ## ⛔ Blocked

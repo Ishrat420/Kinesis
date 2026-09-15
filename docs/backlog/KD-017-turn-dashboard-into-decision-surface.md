@@ -1,6 +1,10 @@
 # KD-017 — Turn the Dashboard Into a Decision Surface
 
-**Status:** Accepted — Needs Planning  
+**Status:** Planning Needed — the original Context-Specific Actions
+section below has shipped (Dismiss/Edit on documents and custom items,
+Complete/Reschedule on milestones and to-dos); what remains is the Step
+One data-layer work, which needs its own planning pass before anything
+else in this ticket can proceed correctly.  
 **Priority:** High  
 **Tags:** UX/UI, Architecture, Technical Debt
 
