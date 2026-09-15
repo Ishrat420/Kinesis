@@ -140,12 +140,42 @@ describe("Reminders governs advance notice only", () => {
 });
 
 describe("ordering is deterministic", () => {
-  it("puts the nearest deadline first, overdue ahead of upcoming", async () => {
+  /**
+   * The bell is an inbox, not a countdown -- newest alert on top, where
+   * "newest" means the day the notification's own current message became
+   * true (its advance window opening, or the deadline itself once overdue),
+   * not how soon or how overdue the deadline is. That's Upcoming & Due's own
+   * ordering (lib/data/upcoming.ts), sorted the opposite way on purpose.
+   */
+  it("puts whichever notification most recently started speaking first, not the nearest deadline", async () => {
+    // doc-1 (Passport) expired back on 1 March -- an old alert. doc-2
+    // (Licence) only opened its advance window on 1 February, older still.
+    // todo-1 became overdue on 1 June -- the most recent of the three, even
+    // though its deadline (1 June) is not the soonest or the most overdue.
     mocks.documentFindMany.mockResolvedValue([...expiringLicence, ...expiredPassport]);
     mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-06-01"), status: "TODO" }]);
 
     expect((await collectNotifications("user-1", NOW)).map(({ sourceId }) => sourceId))
-      .toEqual(["doc-1", "todo-1", "doc-2"]);
+      .toEqual(["todo-1", "doc-1", "doc-2"]);
+  });
+
+  /**
+   * Everything here is calendar-day granularity, so two notifications
+   * starting to speak on the very same day is common, not an edge case.
+   * The tie favours the more urgent one -- the same comparator that used to
+   * be the primary sort (byUrgency) is still reached for, just demoted to
+   * tiebreak.
+   */
+  it("breaks a same-day tie in favour of the more urgent notification", async () => {
+    // Licence's advance window opens today (1 July), 6 months ahead of its
+    // real 1 January 2027 deadline -- merely a first notice. The to-do
+    // becomes overdue today too, its deadline itself today -- already late.
+    // Both started speaking today; the to-do is the more urgent of the two.
+    mocks.documentFindMany.mockResolvedValue([{ id: "doc-2", name: "Licence", type: "Licence", expiryDate: day("2027-01-01"), prompt: 180, archived: false }]);
+    mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-07-01"), status: "TODO" }]);
+
+    expect((await collectNotifications("user-1", NOW)).map(({ sourceId }) => sourceId))
+      .toEqual(["todo-1", "doc-2"]);
   });
 
   /** Nothing in the comparator reads the clock, so the panel cannot reshuffle itself. */

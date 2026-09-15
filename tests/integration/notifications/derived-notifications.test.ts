@@ -47,7 +47,10 @@ describe.sequential("notifications are derived, not stored", () => {
     const { enabled, notifications, unreadCount } = await getRecentNotifications();
 
     expect(enabled).toBe(true);
-    expect(notifications.map(({ key }) => key)).toEqual(["todo:todo-1:TODO_DUE:2020-05-01", EXPIRED_KEY]);
+    // Newest alert first: the document expired 1 June 2020, a month after the
+    // to-do became overdue on 1 May 2020 -- more recent, even though neither
+    // deadline is the "soonest" in any everyday sense (both are years past).
+    expect(notifications.map(({ key }) => key)).toEqual([EXPIRED_KEY, "todo:todo-1:TODO_DUE:2020-05-01"]);
     expect(unreadCount).toBe(2);
     // Nothing was written to show them.
     await expect(prisma.notificationRead.count()).resolves.toBe(0);

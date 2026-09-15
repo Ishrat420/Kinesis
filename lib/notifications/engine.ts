@@ -212,9 +212,38 @@ export type DerivedNotification = NotificationCandidate & {
  * Overdue and expired things sort to the top on their own, because their dates
  * are already behind us. The key breaks ties so the list cannot reorder itself
  * between two renders of the same data -- nothing here reads the clock.
+ *
+ * This is Upcoming & Due's own ordering (lib/data/upcoming.ts sorts its own,
+ * separate query the identical way). The bell below no longer sorts by this
+ * directly -- it wants newest-alert-on-top, not soonest-deadline-on-top -- but
+ * still reaches for this exact comparator to break a tie between two things
+ * that started speaking on the same calendar day.
  */
 const byUrgency = (first: DerivedNotification, second: DerivedNotification) =>
   first.expiryDate.getTime() - second.expiryDate.getTime() || first.key.localeCompare(second.key);
+
+/**
+ * The day a notification's *current* message became true: the day its
+ * advance window opened, while it's still counting down ("expires in 3
+ * days"), or the deadline itself once it reads overdue ("is overdue by 2
+ * days"). Not a stored event time -- there is no event log here, by design
+ * (see `collectNotifications` below) -- it's derived from the two dates
+ * every candidate already carries.
+ */
+function triggeredAt(notification: DerivedNotification) {
+  return notification.type === "REMINDER_DUE" && notification.reminderAt ? notification.reminderAt : notification.expiryDate;
+}
+
+/**
+ * Ordered by which notification most recently started saying what it
+ * currently says -- newest first, like an inbox, not soonest-deadline-first
+ * like Upcoming & Due. Everything here is calendar-day granularity, so
+ * same-day arrivals are common (three documents that all expired today,
+ * say); `byUrgency` breaks that tie, favouring the more urgent one, with its
+ * own key compare underneath it for full determinism.
+ */
+const byRecency = (first: DerivedNotification, second: DerivedNotification) =>
+  triggeredAt(second).getTime() - triggeredAt(first).getTime() || byUrgency(first, second);
 
 /**
  * Every notification the owner should currently see, computed rather than stored.
@@ -312,7 +341,7 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
     add("todo", todo.id, getTodoNotificationCandidate(todo, today, todoLeadDays, remindersEnabled));
   }
 
-  return derived.sort(byUrgency);
+  return derived.sort(byRecency);
 }
 
 /**
