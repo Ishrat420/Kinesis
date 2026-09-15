@@ -52,12 +52,11 @@ model UserSettings {
   milestoneReminderLeadDays    Int      @default(30)
   relationshipReminderLeadDays Int      @default(30)
   customItemReminderLeadDays   Int      @default(30)
-  // Unlike the three above, this defaults to 0, not 30 (KD-027): a to-do's
-  // advance reminder is a new capability, not a pre-existing one whose
-  // default this app already had to pick. Zero preserves exactly what a
-  // to-do already did before this column existed -- silent until due --
-  // so this migration cannot change what an existing user sees.
-  todoReminderLeadDays         Int      @default(0)
+  // KD-027. Defaults to 30, the same as the other three, rather than 0
+  // (this app's first choice, briefly): a to-do's advance reminder should
+  // behave like every other one's out of the box, not need to be found and
+  // turned up before it does anything.
+  todoReminderLeadDays         Int      @default(30)
   // The dashboard's Module Shortcuts grid (KD-005): the four system module
   // ids ("documents", "goals", "finance", "relationships") always present,
   // in whatever order the owner dragged them into, plus up to

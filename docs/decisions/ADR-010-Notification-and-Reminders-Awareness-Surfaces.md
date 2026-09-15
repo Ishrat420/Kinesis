@@ -122,8 +122,8 @@ Deliberate exceptions, with the reason attached:
 Deliberate exceptions, with the reason attached:
 - Unlike milestones and custom items, `remindersEnabled` does not blank Upcoming & Due entirely for a to-do — only the advance `REMINDER_DUE` phase is gated. `TODO_DUE` is a statement of fact, not a prediction (the same reasoning documents' `EXPIRED` already gets), so it survives the switch exactly as it always has, in both the bell and Upcoming & Due.
 - That gate sits inside `getTodoNotificationCandidate` itself, following the document builder's pattern rather than the milestone/custom-item one (which gate from outside, in `collectNotifications` — a separately-tracked inconsistency, not repeated here).
-- Defaults to a 0-day lead, not 30 like the other three: a to-do previously had no advance stage at all, so a nonzero default would have silently started warning about every dated to-do the moment this shipped. Zero preserves exactly what a to-do already did before KD-027 — silent until due — until the owner opens Settings and asks for one.
-- A lead of zero produces no calendar reminder pin: `reminderOpensAt` with a zero lead resolves to the due date itself, which would otherwise draw a second pin on top of the due-date one for no reason.
+- Defaults to 30 days, the same as milestones, relationship dates and custom items — briefly shipped defaulting to 0 (preserving a to-do's exact pre-KD-027 behaviour of staying silent until due), then revised to match the other three so a to-do's advance reminder works the same way out of the box as everything else's, rather than needing to be found and turned up in Settings before it does anything.
+- A lead of zero (still available by setting it explicitly) produces no calendar reminder pin: `reminderOpensAt` with a zero lead resolves to the due date itself, which would otherwise draw a second pin on top of the due-date one for no reason.
 - An advance to-do reminder never reaches Needs attention. That surface is overdue-only for every object (see the Decision above), and a to-do is not the exception.
 
 ### Settings gates, To-do

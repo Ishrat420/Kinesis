@@ -150,9 +150,14 @@ pattern for the new `REMINDER_DUE` phase rather than the milestone/
 custom-item outside-the-gate one:
 
 * `UserSettings.todoReminderLeadDays` (migration
-  `20260930000000_todo_reminder_lead_days`), defaulting to 0 — chosen over
-  30 specifically so this migration changes no existing to-do's visible
-  behaviour.
+  `20260930000000_todo_reminder_lead_days`), shipped defaulting to 0 so
+  the migration changed no existing to-do's visible behaviour, then
+  revised to 30 within the same session (migration
+  `20261001000000_todo_reminder_lead_days_default_thirty`, which also
+  bumps every row still sitting at the old default) to match the other
+  three lead times — a to-do's advance reminder should work the same way
+  out of the box as everything else's, not need to be found and turned
+  up in Settings first.
 * `todo` added to `ReminderObjectType` in `lib/reminders/policy.ts`.
 * `getTodoNotificationCandidate` (`lib/notifications/engine.ts`) gained
   `leadDays` and `remindersEnabled` parameters; `collectNotifications`
@@ -174,15 +179,20 @@ custom-item outside-the-gate one:
   shape as Milestones and Custom item, with the settings-gate table
   gaining `REMINDER_DUE` and the calendar reminder pin row.
 
-Verified with a full typecheck, lint, the full unit suite (712 tests,
-including new coverage for the lead-time policy, the candidate builder's
-advance phase and its `remindersEnabled` gating, the narrowed
-`collectNotifications` query, the calendar's new reminder pin and its
-zero-lead skip, and settings validation), the full integration suite (363
-tests, including new `getUpcomingAndDue` coverage for a to-do inside its
-lead window and for reminders-off-but-overdue-survives), and a production
-`next build`. New behaviour was verified red-then-green against a
-reverted copy of each changed file before being accepted.
+Verified with a full typecheck, lint, the full unit suite (713 tests,
+including coverage for the lead-time policy at both its 0-and-then-30
+defaults, the candidate builder's advance phase and its
+`remindersEnabled` gating, the narrowed `collectNotifications` query,
+the calendar's new reminder pin at the default lead and its explicit
+zero-lead skip, and settings validation), the full integration suite
+(363 tests, including `getUpcomingAndDue` coverage for a to-do inside
+its lead window and for reminders-off-but-overdue-survives, and a
+pre-existing timezone/day-boundary suite pinned to an explicit
+`todoReminderLeadDays: 0` so the new default can't interfere with what
+it actually tests), and a production `next build`. New behaviour was
+verified red-then-green against a reverted copy of each changed file
+before being accepted, for both the initial 0-day default and the
+revision to 30.
 
 ## Related
 

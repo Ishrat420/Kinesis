@@ -141,7 +141,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
             </span>
           </label>
           <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
-            <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about to-dos</span><span className="mt-1 block text-zinc-500">How far ahead of a to-do&rsquo;s due date to start reminding you. Leave at 0 to only be told once it&rsquo;s due.</span></span>
+            <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about to-dos</span><span className="mt-1 block text-zinc-500">How far ahead of a to-do&rsquo;s due date to start reminding you.</span></span>
             <span className="flex items-center gap-2">
               <input
                 name="todoReminderLeadDays"

@@ -183,15 +183,15 @@ describe("the narrowed queries cannot drop a candidate", () => {
     expect(custom.where.dueDate.lte).toEqual(day("2026-08-15"));
   });
 
-  /** With no lead configured (the default, KD-027), a to-do can only speak from its due date. */
-  it("asks for no To-Do beyond today when no lead is configured", async () => {
+  /** With nothing configured, a to-do uses the same 30-day default as the others (KD-027). */
+  it("looks 30 days ahead for a To-Do by default", async () => {
     await collectNotifications("user-1", NOW);
     const [{ where }] = mocks.todoFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
 
-    expect(where.dueDate.lte).toEqual(day("2026-07-01"));
+    expect(where.dueDate.lte).toEqual(day("2026-07-31"));
   });
 
-  it("looks as far ahead as the to-do lead time allows, once one is configured", async () => {
+  it("looks as far ahead as the to-do lead time allows, once configured differently from the default", async () => {
     mocks.settingsFindUnique.mockResolvedValue(settings({ todoReminderLeadDays: 7 }));
     await collectNotifications("user-1", NOW);
 

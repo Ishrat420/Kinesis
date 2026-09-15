@@ -23,7 +23,10 @@ const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
 async function seed(timeZone: string) {
   await prisma.user.create({ data: { id: owner, firstName: "Zone", lastName: "Owner", email: "zone-owner@example.test" } });
-  await prisma.userSettings.create({ data: { userId: owner, timeZone } });
+  // This suite is about day-boundary correctness for TODO_DUE, not reminder
+  // windows -- pinned to 0 so a to-do due tomorrow never also raises
+  // REMINDER_DUE under the 30-day default (KD-027) and confuse the assertion.
+  await prisma.userSettings.create({ data: { userId: owner, timeZone, todoReminderLeadDays: 0 } });
   const object = await prisma.object.create({ data: { id: "todo-object", type: "TODO", name: "Renew rego", userId: owner } });
   await prisma.todo.create({ data: { id: "todo-1", name: "Renew rego", userId: owner, objectId: object.id, dueDate: day("2026-01-07") } });
 }
@@ -67,7 +70,7 @@ describe.sequential("the owner's day decides what is due", () => {
   it("gives each account its own day in a single pass", async () => {
     await seed("Australia/Sydney");
     await prisma.user.create({ data: { id: "tz-other", firstName: "Other", lastName: "Owner", email: "other-owner@example.test" } });
-    await prisma.userSettings.create({ data: { userId: "tz-other", timeZone: "UTC" } });
+    await prisma.userSettings.create({ data: { userId: "tz-other", timeZone: "UTC", todoReminderLeadDays: 0 } });
     const object = await prisma.object.create({ data: { id: "other-todo-object", type: "TODO", name: "Renew rego", userId: "tz-other" } });
     await prisma.todo.create({ data: { id: "other-todo", name: "Renew rego", userId: "tz-other", objectId: object.id, dueDate: day("2026-01-07") } });
 

@@ -14,11 +14,7 @@ export const REMINDER_LEAD_DEFAULTS: Record<ReminderObjectType, number> = {
   milestone: 30,
   relationship: 30,
   customItem: 30,
-  // Unlike the other three, a to-do previously had no advance stage at all
-  // (KD-027), so defaulting it to 30 like the others would silently start
-  // warning about every dated to-do a month early the moment this shipped.
-  // Zero preserves exactly what a to-do already did: silent until due.
-  todo: 0,
+  todo: 30,
 };
 
 const LEAD_DAYS_FIELD = {

@@ -52,15 +52,11 @@ describe("getReminderLeadDays: milestone and relationship are independent settin
     expect(getReminderLeadDays(settings, "relationship")).toBe(60);
   });
 
-  /**
-   * Unlike the other three, a to-do's default is 0, not 30 (KD-027) -- it
-   * previously had no advance stage at all, so a nonzero default would
-   * silently start warning about every dated to-do the moment this shipped.
-   */
-  it("defaults the to-do lead to zero, not 30 like the others", () => {
-    expect(REMINDER_LEAD_DEFAULTS.todo).toBe(0);
-    expect(getReminderLeadDays(undefined, "todo")).toBe(0);
-    expect(getReminderLeadDays({}, "todo")).toBe(0);
+  /** A to-do's default lead matches the other three (KD-027). */
+  it("defaults the to-do lead to 30, same as the others", () => {
+    expect(REMINDER_LEAD_DEFAULTS.todo).toBe(30);
+    expect(getReminderLeadDays(undefined, "todo")).toBe(30);
+    expect(getReminderLeadDays({}, "todo")).toBe(30);
   });
 
   it("resolves a configured to-do lead from its own field, independent of the other three", () => {

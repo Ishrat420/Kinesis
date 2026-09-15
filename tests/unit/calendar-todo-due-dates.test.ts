@@ -121,7 +121,16 @@ describe("a dated To-Do on the calendar", () => {
     expect(await todoItems()).toEqual([]);
   });
 
-  it("adds no lead-up pin when no lead is configured, the default (KD-027)", async () => {
+  it("adds a lead-up pin using the default 30-day lead when nothing is configured (KD-027)", async () => {
+    // 30 days before the 15 July due date is 15 June, so June is the month to look in.
+    mocks.todoFindMany.mockResolvedValue([todo()]);
+
+    const items = await getCalendarItems(at("2026-06-01"), new Date("2026-06-30T23:59:59.999Z"));
+    expect(items.filter((item) => item.sourceType === "REMINDER")).toMatchObject([{ title: "Renew car insurance reminder", date: "2026-06-15" }]);
+  });
+
+  it("adds no lead-up pin when the lead is explicitly set to zero", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ todoReminderLeadDays: 0 });
     mocks.todoFindMany.mockResolvedValue([todo()]);
 
     const items = await getCalendarItems(july[0], july[1]);
