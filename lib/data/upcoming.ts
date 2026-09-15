@@ -13,9 +13,12 @@ import { isOpenTodoStatus } from "@/lib/todos/status";
 
 type BaseUpcomingItem = { id: string; title: string; date: string; timestamp: number; href: string };
 export type UpcomingItem =
-  | (BaseUpcomingItem & { kind: "document" | "milestone" | "relationship" | "todo" })
+  | (BaseUpcomingItem & { kind: "document"; editHref: string })
+  | (BaseUpcomingItem & { kind: "milestone"; goalId: string; milestoneId: string })
+  | (BaseUpcomingItem & { kind: "relationship" })
+  | (BaseUpcomingItem & { kind: "todo"; todoId: string })
   /** A custom module object is shown with its own module's icon and colour. */
-  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string });
+  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string });
 
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
@@ -69,6 +72,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       date: expiry.toISOString(),
       timestamp: expiry.getTime(),
       href: `/documents/${document.id}`,
+      editHref: `/documents/${document.id}?edit=1`,
     }];
   });
 
@@ -81,6 +85,8 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       date: dueDate.toISOString(),
       timestamp: dueDate.getTime(),
       href: `/goals/${milestone.goalId}`,
+      goalId: milestone.goalId,
+      milestoneId: milestone.id,
     };
   }) : [];
 
@@ -92,7 +98,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   const todoItems = todos.flatMap((todo): UpcomingItem[] => {
     const due = startOfUtcDay(todo.dueDate!)!;
     if (!isOpenTodoStatus(todo.status) || due > today) return [];
-    return [{ id: `todo-${todo.id}`, kind: "todo", title: `${todo.name} is due`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" }];
+    return [{ id: `todo-${todo.id}`, kind: "todo", todoId: todo.id, title: `${todo.name} is due`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" }];
   });
 
   const relationshipWindowEnd = getReminderWindowEnd(today, relationshipLeadDays);
@@ -114,6 +120,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       date: dueDate.toISOString(),
       timestamp: dueDate.getTime(),
       href: `/custom-modules/${item.moduleId}/items/${item.id}`,
+      editHref: `/custom-modules/${item.moduleId}/items/${item.id}`,
       icon: item.module.icon,
       color: item.module.color,
     };
