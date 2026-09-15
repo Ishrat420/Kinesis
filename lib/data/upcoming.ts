@@ -28,6 +28,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   const milestoneWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const customItemWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "customItem"));
+  const todoWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "todo"));
   const [documents, milestones, importantDates, todos, customItems] = await Promise.all([
     prisma.document.findMany({
       where: { userId: user.id, archived: false, expiryDate: { not: null } },
@@ -47,7 +48,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] },
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
-    prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, status: true, dueDate: true } }),
+    prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null, lte: todoWindowEnd } }, select: { id: true, name: true, status: true, dueDate: true } }),
     prisma.customItem.findMany({
       where: {
         archived: false,
@@ -91,14 +92,25 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   }) : [];
 
   /**
-   * A dated To-Do appears here once it is due or overdue. Undated captures never
-   * do: the point of ADR-009 is that recording something must not require a
-   * deadline, so inventing one to make it visible would defeat the feature.
+   * A dated To-Do appears here from its reminder window opening (KD-027),
+   * same as a milestone or custom item, and stays through due and overdue.
+   * Undated captures never appear: the point of ADR-009 is that recording
+   * something must not require a deadline, so inventing one to make it
+   * visible would defeat the feature.
+   *
+   * Unlike milestones and custom items, reminders-off does not blank this
+   * out entirely -- only the advance ("due soon") phase is a prediction;
+   * due and overdue are statements of fact, and survive the switch exactly
+   * as they always have. The query above is narrowed to `todoWindowEnd`
+   * regardless, since that bound is always at or after today and so never
+   * excludes an already-due-or-overdue to-do.
    */
   const todoItems = todos.flatMap((todo): UpcomingItem[] => {
+    if (!isOpenTodoStatus(todo.status)) return [];
     const due = startOfUtcDay(todo.dueDate!)!;
-    if (!isOpenTodoStatus(todo.status) || due > today) return [];
-    return [{ id: `todo-${todo.id}`, kind: "todo", todoId: todo.id, title: `${todo.name} is due`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" }];
+    const dueSoon = due > today;
+    if (dueSoon && !settings.remindersEnabled) return [];
+    return [{ id: `todo-${todo.id}`, kind: "todo", todoId: todo.id, title: `${todo.name} is ${dueSoon ? "due soon" : "due"}`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" }];
   });
 
   const relationshipWindowEnd = getReminderWindowEnd(today, relationshipLeadDays);

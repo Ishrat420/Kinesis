@@ -152,28 +152,39 @@ export function getCustomItemNotificationCandidate(
 }
 
 /**
- * Opens on the due date itself and stays current while the To-Do is overdue.
+ * Opens `leadDays` before the due date and stays current while the To-Do is
+ * overdue -- the same two-phase shape as a milestone or custom item (KD-027).
  *
- * Unlike every other source there is no lead time to honour: a To-Do has no
- * advance stage at all (ADR-009 is explicit that capture must not require a
- * deadline, so most of them never have a date to look ahead from). It speaks on
- * the day and not before, which also means it is never an *advance* notice --
- * so, like an expired document, it is not gated on `remindersEnabled`. Turning
- * reminders off silences predictions, not statements about what has already
- * come due.
+ * Capture still never requires a deadline (ADR-009): most to-dos have no date
+ * to count back from, and an undated one is untouched by any of this. But
+ * "most to-dos have no date" only ever justified not *requiring* a lead time,
+ * never not *offering* one to a to-do whose owner went out of their way to
+ * set a due date.
+ *
+ * The overdue phase, `TODO_DUE`, is still never gated on `remindersEnabled`
+ * -- it is a statement of fact, not an advance notice, so turning reminders
+ * off must not silence it. The new advance phase, `REMINDER_DUE`, is gated,
+ * and that check sits inside this builder rather than around it, following
+ * the document builder's pattern rather than the milestone/custom-item one
+ * (which gate from the outside, in `collectNotifications` below -- a known,
+ * separately-tracked inconsistency, not one to repeat here).
  */
 export function getTodoNotificationCandidate(
   todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
   today: Date,
+  leadDays = 0,
+  remindersEnabled = true,
 ): NotificationCandidate | null {
   if (!todo.dueDate || !isOpenTodoStatus(todo.status)) return null;
   today = startOfUtcDay(today)!;
   const dueDate = startOfUtcDay(todo.dueDate)!;
-  if (today < dueDate) return null;
+  const reminderAt = getReminderWindowStart(dueDate, leadDays);
+  const type = today >= dueDate ? "TODO_DUE" : remindersEnabled && today >= reminderAt ? "REMINDER_DUE" : null;
+  if (!type) return null;
 
   return {
-    type: "TODO_DUE",
-    reminderAt: dueDate,
+    type,
+    reminderAt,
     timeUntilExpiry: null,
     expiryDate: dueDate,
     documentName: todo.name,
@@ -225,6 +236,7 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
   const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const customItemLeadDays = getReminderLeadDays(settings, "customItem");
+  const todoLeadDays = getReminderLeadDays(settings, "todo");
   const { locale, timeZone } = resolveFormatPreferences(settings);
   const today = startOfDayIn(timeZone, now);
 
@@ -254,10 +266,8 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
       where: { archived: false, dueDate: { not: null, lte: addUtcDays(today, customItemLeadDays) }, module: { userId } },
       include: { module: { select: { icon: true, color: true } } },
     }),
-    // A To-Do has no advance stage at all, so it can only speak from its due
-    // date onwards -- and only while it is still open.
     prisma.todo.findMany({
-      where: { userId, dueDate: { not: null, lte: today } },
+      where: { userId, dueDate: { not: null, lte: addUtcDays(today, todoLeadDays) } },
       select: { id: true, name: true, dueDate: true, status: true },
     }),
     prisma.notificationRead.findMany({ where: { userId }, select: { itemKey: true, readAt: true } }),
@@ -299,7 +309,7 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
     add("custom", item.id, remindersEnabled ? getCustomItemNotificationCandidate(item, today, customItemLeadDays, locale) : null, item.module);
   }
   for (const todo of todos) {
-    add("todo", todo.id, getTodoNotificationCandidate(todo, today));
+    add("todo", todo.id, getTodoNotificationCandidate(todo, today, todoLeadDays, remindersEnabled));
   }
 
   return derived.sort(byUrgency);

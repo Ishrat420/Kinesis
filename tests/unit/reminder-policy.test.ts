@@ -51,6 +51,23 @@ describe("getReminderLeadDays: milestone and relationship are independent settin
     expect(getReminderLeadDays(settings, "milestone")).toBe(7);
     expect(getReminderLeadDays(settings, "relationship")).toBe(60);
   });
+
+  /**
+   * Unlike the other three, a to-do's default is 0, not 30 (KD-027) -- it
+   * previously had no advance stage at all, so a nonzero default would
+   * silently start warning about every dated to-do the moment this shipped.
+   */
+  it("defaults the to-do lead to zero, not 30 like the others", () => {
+    expect(REMINDER_LEAD_DEFAULTS.todo).toBe(0);
+    expect(getReminderLeadDays(undefined, "todo")).toBe(0);
+    expect(getReminderLeadDays({}, "todo")).toBe(0);
+  });
+
+  it("resolves a configured to-do lead from its own field, independent of the other three", () => {
+    const settings = { milestoneReminderLeadDays: 7, relationshipReminderLeadDays: 60, customItemReminderLeadDays: 14, todoReminderLeadDays: 3 };
+    expect(getReminderLeadDays(settings, "todo")).toBe(3);
+    expect(getReminderLeadDays(settings, "milestone")).toBe(7);
+  });
 });
 
 describe("getReminderWindowStart / getReminderWindowEnd: the shared window math", () => {

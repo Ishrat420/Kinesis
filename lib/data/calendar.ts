@@ -58,6 +58,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   const milestoneLead: ReminderLead = { kind: "leadDays", days: getReminderLeadDays(settings, "milestone") };
   const relationshipLead: ReminderLead = { kind: "leadDays", days: relationshipLeadDays };
   const customItemLead: ReminderLead = { kind: "leadDays", days: getReminderLeadDays(settings, "customItem") };
+  const todoLead: ReminderLead = { kind: "leadDays", days: getReminderLeadDays(settings, "todo") };
 
   const items: KinesisCalendarItem[] = [];
   const add = (item: Omit<KinesisCalendarItem, "date"> & { date: Date }) => {
@@ -131,12 +132,18 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   }
   // A dated To-Do pins its deadline like any other, and keeps it once done --
   // the calendar is a record of when things fell due, so a finished item is
-  // relabelled rather than removed, exactly as a completed milestone is. There
-  // is no lead-up pin to go with it: a To-Do has no reminder window at all (see
-  // getTodoNotificationCandidate), so there is no earlier day to promise.
+  // relabelled rather than removed, exactly as a completed milestone is.
   for (const todo of todos) {
     if (!todo.dueDate) continue;
     add({ id: `todo-due-${todo.id}`, title: `${todo.name} due`, kind: hasTime(todo.dueDate) ? "SCHEDULED" : "DATED", date: todo.dueDate, startTime: hasTime(todo.dueDate) ? timeValue(todo.dueDate) : undefined, sourceType: "TODO", sourceObjectId: todo.id, sourceModule: "To-Dos", href: `/todos#todo-${todo.id}`, detail: isOpenTodoStatus(todo.status) ? "To-do due date" : "Completed to-do" });
+    // A lead-up pin (KD-027) only while still open -- a completed to-do has
+    // nothing left to warn about -- and only once a lead is actually
+    // configured: `reminderOpensAt` with a zero lead resolves to the due
+    // date itself, so drawing this unconditionally would double the due-date
+    // pin rather than add a genuine lead-up one.
+    if (isOpenTodoStatus(todo.status) && todoLead.days > 0) {
+      addReminder({ id: `todo-reminder-${todo.id}`, name: todo.name, deadline: todo.dueDate, deadlineLabel: "due", lead: todoLead, sourceObjectId: todo.id, sourceModule: "To-Dos", href: `/todos#todo-${todo.id}` });
+    }
   }
   return items.sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || "") || a.title.localeCompare(b.title));
 }

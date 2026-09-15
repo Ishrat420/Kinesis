@@ -115,15 +115,26 @@ Deliberate exceptions, with the reason attached:
 
 ### To-do
 
+1. A to-do enters its reminder window based on the config (KD-027), shows up in Upcoming & Due and the bell/notification as `REMINDER_DUE`, and gets a reminder pin on the calendar ahead of the due date.
+
 2. To-do if it's over-due, shows up in Needs attention, and when due it is in Upcoming & Due, bell/notification. Calender will have it. As noted, Needs attention is a day behind everything else.
 
+Deliberate exceptions, with the reason attached:
+- Unlike milestones and custom items, `remindersEnabled` does not blank Upcoming & Due entirely for a to-do — only the advance `REMINDER_DUE` phase is gated. `TODO_DUE` is a statement of fact, not a prediction (the same reasoning documents' `EXPIRED` already gets), so it survives the switch exactly as it always has, in both the bell and Upcoming & Due.
+- That gate sits inside `getTodoNotificationCandidate` itself, following the document builder's pattern rather than the milestone/custom-item one (which gate from outside, in `collectNotifications` — a separately-tracked inconsistency, not repeated here).
+- Defaults to a 0-day lead, not 30 like the other three: a to-do previously had no advance stage at all, so a nonzero default would have silently started warning about every dated to-do the moment this shipped. Zero preserves exactly what a to-do already did before KD-027 — silent until due — until the owner opens Settings and asks for one.
+- A lead of zero produces no calendar reminder pin: `reminderOpensAt` with a zero lead resolves to the due date itself, which would otherwise draw a second pin on top of the due-date one for no reason.
+- An advance to-do reminder never reaches Needs attention. That surface is overdue-only for every object (see the Decision above), and a to-do is not the exception.
 
 ### Settings gates, To-do
 
 |  | `In-app notification is not ticked` | `reminders is not ticked` | `Done` | 
 | --- | --- | --- |--- |
-| Bell — `TODO_DUE` | blocks | **survives** | blocks |
+| Bell — `REMINDER_DUE` (before due) | blocks | blocks | blocks |
+| Bell — `TODO_DUE` (due / overdue) | blocks | **survives** | blocks |
+| Upcoming & Due — due soon | **survives** | blocks | blocks |
 | Upcoming & Due — due / overdue | **survives** | **survives** | blocks |
+| Calendar reminder pin | **survives** | blocks | blocks |
 | Calendar due-date pin | **survives** | **survives** | DONE to-do keeps its pin relabelled "Completed to-do". |
 | Needs attention | **survives** | **survives** | blocks |
 

@@ -160,7 +160,6 @@ KD-012-starter-example-data
 KD-013-guided-onboarding
 KD-015-kinesis-timeline-review
 KD-026-document-no-reminder-option
-KD-027-todo-reminder-window
 KD-028-goal-lapse-awareness
 KD-037-detach-object-from-template
 
@@ -190,6 +189,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-027-todo-reminder-window
 KD-031-goal-dates-stored-at-end-of-day
 KD-030-custom-module-badge-glyph-colour
 KD-032-relationships-bypass-the-object-layer

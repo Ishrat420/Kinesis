@@ -38,6 +38,10 @@ export async function updateSettingsAction(
   if (!Number.isInteger(customItemReminderLeadDays) || customItemReminderLeadDays < 0 || customItemReminderLeadDays > 365) {
     return { error: "Enter a number of days between 0 and 365 for custom item due dates." };
   }
+  const todoReminderLeadDays = Number(formData.get("todoReminderLeadDays"));
+  if (!Number.isInteger(todoReminderLeadDays) || todoReminderLeadDays < 0 || todoReminderLeadDays > 365) {
+    return { error: "Enter a number of days between 0 and 365 for to-dos." };
+  }
 
   const data = {
     locale,
@@ -48,6 +52,7 @@ export async function updateSettingsAction(
     milestoneReminderLeadDays,
     relationshipReminderLeadDays,
     customItemReminderLeadDays,
+    todoReminderLeadDays,
   };
   await prisma.userSettings.upsert({
     where: { userId: user.id },

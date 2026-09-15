@@ -1,6 +1,6 @@
 # KD-027 — Give a To-Do a reminder window
 
-**Status:** Idea
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI, Data Model
 
@@ -128,3 +128,68 @@ No. That surface is overdue-only for every object, and a to-do should not be the
 * An undated to-do is unaffected in every respect.
 * A completed to-do raises nothing, and keeps its relabelled calendar due-date pin.
 * A zero lead produces no calendar reminder pin.
+
+## Implementation notes
+
+Before implementing, this ticket was re-verified against the current
+codebase (it was written before several rounds of unrelated refactoring)
+to check every code-level claim still held. Everything did, with one
+naming drift: the ticket refers to `reconcileMilestone`/`reconcileCustomItem`/
+`reconcileTodo` functions that no longer exist under those names —
+`lib/notifications/engine.ts` was refactored from a reconcile-and-store
+pass into pure `getXNotificationCandidate` builders plus one
+`collectNotifications` reader sometime after this was written. The
+*behaviour* the ticket describes (document gates `remindersEnabled`
+inside its own builder; milestone/customItem gate it from outside, in
+`collectNotifications`) survived that refactor exactly intact, so the
+plan itself needed no changes — only this note, so nobody goes looking
+for a function that isn't there.
+
+Shipped as proposed, following the document builder's inside-the-gate
+pattern for the new `REMINDER_DUE` phase rather than the milestone/
+custom-item outside-the-gate one:
+
+* `UserSettings.todoReminderLeadDays` (migration
+  `20260930000000_todo_reminder_lead_days`), defaulting to 0 — chosen over
+  30 specifically so this migration changes no existing to-do's visible
+  behaviour.
+* `todo` added to `ReminderObjectType` in `lib/reminders/policy.ts`.
+* `getTodoNotificationCandidate` (`lib/notifications/engine.ts`) gained
+  `leadDays` and `remindersEnabled` parameters; `collectNotifications`
+  narrows its to-do query to the lead window and passes both through.
+* `getUpcomingAndDue` (`lib/data/upcoming.ts`) narrows its to-do query the
+  same way and titles a to-do "is due soon" before the due date, keeping
+  the pre-existing "is due" wording unchanged for due-today and overdue —
+  a deliberate choice to preserve current wording exactly for the states
+  that already existed, rather than adopting milestone's "over its due
+  date" split, which would have been a small but avoidable wording change.
+* `getCalendarItems` (`lib/data/calendar.ts`) adds a lead-up pin for an
+  open to-do only, skipped entirely when the lead is zero (per the
+  acceptance criterion) since `reminderOpensAt` would otherwise land it on
+  the same day as the due-date pin.
+* Settings gained a fourth "Remind me about to-dos" row
+  (`app/(app)/settings/SettingsForm.tsx`), validated the same way as the
+  other three (`app/(app)/settings/actions.ts`).
+* ADR-010 updated: the To-do section now has the same two-numbered-item
+  shape as Milestones and Custom item, with the settings-gate table
+  gaining `REMINDER_DUE` and the calendar reminder pin row.
+
+Verified with a full typecheck, lint, the full unit suite (712 tests,
+including new coverage for the lead-time policy, the candidate builder's
+advance phase and its `remindersEnabled` gating, the narrowed
+`collectNotifications` query, the calendar's new reminder pin and its
+zero-lead skip, and settings validation), the full integration suite (363
+tests, including new `getUpcomingAndDue` coverage for a to-do inside its
+lead window and for reminders-off-but-overdue-survives), and a production
+`next build`. New behaviour was verified red-then-green against a
+reverted copy of each changed file before being accepted.
+
+## Related
+
+* ADR-010 — Notification and Reminders Awareness Surfaces; updated in the
+  same change with the To-do section this ticket implements.
+* KD-026 — Document no-reminder option; a similarly-shaped per-record
+  reminder question, referenced above as the place per-record (rather
+  than global) to-do reminder control would belong, if ever wanted.
+* KD-025 — To-do board; a `WAITING` to-do may eventually want different
+  advance treatment from a `TODO` one, not addressed here.

@@ -12,6 +12,7 @@ export const defaultSettings = {
   milestoneReminderLeadDays: REMINDER_LEAD_DEFAULTS.milestone,
   relationshipReminderLeadDays: REMINDER_LEAD_DEFAULTS.relationship,
   customItemReminderLeadDays: REMINDER_LEAD_DEFAULTS.customItem,
+  todoReminderLeadDays: REMINDER_LEAD_DEFAULTS.todo,
   dashboardModuleOrder: [] as string[],
 };
 

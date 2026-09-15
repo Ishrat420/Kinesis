@@ -8,18 +8,24 @@ import { addUtcDays } from "@/lib/dates";
  * through `getReminderLeadDays` / `getReminderWindowStart` below, so nothing
  * else needs to change per object type.
  */
-export type ReminderObjectType = "milestone" | "relationship" | "customItem";
+export type ReminderObjectType = "milestone" | "relationship" | "customItem" | "todo";
 
 export const REMINDER_LEAD_DEFAULTS: Record<ReminderObjectType, number> = {
   milestone: 30,
   relationship: 30,
   customItem: 30,
+  // Unlike the other three, a to-do previously had no advance stage at all
+  // (KD-027), so defaulting it to 30 like the others would silently start
+  // warning about every dated to-do a month early the moment this shipped.
+  // Zero preserves exactly what a to-do already did: silent until due.
+  todo: 0,
 };
 
 const LEAD_DAYS_FIELD = {
   milestone: "milestoneReminderLeadDays",
   relationship: "relationshipReminderLeadDays",
   customItem: "customItemReminderLeadDays",
+  todo: "todoReminderLeadDays",
 } as const satisfies Record<ReminderObjectType, string>;
 
 type LeadDaysSettings = { [K in ReminderObjectType as (typeof LEAD_DAYS_FIELD)[K]]?: number | null };

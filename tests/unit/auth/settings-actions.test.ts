@@ -75,6 +75,7 @@ describe("updateSettingsAction", () => {
     milestoneReminderLeadDays: "30",
     relationshipReminderLeadDays: "14",
     customItemReminderLeadDays: "7",
+    todoReminderLeadDays: "0",
   });
   const form = (overrides: Partial<Record<string, string>> = {}) => {
     const data = new FormData();
@@ -106,6 +107,7 @@ describe("updateSettingsAction", () => {
     ["milestoneReminderLeadDays", "milestones"],
     ["relationshipReminderLeadDays", "important dates"],
     ["customItemReminderLeadDays", "custom item due dates"],
+    ["todoReminderLeadDays", "to-dos"],
   ])("rejects a non-numeric %s", async (field, label) => {
     await expect(updateSettingsAction({}, form({ [field]: "soon" }))).resolves.toEqual({ error: `Enter a number of days between 0 and 365 for ${label}.` });
     expect(mocks.settingsUpsert).not.toHaveBeenCalled();
@@ -115,6 +117,7 @@ describe("updateSettingsAction", () => {
     ["milestoneReminderLeadDays", "milestones"],
     ["relationshipReminderLeadDays", "important dates"],
     ["customItemReminderLeadDays", "custom item due dates"],
+    ["todoReminderLeadDays", "to-dos"],
   ])("rejects a negative %s", async (field, label) => {
     await expect(updateSettingsAction({}, form({ [field]: "-1" }))).resolves.toEqual({ error: `Enter a number of days between 0 and 365 for ${label}.` });
     expect(mocks.settingsUpsert).not.toHaveBeenCalled();
@@ -124,6 +127,7 @@ describe("updateSettingsAction", () => {
     ["milestoneReminderLeadDays", "milestones"],
     ["relationshipReminderLeadDays", "important dates"],
     ["customItemReminderLeadDays", "custom item due dates"],
+    ["todoReminderLeadDays", "to-dos"],
   ])("rejects a %s over 365", async (field, label) => {
     await expect(updateSettingsAction({}, form({ [field]: "366" }))).resolves.toEqual({ error: `Enter a number of days between 0 and 365 for ${label}.` });
     expect(mocks.settingsUpsert).not.toHaveBeenCalled();
@@ -144,7 +148,7 @@ describe("updateSettingsAction", () => {
     const data = {
       locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY, timeZone: DEFAULT_TIME_ZONE,
       notificationsEnabled: true, remindersEnabled: true,
-      milestoneReminderLeadDays: 30, relationshipReminderLeadDays: 14, customItemReminderLeadDays: 7,
+      milestoneReminderLeadDays: 30, relationshipReminderLeadDays: 14, customItemReminderLeadDays: 7, todoReminderLeadDays: 0,
     };
     expect(mocks.settingsUpsert).toHaveBeenCalledWith({ where: { userId: "owner-id" }, create: { userId: "owner-id", ...data }, update: data });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");

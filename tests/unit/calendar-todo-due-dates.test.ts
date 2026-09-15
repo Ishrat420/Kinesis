@@ -121,12 +121,48 @@ describe("a dated To-Do on the calendar", () => {
     expect(await todoItems()).toEqual([]);
   });
 
-  it("adds no lead-up pin, since a to-do has no reminder window", async () => {
+  it("adds no lead-up pin when no lead is configured, the default (KD-027)", async () => {
     mocks.todoFindMany.mockResolvedValue([todo()]);
 
     const items = await getCalendarItems(july[0], july[1]);
     expect(items.filter((item) => item.sourceType === "REMINDER")).toEqual([]);
     expect(items).toHaveLength(1);
+  });
+});
+
+describe("a to-do's lead-up pin, once a lead is configured (KD-027)", () => {
+  it("adds a lead-up pin worded the way every other one is", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ todoReminderLeadDays: 7 });
+    mocks.todoFindMany.mockResolvedValue([todo()]);
+
+    const items = await getCalendarItems(july[0], july[1]);
+    const [reminder] = items.filter((item) => item.sourceType === "REMINDER");
+    expect(reminder).toMatchObject({ title: "Renew car insurance reminder", date: "2026-07-08" });
+  });
+
+  it("skips the pin for a completed to-do, which has nothing left to warn about", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ todoReminderLeadDays: 7 });
+    mocks.todoFindMany.mockResolvedValue([todo({ status: "DONE" })]);
+
+    const items = await getCalendarItems(july[0], july[1]);
+    expect(items.filter((item) => item.sourceType === "REMINDER")).toEqual([]);
+  });
+
+  it("still pins a to-do waiting on someone else, which is open like any other", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ todoReminderLeadDays: 7 });
+    mocks.todoFindMany.mockResolvedValue([todo({ status: "WAITING" })]);
+
+    const items = await getCalendarItems(july[0], july[1]);
+    expect(items.filter((item) => item.sourceType === "REMINDER")).toHaveLength(1);
+  });
+
+  it("drops the lead-up pin when reminders are switched off, keeping the due-date pin", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ todoReminderLeadDays: 7, remindersEnabled: false });
+    mocks.todoFindMany.mockResolvedValue([todo()]);
+
+    const items = await getCalendarItems(july[0], july[1]);
+    expect(items.filter((item) => item.sourceType === "REMINDER")).toEqual([]);
+    expect(items.filter((item) => item.sourceType === "TODO")).toHaveLength(1);
   });
 });
 

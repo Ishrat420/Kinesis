@@ -115,12 +115,27 @@ describe("Reminders governs advance notice only", () => {
     expect(await collectNotifications("user-1", NOW)).toEqual([]);
   });
 
-  /** A To-Do has no advance stage, so it is a statement rather than a prediction. */
+  /** TODO_DUE is a statement of fact, not a prediction, so it survives the switch. */
   it("still speaks for an overdue To-Do when reminders are off", async () => {
     mocks.settingsFindUnique.mockResolvedValue(settings({ remindersEnabled: false }));
     mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-06-30"), status: "TODO" }]);
 
     expect(await collectNotifications("user-1", NOW)).toMatchObject([{ type: "TODO_DUE" }]);
+  });
+
+  /** A To-Do's advance phase (KD-027) is exactly the kind of prediction this switch governs. */
+  it("withholds a to-do's advance reminder when reminders are off", async () => {
+    mocks.settingsFindUnique.mockResolvedValue(settings({ remindersEnabled: false, todoReminderLeadDays: 7 }));
+    mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-07-05"), status: "TODO" }]);
+
+    expect(await collectNotifications("user-1", NOW)).toEqual([]);
+  });
+
+  it("still raises a to-do's advance reminder once reminders are back on", async () => {
+    mocks.settingsFindUnique.mockResolvedValue(settings({ todoReminderLeadDays: 7 }));
+    mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-07-05"), status: "TODO" }]);
+
+    expect(await collectNotifications("user-1", NOW)).toMatchObject([{ type: "REMINDER_DUE" }]);
   });
 });
 
@@ -168,11 +183,19 @@ describe("the narrowed queries cannot drop a candidate", () => {
     expect(custom.where.dueDate.lte).toEqual(day("2026-08-15"));
   });
 
-  /** A To-Do has no lead time at all, so it can only speak from its due date. */
-  it("asks for no To-Do beyond today", async () => {
+  /** With no lead configured (the default, KD-027), a to-do can only speak from its due date. */
+  it("asks for no To-Do beyond today when no lead is configured", async () => {
     await collectNotifications("user-1", NOW);
     const [{ where }] = mocks.todoFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
 
     expect(where.dueDate.lte).toEqual(day("2026-07-01"));
+  });
+
+  it("looks as far ahead as the to-do lead time allows, once one is configured", async () => {
+    mocks.settingsFindUnique.mockResolvedValue(settings({ todoReminderLeadDays: 7 }));
+    await collectNotifications("user-1", NOW);
+
+    const [{ where }] = mocks.todoFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
+    expect(where.dueDate.lte).toEqual(day("2026-07-08"));
   });
 });

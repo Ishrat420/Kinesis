@@ -121,6 +121,44 @@ describe.sequential("Upcoming & Due", () => {
     await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
   });
 
+  it("surfaces a to-do inside its configured lead window as due soon (KD-027)", async () => {
+    await seedSettings(owner, { todoReminderLeadDays: 7 });
+    // now = 2026-06-15; a 7-day lead opens on 2026-06-18, which is inside it.
+    await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
+    await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: new Date("2026-06-20"), userId: owner, objectId: "todo-obj" } });
+
+    const items = await getUpcomingAndDue(now);
+
+    expect(items).toEqual([expect.objectContaining({ kind: "todo", title: "Renew passport is due soon" })]);
+  });
+
+  it("does not surface a to-do outside its configured lead window", async () => {
+    await seedSettings(owner, { todoReminderLeadDays: 7 });
+    // now = 2026-06-15; a 7-day lead opens on 2026-07-01, still ahead of now.
+    await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
+    await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: new Date("2026-07-08"), userId: owner, objectId: "todo-obj" } });
+
+    await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+  });
+
+  it("hides a to-do's advance reminder once reminders are disabled, but keeps an overdue one", async () => {
+    await seedSettings(owner, { remindersEnabled: false, todoReminderLeadDays: 7 });
+    await prisma.object.create({ data: { id: "todo-due-soon-obj", type: "TODO", name: "Due soon", userId: owner } });
+    await prisma.todo.create({ data: { id: "todo-due-soon", name: "Due soon", dueDate: new Date("2026-06-20"), userId: owner, objectId: "todo-due-soon-obj" } });
+    await prisma.object.create({ data: { id: "todo-overdue-obj", type: "TODO", name: "Overdue", userId: owner } });
+    await prisma.todo.create({ data: { id: "todo-overdue", name: "Overdue", dueDate: new Date("2026-06-10"), userId: owner, objectId: "todo-overdue-obj" } });
+
+    const items = await getUpcomingAndDue(now);
+
+    // Unlike milestones and custom items, a to-do's due/overdue phase is a
+    // statement of fact and survives Reminders being off -- only its advance
+    // phase is a prediction, and that is what the switch governs. The title
+    // itself is unchanged from before this ticket ("is due"), preserving
+    // existing wording exactly for every to-do that was already due or
+    // overdue; only the new advance phase gets a distinct "is due soon".
+    expect(items).toEqual([expect.objectContaining({ kind: "todo", title: "Overdue is due" })]);
+  });
+
   it("rolls a yearly-repeating date forward to next year once this year's has passed", async () => {
     await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Sam", userId: owner } });
     await prisma.person.create({ data: { id: "person-1", name: "Sam", userId: owner, objectId: "person-obj" } });
