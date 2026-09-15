@@ -27,25 +27,42 @@ const STARTER_TEMPLATE_NAME = "General Record";
  * its own module, importing neither `lib/auth` nor `lib/data/templates`
  * (which itself imports `lib/auth`), so that security-sensitive
  * provisioning code never sits in an import cycle.
+ *
+ * The find-then-create below is unlocked on two of those call sites (the
+ * already-mapped-owner branches, run outside any transaction) unlike the
+ * true first-provisioning one, which serializes on an advisory lock. Two
+ * overlapping requests for the same not-yet-backfilled owner -- two tabs, a
+ * prefetch racing a navigation -- can both see no isStarter row and both
+ * reach `create`; the database-level unique index on `isStarter`
+ * (Template_one_starter_per_user, added specifically to make this
+ * impossible to get wrong) then rejects the loser with P2002. Caught here
+ * rather than left to propagate: by the time this throws, the winner has
+ * already given this owner exactly the row this function exists to
+ * guarantee, so the only correct response is to treat it as already done.
  */
 export async function ensureStarterTemplate(client: Client, userId: string) {
   const existing = await client.template.findFirst({ where: { userId, isStarter: true }, select: { id: true } });
   if (existing) return;
 
-  await client.template.create({
-    data: {
-      id: crypto.randomUUID(),
-      userId,
-      name: STARTER_TEMPLATE_NAME,
-      isStarter: true,
-      fields: {
-        create: [
-          { id: crypto.randomUUID(), label: "Due date", type: "DATE", position: 0, isDueDate: true },
-          { id: crypto.randomUUID(), label: "Reference", type: "LINK", position: 1 },
-          { id: crypto.randomUUID(), label: "Related", type: "KINESIS_LINK", position: 2 },
-          { id: crypto.randomUUID(), label: "Notes", type: "TEXT", position: 3, multiline: true },
-        ],
+  try {
+    await client.template.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId,
+        name: STARTER_TEMPLATE_NAME,
+        isStarter: true,
+        fields: {
+          create: [
+            { id: crypto.randomUUID(), label: "Due date", type: "DATE", position: 0, isDueDate: true },
+            { id: crypto.randomUUID(), label: "Reference", type: "LINK", position: 1 },
+            { id: crypto.randomUUID(), label: "Related", type: "KINESIS_LINK", position: 2 },
+            { id: crypto.randomUUID(), label: "Notes", type: "TEXT", position: 3, multiline: true },
+          ],
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "P2002") return;
+    throw error;
+  }
 }
