@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { BellRing, FileText, Flag, ListTodo, Pencil, Target, X } from "lucide-react";
-import { dismissAttentionItem } from "@/app/actions";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
+import { DismissButton } from "./DismissButton";
 import { toggleMilestoneAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
 import { setTodoStatusAction, updateTodoDueDateAction } from "@/app/(app)/todos/actions";
 import type { AttentionItem } from "@/lib/data/attention";
@@ -75,9 +75,7 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
                   />
                 : <div className="flex shrink-0 items-center gap-2">
                     <Link href={item.editHref} onClick={() => setOpen(false)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><Pencil className="h-3.5 w-3.5" />Edit</Link>
-                    <form action={dismissAttentionItem.bind(null, item.key)} onSubmit={() => setDismissed((current) => [...current, item.key])}>
-                      <button type="submit" className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900">Dismiss</button>
-                    </form>
+                    <DismissButton itemKey={item.key} onDismissed={() => setDismissed((current) => [...current, item.key])} />
                   </div>}
             </div>;
           }) : <div className="rounded-2xl border border-dashed border-zinc-200 py-10 text-center"><p className="font-semibold text-zinc-700">Everything is under control</p><p className="mt-1 text-sm text-zinc-400">There are no items that need attention.</p></div>}

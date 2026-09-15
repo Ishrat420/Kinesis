@@ -10,6 +10,7 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { getNeedsAttention } from "@/lib/data/attention";
+import { getUpcomingAndDue } from "@/lib/data/upcoming";
 import { dismissAttentionItem } from "@/app/actions";
 import { dismissalKey } from "@/lib/attention/dismissal";
 
@@ -161,6 +162,26 @@ describe.sequential("Needs Attention", () => {
       await dismissAttentionItem(key);
 
       await expect(prisma.attentionDismissal.findMany({ where: { customItemId: "item-1" } })).resolves.toEqual([]);
+    });
+
+    /**
+     * The two surfaces read the one AttentionDismissal table under the same
+     * key format (lib/attention/dismissal.ts), so a dismissal recorded from
+     * either one hides the row on both -- there is no separate wiring to
+     * keep in sync, just the shared key.
+     */
+    it("also hides the item from Upcoming & Due, not just Needs Attention", async () => {
+      await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
+      await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+      await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: past, moduleId: "module-1", objectId: "item-obj" } });
+      const key = dismissalKey("custom", "item-1", past);
+
+      await expect(getUpcomingAndDue(future)).resolves.toEqual([expect.objectContaining({ kind: "custom" })]);
+
+      await dismissAttentionItem(key);
+
+      await expect(getNeedsAttention(future)).resolves.toEqual([]);
+      await expect(getUpcomingAndDue(future)).resolves.toEqual([]);
     });
   });
 });

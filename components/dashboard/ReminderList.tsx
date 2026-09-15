@@ -7,6 +7,7 @@ import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { toggleMilestoneAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
 import { setTodoStatusAction, updateTodoDueDateAction } from "@/app/(app)/todos/actions";
 import { ResolveActions } from "./ResolveActions";
+import { DismissButton } from "./DismissButton";
 const icons = { document: FileText, milestone: Flag, relationship: CalendarDays, todo: ListTodo };
 const upcomingBadgeClass = "flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50";
 
@@ -38,7 +39,10 @@ function UpcomingActions({ item }: { item: UpcomingItem }) {
     />;
   }
   if (item.kind === "document" || item.kind === "custom") {
-    return <Link href={item.editHref} className="flex shrink-0 items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><Pencil className="h-3.5 w-3.5" />Edit</Link>;
+    return <div className="flex shrink-0 items-center gap-2">
+      <Link href={item.editHref} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><Pencil className="h-3.5 w-3.5" />Edit</Link>
+      <DismissButton itemKey={item.dismissKey} />
+    </div>;
   }
   return null;
 }

@@ -6,9 +6,15 @@ vi.mock("server-only", () => ({}));
 vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
+// dismissAttentionItem (exercised by the dismiss tests below) revalidates "/"
+// on success; there is no real Next.js request/render context in a plain
+// vitest run for that to act on.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
+import { dismissAttentionItem } from "@/app/actions";
+import { dismissalKey } from "@/lib/attention/dismissal";
 
 /**
  * getUpcomingAndDue reads five unrelated tables against a per-type reminder
@@ -175,5 +181,53 @@ describe.sequential("Upcoming & Due", () => {
     await prisma.todo.create({ data: { id: "todo-1", name: "Not yours", dueDate: new Date("2026-06-10"), userId: stranger, objectId: "todo-obj" } });
 
     await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+  });
+
+  describe("dismissing a document or custom item", () => {
+    /**
+     * Unlike Needs Attention -- which only ever shows a record once it is
+     * overdue, so dismissing one there was always a dismissal of something
+     * overdue -- Upcoming & Due also shows the advance "expiring soon" /
+     * "due soon" phase. The dismissal key is keyed on the deadline alone,
+     * never the phase (lib/attention/dismissal.ts), so it was always meant
+     * to cover this case too: dismissing here works before the item is ever
+     * overdue, not just after.
+     */
+    it("hides a document that is only expiring soon, not yet expired", async () => {
+      const expiry = new Date("2026-06-25");
+      await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Passport", userId: owner } });
+      await prisma.document.create({ data: { id: "doc-1", name: "Passport", type: "Identity", status: "Active", owner: "Owner", expiryDate: expiry, prompt: 30, userId: owner, objectId: "doc-obj" } });
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([expect.objectContaining({ kind: "document", title: "Passport is expiring" })]);
+
+      await dismissAttentionItem(dismissalKey("document", "doc-1", expiry));
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+    });
+
+    it("hides a custom item that is only due soon, not yet overdue", async () => {
+      const dueDate = new Date("2026-06-22");
+      await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
+      await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+      await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate, moduleId: "module-1", objectId: "item-obj" } });
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([expect.objectContaining({ kind: "custom", title: "Dune is due soon" })]);
+
+      await dismissAttentionItem(dismissalKey("custom", "item-1", dueDate));
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+    });
+
+    it("revives a dismissed document once its expiry date is edited to a new date", async () => {
+      const expiry = new Date("2026-06-25");
+      await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Passport", userId: owner } });
+      await prisma.document.create({ data: { id: "doc-1", name: "Passport", type: "Identity", status: "Active", owner: "Owner", expiryDate: expiry, prompt: 30, userId: owner, objectId: "doc-obj" } });
+      await dismissAttentionItem(dismissalKey("document", "doc-1", expiry));
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+
+      await prisma.document.update({ where: { id: "doc-1" }, data: { expiryDate: new Date("2026-06-26") } });
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([expect.objectContaining({ kind: "document" })]);
+    });
   });
 });

@@ -10,15 +10,17 @@ import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/polic
 import { activeGoalWhere } from "@/lib/goals/active";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
+import { dismissalKey } from "@/lib/attention/dismissal";
 
 type BaseUpcomingItem = { id: string; title: string; date: string; timestamp: number; href: string };
 export type UpcomingItem =
-  | (BaseUpcomingItem & { kind: "document"; editHref: string })
+  /** `dismissKey` is the same key Needs Attention dismisses this exact record/deadline under -- see lib/attention/dismissal.ts. Dismissing here hides it there too, for free, since both read the one AttentionDismissal table. */
+  | (BaseUpcomingItem & { kind: "document"; editHref: string; dismissKey: string })
   | (BaseUpcomingItem & { kind: "milestone"; goalId: string; milestoneId: string })
   | (BaseUpcomingItem & { kind: "relationship" })
   | (BaseUpcomingItem & { kind: "todo"; todoId: string })
   /** A custom module object is shown with its own module's icon and colour. */
-  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string });
+  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string; dismissKey: string });
 
 export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
@@ -29,7 +31,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
   const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
   const customItemWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "customItem"));
   const todoWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "todo"));
-  const [documents, milestones, importantDates, todos, customItems] = await Promise.all([
+  const [documents, milestones, importantDates, todos, customItems, dismissals] = await Promise.all([
     prisma.document.findMany({
       where: { userId: user.id, archived: false, expiryDate: { not: null } },
       select: { id: true, name: true, expiryDate: true, prompt: true },
@@ -59,13 +61,19 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       },
       select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { icon: true, color: true } } },
     }),
+    // Shared with Needs Attention (lib/data/attention.ts), keyed the same way
+    // -- one dismissal hides a record's row on both surfaces at once.
+    prisma.attentionDismissal.findMany({ where: { userId: user.id }, select: { itemKey: true } }),
   ]);
+  const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));
 
   const documentItems = documents.flatMap((document): UpcomingItem[] => {
     const expiry = startOfUtcDay(document.expiryDate!)!;
     const reminderDate = getExpiryReminderDate(expiry, document.prompt);
     const expired = expiry < today;
     if (!expired && (!settings.remindersEnabled || today < reminderDate)) return [];
+    const dismissKey = dismissalKey("document", document.id, expiry);
+    if (dismissed.has(dismissKey)) return [];
     return [{
       id: `document-${document.id}`,
       kind: "document",
@@ -74,6 +82,7 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       timestamp: expiry.getTime(),
       href: `/documents/${document.id}`,
       editHref: `/documents/${document.id}?edit=1`,
+      dismissKey,
     }];
   });
 
@@ -123,9 +132,11 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${possessiveName(personName)} ${importantDate.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" }];
   }) : [];
 
-  const customItemItems = settings.remindersEnabled ? customItems.map((item): UpcomingItem => {
+  const customItemItems = settings.remindersEnabled ? customItems.flatMap((item): UpcomingItem[] => {
     const dueDate = startOfUtcDay(item.dueDate!)!;
-    return {
+    const dismissKey = dismissalKey("custom", item.id, dueDate);
+    if (dismissed.has(dismissKey)) return [];
+    return [{
       id: `custom-${item.id}`,
       kind: "custom",
       title: `${item.name} is ${dueDate < today ? "over its due date" : "due soon"}`,
@@ -135,7 +146,8 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
       editHref: `/custom-modules/${item.moduleId}/items/${item.id}`,
       icon: item.module.icon,
       color: item.module.color,
-    };
+      dismissKey,
+    }];
   }) : [];
   return [...documentItems, ...milestoneItems, ...todoItems, ...relationshipItems, ...customItemItems].sort((a, b) => a.timestamp - b.timestamp);
 }
