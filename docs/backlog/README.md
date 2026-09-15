@@ -170,6 +170,7 @@ KD-007-adding-priority
 KD-016-automated-document-field-extraction
 KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
+KD-044-finance-interest-and-repayment-arithmetic
 
 ## ✓ Accepted
 
