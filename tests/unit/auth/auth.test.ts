@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     document: { updateMany: vi.fn() },
     $transaction: vi.fn(),
   },
-  createStarterTemplate: vi.fn(),
+  ensureStarterTemplate: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -20,7 +20,7 @@ vi.mock("@clerk/nextjs/server", () => ({
   reverificationErrorResponse: vi.fn(() => new Response(null, { status: 403 })),
 }));
 vi.mock("@/lib/data/prisma", () => ({ prisma: mocks.prisma }));
-vi.mock("@/lib/data/starter-template", () => ({ createStarterTemplate: mocks.createStarterTemplate }));
+vi.mock("@/lib/data/starter-template", () => ({ ensureStarterTemplate: mocks.ensureStarterTemplate }));
 
 const clerkUser = (id = "user_owner") => ({
   id,
@@ -96,6 +96,25 @@ describe("requireKinesisUser", () => {
 
     await expect(requireKinesisUser()).resolves.toBe(owner);
     expect(mocks.prisma.user.findUnique).toHaveBeenCalledWith({ where: { clerkUserId: "user_owner" } });
+    // This is the common, hottest path -- an already-provisioned owner whose
+    // profile hasn't changed -- and also the one a deployment provisioned
+    // before this template existed hits on every request, so it has to
+    // backfill the starter template too, not just genuine first-time signup.
+    expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(mocks.prisma, owner.id);
+  });
+
+  it("also ensures a starter template when an already-mapped owner's profile changes", async () => {
+    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
+    const mapped = { id: "local-owner", clerkUserId: "user_owner", firstName: "Old", lastName: "Owner", preferredName: null, email: "old@example.com" };
+    const updated = { ...mapped, firstName: "Kira", email: "kira@example.com" };
+    mocks.prisma.user.findUnique.mockResolvedValue(mapped);
+    mocks.prisma.user.update.mockReturnValue(updated);
+    mocks.prisma.document.updateMany.mockReturnValue({});
+    mocks.prisma.$transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops));
+    const requireKinesisUser = await loadSubject();
+
+    await expect(requireKinesisUser()).resolves.toBe(updated);
+    expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(mocks.prisma, updated.id);
   });
 
   it("serializes concurrent first-owner claims and returns the one generated owner", async () => {
@@ -127,10 +146,11 @@ describe("requireKinesisUser", () => {
     expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
-  it("seeds a starter template only for genuine first-time provisioning", async () => {
+  it("ensures a starter template when provisioning a genuinely new owner", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
     const owner = { id: "generated-owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com", clerkUserId: "user_owner" };
-    mocks.prisma.$transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({
+    let tx: object;
+    mocks.prisma.$transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback(tx = {
       $executeRawUnsafe: vi.fn(),
       user: {
         findUnique: vi.fn(async () => null),
@@ -145,11 +165,11 @@ describe("requireKinesisUser", () => {
     const result = await requireKinesisUser();
 
     expect(result).toBe(owner);
-    expect(mocks.createStarterTemplate).toHaveBeenCalledTimes(1);
-    expect(mocks.createStarterTemplate).toHaveBeenCalledWith(expect.anything(), owner.id);
+    expect(mocks.ensureStarterTemplate).toHaveBeenCalledTimes(1);
+    expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(tx!, owner.id);
   });
 
-  it("does not seed a starter template when rotating an existing owner onto a new Clerk identity", async () => {
+  it("also ensures a starter template when rotating an existing owner onto a new Clerk identity", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
     const existingOwner = { id: "existing-owner", firstName: "Old", lastName: "Owner", email: "old@example.com", clerkUserId: "user_old", preferredName: null };
     const rotatedOwner = { ...existingOwner, clerkUserId: "user_owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com" };
@@ -168,6 +188,9 @@ describe("requireKinesisUser", () => {
     const result = await requireKinesisUser();
 
     expect(result).toBe(rotatedOwner);
-    expect(mocks.createStarterTemplate).not.toHaveBeenCalled();
+    // A rotation must never gain a *second* template just for rotating --
+    // ensureStarterTemplate's own no-op-when-any-exist guard is what makes
+    // this safe to call unconditionally rather than skip for this branch.
+    expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(expect.anything(), rotatedOwner.id);
   });
 });

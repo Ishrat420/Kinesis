@@ -1,19 +1,20 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/data/prisma";
-import { createStarterTemplate } from "@/lib/data/starter-template";
+import { ensureStarterTemplate } from "@/lib/data/starter-template";
 
 /**
- * `createStarterTemplate` is the one template a brand-new Kinesis deployment
- * gets for free (lib/auth.ts's true first-provisioning branch). Run against a
- * real Postgres instance, like the rest of the template data layer, since the
- * nested `fields: { create: [...] }` write is exactly the shape that a mocked
- * client would happily accept even if malformed.
+ * `ensureStarterTemplate` is the one template every Kinesis owner gets for
+ * free (lib/auth.ts calls it from every branch of requireKinesisUser that
+ * returns an owner). Run against a real Postgres instance, like the rest of
+ * the template data layer, since the nested `fields: { create: [...] }`
+ * write is exactly the shape that a mocked client would happily accept even
+ * if malformed.
  */
 
 const owner = "starter-template-owner";
 
-describe.sequential("createStarterTemplate", () => {
+describe.sequential("ensureStarterTemplate", () => {
   beforeEach(async () => {
     await prisma.user.deleteMany({ where: { id: owner } });
     await prisma.user.create({ data: { id: owner, firstName: "Starter", lastName: "Owner", email: "starter-owner@example.test" } });
@@ -25,7 +26,7 @@ describe.sequential("createStarterTemplate", () => {
   });
 
   it("creates a General Record template with the four starter fields in order", async () => {
-    await createStarterTemplate(prisma, owner);
+    await ensureStarterTemplate(prisma, owner);
 
     const template = await prisma.template.findFirstOrThrow({
       where: { userId: owner },
@@ -41,9 +42,27 @@ describe.sequential("createStarterTemplate", () => {
     ]);
   });
 
-  it("works inside an existing transaction, the way first-time provisioning calls it", async () => {
-    await prisma.$transaction((tx) => createStarterTemplate(tx, owner));
+  it("works inside an existing transaction, the way requireKinesisUser calls it", async () => {
+    await prisma.$transaction((tx) => ensureStarterTemplate(tx, owner));
 
     await expect(prisma.template.findFirst({ where: { userId: owner, name: "General Record" } })).resolves.not.toBeNull();
+  });
+
+  it("does nothing when this owner already has a template -- backfilling an existing owner must not duplicate it", async () => {
+    await ensureStarterTemplate(prisma, owner);
+
+    await ensureStarterTemplate(prisma, owner);
+
+    await expect(prisma.template.count({ where: { userId: owner } })).resolves.toBe(1);
+  });
+
+  it("leaves an owner's own template alone, rather than adding a second one", async () => {
+    await prisma.template.create({ data: { id: "custom-first-template", userId: owner, name: "My Own Template" } });
+
+    await ensureStarterTemplate(prisma, owner);
+
+    const templates = await prisma.template.findMany({ where: { userId: owner } });
+    expect(templates).toHaveLength(1);
+    expect(templates[0].name).toBe("My Own Template");
   });
 });

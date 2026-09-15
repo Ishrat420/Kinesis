@@ -3,7 +3,7 @@ import "server-only";
 import { auth, currentUser, reverificationError, reverificationErrorResponse } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { prisma } from "@/lib/data/prisma";
-import { createStarterTemplate } from "@/lib/data/starter-template";
+import { ensureStarterTemplate } from "@/lib/data/starter-template";
 
 function getConfiguredOwnerId() {
   const ownerId = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
@@ -52,13 +52,17 @@ export const requireKinesisUser = cache(async () => {
 
   const mapped = await prisma.user.findUnique({ where: { clerkUserId } });
   if (mapped) {
-    if (mapped.email === email && mapped.firstName === firstName && mapped.lastName === lastName) return mapped;
+    if (mapped.email === email && mapped.firstName === firstName && mapped.lastName === lastName) {
+      await ensureStarterTemplate(prisma, mapped.id);
+      return mapped;
+    }
     const previousDisplayName = mapped.preferredName?.trim() || mapped.firstName;
     const nextDisplayName = mapped.preferredName?.trim() || firstName;
     const [updated] = await prisma.$transaction([
       prisma.user.update({ where: { id: mapped.id }, data: { email, firstName, lastName } }),
       prisma.document.updateMany({ where: { userId: mapped.id, owner: { in: [previousDisplayName, "user"] } }, data: { owner: nextDisplayName } }),
     ]);
+    await ensureStarterTemplate(prisma, updated.id);
     return updated;
   }
 
@@ -84,12 +88,11 @@ export const requireKinesisUser = cache(async () => {
         })
       : await tx.user.create({ data: { clerkUserId, firstName, lastName, email } });
 
-    // Only true first-ever provisioning gets a starter template -- an owner
-    // identity rotation must inherit their existing data as-is, never gain a
-    // second, unrelated template alongside it.
-    if (!existingOwner) {
-      await createStarterTemplate(tx, owner.id);
-    }
+    // Every owner ends up with at least this one template -- covers a true
+    // first-time signup and an owner identity rotation alike, and also
+    // backfills an owner who was already provisioned before this existed
+    // (ensureStarterTemplate is a no-op the moment any template exists).
+    await ensureStarterTemplate(tx, owner.id);
 
     if (existingOwner) {
       const previousDisplayName = existingOwner.preferredName?.trim() || existingOwner.firstName;
