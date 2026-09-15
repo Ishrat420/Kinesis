@@ -1,4 +1,4 @@
-# Kinesis Backlog
+# Kinesis Backlog Issue Tracker 
 
 This directory contains planned, proposed, active, blocked, and completed development work for Kinesis. It also contains Bugs and Operations work. 
 
@@ -123,6 +123,9 @@ Existing implementation should eventually be improved/refactored
 ### Performance
 Primarily concerned with speed/scalability
 
+### Improvement 
+Improvement to the existing functionality 
+
 
 ---
 
@@ -151,9 +154,7 @@ Done
 
 ## 💡 Idea
 
-KD-005-customisable-module-widgets
 KD-006-recurring-reminder-field
-KD-008-adding-quick-capture
 KD-010-external-app-notes-Integration
 KD-012-starter-example-data
 KD-013-guided-onboarding
@@ -171,7 +172,6 @@ KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 
 ## ✓ Accepted
-KD-029-be-able-to-create-to-do
 
 
 ## 🚧 In Progress
@@ -210,6 +210,9 @@ KD-002-kinesis-internal-link-field
 KD-003-custom-object-fields
 KD-005-customisable-module-widgets
 KD-029-be-able-to-create-to-do
+KD-008-adding-quick-capture
+KD-005-customisable-module-widgets
+KD-042-kinesis-link-rich-preview-card
 
 ## 🗑 Dropped
 KD-004-templates-object-types

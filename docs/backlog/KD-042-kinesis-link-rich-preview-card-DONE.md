@@ -1,6 +1,6 @@
 # KD-042 — Rich Kinesis Link Preview Cards
 
-**Status:** Accepted — Needs Planning  
+**Status:** DONE
 **Priority:** Medium  
 **Tags:** Kinesis Links, UX/UI, Cross-Module, Customisation
 
