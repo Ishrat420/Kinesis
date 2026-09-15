@@ -496,6 +496,12 @@ model Template {
   // look absent and get re-seeded a second time. Also what `deleteTemplate`
   // refuses to delete: unlike an in-use template, this lock is permanent and
   // has nothing to do with whether an object follows it.
+  //
+  // "At most one per user" is enforced at the database level by a partial
+  // unique index (migration 20260929000000_dedupe_starter_template,
+  // Template_one_starter_per_user) -- not expressible here as a plain
+  // `@@unique`, since that would also cap every user at one *non*-starter
+  // template, which is the entire point of the feature.
   isStarter     Boolean         @default(false)
   // Every module currently starting new items from this template, and every
   // object that ever has (KD-035 Phase 2). Two different questions -- see the

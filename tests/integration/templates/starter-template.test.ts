@@ -85,4 +85,27 @@ describe.sequential("ensureStarterTemplate", () => {
     expect(templates).toHaveLength(1);
     expect(templates[0]).toMatchObject({ name: "My Renamed Records", isStarter: true });
   });
+
+  /**
+   * Belt and suspenders for the exact incident that shipped a duplicate
+   * "General Record" to a real deployment: the identity check moved from
+   * matching `name` to `isStarter` in the same migration that added the
+   * column, so every pre-existing starter template defaulted to
+   * isStarter=false and looked absent to the very next request. This
+   * proves the database itself, not just this function, now refuses a
+   * second isStarter row -- so a future change to this logic can regress
+   * the application-level check without silently reintroducing duplicates.
+   */
+  it("the database itself refuses a second isStarter template for the same owner", async () => {
+    await ensureStarterTemplate(prisma, owner);
+
+    await expect(
+      prisma.$executeRawUnsafe(
+        `INSERT INTO "Template" (id, "userId", name, "isStarter", "createdAt", "updatedAt") VALUES ($1, $2, $3, true, now(), now())`,
+        "second-starter-attempt",
+        owner,
+        "Another Starter Attempt",
+      ),
+    ).rejects.toThrow();
+  });
 });
