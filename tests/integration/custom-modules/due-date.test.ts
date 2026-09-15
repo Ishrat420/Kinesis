@@ -93,9 +93,9 @@ describe.sequential("a custom item's due date", () => {
 
   it("moves cleanly to a new day on edit, still at midnight", async () => {
     await createCustomItemAction("module-1", {}, form({ name: "Service the car" }, "2027-03-15"));
-    const { id } = await prisma.customItem.findFirstOrThrow({ select: { id: true } });
+    const { id, updatedAt } = await prisma.customItem.findFirstOrThrow({ select: { id: true, updatedAt: true } });
 
-    const result = await updateCustomItemAction("module-1", id, {}, form({ name: "Service the car" }, "2027-04-01"));
+    const result = await updateCustomItemAction("module-1", id, {}, form({ name: "Service the car", updatedAt: updatedAt.toISOString() }, "2027-04-01"));
 
     expect(result.error).toBeUndefined();
     await expect(prisma.customItem.findUniqueOrThrow({ where: { id }, select: { dueDate: true } }))

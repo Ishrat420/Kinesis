@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
-import { refuse } from "@/lib/actions/refusal";
+import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
 import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import { resolveKind } from "@/lib/custom-fields/kinds";
@@ -140,8 +140,14 @@ export async function createTemplate() {
  * kind, is dropped here rather than persisted and left to be dropped again
  * at render time. It is never gated by `isTemplateInUse`: picking which
  * fields preview is a display choice, not a type change.
+ *
+ * `expectedUpdatedAt` is the `updatedAt` the caller last read this template
+ * at (BUG-007): the name/previewFields write below is conditioned on the row
+ * still carrying that exact stamp, so a save from a stale tab is refused
+ * instead of silently overwriting a rename or reorder that happened in
+ * between. Required, not optional, so no call site can skip it by omission.
  */
-export async function updateTemplate(templateId: string, name: string, fields: TemplateFieldInput[], previewFieldIds: string[] = []) {
+export async function updateTemplate(templateId: string, name: string, fields: TemplateFieldInput[], expectedUpdatedAt: Date, previewFieldIds: string[] = []) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (tx) => {
     const owned = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
@@ -178,7 +184,17 @@ export async function updateTemplate(templateId: string, name: string, fields: T
       return field && resolveKind(field.type, field.numberFormat) !== null;
     });
 
-    await tx.template.update({ where: { id: templateId }, data: { name, previewFields } });
+    // Conditioned on the row still carrying the stamp the caller read, and
+    // run before any of the field mutations below -- a losing save is
+    // refused here, before it touches a single field, rather than partway
+    // through rewriting them.
+    const result = await tx.template.updateMany({ where: { id: templateId, updatedAt: expectedUpdatedAt }, data: { name, previewFields } });
+    if (result.count === 0) {
+      const stillExists = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
+      if (!stillExists) refuse("This template no longer exists.");
+      refuseConflict("This template was changed elsewhere. Reload to see the latest version before saving again.");
+    }
+
     if (removedIds.length) await tx.templateField.deleteMany({ where: { id: { in: removedIds } } });
     for (const [position, field] of fields.entries()) {
       const existingField = field.id ? existingById.get(field.id) : undefined;
@@ -188,6 +204,8 @@ export async function updateTemplate(templateId: string, name: string, fields: T
         await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       }
     }
+
+    return tx.template.findUniqueOrThrow({ where: { id: templateId }, select: { updatedAt: true } });
   });
 }
 

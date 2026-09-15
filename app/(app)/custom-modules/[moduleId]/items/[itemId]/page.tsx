@@ -20,7 +20,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
   return <ModuleContent width="standard">
     <CustomItemDetailRecord
       moduleId={moduleId}
-      item={{ id: item.id, name: item.name, archived: item.archived, templateId: item.templateId, templateFields: item.templateFields, fields: item.fields }}
+      item={{ id: item.id, name: item.name, archived: item.archived, templateId: item.templateId, templateFields: item.templateFields, fields: item.fields, updatedAt: item.updatedAt.toISOString() }}
       moduleName={item.module.name}
       moduleIcon={item.module.icon}
       moduleColor={item.module.color}

@@ -115,14 +115,14 @@ describe("validation the owner can read", () => {
    * one actually being added in this edit -- has to be pointed at something.
    */
   it("does not block an update over an existing Kinesis Link field whose own targets were already cleared", async () => {
-    mocks.updateDocument.mockResolvedValue(undefined);
+    mocks.updateDocument.mockResolvedValue({ updatedAt: new Date("2024-02-01T00:00:00.000Z") });
     await expect(updateDocumentAction("document-id", {}, withCustomFields(
-      { name: "Passport", type: "Identity" },
+      { name: "Passport", type: "Identity", updatedAt: "2024-01-01T00:00:00.000Z" },
       [{ id: "existing-field-id", label: "Related goal", type: "KINESIS_LINK", value: "", targetObjectIds: [] }],
-    ))).resolves.toEqual({ success: true });
+    ))).resolves.toEqual({ success: true, updatedAt: "2024-02-01T00:00:00.000Z" });
     expect(mocks.updateDocument).toHaveBeenCalledWith("document-id", expect.objectContaining({
       customFields: [expect.objectContaining({ id: "existing-field-id", label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [] })],
-    }));
+    }), new Date("2024-01-01T00:00:00.000Z"));
   });
 
   it("does the same for a custom item's fields", async () => {

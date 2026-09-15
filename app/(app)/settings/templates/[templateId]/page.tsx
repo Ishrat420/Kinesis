@@ -31,6 +31,7 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
         currency={currency}
         today={today.toISOString()}
         locked={template.inUse}
+        updatedAt={template.updatedAt.toISOString()}
       />
     </div>
   </>;

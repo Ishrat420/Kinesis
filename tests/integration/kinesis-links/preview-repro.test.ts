@@ -40,7 +40,7 @@ describe.sequential("KD-042 preview cards, end to end", () => {
     await updateTemplate(template.id, "Repro Template", [
       { label: "Status", type: "TEXT" },
       { label: "Price", type: "NUMBER", numberFormat: "CURRENCY" },
-    ]);
+    ], template.updatedAt);
     const afterFields = await getTemplate(template.id);
     const statusField = afterFields!.fields.find((f) => f.label === "Status")!;
     const priceField = afterFields!.fields.find((f) => f.label === "Price")!;
@@ -51,6 +51,7 @@ describe.sequential("KD-042 preview cards, end to end", () => {
       template.id,
       "Repro Template",
       afterFields!.fields.map((f) => ({ id: f.id, label: f.label, type: f.type, isDueDate: f.isDueDate, numberFormat: f.numberFormat ?? undefined, multiline: f.multiline })),
+      afterFields!.updatedAt,
       [statusField.id, priceField.id],
     );
     expect((await getTemplate(template.id))!.previewFields).toEqual([statusField.id, priceField.id]);

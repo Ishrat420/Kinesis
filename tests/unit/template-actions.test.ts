@@ -29,8 +29,11 @@ const form = (values: Record<string, string>) => {
   return data;
 };
 
+const STAMP = "2024-01-01T00:00:00.000Z";
+
+/** Every case here that reaches the data layer needs a real `updatedAt` in the form (BUG-007), the same as a real save would carry. */
 const withFields = (values: Record<string, string>, fields: Array<Record<string, unknown>>) =>
-  form({ ...values, [TEMPLATE_FIELDS_FORM_KEY]: JSON.stringify(fields) });
+  form({ updatedAt: STAMP, ...values, [TEMPLATE_FIELDS_FORM_KEY]: JSON.stringify(fields) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,13 +63,26 @@ describe("updateTemplateAction", () => {
     expect(mocks.updateTemplate).not.toHaveBeenCalled();
   });
 
-  it("passes the parsed name and fields through to the data layer", async () => {
-    mocks.updateTemplate.mockResolvedValue(undefined);
+  it("passes the parsed name, fields, and expected updatedAt through to the data layer, and reports the fresh one back", async () => {
+    mocks.updateTemplate.mockResolvedValue({ updatedAt: new Date("2024-01-02T00:00:00.000Z") });
     await expect(updateTemplateAction("template-1", {}, withFields(
       { name: "Decision" },
       [{ id: "field-1", label: "Date", type: "DATE" }],
-    ))).resolves.toEqual({ saved: true });
-    expect(mocks.updateTemplate).toHaveBeenCalledWith("template-1", "Decision", [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, numberFormat: undefined, multiline: false }], []);
+    ))).resolves.toEqual({ saved: true, updatedAt: "2024-01-02T00:00:00.000Z" });
+    expect(mocks.updateTemplate).toHaveBeenCalledWith("template-1", "Decision", [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, numberFormat: undefined, multiline: false }], new Date(STAMP), []);
+  });
+
+  it("refuses a missing or unparseable updatedAt without calling the data layer", async () => {
+    const data = form({ name: "Decision", [TEMPLATE_FIELDS_FORM_KEY]: JSON.stringify([]) });
+    await expect(updateTemplateAction("template-1", {}, data))
+      .resolves.toEqual({ error: "This template could not be identified. Reload and try again." });
+    expect(mocks.updateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("reports a lost-update conflict distinctly from an ordinary refusal", async () => {
+    mocks.updateTemplate.mockRejectedValue(new ActionRefusal("This template was changed elsewhere. Reload to see the latest version before saving again.", { conflict: true }));
+    await expect(updateTemplateAction("template-1", {}, withFields({ name: "Decision" }, [])))
+      .resolves.toEqual({ error: "This template was changed elsewhere. Reload to see the latest version before saving again.", conflict: true });
   });
 
   /**
@@ -77,7 +93,7 @@ describe("updateTemplateAction", () => {
   it("turns a data-layer refusal into a message instead of throwing", async () => {
     mocks.updateTemplate.mockRejectedValue(new ActionRefusal("This template is in use, so its fields can no longer be retyped or removed."));
     await expect(updateTemplateAction("template-1", {}, withFields({ name: "Decision" }, [])))
-      .resolves.toEqual({ error: "This template is in use, so its fields can no longer be retyped or removed." });
+      .resolves.toEqual({ error: "This template is in use, so its fields can no longer be retyped or removed.", conflict: false });
   });
 
   it("rethrows a fault rather than dressing it up as a refusal", async () => {

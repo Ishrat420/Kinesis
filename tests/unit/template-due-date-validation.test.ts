@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireKinesisUser: vi.fn(),
   tx: {
-    template: { findFirst: vi.fn(), update: vi.fn() },
+    template: { findFirst: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
     templateField: { findMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn(), create: vi.fn() },
     object: { count: vi.fn() },
   },
@@ -18,6 +18,7 @@ vi.mock("@/lib/data/prisma", () => ({
 import { updateTemplate } from "@/lib/data/templates";
 
 const owner = { id: "owner-id" };
+const expectedUpdatedAt = new Date("2024-01-01T00:00:00.000Z");
 
 /**
  * KD-038's two structural rules -- at most one Due Date field, and no field
@@ -31,6 +32,8 @@ describe("updateTemplate: Due Date field rules", () => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue(owner);
     mocks.tx.template.findFirst.mockResolvedValue({ id: "template-1" });
+    mocks.tx.template.updateMany.mockResolvedValue({ count: 1 });
+    mocks.tx.template.findUniqueOrThrow.mockResolvedValue({ updatedAt: new Date("2024-01-02T00:00:00.000Z") });
     mocks.tx.object.count.mockResolvedValue(0);
   });
 
@@ -39,7 +42,7 @@ describe("updateTemplate: Due Date field rules", () => {
     await expect(updateTemplate("template-1", "Renewals", [
       { label: "Renewal date", type: "DATE", isDueDate: true },
       { label: "Follow-up date", type: "DATE", isDueDate: true },
-    ])).rejects.toThrow("A template can only have one Due Date field.");
+    ], expectedUpdatedAt)).rejects.toThrow("A template can only have one Due Date field.");
     expect(mocks.tx.templateField.create).not.toHaveBeenCalled();
   });
 
@@ -47,7 +50,7 @@ describe("updateTemplate: Due Date field rules", () => {
     mocks.tx.templateField.findMany.mockResolvedValue([]);
     await updateTemplate("template-1", "Renewals", [
       { label: "Renewal date", type: "DATE", isDueDate: true },
-    ]);
+    ], expectedUpdatedAt);
     expect(mocks.tx.templateField.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ label: "Renewal date", type: "DATE", isDueDate: true }),
     }));
@@ -57,7 +60,7 @@ describe("updateTemplate: Due Date field rules", () => {
     mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: true }]);
     await expect(updateTemplate("template-1", "Renewals", [
       { id: "field-1", label: "Renewal date", type: "DATE", isDueDate: false },
-    ])).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
+    ], expectedUpdatedAt)).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
     expect(mocks.tx.templateField.update).not.toHaveBeenCalled();
   });
 
@@ -65,17 +68,26 @@ describe("updateTemplate: Due Date field rules", () => {
     mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: false }]);
     await expect(updateTemplate("template-1", "Renewals", [
       { id: "field-1", label: "Some date", type: "DATE", isDueDate: true },
-    ])).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
+    ], expectedUpdatedAt)).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
   });
 
   it("allows an ordinary save that never touches the existing Due Date field's status", async () => {
     mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: true }]);
     await updateTemplate("template-1", "Renewals", [
       { id: "field-1", label: "Renewal date (renamed)", type: "DATE", isDueDate: true },
-    ]);
+    ], expectedUpdatedAt);
     expect(mocks.tx.templateField.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "field-1" },
       data: expect.objectContaining({ label: "Renewal date (renamed)" }),
     }));
+  });
+
+  it("refuses a stale save before any field rule is even checked", async () => {
+    mocks.tx.template.updateMany.mockResolvedValue({ count: 0 });
+    mocks.tx.templateField.findMany.mockResolvedValue([]);
+    await expect(updateTemplate("template-1", "Renewals", [
+      { label: "Renewal date", type: "DATE", isDueDate: true },
+    ], expectedUpdatedAt)).rejects.toThrow("This template was changed elsewhere. Reload to see the latest version before saving again.");
+    expect(mocks.tx.templateField.create).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@ import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 
 const initialState: TemplateActionState = {};
 
-export function TemplateDetailForm({ templateId, name, fields, previewFields, sample, locale, currency, today, locked }: {
+export function TemplateDetailForm({ templateId, name, fields, previewFields, sample, locale, currency, today, locked, updatedAt }: {
   templateId: string;
   name: string;
   fields: TemplateFieldInput[];
@@ -20,9 +20,15 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
   currency: string;
   today: string;
   locked: boolean;
+  updatedAt: string;
 }) {
   const [state, formAction, pending] = useActionState(updateTemplateAction.bind(null, templateId), initialState);
   const savedRef = useRef<HTMLParagraphElement>(null);
+  // This form stays mounted across a save (no editing/read-view toggle to
+  // remount it), so the freshest known stamp is just a derived comparison --
+  // no state or effect needed. ISO-8601 strings sort lexically in
+  // chronological order, so a plain string compare is enough.
+  const currentUpdatedAt = state.updatedAt && state.updatedAt > updatedAt ? state.updatedAt : updatedAt;
 
   useEffect(() => {
     if (state.saved) {
@@ -33,6 +39,7 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
 
   return (
     <form action={formAction} className="space-y-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <input type="hidden" name="updatedAt" value={currentUpdatedAt} />
       <label className="block text-sm font-semibold">Name<input name="name" defaultValue={name} required maxLength={60} className={`mt-2 ${FIELD_INPUT_CLASS}`} /></label>
 
       <TemplateFieldsEditor initialFields={fields} locked={locked} />

@@ -9,7 +9,7 @@ import type { CustomFieldValue } from "@/lib/custom-fields/types";
 import { prepareCustomFields } from "@/lib/custom-fields/parse";
 import { presentCustomFields } from "@/lib/custom-fields/present";
 import { deleteObjects, objectFor } from "./objects";
-import { refuse } from "@/lib/actions/refusal";
+import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 
 export type DocumentInput = {
@@ -181,7 +181,15 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
   });
 }
 
-export async function updateDocument(id: string, data: DocumentInput) {
+/**
+ * `expectedUpdatedAt` is the `updatedAt` the caller last read this document
+ * at (BUG-007): the write below is conditioned on the row still carrying
+ * that exact stamp, so a save from a stale tab is refused instead of
+ * silently overwriting whatever changed the document in between. Required,
+ * not optional, so no call site -- present or future -- can skip it by
+ * omission the way an optional parameter invites.
+ */
+export async function updateDocument(id: string, data: DocumentInput, expectedUpdatedAt: Date) {
   const user = await requireKinesisUser();
   const { customFields = [], ...document } = data;
   return prisma.$transaction(async (transaction) => {
@@ -190,24 +198,34 @@ export async function updateDocument(id: string, data: DocumentInput) {
     const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) refuse("A custom field's type cannot be changed once it has been saved.");
-    await transaction.objectField.deleteMany({ where: { objectId: owned.objectId } });
+
+    // A plain `update()` can't be conditioned on `updatedAt` and still carry
+    // this document's own nested field write -- only `updateMany` accepts a
+    // `WHERE` clause here, and it can't do nested relational writes. So the
+    // version check runs first, alone, as its own atomic statement; the
+    // object-fields rewrite below only runs once that has proven the row is
+    // still the one the caller read.
+    const result = await transaction.document.updateMany({
+      where: { id, userId: user.id, updatedAt: expectedUpdatedAt },
+      data: document,
+    });
+    if (result.count === 0) {
+      const stillExists = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true } });
+      if (!stillExists) refuse("This document no longer exists.");
+      refuseConflict("This document was changed elsewhere. Reload to see the latest version before saving again.");
+    }
+
     // Nothing to clear: the document's notifications are derived from it, and
     // whether they have been read is keyed on the deadline rather than on any
     // of the fields being written here. Deleting the old rows was what handed
     // back an already-read reminder every time a document was renamed.
-    return transaction.document.update({
-      where: { id },
-      data: {
-        ...document,
-        object: {
-          update: {
-            fields: {
-              create: prepareCustomFields(customFields),
-            },
-          },
-        },
-      },
+    await transaction.objectField.deleteMany({ where: { objectId: owned.objectId } });
+    await transaction.object.update({
+      where: { id: owned.objectId },
+      data: { fields: { create: prepareCustomFields(customFields) } },
     });
+
+    return transaction.document.findUniqueOrThrow({ where: { id } });
   });
 }
 

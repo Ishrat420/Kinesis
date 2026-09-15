@@ -8,12 +8,12 @@ import { addActivity } from "@/lib/data/activity";
 import { parseDateOnly } from "@/lib/dates";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
-import { refusalOf } from "@/lib/actions/refusal";
+import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { revalidateShell } from "@/lib/actions/revalidate";
 
-export type DocumentActionState = { error?: string; success?: boolean };
+export type DocumentActionState = { error?: string; success?: boolean; conflict?: boolean; updatedAt?: string };
 export type CreateDocumentState = DocumentActionState;
 
 function text(formData: FormData, name: string) {
@@ -123,19 +123,25 @@ export async function updateDocumentAction(
   data.type = await resolveDocumentType(data.type);
   const unowned = await validateKinesisTargets(data.customFields ?? []);
   if (unowned) return { error: unowned };
+  // FormData carries no compile-time guarantee, unlike `updateDocument`'s own
+  // required parameter -- so a missing or unparseable stamp is refused here
+  // the same way a missing name is, rather than silently skipping the check.
+  const expectedUpdatedAt = new Date(text(formData, "updatedAt"));
+  if (Number.isNaN(expectedUpdatedAt.getTime())) return { error: "This document could not be identified. Reload and try again." };
+  let saved;
   try {
-    await updateDocument(documentId, data);
+    saved = await updateDocument(documentId, data, expectedUpdatedAt);
   } catch (failure) {
     // A refusal raised inside the transaction, which has now rolled back.
     // Anything else is a fault, or one of Next.js's control-flow errors, and
     // belongs to the boundary rather than to this form.
     const refused = refusalOf(failure);
     if (refused === null) throw failure;
-    return { error: refused };
+    return { error: refused, conflict: isConflictRefusal(failure) };
   }
   await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
   revalidateShell();
-  return { success: true };
+  return { success: true, updatedAt: saved.updatedAt.toISOString() };
 }
 
 export async function deleteDocumentTypeAction(name: string): Promise<DocumentActionState> {

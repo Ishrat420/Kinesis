@@ -9,6 +9,7 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 import { prisma } from "@/lib/data/prisma";
 import { cloneTemplate, createTemplate, deleteTemplate, getTemplate, getTemplateOptions, getTemplates, updateTemplate } from "@/lib/data/templates";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
+import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
 
 /**
  * lib/data/templates.ts is the module a real Prisma bug already lived in
@@ -23,6 +24,16 @@ const owner = "template-owner";
 const other = "template-other-owner";
 
 const field = (overrides: Partial<TemplateFieldInput> = {}): TemplateFieldInput => ({ label: "Field", type: "TEXT", ...overrides });
+
+/**
+ * Every existing test in this file exercises `updateTemplate`'s validation
+ * rules, not BUG-007's version check -- so each call here reads the
+ * template's real, current `updatedAt` immediately before saving, the same
+ * way a freshly-loaded form would. The dedicated conflict tests below are
+ * the ones that deliberately pass a stale one instead.
+ */
+const save = (id: string, name: string, fields: TemplateFieldInput[], previewFieldIds: string[] = []) =>
+  prisma.template.findUniqueOrThrow({ where: { id } }).then((current) => updateTemplate(id, name, fields, current.updatedAt, previewFieldIds));
 
 describe.sequential("the template data layer", () => {
   beforeEach(async () => {
@@ -55,7 +66,7 @@ describe.sequential("the template data layer", () => {
     it("adds fields in the submitted order, assigning each a stable id", async () => {
       const template = await createTemplate();
 
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" }), field({ label: "Amount", type: "NUMBER" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" }), field({ label: "Amount", type: "NUMBER" })]);
 
       const saved = await prisma.templateField.findMany({ where: { templateId: template.id }, orderBy: { position: "asc" } });
       expect(saved.map(({ label, type, position }) => ({ label, type, position }))).toEqual([
@@ -66,10 +77,10 @@ describe.sequential("the template data layer", () => {
 
     it("updates an existing field in place rather than recreating it, keeping its id stable", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" })]);
       const [original] = await prisma.templateField.findMany({ where: { templateId: template.id } });
 
-      await updateTemplate(template.id, "Renewals", [{ id: original.id, label: "Provider name", type: "TEXT" }]);
+      await save(template.id, "Renewals", [{ id: original.id, label: "Provider name", type: "TEXT" }]);
 
       const [updated] = await prisma.templateField.findMany({ where: { templateId: template.id } });
       expect(updated.id).toBe(original.id);
@@ -78,10 +89,10 @@ describe.sequential("the template data layer", () => {
 
     it("removes a field genuinely absent from the submitted list", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" }), field({ label: "Amount" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" }), field({ label: "Amount" })]);
       const [keep] = await prisma.templateField.findMany({ where: { templateId: template.id }, orderBy: { position: "asc" } });
 
-      await updateTemplate(template.id, "Renewals", [{ id: keep.id, label: keep.label, type: "TEXT" }]);
+      await save(template.id, "Renewals", [{ id: keep.id, label: keep.label, type: "TEXT" }]);
 
       await expect(prisma.templateField.findMany({ where: { templateId: template.id } })).resolves.toHaveLength(1);
     });
@@ -91,28 +102,28 @@ describe.sequential("the template data layer", () => {
       const template = await createTemplate();
       mocks.requireKinesisUser.mockResolvedValue({ id: owner });
 
-      await expect(updateTemplate(template.id, "Hijacked", [])).rejects.toThrow("This template no longer exists.");
+      await expect(save(template.id, "Hijacked", [])).rejects.toThrow("This template no longer exists.");
     });
 
     it("refuses to retype or remove a field once an object follows the template", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" })]);
       const [existing] = await prisma.templateField.findMany({ where: { templateId: template.id } });
       await prisma.object.create({ data: { id: "in-use-object", type: "CUSTOM_ITEM", name: "Following", userId: owner, templateId: template.id } });
 
-      await expect(updateTemplate(template.id, "Renewals", [{ id: existing.id, label: "Provider", type: "NUMBER" }]))
+      await expect(save(template.id, "Renewals", [{ id: existing.id, label: "Provider", type: "NUMBER" }]))
         .rejects.toThrow("This template is in use, so its fields can no longer be retyped or removed.");
-      await expect(updateTemplate(template.id, "Renewals", []))
+      await expect(save(template.id, "Renewals", []))
         .rejects.toThrow("This template is in use, so its fields can no longer be retyped or removed.");
     });
 
     it("still allows renaming and adding fields once a template is in use", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" })]);
       const [existing] = await prisma.templateField.findMany({ where: { templateId: template.id } });
       await prisma.object.create({ data: { id: "in-use-object-2", type: "CUSTOM_ITEM", name: "Following", userId: owner, templateId: template.id } });
 
-      await updateTemplate(template.id, "Subscriptions", [{ id: existing.id, label: "Provider", type: "TEXT" }, field({ label: "Amount", type: "NUMBER" })]);
+      await save(template.id, "Subscriptions", [{ id: existing.id, label: "Provider", type: "TEXT" }, field({ label: "Amount", type: "NUMBER" })]);
 
       await expect(prisma.template.findUniqueOrThrow({ where: { id: template.id } })).resolves.toMatchObject({ name: "Subscriptions" });
       await expect(prisma.templateField.findMany({ where: { templateId: template.id } })).resolves.toHaveLength(2);
@@ -121,7 +132,7 @@ describe.sequential("the template data layer", () => {
     it("allows at most one Due Date field", async () => {
       const template = await createTemplate();
 
-      await expect(updateTemplate(template.id, "Renewals", [
+      await expect(save(template.id, "Renewals", [
         field({ label: "Due date", type: "DATE", isDueDate: true }),
         field({ label: "Renewal date", type: "DATE", isDueDate: true }),
       ])).rejects.toThrow("A template can only have one Due Date field.");
@@ -129,17 +140,17 @@ describe.sequential("the template data layer", () => {
 
     it("never lets an existing field turn into or out of the Due Date field", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Due date", type: "DATE", isDueDate: true }), field({ label: "Notes" })]);
+      await save(template.id, "Renewals", [field({ label: "Due date", type: "DATE", isDueDate: true }), field({ label: "Notes" })]);
       const rows = await prisma.templateField.findMany({ where: { templateId: template.id } });
       const dueDateField = rows.find((row) => row.isDueDate)!;
       const ordinaryField = rows.find((row) => !row.isDueDate)!;
 
-      await expect(updateTemplate(template.id, "Renewals", [
+      await expect(save(template.id, "Renewals", [
         { id: dueDateField.id, label: "Due date", type: "DATE", isDueDate: false },
         { id: ordinaryField.id, label: "Notes", type: "TEXT" },
       ])).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
 
-      await expect(updateTemplate(template.id, "Renewals", [
+      await expect(save(template.id, "Renewals", [
         { id: dueDateField.id, label: "Due date", type: "DATE", isDueDate: true },
         { id: ordinaryField.id, label: "Notes", type: "DATE", isDueDate: true },
       ])).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
@@ -150,18 +161,42 @@ describe.sequential("the template data layer", () => {
 
     it("refuses even once the Due Date field is in use -- unconditionally, not just under Decision 7's lock", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Due date", type: "DATE", isDueDate: true })]);
+      await save(template.id, "Renewals", [field({ label: "Due date", type: "DATE", isDueDate: true })]);
       const [dueDateField] = await prisma.templateField.findMany({ where: { templateId: template.id } });
       // Not in use -- the point is this refusal fires regardless.
-      await expect(updateTemplate(template.id, "Renewals", [{ id: dueDateField.id, label: "Due date", type: "DATE", isDueDate: false }]))
+      await expect(save(template.id, "Renewals", [{ id: dueDateField.id, label: "Due date", type: "DATE", isDueDate: false }]))
         .rejects.toThrow("A field can't be turned into or out of the Due Date field.");
+    });
+
+    describe("optimistic concurrency (BUG-007)", () => {
+      it("refuses a save whose expected updatedAt no longer matches the row", async () => {
+        const template = await createTemplate();
+        // Someone else's save, or an earlier save from the same owner in
+        // another tab -- either way, the row has moved on since `template`
+        // (the stamp this call is about to use) was read.
+        await save(template.id, "Renamed elsewhere", []);
+
+        const error = await updateTemplate(template.id, "Stale save", [], template.updatedAt).catch((thrown) => thrown);
+        expect(refusalOf(error)).toBe("This template was changed elsewhere. Reload to see the latest version before saving again.");
+        expect(isConflictRefusal(error)).toBe(true);
+        await expect(prisma.template.findUniqueOrThrow({ where: { id: template.id } })).resolves.toMatchObject({ name: "Renamed elsewhere" });
+      });
+
+      it("saves cleanly and returns a fresh updatedAt when the expected stamp still matches", async () => {
+        const template = await createTemplate();
+
+        const result = await updateTemplate(template.id, "Renamed", [], template.updatedAt);
+
+        expect(result.updatedAt.getTime()).toBeGreaterThanOrEqual(template.updatedAt.getTime());
+        await expect(prisma.template.findUniqueOrThrow({ where: { id: template.id } })).resolves.toMatchObject({ name: "Renamed" });
+      });
     });
   });
 
   describe("cloneTemplate", () => {
     it("copies every field, including isDueDate, onto a new independent template", async () => {
       const source = await createTemplate();
-      await updateTemplate(source.id, "Renewals", [field({ label: "Provider" }), field({ label: "Due date", type: "DATE", isDueDate: true })]);
+      await save(source.id, "Renewals", [field({ label: "Provider" }), field({ label: "Due date", type: "DATE", isDueDate: true })]);
 
       const clone = await cloneTemplate(source.id, "Renewals copy");
 
@@ -187,11 +222,11 @@ describe.sequential("the template data layer", () => {
 
     it("remaps previewFields (KD-042) onto the clone's own field ids, by position", async () => {
       const source = await createTemplate();
-      await updateTemplate(source.id, "Renewals", [field({ label: "Provider" }), field({ label: "Cost", type: "NUMBER", numberFormat: "CURRENCY" }), field({ label: "Notes" })]);
+      await save(source.id, "Renewals", [field({ label: "Provider" }), field({ label: "Cost", type: "NUMBER", numberFormat: "CURRENCY" }), field({ label: "Notes" })]);
       const sourceWithFields = await getTemplate(source.id);
       const provider = sourceWithFields!.fields.find((row) => row.label === "Provider")!;
       const cost = sourceWithFields!.fields.find((row) => row.label === "Cost")!;
-      await updateTemplate(
+      await save(
         source.id, "Renewals",
         sourceWithFields!.fields.map((row) => ({ id: row.id, label: row.label, type: row.type, isDueDate: row.isDueDate, numberFormat: row.numberFormat ?? undefined, multiline: row.multiline })),
         [provider.id, cost.id],
@@ -213,7 +248,7 @@ describe.sequential("the template data layer", () => {
   describe("deleteTemplate", () => {
     it("deletes a template that nothing follows, cascading its fields", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" })]);
 
       await deleteTemplate(template.id);
 
@@ -238,7 +273,7 @@ describe.sequential("the template data layer", () => {
 
     it("still refuses to delete the starter template after it's been renamed", async () => {
       const starter = await prisma.template.create({ data: { id: "starter-renamed-under-test", userId: owner, name: "General Record", isStarter: true } });
-      await updateTemplate(starter.id, "My Own Name For This", []);
+      await save(starter.id, "My Own Name For This", []);
 
       await expect(deleteTemplate(starter.id)).rejects.toThrow("Your starter template can't be deleted.");
     });
@@ -257,7 +292,7 @@ describe.sequential("the template data layer", () => {
   describe("reads", () => {
     it("getTemplate reports field count, linked modules, and objects in use", async () => {
       const template = await createTemplate();
-      await updateTemplate(template.id, "Renewals", [field({ label: "Provider" }), field({ label: "Amount" })]);
+      await save(template.id, "Renewals", [field({ label: "Provider" }), field({ label: "Amount" })]);
       await prisma.customModule.create({ data: { id: "linked-module", name: "Bills", normalizedName: "bills", icon: "star", color: "#111111", userId: owner, templateId: template.id } });
       await prisma.object.create({ data: { id: "in-use-object-4", type: "CUSTOM_ITEM", name: "Following", userId: owner, templateId: template.id } });
 

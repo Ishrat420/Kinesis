@@ -100,10 +100,10 @@ describe.sequential("a template's Kinesis Link field value", () => {
       { name: "Sapiens" },
       [{ templateFieldId: "field-related", value: "", targetObjectIds: ["goal-object-1"] }],
     ));
-    const item = await prisma.customItem.findFirstOrThrow({ where: { name: "Sapiens" }, select: { id: true } });
+    const item = await prisma.customItem.findFirstOrThrow({ where: { name: "Sapiens" }, select: { id: true, updatedAt: true } });
 
     const result = await updateCustomItemAction("module-1", item.id, {}, form(
-      { name: "Sapiens" },
+      { name: "Sapiens", updatedAt: item.updatedAt.toISOString() },
       [{ templateFieldId: "field-related", value: "", targetObjectIds: ["goal-object-2"] }],
     ));
 
@@ -117,10 +117,10 @@ describe.sequential("a template's Kinesis Link field value", () => {
       { name: "The Hobbit" },
       [{ templateFieldId: "field-related", value: "", targetObjectIds: ["goal-object-1"] }],
     ));
-    const item = await prisma.customItem.findFirstOrThrow({ where: { name: "The Hobbit" }, select: { objectId: true, id: true } });
+    const item = await prisma.customItem.findFirstOrThrow({ where: { name: "The Hobbit" }, select: { objectId: true, id: true, updatedAt: true } });
 
     await updateCustomItemAction("module-1", item.id, {}, form(
-      { name: "The Hobbit" },
+      { name: "The Hobbit", updatedAt: item.updatedAt.toISOString() },
       [{ templateFieldId: "field-related", value: "", targetObjectIds: [] }],
     ));
 

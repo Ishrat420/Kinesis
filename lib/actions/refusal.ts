@@ -18,15 +18,24 @@
  * it does not recognise anything else, and callers rethrow.
  */
 export class ActionRefusal extends Error {
-  constructor(message: string) {
+  /** Set on a refusal raised over a stale `updatedAt` (BUG-007), so the action layer can report it distinctly from an ordinary refusal -- "someone else changed this" needs a different message and UI than "this no longer exists." */
+  readonly conflict: boolean;
+
+  constructor(message: string, options?: { conflict?: boolean }) {
     super(message);
     this.name = "ActionRefusal";
+    this.conflict = options?.conflict ?? false;
   }
 }
 
 /** Raises a refusal from inside a transaction, rolling it back on the way out. */
 export function refuse(message: string): never {
   throw new ActionRefusal(message);
+}
+
+/** Raises a refusal over a lost update -- a version-conditioned write matched zero rows because the record changed since it was read, not because it was deleted. See `refuse` for the general case. */
+export function refuseConflict(message: string): never {
+  throw new ActionRefusal(message, { conflict: true });
 }
 
 /**
@@ -38,4 +47,9 @@ export function refuse(message: string): never {
  */
 export function refusalOf(error: unknown): string | null {
   return error instanceof ActionRefusal ? error.message : null;
+}
+
+/** Whether a caught error is specifically a lost-update conflict raised by `refuseConflict`, so the action layer can flag it for the form instead of just returning its message. */
+export function isConflictRefusal(error: unknown): boolean {
+  return error instanceof ActionRefusal && error.conflict;
 }

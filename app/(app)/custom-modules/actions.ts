@@ -12,14 +12,14 @@ import { parseTemplateFieldValues } from "@/lib/templates/parse";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { promoteExtraFieldToTemplate } from "@/lib/data/custom-modules";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
-import { refuse, refusalOf } from "@/lib/actions/refusal";
+import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/actions/refusal";
 import { parseDateOnly } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidateShell(); revalidatePath(`/custom-modules/${moduleId}`); };
 export type CreateModuleState = { error?: string; field?: "name"; moduleId?: string };
-export type CustomItemState = { error?: string; saved?: boolean };
+export type CustomItemState = { error?: string; saved?: boolean; conflict?: boolean; updatedAt?: string };
 
 /**
  * A due date is a day, not a moment, so it is stored at UTC midnight -- the
@@ -115,9 +115,16 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   if (!templateValues.ok) return { error: templateValues.error };
   const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
+  // FormData carries no compile-time guarantee, unlike a data-layer function's
+  // own required parameter (BUG-007) -- so a missing or unparseable stamp is
+  // refused here the same way a missing name is, rather than silently
+  // skipping the check.
+  const expectedUpdatedAt = new Date(getValue(data, "updatedAt"));
+  if (Number.isNaN(expectedUpdatedAt.getTime())) return { error: "This item could not be identified. Reload and try again." };
   const fields = prepareCustomFields(form.fields);
+  let updatedAt: Date;
   try {
-    await prisma.$transaction(async (tx) => {
+    updatedAt = await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({
       where: { id: itemId, moduleId, module: { userId: user.id } },
       select: { objectId: true, object: { select: { templateId: true } } },
@@ -144,9 +151,21 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId, templateFieldId: null }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
-    await tx.customItem.update({ where: { id: itemId, moduleId }, data: {
-      name, dueDate, archived: data.get("archived") === "true",
-    } });
+
+    // Conditioned on the row still carrying the stamp the caller read
+    // (BUG-007), and run before any of the writes below -- a losing save is
+    // refused here, before it touches a single field, rather than partway
+    // through rewriting them.
+    const result = await tx.customItem.updateMany({
+      where: { id: itemId, moduleId, updatedAt: expectedUpdatedAt },
+      data: { name, dueDate, archived: data.get("archived") === "true" },
+    });
+    if (result.count === 0) {
+      const stillExists = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
+      if (!stillExists) refuse("This item no longer exists.");
+      refuseConflict("This item was changed elsewhere. Reload to see the latest version before saving again.");
+    }
+
     await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId, templateFieldId: null } });
     // A field's targets are a nested create -- createMany cannot carry those,
     // so each field (with its own links) is created on its own rather than in
@@ -156,6 +175,8 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     if (templateId && templateValues.values.length) {
       await saveTemplateFieldValues(tx, ownedItem.objectId, templateId, templateValues.values, dueDateField?.id ?? null);
     }
+
+    return (await tx.customItem.findUniqueOrThrow({ where: { id: itemId }, select: { updatedAt: true } })).updatedAt;
     });
   } catch (failure) {
     // A refusal raised inside the transaction, which has now rolled back.
@@ -163,13 +184,13 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     // belongs to the boundary rather than to this form.
     const refused = refusalOf(failure);
     if (refused === null) throw failure;
-    return { error: refused };
+    return { error: refused, conflict: isConflictRefusal(failure) };
   }
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
   if (customModule) await addActivity({ action: "Updated", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
   revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
-  return { saved: true };
+  return { saved: true, updatedAt: updatedAt.toISOString() };
 }
 
 /**

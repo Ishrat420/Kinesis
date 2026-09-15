@@ -21,6 +21,7 @@ const EMPTY_VALUE = "—";
 type EditableItem = {
   id: string; name: string; archived: boolean;
   templateId: string | null; templateFields: TemplateFieldValue[]; fields: CustomFieldValue[];
+  updatedAt: string;
 };
 
 /**
@@ -43,6 +44,14 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
   deleteAction: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
+  // `item` is a server-fed prop, refreshed only once `router.refresh()`
+  // lands after a save -- and `onSaved` below closes the form synchronously,
+  // before that refresh completes. Without tracking the save's own returned
+  // stamp here, a quick reopen of Edit in that window would hand the form
+  // back `item.updatedAt` from before the save, and its very next save
+  // would refuse itself as a conflict against its own prior write.
+  const [savedUpdatedAt, setSavedUpdatedAt] = useState<string | null>(null);
+  const updatedAt = savedUpdatedAt && savedUpdatedAt > item.updatedAt ? savedUpdatedAt : item.updatedAt;
 
   return <>
     <ModuleHeader
@@ -57,7 +66,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     />
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
-        ? <EditForm moduleId={moduleId} item={item} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
+        ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
         : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} />}
     </section>
   </>;
@@ -117,7 +126,7 @@ function ReadView({ item, linkOptions, previews, locale, currency }: { item: Edi
   </div>;
 }
 
-function EditForm({ moduleId, item, linkOptions, previews, onCancel, onSaved }: { moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: () => void }) {
+function EditForm({ moduleId, item, updatedAt, linkOptions, previews, onCancel, onSaved }: { moduleId: string; item: EditableItem; updatedAt: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {
   const [archived, setArchived] = useState(item.archived);
   const router = useRouter();
   // The action reports both halves of the outcome -- `pending` while it runs,
@@ -125,9 +134,10 @@ function EditForm({ moduleId, item, linkOptions, previews, onCancel, onSaved }: 
   // keep in step with it.
   const [state, formAction, pending] = useActionState(updateCustomItemAction.bind(null, moduleId, item.id), initialState);
 
-  useEffect(() => { if (state.saved) { router.refresh(); onSaved(); } }, [state.saved, router, onSaved]);
+  useEffect(() => { if (state.saved && state.updatedAt) { router.refresh(); onSaved(state.updatedAt); } }, [state.saved, state.updatedAt, router, onSaved]);
 
   return <form action={formAction} className="space-y-5">
+    <input type="hidden" name="updatedAt" value={updatedAt} />
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
     {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} previews={previews} /></div>}
     <div className="border-t border-zinc-100 pt-5">

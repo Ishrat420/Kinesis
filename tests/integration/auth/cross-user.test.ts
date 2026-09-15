@@ -33,12 +33,15 @@ describe.sequential("cross-user authorization contract", () => {
 
   it("keeps foreign document fields, notifications, and types unchanged", async () => {
     const owned = { name: "owner-a-updated-document", type: "Owner A Type", status: "Active", notes: "changed", customFields: [{ label: "New A field", value: "changed" }] };
-    await updateDocument(ids.documentA, owned);
+    const documentA = await prisma.document.findUniqueOrThrow({ where: { id: ids.documentA } });
+    await updateDocument(ids.documentA, owned, documentA.updatedAt);
     await expect(prisma.document.findUniqueOrThrow({ where: { id: ids.documentA } })).resolves.toMatchObject({ name: owned.name });
     const before = await ownerState("ownerB");
     // The data layer still refuses by throwing; it is the action wrapping it that
-    // turns a refusal into a message the form can show.
-    await expect(updateDocument(ids.documentB, { ...owned, name: "intrusion" })).rejects.toThrow("This document no longer exists.");
+    // turns a refusal into a message the form can show. The ownership check
+    // fails before the version check ever runs, so the stamp passed here does
+    // not need to match documentB's real one.
+    await expect(updateDocument(ids.documentB, { ...owned, name: "intrusion" }, new Date())).rejects.toThrow("This document no longer exists.");
     await deleteDocument(ids.documentB);
     await deleteUnusedDocumentType("Owner B Type");
     expect(await ownerState("ownerB")).toEqual(before);
@@ -106,7 +109,14 @@ describe.sequential("cross-user authorization contract", () => {
   });
 
   const customItemMutations = [
-    ["update/field replacement", (parent: string, child: string) => updateCustomItemAction(parent, child, {}, form({ name: "changed", fieldLabel: ["replacement"], fieldValue: ["replacement"] }))],
+    // The ownership check fails before the version check ever runs (see
+    // updateCustomItemAction), so a real, current stamp is fetched here only
+    // to exercise the actual owned-item update -- it plays no role in any of
+    // the cross-owner refusals this same case is run against below.
+    ["update/field replacement", async (parent: string, child: string) => {
+      const item = await prisma.customItem.findFirst({ where: { id: child }, select: { updatedAt: true } });
+      return updateCustomItemAction(parent, child, {}, form({ name: "changed", fieldLabel: ["replacement"], fieldValue: ["replacement"], updatedAt: (item?.updatedAt ?? new Date()).toISOString() }));
+    }],
     ["archive toggle", (parent: string, child: string) => toggleCustomItemArchivedAction(parent, child, true)],
     ["deletion", (parent: string, child: string) => deleteCustomItemAction(parent, child)],
   ] as const;

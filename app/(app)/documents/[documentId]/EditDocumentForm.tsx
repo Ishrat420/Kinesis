@@ -41,10 +41,19 @@ export type EditableDocument = {
   notesLabel: string;
   linkLabel: string;
   customFields: CustomField[];
+  updatedAt: string;
 };
 
 export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
   const [editing, setEditing] = useState(initialEditing);
+  // `document` is a server-fed prop, refreshed only once `router.refresh()`
+  // lands after a save -- and `onSaved` below closes the form synchronously,
+  // before that refresh completes. Without tracking the save's own returned
+  // stamp here, a quick reopen of Edit in that window would hand the form
+  // back `document.updatedAt` from before the save, and its very next save
+  // would refuse itself as a conflict against its own prior write.
+  const [savedUpdatedAt, setSavedUpdatedAt] = useState<string | null>(null);
+  const updatedAt = savedUpdatedAt && savedUpdatedAt > document.updatedAt ? savedUpdatedAt : document.updatedAt;
   const today = useToday();
   const expiry = getDocumentState({ expiryDate: toUtcDate(document.expiryDate), prompt: document.prompt, archived: document.archived }, today);
   const statusClass = STATUS_TONES[expiry.urgency];
@@ -64,7 +73,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       />
 
       {editing ? (
-        <EditForm document={document} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />
+        <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
         <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} previews={previews} history={history} />
       )}
@@ -141,7 +150,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
   );
 }
 
-function EditForm({ document, documentTypes, ownerName, linkOptions, previews, onCancel, onSaved }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: () => void }) {
+function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, previews, onCancel, onSaved }: { document: EditableDocument; updatedAt: string; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {
   const action = updateDocumentAction.bind(null, document.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [expiryDate, setExpiryDate] = useState(document.expiryDate);
@@ -151,9 +160,10 @@ function EditForm({ document, documentTypes, ownerName, linkOptions, previews, o
   const expiry = getDocumentState({ expiryDate: toUtcDate(expiryDate), prompt, archived }, useToday());
   const urgencyClass = { neutral: "bg-zinc-50 text-zinc-600", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" }[expiry.urgency];
 
-  useEffect(() => { if (state.success) { router.refresh(); onSaved(); } }, [state.success, router, onSaved]);
+  useEffect(() => { if (state.success && state.updatedAt) { router.refresh(); onSaved(state.updatedAt); } }, [state.success, state.updatedAt, router, onSaved]);
 
   return <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6"><form action={formAction} className="space-y-5">
+    <input type="hidden" name="updatedAt" value={updatedAt} />
     <div className="grid gap-3 sm:grid-cols-2"><Field label="Document name" name="name" value={document.name} required /><DocumentTypeSelect types={documentTypes} defaultValue={document.type} /></div>
     <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-zinc-600">Reminder<select name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 outline-none focus:border-zinc-400">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}</select></label><div className="text-sm font-medium text-zinc-600">Time until expiry<div role="status" className={`mt-1.5 flex h-11 items-center gap-2 rounded-xl px-3 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div></div></div>
     <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} /></div>
