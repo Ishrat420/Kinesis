@@ -151,9 +151,7 @@ Done
 
 ## 💡 Idea
 
-KD-005-customisable-module-widgets
 KD-006-recurring-reminder-field
-KD-008-adding-quick-capture
 KD-010-external-app-notes-Integration
 KD-012-starter-example-data
 KD-013-guided-onboarding
@@ -171,7 +169,6 @@ KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 
 ## ✓ Accepted
-KD-029-be-able-to-create-to-do
 
 
 ## 🚧 In Progress
@@ -209,6 +206,10 @@ KD-001-improve-milestones
 KD-002-kinesis-internal-link-field
 KD-003-custom-object-fields
 KD-005-customisable-module-widgets
+KD-029-be-able-to-create-to-do
+KD-008-adding-quick-capture
+KD-005-customisable-module-widgets
+KD-042-kinesis-link-rich-preview-card
 KD-029-be-able-to-create-to-do
 
 ## 🗑 Dropped
