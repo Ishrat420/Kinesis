@@ -3,6 +3,9 @@ import type { prisma } from "./prisma";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
+/** The starter template's name -- also its identity for `ensureStarterTemplate`'s own idempotency check, since nothing else marks a template as "the one Kinesis seeded." */
+const STARTER_TEMPLATE_NAME = "General Record";
+
 /**
  * The one template every Kinesis owner gets for free, so a casual owner --
  * new or already using the app before this shipped -- has something to
@@ -10,14 +13,15 @@ type Client = Prisma.TransactionClient | typeof prisma;
  * Generic on purpose -- a due date, a link out, a link to another Kinesis
  * object, and a notes field cover most things worth recording.
  *
- * Idempotent on "this owner currently has zero templates", not on a
- * one-time flag: that is what lets it also backfill an owner who was
- * already provisioned before this existed, the common case for a
- * single-owner deployment (ADR-014) that predates this feature, not just
- * genuine first-time signup. The one cost is that deleting this template
- * down to zero templates again brings it back on the next request -- an
- * acceptable trade for a deployment that only ever has one owner, and far
- * simpler than a permanent "already seeded" marker for a case this narrow.
+ * Idempotent on "this owner already has a template named General Record",
+ * not on "this owner has any template at all" -- an owner who had already
+ * created their own templates before this existed (the common case for a
+ * single-owner deployment, ADR-014, that predates this feature) must still
+ * get this one; checking for *any* template would skip them forever. The
+ * one cost is that renaming this specific template makes it look absent
+ * again, bringing a second one back on the next request -- an acceptable
+ * trade for a deployment that only ever has one owner, and far simpler
+ * than a permanent "already seeded" marker for a case this narrow.
  *
  * Called from every branch of `requireKinesisUser` that returns an owner
  * (lib/auth.ts), with that call's own client -- the transaction's `tx`
@@ -27,14 +31,14 @@ type Client = Prisma.TransactionClient | typeof prisma;
  * provisioning code never sits in an import cycle.
  */
 export async function ensureStarterTemplate(client: Client, userId: string) {
-  const count = await client.template.count({ where: { userId } });
-  if (count > 0) return;
+  const existing = await client.template.findFirst({ where: { userId, name: STARTER_TEMPLATE_NAME }, select: { id: true } });
+  if (existing) return;
 
   await client.template.create({
     data: {
       id: crypto.randomUUID(),
       userId,
-      name: "General Record",
+      name: STARTER_TEMPLATE_NAME,
       fields: {
         create: [
           { id: crypto.randomUUID(), label: "Due date", type: "DATE", position: 0, isDueDate: true },

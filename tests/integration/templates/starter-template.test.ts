@@ -56,13 +56,21 @@ describe.sequential("ensureStarterTemplate", () => {
     await expect(prisma.template.count({ where: { userId: owner } })).resolves.toBe(1);
   });
 
-  it("leaves an owner's own template alone, rather than adding a second one", async () => {
+  it("still creates General Record even when the owner already has other templates of their own", async () => {
     await prisma.template.create({ data: { id: "custom-first-template", userId: owner, name: "My Own Template" } });
 
     await ensureStarterTemplate(prisma, owner);
 
     const templates = await prisma.template.findMany({ where: { userId: owner } });
-    expect(templates).toHaveLength(1);
-    expect(templates[0].name).toBe("My Own Template");
+    expect(templates.map((template) => template.name).sort()).toEqual(["General Record", "My Own Template"]);
+  });
+
+  it("does not add a second General Record once one already exists, even alongside other templates", async () => {
+    await prisma.template.create({ data: { id: "custom-first-template", userId: owner, name: "My Own Template" } });
+    await ensureStarterTemplate(prisma, owner);
+
+    await ensureStarterTemplate(prisma, owner);
+
+    await expect(prisma.template.count({ where: { userId: owner, name: "General Record" } })).resolves.toBe(1);
   });
 });
