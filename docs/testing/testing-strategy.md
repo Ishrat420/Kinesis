@@ -9,14 +9,14 @@ test environment.
 ## Test Structure
 
 tests/
-├── unit/
-│   ├── auth/
-│   └── sanity.test.ts
-├── integration/
-├   ├── auth/
-│   ├── db-sanity.test.ts
-│   └── setup-env.ts
-└── manual/
+├── unit/            Flat `*.test.ts(x)` files, plus `auth/` and `validation/`
+├── integration/     One directory per module or subsystem (attention/,
+│                    auth/, custom-modules/, finance/, goals/,
+│                    kinesis-links/, notifications/, objects/,
+│                    relationships/, search/, security/, settings/,
+│                    templates/, todos/, upcoming/, user/), plus
+│                    db-sanity.test.ts and setup-env.ts at the top level
+└── manual/          Two runbooks -- see "Manual Tests" below
 
 ## Unit Tests
 
@@ -44,7 +44,10 @@ Typical coverage:
 
 ## Integration Tests
 
-Integration tests use a dedicated Neon PostgreSQL database.
+Integration tests use a dedicated local PostgreSQL database (`kinesis_test`),
+separate from both the development database and any Neon-hosted production
+database. See the root `README.md`'s Getting Started section, or
+`docker-compose.yml`, for how to provision it.
 
 Configuration:
 
@@ -142,6 +145,14 @@ released. The runbook covers anonymous access, owner and non-owner login, missin
 owner configuration, logout, session revocation/expiry, concurrent windows,
 browser history, cookie posture, and redirect safety.
 
+The pre-release checklist is:
+
+`tests/manual/checklist-before-a-release.md`
+
+A broader, per-module walkthrough (auth, documents, goals, finance, and
+every other module) run once before tagging a release, rather than
+scoped to one security-sensitive lifecycle the way the runbook above is.
+
 ## Current Testing Philosophy
 
 Use the cheapest appropriate testing layer:
@@ -179,7 +190,7 @@ the dedicated test database while Clerk remains mocked.
 Clerk is mocked at the application boundary for automated tests. 
 Unit tests verify Kinesis authorization behavior against simulated Clerk identities. 
 
-The shared cross-user fixture in `tests/integration/authorization/fixture.ts`
+The shared cross-user fixture in `tests/integration/auth/fixture.ts`
 creates two recognizably different owners and representative records for every
 owned domain. Its authorization contract covers owned positive controls,
 foreign and unknown IDs, parent/child mismatch matrices, direct post-mutation

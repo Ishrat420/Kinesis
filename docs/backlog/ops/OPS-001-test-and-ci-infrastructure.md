@@ -20,14 +20,14 @@ Raised during a reliability/tech-debt audit of Kinesis as a whole. Two related f
 ## What's still open
 
 1. **CI.** No workflow runs the verification loop automatically on push/PR. Deliberately deferred — the project is moving fast enough right now that setting up CI well (a Postgres service container, secrets, not being flaky) would itself cost more attention than it saves, while every commit already goes through a manual full-suite check. Revisit once the schema/feature surface has settled down.
-2. **Human-contributor test-DB setup.** The session-start hook only solves this for Claude Code web sessions. A person cloning the repo fresh still has no documented path to a working `kinesis_test` database — `.env.example`'s inline comments assume Postgres, a role, and two databases already exist. Needs either:
-   * a committed `.env.test.example` with a concrete (non-sensitive — local-only, throwaway) default connection string, plus a documented one-time `createuser`/`createdb` sequence in the README, or
-   * a `docker-compose.yml` that provisions a Postgres container with matching credentials out of the box, removing the dependency on whatever Postgres (if any) is already installed on a contributor's machine.
+2. **Human-contributor test-DB setup, partially closed.** `docker-compose.yml` now exists and provisions the `kinesis` role/database out of the box, and the root `README.md`'s Getting Started section documents the one remaining manual step (`docker compose exec postgres createdb -U kinesis kinesis_test`, since the official Postgres image only creates one database per container). What's still missing is a committed `.env.test.example` — a contributor still has to know to create `.env.test` themselves with `TEST_DATABASE_URL`, which is documented in the README but not scaffolded as a copyable file the way `.env.example` is.
 
    Not urgent while the project has no external contributors, but worth closing before it does.
-3. **`docs/testing/testing-strategy.md` is stale in one place** — it describes the integration database as "a dedicated Neon PostgreSQL database," which no longer matches the local-Postgres setup actually in use. Should be corrected once the setup story above is finalized, rather than fixed twice.
+
+## Closed
+
+* **`docs/testing/testing-strategy.md`'s stale "Neon" claim** — fixed. It now describes the integration database as the dedicated local PostgreSQL database it actually is, and points at the README/`docker-compose.yml` for provisioning instead of restating it. Two other drifts found while fixing it, unrelated to the Neon claim: the "Test Structure" tree hadn't been updated since `tests/integration/` grew to 17+ subdirectories, and the cross-user fixture's path was written as `tests/integration/authorization/fixture.ts` when the real path has always been `tests/integration/auth/fixture.ts`. Also added a mention of `tests/manual/checklist-before-a-release.md`, a second manual runbook that existed but was never listed alongside `authentication-lifecycle-security.md`.
 
 ## Not yet decided
 
 * CI trigger scope (every push vs. only PRs) and whether a passing run should gate merge — open questions for whenever CI is picked up.
-* Docker Compose vs. documented manual setup for the human-contributor case above.
