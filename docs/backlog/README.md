@@ -1,4 +1,4 @@
-# Kinesis Backlog
+# Kinesis Backlog Issue Tracker 
 
 This directory contains planned, proposed, active, blocked, and completed development work for Kinesis. It also contains Bugs and Operations work. 
 
@@ -122,6 +122,9 @@ Existing implementation should eventually be improved/refactored
 
 ### Performance
 Primarily concerned with speed/scalability
+
+### Improvement 
+Improvement to the existing functionality 
 
 
 ---
