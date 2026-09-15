@@ -5,6 +5,7 @@ import { useState } from "react";
 import { BellRing, FileText, Flag, ListTodo, Pencil, Target, X } from "lucide-react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { DismissButton } from "./DismissButton";
+import { ICON_ACTION_CLASS } from "./icon-action-styles";
 import { toggleMilestoneAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
 import { setTodoStatusAction, updateTodoDueDateAction } from "@/app/(app)/todos/actions";
 import type { AttentionItem } from "@/lib/data/attention";
@@ -74,7 +75,7 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
                     reschedule={updateTodoDueDateAction.bind(null, item.todoId)}
                   />
                 : <div className="flex shrink-0 items-center gap-2">
-                    <Link href={item.editHref} onClick={() => setOpen(false)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><Pencil className="h-3.5 w-3.5" />Edit</Link>
+                    <Link href={item.editHref} onClick={() => setOpen(false)} aria-label="Edit" title="Edit" className={`${ICON_ACTION_CLASS} hover:bg-zinc-50 hover:text-zinc-900`}><Pencil className="h-4 w-4" /></Link>
                     <DismissButton itemKey={item.key} onDismissed={() => setDismissed((current) => [...current, item.key])} />
                   </div>}
             </div>;

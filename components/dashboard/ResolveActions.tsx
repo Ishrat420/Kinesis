@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { CalendarDays, Circle, X } from "lucide-react";
+import { CalendarClock, CircleCheck, X } from "lucide-react";
 import { formatDateInput } from "@/lib/dates";
 
 const initialActionState: { error?: string } = {};
@@ -58,8 +58,8 @@ export function ResolveActions({ dueDate, onComplete, complete, reschedule }: {
 
   return <div className="flex shrink-0 flex-col items-end gap-1.5" onClick={(event) => event.stopPropagation()}>
     <div className="flex items-center gap-2">
-      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"><Circle className="h-5 w-5" /></button>
-      <button type="button" onClick={() => setRescheduling(true)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><CalendarDays className="h-3.5 w-3.5" />Reschedule</button>
+      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark complete" title="Mark complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"><CircleCheck className="h-5 w-5" /></button>
+      <button type="button" onClick={() => setRescheduling(true)} aria-label="Reschedule" title="Reschedule" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"><CalendarClock className="h-5 w-5" /></button>
     </div>
     {completeError && <p role="alert" className="text-xs font-medium text-red-600">{completeError}</p>}
   </div>;
