@@ -7,8 +7,9 @@ import type { FinanceItem } from "@/lib/finance";
 import { useFormatPreferences } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
 import { ModuleCard } from "./ModuleCard";
+import type { ModuleCardProps } from "./ModuleCard";
 
-export function FinanceModuleCard({ items }: { items: FinanceItem[] }) {
+export function FinanceModuleCard({ items, gripHandlers }: { items: FinanceItem[]; gripHandlers?: ModuleCardProps["gripHandlers"] }) {
   const { locale, currency } = useFormatPreferences();
   const balance = getFinanceBalance(items);
 
@@ -20,6 +21,7 @@ export function FinanceModuleCard({ items }: { items: FinanceItem[] }) {
       href="/finance"
       meta={`${formatMoney(balance.netWorth, locale, currency)} net worth`}
       detail={`${formatMoney(balance.liabilities, locale, currency)} liabilities`}
+      gripHandlers={gripHandlers}
     />
   );
 }

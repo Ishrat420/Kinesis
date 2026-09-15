@@ -1,7 +1,8 @@
 import { Users } from "lucide-react";
 import { ModuleCard } from "./ModuleCard";
+import type { ModuleCardProps } from "./ModuleCard";
 
-export function RelationshipModuleCard({ people, upcomingDates }: { people: number; upcomingDates: number }) {
+export function RelationshipModuleCard({ people, upcomingDates, gripHandlers }: { people: number; upcomingDates: number; gripHandlers?: ModuleCardProps["gripHandlers"] }) {
   return (
     <ModuleCard
       icon={Users}
@@ -10,6 +11,7 @@ export function RelationshipModuleCard({ people, upcomingDates }: { people: numb
       href="/relationships"
       meta={`${people} ${people === 1 ? "person" : "people"} · including yourself`}
       detail={upcomingDates ? `${upcomingDates} important date${upcomingDates === 1 ? " is" : "s are"} coming soon` : "No important dates coming soon"}
+      gripHandlers={gripHandlers}
     />
   );
 }

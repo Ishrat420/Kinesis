@@ -31,3 +31,19 @@ export function resolveDashboardOrder(order: string[], existingCustomModuleIds: 
   for (const id of DASHBOARD_SYSTEM_MODULE_IDS) if (!kept.includes(id)) kept.push(id);
   return kept;
 }
+
+/**
+ * Moves `draggedId` to just before `targetId`, used by both the Module
+ * Shortcuts grid's mouse drag-and-drop (native HTML5 DnD) and its touch
+ * drag (pointer events, which never fire an HTML5 dragstart on a phone).
+ * Pulled out on its own so the two call sites can't drift, and so the swap
+ * itself is testable without simulating either input method.
+ */
+export function moveId(order: readonly string[], draggedId: string, targetId: string): string[] {
+  if (draggedId === targetId) return [...order];
+  const next = order.filter((id) => id !== draggedId);
+  const targetIndex = next.indexOf(targetId);
+  if (targetIndex === -1) return [...order];
+  next.splice(targetIndex, 0, draggedId);
+  return next;
+}

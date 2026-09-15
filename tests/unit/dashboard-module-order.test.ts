@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DASHBOARD_SYSTEM_MODULE_IDS, MAX_CUSTOM_DASHBOARD_MODULES, resolveDashboardOrder } from "@/lib/dashboard/module-order";
+import { DASHBOARD_SYSTEM_MODULE_IDS, MAX_CUSTOM_DASHBOARD_MODULES, moveId, resolveDashboardOrder } from "@/lib/dashboard/module-order";
 
 /**
  * The dashboard's Module Shortcuts grid used to hold its order in plain
@@ -45,5 +45,39 @@ describe("resolveDashboardOrder", () => {
   it("drops a duplicate id, keeping only its first occurrence", () => {
     expect(resolveDashboardOrder(["documents", "documents", "goals", "finance", "relationships"], new Set()))
       .toEqual(["documents", "goals", "finance", "relationships"]);
+  });
+});
+
+/**
+ * The Module Shortcuts grid's mouse drag (native HTML5 DnD) and its touch
+ * drag (pointer events, since iOS/Android never fire an HTML5 dragstart)
+ * both reorder through this one function, so a phone and a desktop can't
+ * land on different positions for the same gesture.
+ */
+describe("moveId", () => {
+  it("moves the dragged id to just before the target", () => {
+    expect(moveId(["documents", "goals", "finance", "relationships"], "relationships", "goals"))
+      .toEqual(["documents", "relationships", "goals", "finance"]);
+  });
+
+  it("moves the dragged id forward past the target", () => {
+    expect(moveId(["documents", "goals", "finance", "relationships"], "documents", "finance"))
+      .toEqual(["goals", "documents", "finance", "relationships"]);
+  });
+
+  it("is a no-op when the dragged id is dropped on itself", () => {
+    const order = ["documents", "goals", "finance", "relationships"];
+    expect(moveId(order, "goals", "goals")).toEqual(order);
+  });
+
+  it("leaves the order unchanged when the target id isn't in it", () => {
+    const order = ["documents", "goals", "finance", "relationships"];
+    expect(moveId(order, "goals", "missing")).toEqual(order);
+  });
+
+  it("never mutates the array it was given", () => {
+    const order = ["documents", "goals", "finance", "relationships"];
+    moveId(order, "relationships", "goals");
+    expect(order).toEqual(["documents", "goals", "finance", "relationships"]);
   });
 });

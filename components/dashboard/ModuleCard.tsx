@@ -13,7 +13,7 @@ import { GripVertical, X } from "lucide-react";
  * duration, only one had a focus ring. What actually differs between them is
  * here as props; nothing else should be.
  */
-type ModuleCardProps = {
+export type ModuleCardProps = {
   icon: React.ElementType;
   /** The badge's tint: a Tailwind class for a built-in module, or a custom module's own colour. */
   tone: { className: string } | { color: string };
@@ -24,12 +24,25 @@ type ModuleCardProps = {
   detail?: string;
   /** Given only for a pinned custom module, which can be taken back off the grid. */
   onRemove?: () => void;
+  /**
+   * Touch drag wiring for the grip handle, forwarded from the Module
+   * Shortcuts grid. Native HTML5 drag (the card's own `draggable`) already
+   * covers a mouse; a phone never fires its dragstart, so reordering there
+   * goes through these pointer events instead, scoped to the handle so a
+   * finger dragging elsewhere on the card still scrolls the page normally.
+   */
+  gripHandlers?: {
+    onPointerDown: (event: React.PointerEvent) => void;
+    onPointerMove: (event: React.PointerEvent) => void;
+    onPointerUp: (event: React.PointerEvent) => void;
+    onPointerCancel: (event: React.PointerEvent) => void;
+  };
 };
 
 const SHELL = "group relative h-full rounded-2xl border border-zinc-200/80 bg-white p-4 pb-10 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md";
 const FOCUS_RING = "rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900";
 
-export function ModuleCard({ icon: Icon, tone, name, href, meta, detail, onRemove }: ModuleCardProps) {
+export function ModuleCard({ icon: Icon, tone, name, href, meta, detail, onRemove, gripHandlers }: ModuleCardProps) {
   const badge = (
     <span
       className={`flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700 ${"className" in tone ? tone.className : ""}`}
@@ -38,7 +51,11 @@ export function ModuleCard({ icon: Icon, tone, name, href, meta, detail, onRemov
       <Icon className="h-[18px] w-[18px]" />
     </span>
   );
-  const grip = <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" aria-label={`Drag ${name}`} />;
+  const grip = (
+    <span {...gripHandlers} aria-label={`Drag ${name}`} className="touch-none rounded-lg p-1.5">
+      <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" />
+    </span>
+  );
   const arrow = <span className="absolute bottom-4 right-4 text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700">→</span>;
   const text = (
     <>

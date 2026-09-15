@@ -1,14 +1,14 @@
 "use client";
 
 import { FileText, Target } from "lucide-react";
-import { type DragEvent, useMemo, useState, useTransition } from "react";
+import { type DragEvent, type PointerEvent as ReactPointerEvent, useMemo, useRef, useState, useTransition } from "react";
 import { customModuleIcon } from "@/lib/custom-modules/icons";
 import { FinanceModuleCard } from "./FinanceModuleCard";
 import { ModuleCard } from "./ModuleCard";
 import { RelationshipModuleCard } from "./RelationshipModuleCard";
 import type { FinanceItem } from "@/lib/finance";
 import { updateDashboardModuleOrderAction } from "@/app/(app)/settings/actions";
-import { MAX_CUSTOM_DASHBOARD_MODULES } from "@/lib/dashboard/module-order";
+import { MAX_CUSTOM_DASHBOARD_MODULES, moveId } from "@/lib/dashboard/module-order";
 
 const CUSTOM_MODULE_MIME = "application/x-kinesis-custom-module";
 
@@ -40,31 +40,44 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
   const [saveFailed, setSaveFailed] = useState(false);
   const customIds = useMemo(() => new Set(customModules.map(({ id }) => id)), [customModules]);
   const selectedCustomCount = order.filter((id) => customIds.has(id)).length;
+  const availableCustomModules = useMemo(() => customModules.filter((module) => !order.includes(module.id)), [customModules, order]);
 
-  // Applied locally first so dragging feels instant; the save that follows
-  // can fail without undoing it; the grid just says so rather than silently
-  // losing the change back to whatever was last written.
-  function saveOrder(nextOrder: string[]) {
-    setOrder(nextOrder);
+  // A touch drag never fires HTML5's dragstart/dragover/drop, so it tracks
+  // its own pointer instead -- which card started it, and what the order was
+  // then, so a tap that never actually moved anything skips the save below.
+  const activePointerId = useRef<number | null>(null);
+  const dragStartOrderRef = useRef<string[] | null>(null);
+
+  function persistOrder(nextOrder: string[]) {
     startSaving(async () => {
       const result = await updateDashboardModuleOrderAction(nextOrder);
       setSaveFailed(Boolean(result.error));
     });
   }
 
+  // Applied locally first so dragging feels instant; the save that follows
+  // can fail without undoing it; the grid just says so rather than silently
+  // losing the change back to whatever was last written.
+  function saveOrder(nextOrder: string[]) {
+    setOrder(nextOrder);
+    persistOrder(nextOrder);
+  }
+
   function reorder(targetId: string) {
     if (!draggedId || draggedId === targetId) return;
-    const nextOrder = order.filter((id) => id !== draggedId);
-    nextOrder.splice(nextOrder.indexOf(targetId), 0, draggedId);
-    saveOrder(nextOrder);
+    saveOrder(moveId(order, draggedId, targetId));
+  }
+
+  function addCustomModuleById(id: string) {
+    if (selectedCustomCount >= MAX_CUSTOM_DASHBOARD_MODULES) return;
+    if (!customIds.has(id) || order.includes(id)) return;
+    saveOrder([...order, id]);
   }
 
   function addCustomModule(event: DragEvent) {
     event.preventDefault();
-    if (draggedId || selectedCustomCount >= MAX_CUSTOM_DASHBOARD_MODULES) return;
-    const id = event.dataTransfer.getData(CUSTOM_MODULE_MIME);
-    if (!customIds.has(id) || order.includes(id)) return;
-    saveOrder([...order, id]);
+    if (draggedId) return;
+    addCustomModuleById(event.dataTransfer.getData(CUSTOM_MODULE_MIME));
   }
 
   function removeCustomModule(id: string) {
@@ -86,6 +99,40 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
     };
   }
 
+  function endGripDrag(event: ReactPointerEvent) {
+    if (event.pointerId !== activePointerId.current) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    activePointerId.current = null;
+    setDraggedId(null);
+    const startOrder = dragStartOrderRef.current;
+    dragStartOrderRef.current = null;
+    if (startOrder && (startOrder.length !== order.length || startOrder.some((id, index) => id !== order[index]))) {
+      persistOrder(order);
+    }
+  }
+
+  function gripHandlers(id: string) {
+    return {
+      onPointerDown: (event: ReactPointerEvent) => {
+        if (event.pointerType !== "touch") return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        activePointerId.current = event.pointerId;
+        dragStartOrderRef.current = order;
+        setDraggedId(id);
+      },
+      onPointerMove: (event: ReactPointerEvent) => {
+        if (event.pointerId !== activePointerId.current || !draggedId) return;
+        const point = document.elementFromPoint(event.clientX, event.clientY);
+        const targetId = point?.closest("[data-module-id]")?.getAttribute("data-module-id");
+        if (!targetId || targetId === draggedId) return;
+        setOrder((current) => moveId(current, draggedId, targetId));
+      },
+      onPointerUp: endGripDrag,
+      onPointerCancel: endGripDrag,
+    };
+  }
+
   return (
     <div
       onDragOver={(event) => {
@@ -99,21 +146,21 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
           const wrapperClass = `relative h-full ${draggedId === id ? "opacity-60" : ""}`;
 
           if (id === "documents") return (
-            <div key={id} {...dragProps(id)} className={wrapperClass}>
-              <ModuleCard icon={FileText} tone={{ className: "bg-blue-50" }} name="Documents" href="/documents" meta={`${documentCount} tracked`} detail={documentCount ? `${documentsExpiringSoon} expiring soon` : "Add documents to track"} />
+            <div key={id} data-module-id={id} {...dragProps(id)} className={wrapperClass}>
+              <ModuleCard icon={FileText} tone={{ className: "bg-blue-50" }} name="Documents" href="/documents" meta={`${documentCount} tracked`} detail={documentCount ? `${documentsExpiringSoon} expiring soon` : "Add documents to track"} gripHandlers={gripHandlers(id)} />
             </div>
           );
           if (id === "goals") return (
-            <div key={id} {...dragProps(id)} className={wrapperClass}>
-              <ModuleCard icon={Target} tone={{ className: "bg-violet-50" }} name="Goals" href="/goals" meta={`${goalCount} active goal${goalCount === 1 ? "" : "s"}`} detail={`${goalsAtRisk} on risk`} />
+            <div key={id} data-module-id={id} {...dragProps(id)} className={wrapperClass}>
+              <ModuleCard icon={Target} tone={{ className: "bg-violet-50" }} name="Goals" href="/goals" meta={`${goalCount} active goal${goalCount === 1 ? "" : "s"}`} detail={`${goalsAtRisk} on risk`} gripHandlers={gripHandlers(id)} />
             </div>
           );
-          if (id === "finance") return <div key={id} {...dragProps(id)} className={wrapperClass}><FinanceModuleCard items={financeItems} /></div>;
-          if (id === "relationships") return <div key={id} {...dragProps(id)} className={wrapperClass}><RelationshipModuleCard people={relationshipPeople} upcomingDates={relationshipUpcomingDates} /></div>;
+          if (id === "finance") return <div key={id} data-module-id={id} {...dragProps(id)} className={wrapperClass}><FinanceModuleCard items={financeItems} gripHandlers={gripHandlers(id)} /></div>;
+          if (id === "relationships") return <div key={id} data-module-id={id} {...dragProps(id)} className={wrapperClass}><RelationshipModuleCard people={relationshipPeople} upcomingDates={relationshipUpcomingDates} gripHandlers={gripHandlers(id)} /></div>;
           if (!customModule) return null;
 
           return (
-            <div key={id} {...dragProps(id)} className={wrapperClass}>
+            <div key={id} data-module-id={id} {...dragProps(id)} className={wrapperClass}>
               <ModuleCard
                 icon={customModuleIcon(customModule.icon)}
                 tone={{ color: customModule.color }}
@@ -121,6 +168,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
                 href={`/custom-modules/${id}`}
                 meta={`${customModule.itemCount} ${customModule.name} ${customModule.itemCount === 1 ? "Item" : "Items"}`}
                 onRemove={() => removeCustomModule(id)}
+                gripHandlers={gripHandlers(id)}
               />
             </div>
           );
@@ -128,7 +176,24 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
       </div>
       {selectedCustomCount < MAX_CUSTOM_DASHBOARD_MODULES && (
         <div className="mt-3 rounded-2xl border border-dashed border-zinc-100 px-4 py-2.5 text-center text-[11px] text-zinc-300">
-          Drop a custom module here · {MAX_CUSTOM_DASHBOARD_MODULES - selectedCustomCount} slots available
+          {availableCustomModules.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span>Add a custom module:</span>
+              {availableCustomModules.map((module) => (
+                <button
+                  key={module.id}
+                  type="button"
+                  onClick={() => addCustomModuleById(module.id)}
+                  className="min-h-8 rounded-full border border-zinc-200 px-2.5 py-1 font-semibold text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-800"
+                >
+                  + {module.name}
+                </button>
+              ))}
+              <span>or drag one from the sidebar</span>
+            </div>
+          ) : (
+            <>Drop a custom module here · {MAX_CUSTOM_DASHBOARD_MODULES - selectedCustomCount} slots available</>
+          )}
         </div>
       )}
       {saveFailed && !saving && (
