@@ -3,6 +3,7 @@ import "server-only";
 import { auth, currentUser, reverificationError, reverificationErrorResponse } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { prisma } from "@/lib/data/prisma";
+import { createStarterTemplate } from "@/lib/data/starter-template";
 
 function getConfiguredOwnerId() {
   const ownerId = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
@@ -82,6 +83,13 @@ export const requireKinesisUser = cache(async () => {
           data: { clerkUserId, firstName, lastName, email },
         })
       : await tx.user.create({ data: { clerkUserId, firstName, lastName, email } });
+
+    // Only true first-ever provisioning gets a starter template -- an owner
+    // identity rotation must inherit their existing data as-is, never gain a
+    // second, unrelated template alongside it.
+    if (!existingOwner) {
+      await createStarterTemplate(tx, owner.id);
+    }
 
     if (existingOwner) {
       const previousDisplayName = existingOwner.preferredName?.trim() || existingOwner.firstName;

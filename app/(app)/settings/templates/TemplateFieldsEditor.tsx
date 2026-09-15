@@ -116,9 +116,28 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
         </p>
       )}
 
-      {fields.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {fields.map((field, index) => (
+      <div className="mt-3 space-y-2">
+        {/*
+          Every object under a template also carries a built-in Name field
+          (KD-035) that never appears in this list -- it isn't a
+          `TemplateField` row at all. Someone who doesn't already know that
+          has no way to find out short of hitting a "Name already exists"
+          surprise on their own object, which is exactly what happened here
+          once already. This row is that discovery, purely visual: disabled
+          and inert like the locked Due Date row below, so it reads as "this
+          will already be there" without a caption spelling it out.
+        */}
+        <div aria-hidden="true" className="grid min-w-0 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <input disabled value="Name" className={`${FIELD_INPUT_CLASS} disabled:bg-zinc-100 disabled:text-zinc-400`} />
+          <div className="relative min-w-0">
+            <select disabled value="TEXT" className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}>
+              <option value="TEXT">Text</option>
+            </select>
+            <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          </div>
+          <div className="hidden h-11 md:block md:w-[140px]" />
+        </div>
+        {fields.map((field, index) => (
             <div key={`${field.key}:${resetRevision}`} className="grid min-w-0 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <input
                 value={field.label}
@@ -197,10 +216,9 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
               )}
             </div>
           ))}
-        </div>
-      )}
+      </div>
 
-      <div className={`${fields.length ? "mt-3" : "mt-2"} flex flex-wrap items-center gap-2`}>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={addField}

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     document: { updateMany: vi.fn() },
     $transaction: vi.fn(),
   },
+  createStarterTemplate: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -19,6 +20,7 @@ vi.mock("@clerk/nextjs/server", () => ({
   reverificationErrorResponse: vi.fn(() => new Response(null, { status: 403 })),
 }));
 vi.mock("@/lib/data/prisma", () => ({ prisma: mocks.prisma }));
+vi.mock("@/lib/data/starter-template", () => ({ createStarterTemplate: mocks.createStarterTemplate }));
 
 const clerkUser = (id = "user_owner") => ({
   id,
@@ -123,5 +125,49 @@ describe("requireKinesisUser", () => {
     expect(first).toBe(owner);
     expect(second).toBe(owner);
     expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("seeds a starter template only for genuine first-time provisioning", async () => {
+    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
+    const owner = { id: "generated-owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com", clerkUserId: "user_owner" };
+    mocks.prisma.$transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({
+      $executeRawUnsafe: vi.fn(),
+      user: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async () => owner),
+        update: vi.fn(),
+      },
+      document: { updateMany: vi.fn() },
+    }));
+    const requireKinesisUser = await loadSubject();
+
+    const result = await requireKinesisUser();
+
+    expect(result).toBe(owner);
+    expect(mocks.createStarterTemplate).toHaveBeenCalledTimes(1);
+    expect(mocks.createStarterTemplate).toHaveBeenCalledWith(expect.anything(), owner.id);
+  });
+
+  it("does not seed a starter template when rotating an existing owner onto a new Clerk identity", async () => {
+    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
+    const existingOwner = { id: "existing-owner", firstName: "Old", lastName: "Owner", email: "old@example.com", clerkUserId: "user_old", preferredName: null };
+    const rotatedOwner = { ...existingOwner, clerkUserId: "user_owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com" };
+    mocks.prisma.$transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({
+      $executeRawUnsafe: vi.fn(),
+      user: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => [existingOwner]),
+        create: vi.fn(),
+        update: vi.fn(async () => rotatedOwner),
+      },
+      document: { updateMany: vi.fn() },
+    }));
+    const requireKinesisUser = await loadSubject();
+
+    const result = await requireKinesisUser();
+
+    expect(result).toBe(rotatedOwner);
+    expect(mocks.createStarterTemplate).not.toHaveBeenCalled();
   });
 });
