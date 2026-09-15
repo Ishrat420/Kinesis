@@ -7,7 +7,7 @@ import { Z_INDEX } from "@/lib/layout/z-index";
 
 const initialState: TemplateActionState = {};
 
-export function DeleteTemplateButton({ templateId, templateName, locked }: { templateId: string; templateName: string; locked: boolean }) {
+export function DeleteTemplateButton({ templateId, templateName, locked, lockReason }: { templateId: string; templateName: string; locked: boolean; lockReason?: string }) {
   const [confirming, setConfirming] = useState(false);
   const [state, formAction, pending] = useActionState(deleteTemplateAction.bind(null, templateId), initialState);
 
@@ -16,7 +16,7 @@ export function DeleteTemplateButton({ templateId, templateName, locked }: { tem
       type="button"
       disabled
       aria-label={`Delete ${templateName}`}
-      title="This template is in use, so it can't be deleted."
+      title={lockReason ?? "This template is in use, so it can't be deleted."}
       className="flex h-11 items-center gap-2 rounded-xl border border-zinc-200 px-3.5 text-sm font-semibold text-zinc-300"
     >
       <Trash2 className="h-4 w-4" /> Delete

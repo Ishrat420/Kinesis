@@ -10,12 +10,18 @@ import { Z_INDEX } from "@/lib/layout/z-index";
 const colors = ["#7c3aed", "#2563eb", "#0891b2", "#059669", "#65a30d", "#d97706", "#e11d48", "#db2777", "#52525b"];
 const initialState: CreateModuleState = {};
 
-export function AddModuleButton({ templates }: { templates: { id: string; name: string }[] }) {
+export function AddModuleButton({ templates }: { templates: { id: string; name: string; isStarter: boolean }[] }) {
   const [open, setOpen] = useState(false);
   const [icon, setIcon] = useState<CustomModuleIconName>("package");
   const [color, setColor] = useState(colors[0]);
   const [state, formAction, pending] = useActionState(createCustomModuleAction, initialState);
   const router = useRouter();
+  // Defaults "Start from" to the one template Kinesis seeds for every owner
+  // (lib/data/starter-template.ts), whatever it's since been renamed to --
+  // found by `isStarter`, never by name. Falls back to Blank, same as
+  // before, the moment no such template exists: deleted (it shouldn't be
+  // deletable, but this must not assume that holds), or never seeded yet.
+  const defaultTemplateId = templates.find((template) => template.isStarter)?.id ?? "";
 
   useEffect(() => {
     if (state.moduleId) router.push(`/custom-modules/${state.moduleId}`);
@@ -36,7 +42,7 @@ export function AddModuleButton({ templates }: { templates: { id: string; name: 
           {templates.length > 0 && (
             <label className="block text-sm font-semibold">
               Start from <span className="font-normal text-zinc-400">(optional)</span>
-              <select name="templateId" defaultValue="" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none focus:border-violet-500">
+              <select name="templateId" defaultValue={defaultTemplateId} className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 font-normal outline-none focus:border-violet-500">
                 <option value="">Blank</option>
                 {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
               </select>

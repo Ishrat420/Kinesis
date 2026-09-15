@@ -3,7 +3,7 @@ import type { prisma } from "./prisma";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
-/** The starter template's name -- also its identity for `ensureStarterTemplate`'s own idempotency check, since nothing else marks a template as "the one Kinesis seeded." */
+/** The starter template's initial name -- a label the owner is free to change, never its identity. See `isStarter` below. */
 const STARTER_TEMPLATE_NAME = "General Record";
 
 /**
@@ -13,15 +13,13 @@ const STARTER_TEMPLATE_NAME = "General Record";
  * Generic on purpose -- a due date, a link out, a link to another Kinesis
  * object, and a notes field cover most things worth recording.
  *
- * Idempotent on "this owner already has a template named General Record",
- * not on "this owner has any template at all" -- an owner who had already
- * created their own templates before this existed (the common case for a
- * single-owner deployment, ADR-014, that predates this feature) must still
- * get this one; checking for *any* template would skip them forever. The
- * one cost is that renaming this specific template makes it look absent
- * again, bringing a second one back on the next request -- an acceptable
- * trade for a deployment that only ever has one owner, and far simpler
- * than a permanent "already seeded" marker for a case this narrow.
+ * Idempotent on the `isStarter` column, not on "this owner has any template
+ * at all" (an owner who had already created their own templates before this
+ * existed -- the common case for a single-owner deployment, ADR-014, that
+ * predates this feature -- must still get this one) and not on matching the
+ * name "General Record" either (the owner renaming their own template is
+ * expected and must not make it look absent and bring back a second one).
+ * `isStarter` is the one thing neither of those can disturb.
  *
  * Called from every branch of `requireKinesisUser` that returns an owner
  * (lib/auth.ts), with that call's own client -- the transaction's `tx`
@@ -31,7 +29,7 @@ const STARTER_TEMPLATE_NAME = "General Record";
  * provisioning code never sits in an import cycle.
  */
 export async function ensureStarterTemplate(client: Client, userId: string) {
-  const existing = await client.template.findFirst({ where: { userId, name: STARTER_TEMPLATE_NAME }, select: { id: true } });
+  const existing = await client.template.findFirst({ where: { userId, isStarter: true }, select: { id: true } });
   if (existing) return;
 
   await client.template.create({
@@ -39,6 +37,7 @@ export async function ensureStarterTemplate(client: Client, userId: string) {
       id: crypto.randomUUID(),
       userId,
       name: STARTER_TEMPLATE_NAME,
+      isStarter: true,
       fields: {
         create: [
           { id: crypto.randomUUID(), label: "Due date", type: "DATE", position: 0, isDueDate: true },

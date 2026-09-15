@@ -25,7 +25,7 @@ describe.sequential("ensureStarterTemplate", () => {
     await prisma.$disconnect();
   });
 
-  it("creates a General Record template with the four starter fields in order", async () => {
+  it("creates a General Record template, marked isStarter, with the four starter fields in order", async () => {
     await ensureStarterTemplate(prisma, owner);
 
     const template = await prisma.template.findFirstOrThrow({
@@ -34,6 +34,7 @@ describe.sequential("ensureStarterTemplate", () => {
     });
 
     expect(template.name).toBe("General Record");
+    expect(template.isStarter).toBe(true);
     expect(template.fields.map(({ label, type, isDueDate, multiline }) => ({ label, type, isDueDate, multiline }))).toEqual([
       { label: "Due date", type: "DATE", isDueDate: true, multiline: false },
       { label: "Reference", type: "LINK", isDueDate: false, multiline: false },
@@ -45,10 +46,10 @@ describe.sequential("ensureStarterTemplate", () => {
   it("works inside an existing transaction, the way requireKinesisUser calls it", async () => {
     await prisma.$transaction((tx) => ensureStarterTemplate(tx, owner));
 
-    await expect(prisma.template.findFirst({ where: { userId: owner, name: "General Record" } })).resolves.not.toBeNull();
+    await expect(prisma.template.findFirst({ where: { userId: owner, isStarter: true } })).resolves.not.toBeNull();
   });
 
-  it("does nothing when this owner already has a template -- backfilling an existing owner must not duplicate it", async () => {
+  it("does nothing when this owner already has a starter template -- backfilling an existing owner must not duplicate it", async () => {
     await ensureStarterTemplate(prisma, owner);
 
     await ensureStarterTemplate(prisma, owner);
@@ -65,12 +66,23 @@ describe.sequential("ensureStarterTemplate", () => {
     expect(templates.map((template) => template.name).sort()).toEqual(["General Record", "My Own Template"]);
   });
 
-  it("does not add a second General Record once one already exists, even alongside other templates", async () => {
+  it("does not add a second starter template once one already exists, even alongside other templates", async () => {
     await prisma.template.create({ data: { id: "custom-first-template", userId: owner, name: "My Own Template" } });
     await ensureStarterTemplate(prisma, owner);
 
     await ensureStarterTemplate(prisma, owner);
 
-    await expect(prisma.template.count({ where: { userId: owner, name: "General Record" } })).resolves.toBe(1);
+    await expect(prisma.template.count({ where: { userId: owner, isStarter: true } })).resolves.toBe(1);
+  });
+
+  it("recognises the starter template by isStarter, not by name, so renaming it never brings back a second one", async () => {
+    await ensureStarterTemplate(prisma, owner);
+    await prisma.template.updateMany({ where: { userId: owner, isStarter: true }, data: { name: "My Renamed Records" } });
+
+    await ensureStarterTemplate(prisma, owner);
+
+    const templates = await prisma.template.findMany({ where: { userId: owner } });
+    expect(templates).toHaveLength(1);
+    expect(templates[0]).toMatchObject({ name: "My Renamed Records", isStarter: true });
   });
 });

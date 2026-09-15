@@ -60,10 +60,15 @@ export async function getTemplate(id: string) {
   };
 }
 
-/** The templates a module could start new items from -- just enough to populate that picker. */
+/**
+ * The templates a module could start new items from -- just enough to
+ * populate that picker. Carries `isStarter` so the picker can default to
+ * the one Kinesis seeded (lib/data/starter-template.ts) rather than Blank,
+ * without caring what the owner has renamed it to.
+ */
 export async function getTemplateOptions() {
   const user = await requireKinesisUser();
-  return prisma.template.findMany({ where: { userId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  return prisma.template.findMany({ where: { userId: user.id }, select: { id: true, name: true, isStarter: true }, orderBy: { name: "asc" } });
 }
 
 /**
@@ -222,8 +227,11 @@ export async function cloneTemplate(templateId: string, name: string) {
 
 export async function deleteTemplate(templateId: string) {
   const user = await requireKinesisUser();
-  const owned = await prisma.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
+  const owned = await prisma.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true, isStarter: true } });
   if (!owned) return;
+  // Permanent, unlike the in-use lock below -- it has nothing to do with
+  // whether an object currently follows this template, and never expires.
+  if (owned.isStarter) refuse("Your starter template can't be deleted.");
   if (await isTemplateInUse(prisma, templateId)) refuse("This template is in use and cannot be deleted.");
   await prisma.template.delete({ where: { id: templateId } });
 }

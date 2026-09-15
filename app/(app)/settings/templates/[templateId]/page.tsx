@@ -17,7 +17,7 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
       backLabel="Back to templates"
       title={template.name}
       description={`Linked to ${template.linkedModules} module${template.linkedModules === 1 ? "" : "s"} · Used by ${template.usedByObjects} object${template.usedByObjects === 1 ? "" : "s"}`}
-      actions={<><CloneTemplateButton templateId={template.id} templateName={template.name} /><DeleteTemplateButton templateId={template.id} templateName={template.name} locked={template.inUse} /></>}
+      actions={<><CloneTemplateButton templateId={template.id} templateName={template.name} /><DeleteTemplateButton templateId={template.id} templateName={template.name} locked={template.inUse || template.isStarter} lockReason={template.isStarter ? "Your starter template can't be deleted." : "This template is in use, so it can't be deleted."} /></>}
     />
 
     <div className="mt-8">

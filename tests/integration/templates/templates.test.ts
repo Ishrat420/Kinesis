@@ -229,6 +229,20 @@ describe.sequential("the template data layer", () => {
       await expect(prisma.template.findUnique({ where: { id: template.id } })).resolves.not.toBeNull();
     });
 
+    it("refuses to delete the starter template, even when nothing follows it", async () => {
+      const starter = await prisma.template.create({ data: { id: "starter-under-test", userId: owner, name: "General Record", isStarter: true } });
+
+      await expect(deleteTemplate(starter.id)).rejects.toThrow("Your starter template can't be deleted.");
+      await expect(prisma.template.findUnique({ where: { id: starter.id } })).resolves.not.toBeNull();
+    });
+
+    it("still refuses to delete the starter template after it's been renamed", async () => {
+      const starter = await prisma.template.create({ data: { id: "starter-renamed-under-test", userId: owner, name: "General Record", isStarter: true } });
+      await updateTemplate(starter.id, "My Own Name For This", []);
+
+      await expect(deleteTemplate(starter.id)).rejects.toThrow("Your starter template can't be deleted.");
+    });
+
     it("does nothing for a template owned by someone else, rather than deleting it", async () => {
       mocks.requireKinesisUser.mockResolvedValue({ id: other });
       const template = await createTemplate();
@@ -268,7 +282,17 @@ describe.sequential("the template data layer", () => {
       mocks.requireKinesisUser.mockResolvedValue({ id: owner });
 
       await expect(getTemplates()).resolves.toEqual([expect.objectContaining({ id: mine.id })]);
-      await expect(getTemplateOptions()).resolves.toEqual([{ id: mine.id, name: "Untitled template" }]);
+      await expect(getTemplateOptions()).resolves.toEqual([{ id: mine.id, name: "Untitled template", isStarter: false }]);
+    });
+
+    it("getTemplateOptions reports which template is the starter one, so a picker can default to it", async () => {
+      const starter = await prisma.template.create({ data: { id: "starter-option-under-test", userId: owner, name: "General Record", isStarter: true } });
+      const ordinary = await createTemplate();
+
+      await expect(getTemplateOptions()).resolves.toEqual(expect.arrayContaining([
+        { id: starter.id, name: "General Record", isStarter: true },
+        { id: ordinary.id, name: "Untitled template", isStarter: false },
+      ]));
     });
   });
 });

@@ -490,6 +490,13 @@ model Template {
   // empty value on a given record is dropped at render time, never backfilled
   // or migrated here -- the same graceful-omission rule either way.
   previewFields String[]        @default([])
+  // Marks the one template `ensureStarterTemplate` (lib/data/starter-template.ts)
+  // seeds for every owner -- an identity independent of `name`, so the owner
+  // renaming it (expected -- it's their template once created) never makes it
+  // look absent and get re-seeded a second time. Also what `deleteTemplate`
+  // refuses to delete: unlike an in-use template, this lock is permanent and
+  // has nothing to do with whether an object follows it.
+  isStarter     Boolean         @default(false)
   // Every module currently starting new items from this template, and every
   // object that ever has (KD-035 Phase 2). Two different questions -- see the
   // field comments on CustomModule.templateId and Object.templateId.
