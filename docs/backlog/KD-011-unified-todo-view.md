@@ -8,29 +8,32 @@
 
 Explore a unified **To-Do** view that brings actionable items from across Kinesis into one place.
 
-Potential sources include:
+Potential sources include: from Remind me about milestones/Important dates/ Custom due dates 
 
-* Goal milestones
-* Document expiries
-* Upcoming reminders
-* Relationship practices
+* Goal and milestones due dates
+* Document expiries and reminders live there 
+* Relationship Important Dates (both person's and Shared)
 * Custom module reminders
-* User-created standalone to-dos
+* User-created to-dos
+* Any other Upcoming reminders and due dates 
+* Connection (?)
+
 
 Example:
 
 ```text
-To-Do
 
-□ Renew passport                 Document
-□ Reach $25k savings             Goal
-□ Call Mum                       Relationship
-□ Book car service               Vehicle
-□ Buy light bulbs                Personal
+□ Passport is expiring soon                 Document
+□ Reach $25k savings                        Goal
+□ Peach's Birthday                          Relationship
+□ Call Mum                                  Relationship
+□ Book car service                          Vehicle
+□ Buy light bulbs                           Personal
 ```
 
 ## Standalone To-Dos
 
+# THIS IS DONE 
 Users should also be able to create simple to-dos without first assigning them to a module.
 They maybe able to attach a due date on it too. 
 
