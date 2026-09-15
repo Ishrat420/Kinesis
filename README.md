@@ -1,5 +1,138 @@
 # Kinesis
 
+Kinesis is a single-owner personal life-admin application: Goals, Documents,
+Finance, Relationships, Custom Modules, To-Dos, and a Calendar that pulls
+dated things from all of them, all built on top of a shared "Object"
+capability layer (custom fields, cross-record links, search, notifications)
+so a capability written once applies everywhere.
+
+**Stack:** Next.js 16 (App Router, Turbopack) · React 19 · Prisma 6 +
+PostgreSQL · Clerk (auth) · Tailwind CSS 4 · Vitest
+
+> **Before touching anything Next.js-specific, read [`AGENTS.md`](./AGENTS.md).**
+> This project runs a Next.js version with real breaking changes from what
+> most tooling and training data assumes (for example: `proxy.ts`, not
+> `middleware.ts`). Check `node_modules/next/dist/docs/` against the version
+> actually installed rather than relying on memory.
+
+## Getting Started
+
+Prerequisites: Node 20+, Docker (or a local PostgreSQL 16 instance), and a
+[Clerk](https://clerk.com) application.
+
+1. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+2. **Start PostgreSQL.** `docker-compose.yml` provisions a `kinesis` role
+   and database on `localhost:5432`:
+
+   ```bash
+   docker compose up -d
+   ```
+
+   Kinesis also needs a second, separate database for integration tests,
+   which the compose file does not create by itself:
+
+   ```bash
+   docker compose exec postgres createdb -U kinesis kinesis_test
+   ```
+
+   (If you already have Postgres running locally instead of via Docker,
+   create an equivalent `kinesis` role/database and a `kinesis_test`
+   database by hand.)
+
+3. **Configure environment variables.** Copy `.env.example` to `.env` and
+   fill in the database and Clerk values:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   ```bash
+   DATABASE_URL="postgresql://kinesis:kinesis@localhost:5432/kinesis?schema=public"
+   CLERK_SECRET_KEY="sk_..."
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_..."
+   KINESIS_OWNER_CLERK_USER_ID="user_..."
+   ```
+
+   See [Authentication setup](#authentication-setup) below for what
+   `KINESIS_OWNER_CLERK_USER_ID` does and how to find it.
+
+   Integration tests read their own `.env.test`, which is not covered by the
+   copy above — create it separately:
+
+   ```bash
+   TEST_DATABASE_URL="postgresql://kinesis:kinesis@localhost:5432/kinesis_test?schema=public"
+   ```
+
+4. **Apply migrations and start the app**
+
+   ```bash
+   npx prisma migrate deploy
+   npm run dev
+   ```
+
+   The app runs at `http://localhost:3000` and redirects to `/sign-in`
+   until the Clerk identity named by `KINESIS_OWNER_CLERK_USER_ID` signs in.
+
+## Project Structure
+
+```text
+app/
+  (app)/         Authenticated routes, one directory per module
+                 (goals/, documents/, finance/, relationships/,
+                 custom-modules/, todos/, calendar/, settings/, user/)
+  api/           Route handlers (notification cron, CSP reports, settings export)
+  sign-in/       Clerk sign-in page — the one route that isn't behind auth
+lib/
+  data/          Server-side data access, one file per module, plus the
+                 shared Object capability layer (lib/data/objects.ts)
+  <module>/      Module-specific pure logic (lib/goals/health.ts,
+                 lib/relationships.ts, ...)
+  dates/, format/, search/, notifications/, reminders/, ...
+                 Cross-module shared logic
+prisma/
+  schema.prisma, migrations/
+docs/
+  decisions/     Architecture Decision Records
+  backlog/       The ticket system — KD (product work), bugs/, ops/
+  testing/       Testing strategy
+  vision/        Product vision and core principles
+  security/      Auth audit, Clerk configuration, credential rotation
+```
+
+## Available Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm run build` | `prisma generate`, then the production build |
+| `npm start` | Run an already-built production server |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` / `npm run test:run` | Unit tests, watch / single run — no database needed |
+| `npm run test:integration` / `test:integration:run` | Integration tests against `TEST_DATABASE_URL`, watch / single run |
+| `npm run test:db:reset` | Rebuild the integration test database from the real migration history |
+| `npm run db:deploy` | Apply migrations (also reconciles a database that reached its current schema through an old `prisma db push`) |
+
+## Documentation
+
+* [`AGENTS.md`](./AGENTS.md) — read this first; see the callout above.
+* [`docs/decisions/`](./docs/decisions) — ADRs, one per module or
+  subsystem decision (Modules, Documents, Goals, Finance, Relationships,
+  Search, Authentication, Quick Capture, Notifications, ...).
+* [`docs/backlog/`](./docs/backlog/README.md) — the ticket system: KD
+  (product work), `bugs/`, and `ops/`, with the status/tag taxonomy
+  explained in its own `README.md`.
+* [`docs/testing/testing-strategy.md`](./docs/testing/testing-strategy.md)
+  — the full testing approach and commands.
+* [`docs/vision/`](./docs/vision) — product vision and core principles.
+* [`docs/security/`](./docs/security) — authentication audit, Clerk
+  configuration, and credential rotation notes.
+
 ## Authentication setup
 
 Kinesis is a single-owner application. Before starting or deploying it, create the
@@ -67,72 +200,8 @@ with provisioning and cross-user authorization tests. It must not be implemented
 by adding one Vercel environment variable per user or by removing ownership filters
 from database queries.
 
-## Testing expiry notifications
-
-Notifications are generated by a scheduled evaluation; saving a document does
-not immediately create one. In production, Vercel calls
-`/api/notifications/evaluate` every day at 01:00 UTC. For local testing, run the
-evaluation manually:
-
-1. Set `DATABASE_URL`, apply the migrations, and start the application:
-
-   ```bash
-   npx prisma migrate deploy
-   npm run dev
-   ```
-
-2. Create or edit a document so it has an expiry date and a reminder period
-   (`prompt`) that includes today. For example, an expiry date 30 days from now
-   with a 180-day reminder period is eligible.
-3. In another terminal, trigger the evaluator:
-
-   ```bash
-   curl --fail-with-body http://localhost:3000/api/notifications/evaluate
-   ```
-
-   A successful response looks like this:
-
-   ```json
-   {"evaluated":1,"created":1}
-   ```
-
-   `evaluated` is the number of documents that have an expiry date. `created` is
-   the number of new notifications inserted by this request.
-4. Refresh the application, then open the bell in the top bar. The bell is
-   populated when the page is rendered, so an already-open page will not update
-   immediately after the `curl` request.
-
-If `CRON_SECRET` is set locally, include the same bearer token used by Vercel:
-
-```bash
-curl --fail-with-body \
-  -H "Authorization: Bearer $CRON_SECRET" \
-  http://localhost:3000/api/notifications/evaluate
-```
-
-### Troubleshooting
-
-- **`created` is `0`:** the document is not inside its reminder window, or the
-  same notification was already generated. Notifications are de-duplicated for
-  each document, notification type, and expiry date. Change the expiry date to
-  test another notification.
-- **`evaluated` is `0`:** no documents in the configured database have an
-  expiry date. Confirm that the app and Prisma commands use the same
-  `DATABASE_URL`.
-- **`401 Unauthorized`:** pass the `Authorization` header shown above, or remove
-  `CRON_SECRET` from the local development environment.
-- **The endpoint succeeds but the bell is empty:** refresh the page after the
-  evaluator completes and verify that `created` was greater than zero.
-- **The database reports that `Notification` does not exist:** run
-  `npx prisma migrate deploy` against that database.
-
-  Vercel runs this migration step through the repository's `buildCommand`. Prisma's
-  advisory migration lock is disabled there because serverless build connections
-  can otherwise leave the deploy waiting until it fails with `P1002`. Keep only one
-  production deployment running at a time so two builds do not apply migrations
-  concurrently.
-
 ## Testing
+
 See `docs/testing/testing-strategy.md` for the Kinesis testing approach and commands.
 
 ### Adding a model a user can own
@@ -144,3 +213,77 @@ both features' integration tests, which each read the live table list out
 of PostgreSQL rather than a hardcoded one, so a table missing from either
 feature fails its test instead of silently shipping incomplete. See
 "Account-Wide Sweep Coverage" in the testing strategy doc.
+
+## Notifications and the daily maintenance job
+
+In-app notifications (the bell) are **derived, not stored**: `getRecentNotifications`
+computes what should currently be visible — documents nearing expiry, due
+milestones, due To-Dos, upcoming relationship dates, due custom items —
+directly from the live records every time it is read. There is nothing to
+trigger and nothing to wait for: create or edit a record so it falls inside
+its own reminder window (for a document, an expiry date and a `prompt`
+period that includes today), then open the app and check the bell.
+
+The one thing that genuinely can't wait for a page view is archiving goals
+whose target date has passed, so that still runs as a scheduled job. In
+production, Vercel calls `/api/notifications/evaluate` once a day at 19:00
+UTC (`vercel.json`'s `crons` entry). For local testing, trigger it manually:
+
+1. Set `DATABASE_URL`, apply the migrations, and start the application:
+
+   ```bash
+   npx prisma migrate deploy
+   npm run dev
+   ```
+
+2. Set `CRON_SECRET` in `.env` — the route fails closed (`503`) if it is
+   unset at all, in every environment, so there is no way to call it
+   locally without one. Any value works locally; it only has to match what
+   you send below.
+
+3. In another terminal, trigger the job:
+
+   ```bash
+   curl --fail-with-body \
+     -H "Authorization: Bearer $CRON_SECRET" \
+     http://localhost:3000/api/notifications/evaluate
+   ```
+
+   A successful response looks like this:
+
+   ```json
+   {"goalsArchived":1}
+   ```
+
+   `goalsArchived` is the number of goals, across every user, that were
+   Active with a target date in the past and were just moved to Archived.
+   It will read `0` on a normal run; that's not a failure; it just means no
+   goal happened to lapse today.
+
+### Troubleshooting
+
+- **`503 Cron authentication is not configured`:** `CRON_SECRET` is not set
+  in the environment the app is running in. Set it and restart the server.
+- **`401 Unauthorized`:** the `Authorization` header didn't match
+  `Bearer $CRON_SECRET`. There is no way to bypass this by removing
+  `CRON_SECRET` — that produces the `503` above instead.
+- **`goalsArchived` is always `0`:** expected unless a goal is genuinely
+  Active with a target date before today. This endpoint no longer creates
+  or touches any other notification.
+- **The bell doesn't show something you expect:** this isn't the cron's
+  concern any more — the bell recomputes live. Check the record's own
+  dates/settings (reminder lead days, whether reminders are enabled) rather
+  than this endpoint.
+- **The database reports that a table does not exist:** run
+  `npx prisma migrate deploy` against that database.
+
+## Deployment
+
+Vercel's `buildCommand` (`vercel.json`) is `npm run db:deploy && npm run build`
+— migrations are applied as part of every build, not as a separate manual
+step. `db:deploy` (`scripts/deploy-database.mjs`) also reconciles a database
+that reached its current schema through an old `prisma db push` before a
+migration history existed, and retries `prisma migrate deploy` up to three
+times on a `P1002` advisory-lock timeout — expected the first time a
+scale-to-zero database wakes up to serve the deploy — before failing for
+real.
