@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { parseDismissalKey, type DismissibleKind } from "@/lib/attention/dismissal";
-import { notificationKey, OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
+import { notificationKey } from "@/lib/notifications/identity";
 import { formatDateInput } from "@/lib/dates";
 
 /** The column that links a dismissal, and its notifications, back to the record. */
@@ -28,15 +28,23 @@ async function currentDeadline(kind: DismissibleKind, id: string, userId: string
 }
 
 /**
- * Hides one Needs Attention row until its deadline changes.
+ * Hides one Needs Attention or Upcoming & Due row until its deadline, or what
+ * it is currently saying about that deadline, changes.
  *
- * The key names the item *and* the date the person was looking at, so the
- * dismissal is only ever recorded against that deadline. Editing the date makes
- * the stored key stop matching, which is the whole mechanism -- there is no
- * expiry to tick down and nothing to clean up afterwards.
+ * The key names the item, the date the person was looking at, *and* which of
+ * that record's two notices (an advance one, or the overdue one that later
+ * replaces it) they dismissed -- see lib/attention/dismissal.ts. Editing the
+ * date makes the stored key stop matching; reaching the deadline changes what
+ * there is to say about it, which does the same, on its own, with no separate
+ * bookkeeping. Either way there is no expiry to tick down and nothing to
+ * clean up afterwards -- dismissing the advance notice for something still
+ * "expiring soon" must not also silence its eventual "expired" notice, and
+ * this is the whole mechanism that keeps the two independent.
  *
  * Dismissing also marks the matching notification read: someone who has said
- * they are done seeing a row does not want it still bolded in the bell.
+ * they are done seeing a row does not want it still bolded in the bell --
+ * "matching" being exactly the notice named in the key just parsed, not
+ * whichever one this function assumes.
  */
 export async function dismissAttentionItem(itemKey: string) {
   const parsed = parseDismissalKey(itemKey);
@@ -50,12 +58,9 @@ export async function dismissAttentionItem(itemKey: string) {
 
   const link = LINK_FIELD[parsed.kind];
   // The bell derives what it shows, so there is no row here to mark read --
-  // there is a marker to write. Its key names the item, its deadline *and* what
-  // is being said about it, because an advance reminder and the overdue notice
-  // that replaces it are separate things to have read. Only the last of those
-  // is unknown from the dismissal key, and for something already overdue it is
-  // fixed by kind, so it can be named rather than looked up.
-  const readKey = notificationKey(parsed.kind, parsed.id, OVERDUE_NOTIFICATION_TYPE[parsed.kind], deadline);
+  // there is a marker to write, naming the exact notice the dismissed key
+  // itself named.
+  const readKey = notificationKey(parsed.kind, parsed.id, parsed.type, deadline);
   await prisma.$transaction([
     prisma.attentionDismissal.upsert({
       where: { userId_itemKey: { userId: user.id, itemKey } },

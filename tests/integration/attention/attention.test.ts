@@ -13,6 +13,7 @@ import { getNeedsAttention } from "@/lib/data/attention";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
 import { dismissAttentionItem } from "@/app/actions";
 import { dismissalKey } from "@/lib/attention/dismissal";
+import { OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
 
 /**
  * getNeedsAttention joins four unrelated tables (documents, milestones,
@@ -88,7 +89,7 @@ describe.sequential("Needs Attention", () => {
     it("hides an item once it has been dismissed at its current deadline", async () => {
       await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
       await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: past, userId: owner, objectId: "todo-obj" } });
-      const key = dismissalKey("todo", "todo-1", past);
+      const key = dismissalKey("todo", "todo-1", OVERDUE_NOTIFICATION_TYPE.todo, past);
       await prisma.attentionDismissal.create({ data: { id: "dismissal-1", userId: owner, itemKey: key, todoId: "todo-1" } });
 
       await expect(getNeedsAttention(future)).resolves.toEqual([]);
@@ -107,7 +108,7 @@ describe.sequential("Needs Attention", () => {
       await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
       await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
       await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: past, moduleId: "module-1", objectId: "item-obj" } });
-      const key = dismissalKey("custom", "item-1", past);
+      const key = dismissalKey("custom", "item-1", OVERDUE_NOTIFICATION_TYPE.custom, past);
 
       await dismissAttentionItem(key);
 
@@ -121,7 +122,7 @@ describe.sequential("Needs Attention", () => {
       await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
       await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
       await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: future, moduleId: "module-1", objectId: "item-obj" } });
-      const staleKey = dismissalKey("custom", "item-1", past);
+      const staleKey = dismissalKey("custom", "item-1", OVERDUE_NOTIFICATION_TYPE.custom, past);
 
       await dismissAttentionItem(staleKey);
 
@@ -132,7 +133,7 @@ describe.sequential("Needs Attention", () => {
       await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Read more", userId: owner } });
       await prisma.goal.create({ data: { id: "goal-1", name: "Read more", userId: owner, objectId: "goal-obj" } });
       await prisma.milestone.create({ data: { id: "milestone-1", goalId: "goal-1", name: "Overdue", dueDate: past } });
-      const key = dismissalKey("milestone", "milestone-1", past);
+      const key = dismissalKey("milestone", "milestone-1", "MILESTONE_DUE", past);
 
       await dismissAttentionItem(key);
 
@@ -144,7 +145,7 @@ describe.sequential("Needs Attention", () => {
     it("refuses a to-do key outright -- to-dos are not dismissible either, for the same reason as milestones", async () => {
       await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
       await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: past, userId: owner, objectId: "todo-obj" } });
-      const key = dismissalKey("todo", "todo-1", past);
+      const key = dismissalKey("todo", "todo-1", OVERDUE_NOTIFICATION_TYPE.todo, past);
 
       await dismissAttentionItem(key);
 
@@ -157,7 +158,7 @@ describe.sequential("Needs Attention", () => {
       await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: stranger } });
       await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Not yours", userId: stranger } });
       await prisma.customItem.create({ data: { id: "item-1", name: "Not yours", dueDate: past, moduleId: "module-1", objectId: "item-obj" } });
-      const key = dismissalKey("custom", "item-1", past);
+      const key = dismissalKey("custom", "item-1", OVERDUE_NOTIFICATION_TYPE.custom, past);
 
       await dismissAttentionItem(key);
 
@@ -174,7 +175,7 @@ describe.sequential("Needs Attention", () => {
       await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
       await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
       await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: past, moduleId: "module-1", objectId: "item-obj" } });
-      const key = dismissalKey("custom", "item-1", past);
+      const key = dismissalKey("custom", "item-1", OVERDUE_NOTIFICATION_TYPE.custom, past);
 
       await expect(getUpcomingAndDue(future)).resolves.toEqual([expect.objectContaining({ kind: "custom" })]);
 

@@ -188,10 +188,9 @@ describe.sequential("Upcoming & Due", () => {
      * Unlike Needs Attention -- which only ever shows a record once it is
      * overdue, so dismissing one there was always a dismissal of something
      * overdue -- Upcoming & Due also shows the advance "expiring soon" /
-     * "due soon" phase. The dismissal key is keyed on the deadline alone,
-     * never the phase (lib/attention/dismissal.ts), so it was always meant
-     * to cover this case too: dismissing here works before the item is ever
-     * overdue, not just after.
+     * "due soon" phase. The dismissal key names which of a record's two
+     * notices was dismissed, not just its deadline (lib/attention/dismissal.ts),
+     * precisely so dismissing this advance one is its own, independent act.
      */
     it("hides a document that is only expiring soon, not yet expired", async () => {
       const expiry = new Date("2026-06-25");
@@ -200,7 +199,7 @@ describe.sequential("Upcoming & Due", () => {
 
       await expect(getUpcomingAndDue(now)).resolves.toEqual([expect.objectContaining({ kind: "document", title: "Passport is expiring" })]);
 
-      await dismissAttentionItem(dismissalKey("document", "doc-1", expiry));
+      await dismissAttentionItem(dismissalKey("document", "doc-1", "REMINDER_DUE", expiry));
 
       await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
     });
@@ -213,7 +212,7 @@ describe.sequential("Upcoming & Due", () => {
 
       await expect(getUpcomingAndDue(now)).resolves.toEqual([expect.objectContaining({ kind: "custom", title: "Dune is due soon" })]);
 
-      await dismissAttentionItem(dismissalKey("custom", "item-1", dueDate));
+      await dismissAttentionItem(dismissalKey("custom", "item-1", "REMINDER_DUE", dueDate));
 
       await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
     });
@@ -222,12 +221,47 @@ describe.sequential("Upcoming & Due", () => {
       const expiry = new Date("2026-06-25");
       await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Passport", userId: owner } });
       await prisma.document.create({ data: { id: "doc-1", name: "Passport", type: "Identity", status: "Active", owner: "Owner", expiryDate: expiry, prompt: 30, userId: owner, objectId: "doc-obj" } });
-      await dismissAttentionItem(dismissalKey("document", "doc-1", expiry));
+      await dismissAttentionItem(dismissalKey("document", "doc-1", "REMINDER_DUE", expiry));
       await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
 
       await prisma.document.update({ where: { id: "doc-1" }, data: { expiryDate: new Date("2026-06-26") } });
 
       await expect(getUpcomingAndDue(now)).resolves.toEqual([expect.objectContaining({ kind: "document" })]);
+    });
+
+    /**
+     * The exact bug this file's dismissal keys exist to prevent: dismissing a
+     * document while it is only "expiring soon" must not silence it once it
+     * has genuinely expired, and dismissing a custom item's "due soon" notice
+     * must not silence it once it is actually overdue -- they read as two
+     * different, more urgent things once the deadline actually arrives, and
+     * each is dismissed on its own.
+     */
+    it("does not hide a document once it has actually expired, having only ever been dismissed while expiring soon", async () => {
+      const expiry = new Date("2026-06-25");
+      await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Passport", userId: owner } });
+      await prisma.document.create({ data: { id: "doc-1", name: "Passport", type: "Identity", status: "Active", owner: "Owner", expiryDate: expiry, prompt: 30, userId: owner, objectId: "doc-obj" } });
+      // Dismissed on 2026-06-15, while still only "expiring soon".
+      await dismissAttentionItem(dismissalKey("document", "doc-1", "REMINDER_DUE", expiry));
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+
+      // Now well past the expiry date -- the document has genuinely expired.
+      const afterExpiry = new Date("2026-07-01T00:00:00.000Z");
+      await expect(getUpcomingAndDue(afterExpiry)).resolves.toEqual([expect.objectContaining({ kind: "document", title: "Passport is expired" })]);
+    });
+
+    it("does not hide a custom item once it is actually overdue, having only ever been dismissed while due soon", async () => {
+      const dueDate = new Date("2026-06-22");
+      await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
+      await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+      await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate, moduleId: "module-1", objectId: "item-obj" } });
+      // Dismissed on 2026-06-15, while still only "due soon".
+      await dismissAttentionItem(dismissalKey("custom", "item-1", "REMINDER_DUE", dueDate));
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+
+      // Now well past the due date -- the item is genuinely overdue.
+      const afterDueDate = new Date("2026-07-01T00:00:00.000Z");
+      await expect(getUpcomingAndDue(afterDueDate)).resolves.toEqual([expect.objectContaining({ kind: "custom", title: "Dune is over its due date" })]);
     });
   });
 });

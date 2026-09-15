@@ -54,7 +54,7 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
 
   it("hides it once dismissed at that expiry date", async () => {
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-06-01"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:EXPIRED:2026-06-01"));
 
     await expect(titles()).resolves.toEqual([]);
   });
@@ -63,7 +63,7 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
     // No timer, no automatic expiry: the dismissal is permanent until the date
     // moves. A year later it still holds.
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-06-01"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:EXPIRED:2026-06-01"));
 
     const items = await getNeedsAttention(at("2027-06-15"));
     expect(items).toEqual([]);
@@ -73,7 +73,7 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
     // The document was renewed to 10 June, which has now passed too. The
     // dismissal was recorded against 1 June and no longer applies.
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-06-10"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:EXPIRED:2026-06-01"));
 
     await expect(titles()).resolves.toEqual(["Passport"]);
   });
@@ -81,7 +81,7 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
   it("shows it again when the date is merely corrected to another past date", async () => {
     // Editing the date is the signal, not whether the edit fixes anything.
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-05-20"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:EXPIRED:2026-06-01"));
 
     await expect(titles()).resolves.toEqual(["Passport"]);
   });
@@ -89,32 +89,32 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
   it("honours a fresh dismissal recorded against the new date", async () => {
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-06-10"));
     mocks.dismissalFindMany.mockResolvedValue(
-      dismissed("document:document-1:2026-06-01", "document:document-1:2026-06-10"),
+      dismissed("document:document-1:EXPIRED:2026-06-01", "document:document-1:EXPIRED:2026-06-10"),
     );
 
     await expect(titles()).resolves.toEqual([]);
   });
 
-  it("ignores a legacy dismissal that carries no deadline", async () => {
+  it("ignores a legacy dismissal that carries no type or deadline", async () => {
     // Rows written before dismissals were scoped can no longer hide anything.
     // The migration rewrites them; one that slipped through must not silently
     // suppress an expired document forever.
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-06-01"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1", "document:document-1:2026-06-01"));
 
     await expect(titles()).resolves.toEqual(["Passport"]);
   });
 
   it("hides a dismissed overdue to-do -- the dismissal that used to do nothing", async () => {
     mocks.todoFindMany.mockResolvedValue(overdueTodo("2026-06-01"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("todo:todo-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("todo:todo-1:TODO_DUE:2026-06-01"));
 
     await expect(titles()).resolves.toEqual([]);
   });
 
   it("shows the to-do again once its due date is edited and lapses again", async () => {
     mocks.todoFindMany.mockResolvedValue(overdueTodo("2026-06-05"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("todo:todo-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("todo:todo-1:TODO_DUE:2026-06-01"));
 
     await expect(titles()).resolves.toEqual(["Renew licence"]);
   });
@@ -122,7 +122,7 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
   it("never hides another record that happens to share the deadline", async () => {
     mocks.documentFindMany.mockResolvedValue(expiredDocument("2026-06-01"));
     mocks.todoFindMany.mockResolvedValue(overdueTodo("2026-06-01"));
-    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:2026-06-01"));
+    mocks.dismissalFindMany.mockResolvedValue(dismissed("document:document-1:EXPIRED:2026-06-01"));
 
     await expect(titles()).resolves.toEqual(["Renew licence"]);
   });

@@ -40,36 +40,53 @@ describe("dismissAttentionItem: only rows that offer a Dismiss button", () => {
   it("records a dismissal for an expired document", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-06-01") });
 
-    await dismissAttentionItem("document:document-1:2026-06-01");
+    await dismissAttentionItem("document:document-1:EXPIRED:2026-06-01");
 
-    expect(written()?.create).toMatchObject({ itemKey: "document:document-1:2026-06-01", documentId: "document-1" });
+    expect(written()?.create).toMatchObject({ itemKey: "document:document-1:EXPIRED:2026-06-01", documentId: "document-1" });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/");
   });
 
   it("records a dismissal for an overdue custom item", async () => {
     mocks.customItemFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
 
-    await dismissAttentionItem("custom:item-1:2026-06-01");
+    await dismissAttentionItem("custom:item-1:CUSTOM_ITEM_DUE:2026-06-01");
 
-    expect(written()?.create).toMatchObject({ itemKey: "custom:item-1:2026-06-01", customItemId: "item-1" });
+    expect(written()?.create).toMatchObject({ itemKey: "custom:item-1:CUSTOM_ITEM_DUE:2026-06-01", customItemId: "item-1" });
+  });
+
+  it("records a dismissal for a document that is only expiring soon, not yet expired", async () => {
+    mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-06-01") });
+
+    await dismissAttentionItem("document:document-1:REMINDER_DUE:2026-06-01");
+
+    expect(written()?.create).toMatchObject({ itemKey: "document:document-1:REMINDER_DUE:2026-06-01", documentId: "document-1" });
   });
 
   it("refuses a milestone, which the card no longer offers to dismiss", async () => {
-    await dismissAttentionItem("milestone:milestone-1:2026-06-01");
+    await dismissAttentionItem("milestone:milestone-1:MILESTONE_DUE:2026-06-01");
 
     expect(mocks.requireKinesisUser).not.toHaveBeenCalled();
     expect(written()).toBeUndefined();
   });
 
   it("refuses a to-do, for the same reason -- it also gets Mark complete and Reschedule now", async () => {
-    await dismissAttentionItem("todo:todo-1:2026-06-01");
+    await dismissAttentionItem("todo:todo-1:TODO_DUE:2026-06-01");
 
     expect(mocks.requireKinesisUser).not.toHaveBeenCalled();
     expect(written()).toBeUndefined();
   });
 
-  it("refuses a legacy key carrying no deadline", async () => {
+  it("refuses a type that does not belong to the kind, even a real notification type", async () => {
+    // CUSTOM_ITEM_DUE is real, but never means anything for a document.
+    await dismissAttentionItem("document:document-1:CUSTOM_ITEM_DUE:2026-06-01");
+
+    expect(mocks.requireKinesisUser).not.toHaveBeenCalled();
+    expect(written()).toBeUndefined();
+  });
+
+  it("refuses a legacy key carrying no type or deadline", async () => {
     await dismissAttentionItem("document:document-1");
+    await dismissAttentionItem("document:document-1:2026-06-01");
 
     expect(mocks.requireKinesisUser).not.toHaveBeenCalled();
     expect(written()).toBeUndefined();
@@ -88,7 +105,7 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
     // dismissal recorded against it would mean nothing.
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-07-01") });
 
-    await dismissAttentionItem("document:document-1:2026-06-01");
+    await dismissAttentionItem("document:document-1:EXPIRED:2026-06-01");
 
     expect(written()).toBeUndefined();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -99,7 +116,7 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
     // on its own terms and has nothing to dismiss.
     mocks.customItemFindFirst.mockResolvedValue({ dueDate: null });
 
-    await dismissAttentionItem("custom:item-1:2026-06-01");
+    await dismissAttentionItem("custom:item-1:CUSTOM_ITEM_DUE:2026-06-01");
 
     expect(written()).toBeUndefined();
   });
@@ -107,7 +124,7 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
   it("writes nothing when the record is gone or belongs to someone else", async () => {
     mocks.documentFindFirst.mockResolvedValue(null);
 
-    await dismissAttentionItem("document:document-1:2026-06-01");
+    await dismissAttentionItem("document:document-1:EXPIRED:2026-06-01");
 
     expect(written()).toBeUndefined();
   });
@@ -115,7 +132,7 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
   it("scopes the lookup to the signed-in owner", async () => {
     mocks.customItemFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
 
-    await dismissAttentionItem("custom:item-1:2026-06-01");
+    await dismissAttentionItem("custom:item-1:CUSTOM_ITEM_DUE:2026-06-01");
 
     expect(mocks.customItemFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "item-1", module: { userId: "owner-id" } } }),
@@ -125,10 +142,10 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
   it("keys the row on the deadline, so a later date is a separate dismissal", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-07-01") });
 
-    await dismissAttentionItem("document:document-1:2026-07-01");
+    await dismissAttentionItem("document:document-1:EXPIRED:2026-07-01");
 
     expect(written()?.where).toEqual({
-      userId_itemKey: { userId: "owner-id", itemKey: "document:document-1:2026-07-01" },
+      userId_itemKey: { userId: "owner-id", itemKey: "document:document-1:EXPIRED:2026-07-01" },
     });
   });
 });
@@ -142,14 +159,13 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
 
   /**
    * The bell derives what it shows, so there is no row to update -- there is a
-   * read marker to write, named after the notification it silences. An overdue
-   * document is always saying the same thing, so the key can be built outright
-   * rather than derived, which is what keeps this a single write.
+   * read marker to write, naming the exact notice the dismissed key itself
+   * named -- not derived independently, so it can never disagree with it.
    */
   it("writes a read marker naming the notification, in the same transaction", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-06-01") });
 
-    await dismissAttentionItem("document:document-1:2026-06-01");
+    await dismissAttentionItem("document:document-1:EXPIRED:2026-06-01");
 
     expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
       where: { userId_itemKey: { userId: "owner-id", itemKey: "document:document-1:EXPIRED:2026-06-01" } },
@@ -163,7 +179,7 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
   it("names the right notification for a custom item", async () => {
     mocks.customItemFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
 
-    await dismissAttentionItem("custom:item-1:2026-06-01");
+    await dismissAttentionItem("custom:item-1:CUSTOM_ITEM_DUE:2026-06-01");
 
     expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
       create: expect.objectContaining({ itemKey: "custom:item-1:CUSTOM_ITEM_DUE:2026-06-01", customItemId: "item-1" }),
@@ -171,26 +187,28 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
   });
 
   /**
-   * The two keys look alike and mean different things: a dismissal is only ever
-   * about something overdue, while a notification also has an advance form that
-   * is read separately. Sharing one key would let dismissing an overdue item
-   * silently mark its earlier reminder read as well.
+   * The exact bug this whole file exists to catch: dismissing while a
+   * document is only "expiring soon" used to always mark its *overdue*
+   * notification read (the type was hardcoded, never read from the key
+   * actually dismissed) -- so once the document genuinely expired, its bell
+   * notification was already silenced before it ever fired. The read marker
+   * must name the advance notice here, not the overdue one it hasn't reached
+   * yet.
    */
-  it("does not reuse the dismissal's own key as the read marker", async () => {
+  it("quiets only the advance reminder when only the advance notice was dismissed, not the eventual overdue one", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-06-01") });
 
-    await dismissAttentionItem("document:document-1:2026-06-01");
+    await dismissAttentionItem("document:document-1:REMINDER_DUE:2026-06-01");
 
-    const dismissal = written()?.create.itemKey;
-    const read = (mocks.notificationReadUpsert.mock.calls[0]?.[0].create as { itemKey: string }).itemKey;
-    expect(dismissal).toBe("document:document-1:2026-06-01");
-    expect(read).not.toBe(dismissal);
+    expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
+      create: expect.objectContaining({ itemKey: "document:document-1:REMINDER_DUE:2026-06-01" }),
+    });
   });
 
   it("touches no notification when the dismissal is refused", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-07-01") });
 
-    await dismissAttentionItem("document:document-1:2026-06-01");
+    await dismissAttentionItem("document:document-1:EXPIRED:2026-06-01");
 
     expect(mocks.notificationReadUpsert).not.toHaveBeenCalled();
   });

@@ -11,6 +11,7 @@ import { activeGoalWhere } from "@/lib/goals/active";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import { dismissalKey } from "@/lib/attention/dismissal";
+import { OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
 
 type BaseUpcomingItem = { id: string; title: string; date: string; timestamp: number; href: string };
 export type UpcomingItem =
@@ -72,7 +73,11 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
     const reminderDate = getExpiryReminderDate(expiry, document.prompt);
     const expired = expiry < today;
     if (!expired && (!settings.remindersEnabled || today < reminderDate)) return [];
-    const dismissKey = dismissalKey("document", document.id, expiry);
+    // The advance notice and the overdue notice are different things to have
+    // dismissed, even at the same deadline -- see lib/attention/dismissal.ts.
+    // Dismissing one while "expiring soon" must not pre-empt the other, once
+    // this document actually expires.
+    const dismissKey = dismissalKey("document", document.id, expired ? OVERDUE_NOTIFICATION_TYPE.document : "REMINDER_DUE", expiry);
     if (dismissed.has(dismissKey)) return [];
     return [{
       id: `document-${document.id}`,
@@ -134,12 +139,15 @@ export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[
 
   const customItemItems = settings.remindersEnabled ? customItems.flatMap((item): UpcomingItem[] => {
     const dueDate = startOfUtcDay(item.dueDate!)!;
-    const dismissKey = dismissalKey("custom", item.id, dueDate);
+    const overdue = dueDate < today;
+    // Same reasoning as a document's dismissal key, above: "due soon" and
+    // "over its due date" are dismissed independently, even at one deadline.
+    const dismissKey = dismissalKey("custom", item.id, overdue ? OVERDUE_NOTIFICATION_TYPE.custom : "REMINDER_DUE", dueDate);
     if (dismissed.has(dismissKey)) return [];
     return [{
       id: `custom-${item.id}`,
       kind: "custom",
-      title: `${item.name} is ${dueDate < today ? "over its due date" : "due soon"}`,
+      title: `${item.name} is ${overdue ? "over its due date" : "due soon"}`,
       date: dueDate.toISOString(),
       timestamp: dueDate.getTime(),
       href: `/custom-modules/${item.moduleId}/items/${item.id}`,
