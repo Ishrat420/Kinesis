@@ -4,10 +4,9 @@ import { dismissalKey, isDismissibleKind, parseDismissalKey } from "@/lib/attent
 const at = (day: string) => new Date(`${day}T00:00:00.000Z`);
 
 describe("which Needs Attention rows offer a Dismiss button", () => {
-  it("accepts the three kinds the card renders one for", () => {
+  it("accepts the two kinds the card renders one for", () => {
     expect(isDismissibleKind("document")).toBe(true);
     expect(isDismissibleKind("custom")).toBe(true);
-    expect(isDismissibleKind("todo")).toBe(true);
   });
 
   it("rejects a milestone, which resolves or reschedules instead of hiding", () => {
@@ -16,6 +15,11 @@ describe("which Needs Attention rows offer a Dismiss button", () => {
     // could send; the two sides now agree.
     expect(isDismissibleKind("milestone")).toBe(false);
     expect(parseDismissalKey(dismissalKey("milestone", "milestone-1", at("2026-06-01")))).toBeNull();
+  });
+
+  it("rejects a to-do, for the same reason -- it also gets Mark complete and Reschedule now", () => {
+    expect(isDismissibleKind("todo")).toBe(false);
+    expect(parseDismissalKey(dismissalKey("todo", "todo-1", at("2026-06-01")))).toBeNull();
   });
 
   it("rejects a kind nobody defined", () => {
@@ -36,8 +40,8 @@ describe("dismissalKey: a dismissal names a deadline, not just a record", () => 
   });
 
   it("produces the same key for an unchanged date, so a dismissal keeps holding", () => {
-    expect(dismissalKey("todo", "todo-1", at("2026-06-01")))
-      .toBe(dismissalKey("todo", "todo-1", new Date("2026-06-01T00:00:00.000Z")));
+    expect(dismissalKey("custom", "item-1", at("2026-06-01")))
+      .toBe(dismissalKey("custom", "item-1", new Date("2026-06-01T00:00:00.000Z")));
   });
 
   it("reads the day in UTC so a key never shifts with the reader's time zone", () => {

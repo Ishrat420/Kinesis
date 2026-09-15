@@ -103,22 +103,24 @@ describe.sequential("Needs Attention", () => {
 
   describe("dismissAttentionItem", () => {
     it("writes both a dismissal and a notification-read row in one transaction", async () => {
-      await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
-      await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: past, userId: owner, objectId: "todo-obj" } });
-      const key = dismissalKey("todo", "todo-1", past);
+      await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
+      await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+      await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: past, moduleId: "module-1", objectId: "item-obj" } });
+      const key = dismissalKey("custom", "item-1", past);
 
       await dismissAttentionItem(key);
 
       await expect(prisma.attentionDismissal.findUnique({ where: { userId_itemKey: { userId: owner, itemKey: key } } })).resolves.not.toBeNull();
-      const reads = await prisma.notificationRead.findMany({ where: { userId: owner, todoId: "todo-1" } });
+      const reads = await prisma.notificationRead.findMany({ where: { userId: owner, customItemId: "item-1" } });
       expect(reads).toHaveLength(1);
       await expect(getNeedsAttention(future)).resolves.toEqual([]);
     });
 
     it("does nothing when the deadline in the key has already moved on", async () => {
-      await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
-      await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: future, userId: owner, objectId: "todo-obj" } });
-      const staleKey = dismissalKey("todo", "todo-1", past);
+      await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
+      await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+      await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: future, moduleId: "module-1", objectId: "item-obj" } });
+      const staleKey = dismissalKey("custom", "item-1", past);
 
       await dismissAttentionItem(staleKey);
 
@@ -138,14 +140,27 @@ describe.sequential("Needs Attention", () => {
       expect(items.map((item) => item.kind)).toEqual(["milestone"]);
     });
 
-    it("never dismisses another account's item", async () => {
-      await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Not yours", userId: stranger } });
-      await prisma.todo.create({ data: { id: "todo-1", name: "Not yours", dueDate: past, userId: stranger, objectId: "todo-obj" } });
+    it("refuses a to-do key outright -- to-dos are not dismissible either, for the same reason as milestones", async () => {
+      await prisma.object.create({ data: { id: "todo-obj", type: "TODO", name: "Renew passport", userId: owner } });
+      await prisma.todo.create({ data: { id: "todo-1", name: "Renew passport", dueDate: past, userId: owner, objectId: "todo-obj" } });
       const key = dismissalKey("todo", "todo-1", past);
 
       await dismissAttentionItem(key);
 
-      await expect(prisma.attentionDismissal.findMany({ where: { todoId: "todo-1" } })).resolves.toEqual([]);
+      await expect(prisma.attentionDismissal.findMany({ where: { userId: owner } })).resolves.toEqual([]);
+      const items = await getNeedsAttention(future);
+      expect(items.map((item) => item.kind)).toEqual(["todo"]);
+    });
+
+    it("never dismisses another account's item", async () => {
+      await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: stranger } });
+      await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Not yours", userId: stranger } });
+      await prisma.customItem.create({ data: { id: "item-1", name: "Not yours", dueDate: past, moduleId: "module-1", objectId: "item-obj" } });
+      const key = dismissalKey("custom", "item-1", past);
+
+      await dismissAttentionItem(key);
+
+      await expect(prisma.attentionDismissal.findMany({ where: { customItemId: "item-1" } })).resolves.toEqual([]);
     });
   });
 });

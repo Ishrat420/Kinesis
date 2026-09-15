@@ -5,7 +5,8 @@ import { useActionState, useState, useTransition } from "react";
 import { BellRing, CalendarDays, Circle, FileText, Flag, ListTodo, Pencil, Target, X } from "lucide-react";
 import { dismissAttentionItem } from "@/app/actions";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
-import { toggleMilestoneAction, updateMilestoneDueDateAction, type GoalActionState } from "@/app/(app)/goals/actions";
+import { toggleMilestoneAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
+import { setTodoStatusAction, updateTodoDueDateAction } from "@/app/(app)/todos/actions";
 import type { AttentionItem } from "@/lib/data/attention";
 import { formatDate, formatDateInput, formatDeadline, formatExpiry } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
@@ -35,7 +36,7 @@ function AttentionIcon({ item }: { item: AttentionItem }) {
   const Icon = icons[item.kind];
   return <span className={attentionBadgeClass}><Icon className="h-5 w-5" /></span>;
 }
-const initialGoalState: GoalActionState = {};
+const initialActionState: { error?: string } = {};
 
 export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
   const today = useToday();
@@ -60,9 +61,21 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
                 <span className="min-w-0"><span className="block truncate font-semibold text-zinc-900">{item.title}</span><span className="mt-0.5 block text-sm text-zinc-500">{item.context} · {formatDate(item.date, locale)} · {timing}</span></span>
               </Link>
               {item.kind === "milestone"
-                ? <MilestoneActions goalId={item.goalId} milestoneId={item.milestoneId} dueDate={item.date} onComplete={() => setDismissed((current) => [...current, item.key])} />
+                ? <ResolveActions
+                    dueDate={item.date}
+                    onComplete={() => setDismissed((current) => [...current, item.key])}
+                    complete={() => toggleMilestoneAction(item.goalId, item.milestoneId, true)}
+                    reschedule={updateMilestoneDueDateAction.bind(null, item.goalId, item.milestoneId)}
+                  />
+                : item.kind === "todo"
+                ? <ResolveActions
+                    dueDate={item.date}
+                    onComplete={() => setDismissed((current) => [...current, item.key])}
+                    complete={() => setTodoStatusAction(item.todoId, "DONE")}
+                    reschedule={updateTodoDueDateAction.bind(null, item.todoId)}
+                  />
                 : <div className="flex shrink-0 items-center gap-2">
-                    {(item.kind === "document" || item.kind === "custom") && <Link href={item.editHref} onClick={() => setOpen(false)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><Pencil className="h-3.5 w-3.5" />Edit</Link>}
+                    <Link href={item.editHref} onClick={() => setOpen(false)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><Pencil className="h-3.5 w-3.5" />Edit</Link>
                     <form action={dismissAttentionItem.bind(null, item.key)} onSubmit={() => setDismissed((current) => [...current, item.key])}>
                       <button type="submit" className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900">Dismiss</button>
                     </form>
@@ -75,15 +88,23 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
 }
 
 /**
- * A milestone in Needs Attention is always overdue and never completed (that
- * is what got it here), so its two useful actions are resolving it outright
- * -- mark it complete -- or moving its due date so it stops being overdue.
- * Dismissing without doing either would just hide an unresolved milestone.
+ * A milestone or to-do in Needs Attention is always overdue and never
+ * completed (that is what got it here), so its two useful actions are
+ * resolving it outright -- mark it complete -- or moving its due date so it
+ * stops being overdue. Dismissing without doing either would just hide an
+ * unresolved item -- shared by both kinds rather than duplicated, since the
+ * UI and the reasoning behind it are identical; only which action each button
+ * calls differs.
  */
-function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId: string; milestoneId: string; dueDate: string; onComplete: () => void }) {
+function ResolveActions({ dueDate, onComplete, complete, reschedule }: {
+  dueDate: string;
+  onComplete: () => void;
+  complete: () => Promise<{ error?: string }>;
+  reschedule: (previousState: { error?: string }, formData: FormData) => Promise<{ error?: string }>;
+}) {
   const [rescheduling, setRescheduling] = useState(false);
-  const [state, formAction] = useActionState(updateMilestoneDueDateAction.bind(null, goalId, milestoneId), initialGoalState);
-  // Completing reports its outcome too, so a milestone that has since been
+  const [state, formAction] = useActionState(reschedule, initialActionState);
+  // Completing reports its outcome too, so an item that has since been
   // deleted says so here rather than throwing past the dashboard. onComplete
   // removes this row from the parent's list, so it can only run once the save
   // is confirmed -- calling it on submit, before the action resolves, would
@@ -92,7 +113,7 @@ function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId
   const [completeError, setCompleteError] = useState<string | null>(null);
   const handleComplete = () => startCompleting(async () => {
     setCompleteError(null);
-    const result = await toggleMilestoneAction(goalId, milestoneId, true);
+    const result = await complete();
     if (result.error) setCompleteError(result.error);
     else onComplete();
   });
@@ -100,7 +121,7 @@ function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId
   if (rescheduling) {
     return <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
-        <input name="dueDate" type="date" required autoFocus defaultValue={formatDateInput(dueDate)} aria-label="New target date" className="h-9 rounded-lg border border-zinc-200 px-2 text-xs text-zinc-700 outline-none focus:border-zinc-400" />
+        <input name="dueDate" type="date" required autoFocus defaultValue={formatDateInput(dueDate)} aria-label="New due date" className="h-9 rounded-lg border border-zinc-200 px-2 text-xs text-zinc-700 outline-none focus:border-zinc-400" />
         <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
         <button type="button" onClick={() => setRescheduling(false)} aria-label="Cancel reschedule" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
       </div>
@@ -110,7 +131,7 @@ function MilestoneActions({ goalId, milestoneId, dueDate, onComplete }: { goalId
 
   return <div className="flex shrink-0 flex-col items-end gap-1.5" onClick={(event) => event.stopPropagation()}>
     <div className="flex items-center gap-2">
-      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark milestone complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"><Circle className="h-5 w-5" /></button>
+      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark complete" className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"><Circle className="h-5 w-5" /></button>
       <button type="button" onClick={() => setRescheduling(true)} className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900"><CalendarDays className="h-3.5 w-3.5" />Reschedule</button>
     </div>
     {completeError && <p role="alert" className="text-xs font-medium text-red-600">{completeError}</p>}

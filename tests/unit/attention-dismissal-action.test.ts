@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   notificationReadUpsert: vi.fn<(args: { where: unknown; create: Record<string, unknown> }) => unknown>(() => ({ __op: "markRead" })),
   documentFindFirst: vi.fn(),
   customItemFindFirst: vi.fn(),
-  todoFindFirst: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -20,7 +19,6 @@ vi.mock("@/lib/data/prisma", () => ({
     notificationRead: { upsert: mocks.notificationReadUpsert },
     document: { findFirst: mocks.documentFindFirst },
     customItem: { findFirst: mocks.customItemFindFirst },
-    todo: { findFirst: mocks.todoFindFirst },
     $transaction: mocks.transaction,
   },
 }));
@@ -56,18 +54,15 @@ describe("dismissAttentionItem: only rows that offer a Dismiss button", () => {
     expect(written()?.create).toMatchObject({ itemKey: "custom:item-1:2026-06-01", customItemId: "item-1" });
   });
 
-  it("records a dismissal for an overdue to-do, which used to fail in silence", async () => {
-    // The card rendered the button, the row vanished optimistically, and the
-    // server rejected the key without a word -- so it came back on reload.
-    mocks.todoFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
-
-    await dismissAttentionItem("todo:todo-1:2026-06-01");
-
-    expect(written()?.create).toMatchObject({ itemKey: "todo:todo-1:2026-06-01", todoId: "todo-1" });
-  });
-
   it("refuses a milestone, which the card no longer offers to dismiss", async () => {
     await dismissAttentionItem("milestone:milestone-1:2026-06-01");
+
+    expect(mocks.requireKinesisUser).not.toHaveBeenCalled();
+    expect(written()).toBeUndefined();
+  });
+
+  it("refuses a to-do, for the same reason -- it also gets Mark complete and Reschedule now", async () => {
+    await dismissAttentionItem("todo:todo-1:2026-06-01");
 
     expect(mocks.requireKinesisUser).not.toHaveBeenCalled();
     expect(written()).toBeUndefined();
@@ -118,12 +113,12 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
   });
 
   it("scopes the lookup to the signed-in owner", async () => {
-    mocks.todoFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
+    mocks.customItemFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
 
-    await dismissAttentionItem("todo:todo-1:2026-06-01");
+    await dismissAttentionItem("custom:item-1:2026-06-01");
 
-    expect(mocks.todoFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "todo-1", userId: "owner-id" } }),
+    expect(mocks.customItemFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "item-1", module: { userId: "owner-id" } } }),
     );
   });
 
@@ -165,17 +160,13 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
     expect(mocks.transaction).toHaveBeenCalledWith([{ __op: "upsert" }, { __op: "markRead" }]);
   });
 
-  it.each([
-    ["a to-do", "todo:todo-1:2026-06-01", "todo:todo-1:TODO_DUE:2026-06-01", "todoId", "todo-1"],
-    ["a custom item", "custom:item-1:2026-06-01", "custom:item-1:CUSTOM_ITEM_DUE:2026-06-01", "customItemId", "item-1"],
-  ])("names the right notification for %s", async (_label, dismissalKey, readKey, link, id) => {
-    mocks.todoFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
+  it("names the right notification for a custom item", async () => {
     mocks.customItemFindFirst.mockResolvedValue({ dueDate: at("2026-06-01") });
 
-    await dismissAttentionItem(dismissalKey);
+    await dismissAttentionItem("custom:item-1:2026-06-01");
 
     expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
-      create: expect.objectContaining({ itemKey: readKey, [link]: id }),
+      create: expect.objectContaining({ itemKey: "custom:item-1:CUSTOM_ITEM_DUE:2026-06-01", customItemId: "item-1" }),
     });
   });
 

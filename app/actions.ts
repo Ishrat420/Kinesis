@@ -10,7 +10,6 @@ import { formatDateInput } from "@/lib/dates";
 const LINK_FIELD = {
   document: "documentId",
   custom: "customItemId",
-  todo: "todoId",
 } as const satisfies Record<DismissibleKind, string>;
 
 /**
@@ -24,12 +23,8 @@ async function currentDeadline(kind: DismissibleKind, id: string, userId: string
     const document = await prisma.document.findFirst({ where: { id, userId }, select: { expiryDate: true } });
     return document?.expiryDate ?? null;
   }
-  if (kind === "custom") {
-    const item = await prisma.customItem.findFirst({ where: { id, module: { userId } }, select: { dueDate: true } });
-    return item?.dueDate ?? null;
-  }
-  const todo = await prisma.todo.findFirst({ where: { id, userId }, select: { dueDate: true } });
-  return todo?.dueDate ?? null;
+  const item = await prisma.customItem.findFirst({ where: { id, module: { userId } }, select: { dueDate: true } });
+  return item?.dueDate ?? null;
 }
 
 /**

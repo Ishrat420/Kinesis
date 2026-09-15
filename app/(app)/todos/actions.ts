@@ -173,6 +173,26 @@ export async function setTodoStatusAction(id: string, status: string): Promise<T
   return {};
 }
 
+/**
+ * Moves a To-Do's due date and nothing else -- the narrow action a due-date-only
+ * control (Needs Attention's Reschedule, mirroring updateMilestoneDueDateAction)
+ * needs, as opposed to saveTodoDetailsAction's full capture-details shape.
+ */
+export async function updateTodoDueDateAction(id: string, _previousState: TodoActionState, formData: FormData): Promise<TodoActionState> {
+  const dueDateValue = text(formData, "dueDate");
+  const dueDate = dueDateValue ? parseDateOnly(dueDateValue) : null;
+  if (!dueDate) return { error: "Enter a valid due date." };
+  try {
+    await updateTodoDetails(id, { dueDate });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
+  refresh();
+  return {};
+}
+
 export async function deleteTodoAction(id: string): Promise<TodoActionState> {
   const { count } = await deleteTodo(id);
   // A delete that matched nothing is not an error worth shouting about -- the

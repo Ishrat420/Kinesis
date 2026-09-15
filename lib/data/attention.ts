@@ -12,7 +12,8 @@ export type AttentionItem =
   | (BaseAttentionItem & { kind: "milestone"; goalId: string; milestoneId: string })
   /** A custom module object is shown with its own module's icon and colour. */
   | (BaseAttentionItem & { kind: "custom"; editHref: string; icon: string; color: string })
-  | (BaseAttentionItem & { kind: "todo" });
+  /** A to-do carries its own id, like a milestone's, since it also gets Complete/Reschedule rather than Dismiss. */
+  | (BaseAttentionItem & { kind: "todo"; todoId: string });
 
 export async function getNeedsAttention(now = new Date()): Promise<AttentionItem[]> {
   await connection();
@@ -29,13 +30,14 @@ export async function getNeedsAttention(now = new Date()): Promise<AttentionItem
   ]);
   // Every key carries the deadline it was built from, so a dismissal recorded
   // against one date stops matching the moment that date is edited -- see
-  // lib/attention/dismissal.ts. A milestone gets the same shaped key for the
-  // React list alone; it is not dismissible, and the server action rejects it.
+  // lib/attention/dismissal.ts. A milestone and a to-do both get the same
+  // shaped key for the React list alone; neither is dismissible, and the
+  // server action rejects both.
   const items: AttentionItem[] = [
     ...documents.map((item) => ({ key: dismissalKey("document", item.id, item.expiryDate!), kind: "document" as const, title: item.name, context: "Expired document", date: item.expiryDate!.toISOString(), timestamp: item.expiryDate!.getTime(), href: `/documents/${item.id}`, editHref: `/documents/${item.id}?edit=1` })),
     ...milestones.map((item) => ({ key: dismissalKey("milestone", item.id, item.dueDate!), kind: "milestone" as const, title: item.name, context: `Overdue milestone · ${item.goal.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/goals/${item.goalId}`, goalId: item.goalId, milestoneId: item.id })),
     ...customItems.map((item) => ({ key: dismissalKey("custom", item.id, item.dueDate!), kind: "custom" as const, title: item.name, context: `Overdue · ${item.module.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/custom-modules/${item.moduleId}/items/${item.id}`, editHref: `/custom-modules/${item.moduleId}/items/${item.id}`, icon: item.module.icon, color: item.module.color })),
-    ...todos.filter((todo) => isOpenTodoStatus(todo.status)).map((todo) => ({ key: dismissalKey("todo", todo.id, todo.dueDate!), kind: "todo" as const, title: todo.name, context: "Overdue to-do", date: todo.dueDate!.toISOString(), timestamp: todo.dueDate!.getTime(), href: "/todos" })),
+    ...todos.filter((todo) => isOpenTodoStatus(todo.status)).map((todo) => ({ key: dismissalKey("todo", todo.id, todo.dueDate!), kind: "todo" as const, todoId: todo.id, title: todo.name, context: "Overdue to-do", date: todo.dueDate!.toISOString(), timestamp: todo.dueDate!.getTime(), href: "/todos" })),
   ];
   const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));
   return items.filter(({ key }) => !dismissed.has(key)).sort((a, b) => a.timestamp - b.timestamp);

@@ -3,15 +3,15 @@ import { formatDateInput, type DateInput } from "@/lib/dates";
 /**
  * Needs Attention rows a person can dismiss.
  *
- * A milestone is deliberately absent: KD-017 gave it "Mark complete" and
- * "Reschedule" instead, on the reasoning that hiding an unfinished milestone
- * without either resolving it or moving it just buries real work. The card
- * renders no Dismiss button for one, and `parseDismissalKey` rejects its key,
- * so the two sides agree rather than drifting apart again.
+ * A milestone and a to-do are both deliberately absent: KD-017 gives each
+ * "Mark complete" and "Reschedule" instead, on the reasoning that hiding an
+ * unfinished item without either resolving it or moving it just buries real
+ * work. The card renders no Dismiss button for either, and `parseDismissalKey`
+ * rejects both their keys, so the two sides agree rather than drifting apart.
  */
-export type DismissibleKind = "document" | "custom" | "todo";
+export type DismissibleKind = "document" | "custom";
 
-const DISMISSIBLE_KINDS = ["document", "custom", "todo"] as const satisfies readonly DismissibleKind[];
+const DISMISSIBLE_KINDS = ["document", "custom"] as const satisfies readonly DismissibleKind[];
 
 /** Whether a Needs Attention row of this kind offers a Dismiss button. */
 export function isDismissibleKind(kind: string): kind is DismissibleKind {
