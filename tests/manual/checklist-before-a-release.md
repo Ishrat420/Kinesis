@@ -76,3 +76,4 @@ Verify that dated records appear correctly in the Calendar:
 ## Release Note
 Results:
 [Date 09/09/26] -> Everything passed, minor bugs fixed, unrelated bugs were added 
+[Date 16/09/26] -> Everything passed, minor bugs fixed, unrelated bugs were added 
