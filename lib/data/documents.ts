@@ -98,6 +98,17 @@ export async function getDocumentTypes() {
   return [...names.values()];
 }
 
+/**
+ * Same bug as `ensureStarterTemplate` (lib/data/starter-template.ts): the
+ * find-then-create below is unlocked, so two saves racing on a brand-new
+ * custom type from two tabs can both miss the `findFirst` and both reach
+ * `create`, and the loser hits `DocumentType`'s `@@unique([userId, name])`
+ * constraint. Caught here the same way, rather than left to crash that
+ * save -- the winner already created the row this call would have, so the
+ * only thing left to do is read back whichever casing won and use that,
+ * for the same reason the ordinary hit above returns `existing.name`
+ * rather than `formatted`.
+ */
 export async function resolveDocumentType(value: string) {
   const user = await requireKinesisUser();
   const formatted = formatDocumentType(value);
@@ -106,7 +117,15 @@ export async function resolveDocumentType(value: string) {
     where: { userId: user.id, name: { equals: formatted, mode: "insensitive" } },
   });
   if (existing) return existing.name;
-  await prisma.documentType.create({ data: { id: crypto.randomUUID(), userId: user.id, name: formatted } });
+  try {
+    await prisma.documentType.create({ data: { id: crypto.randomUUID(), userId: user.id, name: formatted } });
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "P2002") {
+      const winner = await prisma.documentType.findFirst({ where: { userId: user.id, name: { equals: formatted, mode: "insensitive" } } });
+      return winner?.name ?? formatted;
+    }
+    throw error;
+  }
   return formatted;
 }
 
