@@ -213,7 +213,6 @@ KD-029-be-able-to-create-to-do
 KD-008-adding-quick-capture
 KD-005-customisable-module-widgets
 KD-042-kinesis-link-rich-preview-card
-KD-029-be-able-to-create-to-do
 
 ## 🗑 Dropped
 KD-004-templates-object-types
