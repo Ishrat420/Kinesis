@@ -14,6 +14,8 @@ import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { formatDate } from "@/lib/dates";
 import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
+import { freshestStamp } from "@/lib/actions/concurrency";
+import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
 
 const initialState: CustomItemState = {};
 const EMPTY_VALUE = "—";
@@ -51,7 +53,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
   // back `item.updatedAt` from before the save, and its very next save
   // would refuse itself as a conflict against its own prior write.
   const [savedUpdatedAt, setSavedUpdatedAt] = useState<string | null>(null);
-  const updatedAt = savedUpdatedAt && savedUpdatedAt > item.updatedAt ? savedUpdatedAt : item.updatedAt;
+  const updatedAt = freshestStamp(item.updatedAt, savedUpdatedAt ?? undefined);
 
   return <>
     <ModuleHeader
@@ -145,7 +147,7 @@ function EditForm({ moduleId, item, updatedAt, linkOptions, previews, onCancel, 
       {item.templateId && item.fields.length > 0 && <PromoteFields moduleId={moduleId} itemId={item.id} fields={item.fields} />}
     </div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not Archived"}</button><input type="hidden" name="archived" value={String(archived)}/></div>
-    {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
+    {state.error && (state.conflict ? <SaveConflictNotice message={state.error} /> : <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>)}
     <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5">
       <button type="button" onClick={onCancel} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><X className="h-4 w-4" />Cancel</button>
       <button disabled={pending} className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:cursor-wait disabled:opacity-70">{pending ? <LoaderCircle className="h-4 w-4 animate-spin"/> : state.saved ? <CheckCircle2 className="h-4 w-4"/> : <Save className="h-4 w-4"/>}{pending ? "Saving…" : state.saved ? "Saved" : "Save changes"}</button>

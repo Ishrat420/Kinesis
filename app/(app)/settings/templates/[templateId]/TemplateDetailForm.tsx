@@ -7,6 +7,8 @@ import { TemplateFieldsEditor } from "../TemplateFieldsEditor";
 import { PreviewFieldsPicker } from "./PreviewFieldsPicker";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
+import { freshestStamp } from "@/lib/actions/concurrency";
+import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
 
 const initialState: TemplateActionState = {};
 
@@ -26,9 +28,8 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
   const savedRef = useRef<HTMLParagraphElement>(null);
   // This form stays mounted across a save (no editing/read-view toggle to
   // remount it), so the freshest known stamp is just a derived comparison --
-  // no state or effect needed. ISO-8601 strings sort lexically in
-  // chronological order, so a plain string compare is enough.
-  const currentUpdatedAt = state.updatedAt && state.updatedAt > updatedAt ? state.updatedAt : updatedAt;
+  // no state or effect needed.
+  const currentUpdatedAt = freshestStamp(updatedAt, state.updatedAt);
 
   useEffect(() => {
     if (state.saved) {
@@ -53,7 +54,7 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
         today={today}
       />
 
-      {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
+      {state.error && (state.conflict ? <SaveConflictNotice message={state.error} /> : <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>)}
 
       <div className="flex items-center justify-end gap-3 border-t border-zinc-100 pt-5">
         {state.saved && <p ref={savedRef} role="status" className="text-sm font-medium text-emerald-700">Saved</p>}

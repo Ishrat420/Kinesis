@@ -14,6 +14,8 @@ import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
+import { freshestStamp } from "@/lib/actions/concurrency";
+import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
 
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
@@ -53,7 +55,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
   // back `document.updatedAt` from before the save, and its very next save
   // would refuse itself as a conflict against its own prior write.
   const [savedUpdatedAt, setSavedUpdatedAt] = useState<string | null>(null);
-  const updatedAt = savedUpdatedAt && savedUpdatedAt > document.updatedAt ? savedUpdatedAt : document.updatedAt;
+  const updatedAt = freshestStamp(document.updatedAt, savedUpdatedAt ?? undefined);
   const today = useToday();
   const expiry = getDocumentState({ expiryDate: toUtcDate(document.expiryDate), prompt: document.prompt, archived: document.archived }, today);
   const statusClass = STATUS_TONES[expiry.urgency];
@@ -168,7 +170,7 @@ function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, 
     <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-zinc-600">Reminder<select name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 outline-none focus:border-zinc-400">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}</select></label><div className="text-sm font-medium text-zinc-600">Time until expiry<div role="status" className={`mt-1.5 flex h-11 items-center gap-2 rounded-xl px-3 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div></div></div>
     <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} /></div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not archived"}</button><input type="hidden" name="archived" value={String(archived)} /></div>
-    {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
+    {state.error && (state.conflict ? <SaveConflictNotice message={state.error} /> : <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>)}
     <div className="flex flex-col gap-4 border-t border-zinc-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-zinc-500">Owner: <span className="font-medium text-zinc-700">{ownerName}</span></p><div className="flex gap-2"><button type="button" onClick={onCancel} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><X className="h-4 w-4" />Cancel</button><button disabled={pending} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"><Save className="h-4 w-4" />{pending ? "Saving…" : "Save changes"}</button></div></div>
   </form></section>;
 }
