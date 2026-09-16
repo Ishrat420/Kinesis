@@ -135,6 +135,26 @@ export function addUtcDays(value: DateInput, amount: number) {
   return date;
 }
 
+/**
+ * Add whole calendar months, clamping the day of month to the target month's
+ * length rather than letting it roll over -- `Date.setUTCMonth` would turn 31
+ * Jan + 1 month into 3 March (February has no 31st), the same "a plain `Date`
+ * silently rolls an out-of-range day into the next month" trap `parseDateOnly`
+ * above guards against on the parsing side. Finance's monthly interest
+ * projection needs the actual intended month (28 or 29 Feb), not whatever the
+ * third of March works out to.
+ */
+export function addUtcMonths(value: DateInput, amount: number) {
+  if (!Number.isInteger(amount)) throw new RangeError("Month amount must be an integer");
+  const date = startOfUtcDay(value);
+  if (!date) throw new RangeError("Invalid date value");
+  const day = date.getUTCDate();
+  const firstOfMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + amount, 1));
+  const daysInTargetMonth = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth() + 1, 0)).getUTCDate();
+  firstOfMonth.setUTCDate(Math.min(day, daysInTargetMonth));
+  return firstOfMonth;
+}
+
 function requiredDate(value: DateInput) {
   const date = toDate(value);
   if (!date) throw new RangeError("Invalid date value");

@@ -73,22 +73,29 @@ model UserSettings {
 }
 
 model FinanceItem {
-  id        String    @id
-  kind      String
-  name      String
-  amount    Float
-  category  String?
-  rate      Float?
-  frequency String?
-  startDate DateTime?
-  endDate   DateTime?
-  notes     String?
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  objectId  String    @unique
-  object    Object    @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                  String    @id
+  kind                String
+  name                String
+  amount              Float
+  category            String?
+  rate                Float?
+  // KD-044: the optional fixed monthly repayment (liability) or contribution
+  // (asset) that, alongside `rate`, drives the automatic balance projection
+  // in lib/finance.ts. `balanceAsOf` is the day `amount` was last confirmed
+  // accurate -- set on every save, not just ones that touch `amount` -- so
+  // the projection always starts from a point the owner actually vouched for.
+  monthlyContribution Float?
+  balanceAsOf         DateTime  @default(now())
+  frequency           String?
+  startDate           DateTime?
+  endDate             DateTime?
+  notes               String?
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId            String    @unique
+  object              Object    @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([userId, kind, name])
 }

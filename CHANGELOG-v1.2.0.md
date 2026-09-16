@@ -53,7 +53,7 @@ Range: `v1.1.0..v1.2.0` (base `9cbf7f6`… tip `79f4af5`). 60 commits (2 merges)
 
 - Deep-linked Finance search results to their row (BUG-008), then fixed the anchor-scroll bug where `loading.tsx` ate the hash before rows existed.
 - Store goal target dates and milestone due dates at UTC midnight (KD-031).
-- Filed (not built) KD-044: Finance automatic interest/repayment arithmetic.
+- **KD-044 — automatic interest/repayment arithmetic (this session's follow-on work, not yet on `origin/v1.2.0`).** An asset/liability's `rate` field finally does something: the current balance now projects live from the last confirmed `amount` (`balanceAsOf`, stamped on every save) plus an optional fixed monthly repayment/contribution, compounding monthly and clamped so a liability can't go negative or keep accruing once paid off. No persisted ledger table — the monthly breakdown (shown in the edit form as "applied automatically since last confirmed") is computed fresh on every read, matching the notification engine's derive-don't-store precedent; correcting a wrong number means editing the balance directly, which becomes the new baseline. Applies to both assets and liabilities. The AT RISK/ON TRACK signal from the ticket's Part B was explicitly left out of scope for this pass. New migration (`20261002000000_finance_automatic_arithmetic`) adds `monthlyContribution` and `balanceAsOf` columns to `FinanceItem`.
 
 ## Mobile / touch (this session's follow-on work, not yet on `origin/v1.2.0`)
 
@@ -78,5 +78,5 @@ Range: `v1.1.0..v1.2.0` (base `9cbf7f6`… tip `79f4af5`). 60 commits (2 merges)
 
 - **BUG-007, relationship map surface** — still exposed to silent last-write-wins data loss on concurrent edits (see above). Needs its own version-counter design before it can be fixed the same way the other three surfaces were.
 - **A flaky integration test** was observed in `tests/integration/settings/delete-all-data.test.ts` (intermittent failure, unrelated to any change in this release — reproduced once, passed clean on immediate re-runs). Root cause not chased down; worth tracking before leaning on CI as a release gate.
-- **KD-044** (Finance interest/repayment arithmetic) is filed but not implemented — don't imply it shipped.
 - Touch drag-and-drop above needs a manual pass on iOS Safari and Android Chrome before being trusted; only automated checks have run against it so far.
+- **KD-044's ledger choice is a real tradeoff, not free.** Because the monthly breakdown is computed on the fly rather than stored, there's no way to correct one specific past month in isolation — fixing a wrong number always means re-baselining from today forward. Fine for the common case (a bank statement disagrees with the current total), but worth knowing before relying on it for detailed historical bookkeeping.

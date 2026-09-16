@@ -12,6 +12,7 @@ vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 import { prisma } from "@/lib/data/prisma";
 import { getFinanceItems } from "@/lib/data/finance";
 import { deleteFinanceItemAction, saveFinanceItemAction } from "@/app/(app)/finance/actions";
+import { formatDateInput } from "@/lib/dates";
 
 /**
  * lib/data/finance.ts and its actions had no real-database coverage --
@@ -69,6 +70,24 @@ describe.sequential("the finance data layer", () => {
     const result = await saveFinanceItemAction("expense", null, {}, form({ name: "Rent", amount: "1200", frequency: "Monthly", startDate: "2026-06-01", endDate: "2026-01-01" }));
 
     expect(result).toEqual({ error: "The end date must be on or after the start date." });
+  });
+
+  it("stores a monthly contribution alongside rate, and stamps balanceAsOf to today (KD-044)", async () => {
+    await saveFinanceItemAction("liability", null, {}, form({ name: "Car loan", amount: "12000", rate: "6", monthlyContribution: "300" }));
+
+    const items = await getFinanceItems();
+    expect(items).toEqual([expect.objectContaining({ kind: "liability", name: "Car loan", rate: 6, monthlyContribution: 300, balanceAsOf: formatDateInput(new Date()) })]);
+  });
+
+  it("advances balanceAsOf on every save, not just one that changes the amount", async () => {
+    await saveFinanceItemAction("asset", null, {}, form({ name: "Savings", amount: "1000", rate: "3" }));
+    const [existing] = await prisma.financeItem.findMany({ where: { userId: owner } });
+    await prisma.financeItem.update({ where: { id: existing.id }, data: { balanceAsOf: new Date("2020-01-01") } });
+
+    await saveFinanceItemAction("asset", existing.id, {}, form({ name: "Savings renamed", amount: "1000", rate: "3" }));
+
+    const [updated] = await getFinanceItems();
+    expect(updated.balanceAsOf).toBe(formatDateInput(new Date()));
   });
 
   it("updates an existing item in place rather than creating a second one", async () => {

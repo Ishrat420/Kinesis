@@ -170,7 +170,6 @@ KD-016-automated-document-field-extraction
 KD-017-turn-dashboard-into-decision-surface
 KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
-KD-044-finance-interest-and-repayment-arithmetic
 
 ## ✓ Accepted
 
@@ -214,6 +213,7 @@ KD-029-be-able-to-create-to-do
 KD-008-adding-quick-capture
 KD-005-customisable-module-widgets
 KD-042-kinesis-link-rich-preview-card
+KD-044-finance-interest-and-repayment-arithmetic
 
 ## 🗑 Dropped
 KD-004-templates-object-types

@@ -1,8 +1,47 @@
 # KD-044 — Finance: automatic interest and repayment arithmetic
 
-**Status:** Planning Needed
+**Status:** Done — Section A only (see "What actually shipped" below); Section B (AT RISK / ON TRACK) not built
 **Priority:** Medium
 **Tags:** Data Model, Architecture, Integration, Improvement
+
+## What actually shipped
+
+Section A, for both assets and liabilities, resolving the three open
+questions below as follows:
+
+* **Ledger shape:** no persisted ledger table. `FinanceItem` gained two
+  columns -- `monthlyContribution` (the optional fixed monthly
+  repayment/contribution) and `balanceAsOf` (the day `amount` was last
+  confirmed accurate, stamped on every save). The monthly breakdown is
+  computed fresh on every read from those two fields plus `rate` and
+  `amount` (`getFinanceProjection` in `lib/finance.ts`), the same
+  derive-don't-store precedent `lib/notifications/engine.ts` set. Correcting
+  a wrong projection means editing the item's balance directly (already
+  prefilled with the live number) -- there is no individual past month to
+  edit in isolation. Chosen over a `GoalMetricSnapshot`-style table to avoid
+  a second persistence path and a cascading-recompute-on-edit problem, at
+  the cost of not being able to correct one specific past month alone.
+* **Compounding:** monthly for everything, one rule, no per-item override --
+  `rate ÷ 12`, applied once per whole calendar month elapsed since
+  `balanceAsOf` (`addUtcMonths` in `lib/dates`, clamped to the target
+  month's length so 31 Jan projects to 28/29 Feb rather than rolling into
+  March).
+* **Coverage:** both assets (grow by interest + contribution) and
+  liabilities (interest accrues, contribution repays; a liability cannot go
+  negative from an overpayment, and stops accruing once paid off).
+
+The live projected balance now feeds everywhere `amount` used to be read
+directly for an asset/liability: the Finance page's own totals and list
+rows, the dashboard's net worth card, and the edit form's prefilled balance
+and its "applied automatically since last confirmed" history panel.
+
+**Not built:** Section B (the AT RISK/ON TRACK signal reusing Goals'
+vocabulary). KD-017 -- where it would plug into the dashboard -- is still
+Planning Needed, and this ticket's own framing treats B as the natural next
+step once A exists, not a requirement of it. Real bank integration remains
+out of scope, as originally decided.
+
+## Original ticket, unchanged below
 
 ## Summary
 

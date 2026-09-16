@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   itemCreate: vi.fn(),
   validateKinesisTargets: vi.fn(),
   getFormatPreferences: vi.fn(),
+  getToday: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -28,7 +29,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 vi.mock("@/lib/data/kinesis-links", () => ({ validateKinesisTargets: mocks.validateKinesisTargets }));
-vi.mock("@/lib/format/server", () => ({ getFormatPreferences: mocks.getFormatPreferences }));
+vi.mock("@/lib/format/server", () => ({ getFormatPreferences: mocks.getFormatPreferences, getToday: mocks.getToday }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
     goal: { findFirst: mocks.goalFindFirst, updateMany: mocks.goalUpdateMany, update: mocks.goalUpdate, create: mocks.goalCreate },
@@ -86,6 +87,7 @@ describe("invalid submissions report an error instead of silently doing nothing"
     mocks.moduleFindFirst.mockResolvedValue({ id: MODULE });
     mocks.financeFindFirst.mockResolvedValue(null);
     mocks.getFormatPreferences.mockResolvedValue(DEFAULT_FORMAT_PREFERENCES);
+    mocks.getToday.mockResolvedValue(new Date("2026-06-15T00:00:00.000Z"));
   });
 
   describe("goals", () => {

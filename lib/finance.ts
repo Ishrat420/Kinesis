@@ -1,4 +1,4 @@
-import { parseDateOnly } from "@/lib/dates";
+import { addUtcMonths, formatDateInput, parseDateOnly } from "@/lib/dates";
 
 export const FINANCE_KINDS = ["asset", "liability", "income", "expense"] as const;
 export const FINANCE_FREQUENCIES = ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Yearly"] as const;
@@ -15,6 +15,10 @@ export type FinanceItem = {
   amount: number;
   category?: string;
   rate?: number;
+  /** KD-044: an optional fixed monthly repayment (liability) or contribution (asset), alongside `rate`. */
+  monthlyContribution?: number;
+  /** KD-044: the day `amount` was last confirmed accurate. Every automatic projection below starts from here. */
+  balanceAsOf?: string;
   frequency?: FinanceFrequency;
   startDate?: string;
   endDate?: string;
@@ -64,11 +68,91 @@ export function getMonthlyCashFlow(items: FinanceItem[], today: Date) {
   return { income, expenses, netCashFlow: income - expenses };
 }
 
-export function getFinanceBalance(items: FinanceItem[]) {
+export type FinanceProjectionEntry = {
+  /** UTC-midnight, as yyyy-mm-dd: the month this interest/contribution was applied. */
+  period: string;
+  interest: number;
+  /** Positive for an asset (added), negative for a liability (paid down). */
+  contribution: number;
+  balance: number;
+};
+
+function wholeMonthsElapsed(start: Date, end: Date): number {
+  let months = 0;
+  while (addUtcMonths(start, months + 1) <= end) months += 1;
+  return months;
+}
+
+/**
+ * KD-044: projects a FinanceItem's balance forward from `balanceAsOf`
+ * (the last confirmed `amount`) to `today`, one whole month at a time,
+ * compounding monthly (`rate` ÷ 12) -- the ticket's "simplest default,"
+ * applied uniformly rather than left per-item.
+ *
+ * Gated on `rate` being set, on both ends: nothing here runs for an item
+ * that never had a rate (unchanged, purely manual, exactly like before this
+ * ticket), and `monthlyContribution` alone -- no rate -- stays inert too,
+ * to keep one on/off switch rather than two independent ones. Income and
+ * expense items have no concept of an accruing balance at all.
+ *
+ * A liability's contribution is a repayment (reduces the balance); an
+ * asset's is a deposit (adds to it). A liability can't go below zero from
+ * an overpayment, and once it reaches zero it stops accruing interest too --
+ * a paid-off loan does not compound.
+ *
+ * Returned entries are the auditable trail: every month applied since the
+ * last confirmation, visible rather than folded into a single opaque
+ * number. Correcting a wrong projection (the real statement disagreed) is
+ * done by editing the item's amount directly, which becomes the new
+ * `balanceAsOf` baseline and starts the trail over -- there is no
+ * persisted ledger row to edit in isolation, by design (see KD-044).
+ */
+export function getFinanceProjection(item: FinanceItem, today: Date): FinanceProjectionEntry[] {
+  if (item.rate === undefined || (item.kind !== "asset" && item.kind !== "liability")) return [];
+  const start = item.balanceAsOf ? parseDateOnly(item.balanceAsOf) : null;
+  if (!start) return [];
+  const months = wholeMonthsElapsed(start, today);
+  if (months <= 0) return [];
+
+  const monthlyRate = item.rate / 100 / 12;
+  const contribution = item.monthlyContribution ?? 0;
+  const entries: FinanceProjectionEntry[] = [];
+  let balance = item.amount;
+  for (let index = 1; index <= months; index += 1) {
+    if (item.kind === "liability" && balance <= 0) break;
+    const interest = balance * monthlyRate;
+    balance = item.kind === "liability"
+      ? Math.max(0, balance + interest - contribution)
+      : balance + interest + contribution;
+    entries.push({
+      period: formatDateInput(addUtcMonths(start, index)),
+      interest,
+      // `-contribution` on a zero contribution is `-0`: harmless in the
+      // arithmetic above, but a display value nobody wants to see.
+      contribution: contribution === 0 ? 0 : item.kind === "liability" ? -contribution : contribution,
+      balance,
+    });
+  }
+  return entries;
+}
+
+/** The item's live current balance: the last projection entry, or `amount` unchanged if nothing has accrued yet. */
+export function getProjectedAmount(item: FinanceItem, today: Date): number {
+  const entries = getFinanceProjection(item, today);
+  return entries.length ? entries[entries.length - 1].balance : item.amount;
+}
+
+/**
+ * `today` defaults so every existing caller -- none of which project
+ * anything, since none of their fixtures carry a `rate` -- keeps working
+ * unchanged; a caller that cares about live balances passes the owner's
+ * actual today explicitly.
+ */
+export function getFinanceBalance(items: FinanceItem[], today: Date = new Date()) {
   const total = (kind: FinanceKind) =>
     items
       .filter((item) => item.kind === kind)
-      .reduce((sum, item) => sum + item.amount, 0);
+      .reduce((sum, item) => sum + getProjectedAmount(item, today), 0);
   const assets = total("asset");
   const liabilities = total("liability");
 

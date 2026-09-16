@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   getFinanceBalance,
+  getFinanceProjection,
   getMonthlyCashFlow,
+  getProjectedAmount,
   isCalendarDate,
   isFinanceFrequency,
   isFinanceKind,
@@ -48,6 +50,102 @@ describe("getFinanceBalance: net worth from assets and liabilities", () => {
     ]);
 
     expect(balance.netWorth).toBe(-35_000);
+  });
+});
+
+/**
+ * KD-044: an asset/liability with a `rate` finally has something read it --
+ * the balance projects forward from `balanceAsOf`, one whole month at a
+ * time, compounding monthly.
+ */
+describe("getFinanceProjection: KD-044 automatic interest/repayment arithmetic", () => {
+  const asset = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "a", name: "Savings", kind: "asset", amount: 10_000, ...overrides });
+  const liability = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "l", name: "Loan", kind: "liability", amount: 10_000, ...overrides });
+
+  it("projects nothing for an item with no rate", () => {
+    expect(getFinanceProjection(asset({ balanceAsOf: "2026-01-01" }), new Date("2026-06-01"))).toEqual([]);
+  });
+
+  it("projects nothing for income or expense, even if a rate somehow got set", () => {
+    const item = { id: "i", name: "Salary", kind: "income" as const, amount: 5_000, rate: 5, balanceAsOf: "2026-01-01" };
+    expect(getFinanceProjection(item, new Date("2026-06-01"))).toEqual([]);
+  });
+
+  it("projects nothing without a recorded balanceAsOf", () => {
+    expect(getFinanceProjection(asset({ rate: 6 }), new Date("2026-06-01"))).toEqual([]);
+  });
+
+  it("projects nothing before a whole month has elapsed", () => {
+    const item = asset({ rate: 6, balanceAsOf: "2026-01-01" });
+    expect(getFinanceProjection(item, new Date("2026-01-20"))).toEqual([]);
+  });
+
+  it("compounds a liability's interest monthly, with no payment", () => {
+    const item = liability({ amount: 1_200, rate: 12, balanceAsOf: "2026-01-01" });
+    const entries = getFinanceProjection(item, new Date("2026-03-01"));
+    // 1% monthly (12% p.a. / 12): 1200 -> 1212 -> 1224.12. The second month's
+    // interest (1212 * 0.01) doesn't land on an exact float, so it's checked
+    // to the cent rather than by strict equality.
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toEqual({ period: "2026-02-01", interest: 12, contribution: 0, balance: 1_212 });
+    expect(entries[1].period).toBe("2026-03-01");
+    expect(entries[1].contribution).toBe(0);
+    expect(entries[1].interest).toBeCloseTo(12.12, 10);
+    expect(entries[1].balance).toBeCloseTo(1_224.12, 10);
+  });
+
+  it("reduces a liability's balance by its fixed monthly payment, after that month's interest", () => {
+    const item = liability({ amount: 1_200, rate: 12, monthlyContribution: 500, balanceAsOf: "2026-01-01" });
+    const entries = getFinanceProjection(item, new Date("2026-02-01"));
+    expect(entries).toEqual([{ period: "2026-02-01", interest: 12, contribution: -500, balance: 712 }]);
+  });
+
+  it("stops accruing interest once a liability is paid off, rather than going negative", () => {
+    const item = liability({ amount: 500, rate: 12, monthlyContribution: 500, balanceAsOf: "2026-01-01" });
+    const entries = getFinanceProjection(item, new Date("2026-04-01"));
+    // Month 1: 500 + 5 interest - 500 payment = 5, clamped to a positive remainder.
+    // Month 2: 5 + 0.05 - 500 would go negative, clamped to 0.
+    // Month 3: already at 0, so no further entry is generated at all.
+    expect(entries).toEqual([
+      { period: "2026-02-01", interest: 5, contribution: -500, balance: 5 },
+      { period: "2026-03-01", interest: 0.05, contribution: -500, balance: 0 },
+    ]);
+  });
+
+  it("grows an asset by interest plus any monthly contribution", () => {
+    const item = asset({ amount: 10_000, rate: 6, monthlyContribution: 200, balanceAsOf: "2026-01-01" });
+    const entries = getFinanceProjection(item, new Date("2026-02-01"));
+    // 0.5% monthly (6% p.a. / 12) of 10,000 = 50, plus a 200 contribution.
+    expect(entries).toEqual([{ period: "2026-02-01", interest: 50, contribution: 200, balance: 10_250 }]);
+  });
+
+  it("clamps the projected month to the target month's length rather than rolling over", () => {
+    const item = asset({ amount: 1_000, rate: 12, balanceAsOf: "2026-01-31" });
+    const entries = getFinanceProjection(item, new Date("2026-03-01"));
+    expect(entries[0].period).toBe("2026-02-28");
+  });
+
+  describe("getProjectedAmount", () => {
+    it("returns the confirmed amount unchanged when nothing has accrued yet", () => {
+      expect(getProjectedAmount(asset({ amount: 5_000 }), new Date("2026-06-01"))).toBe(5_000);
+      expect(getProjectedAmount(asset({ amount: 5_000, rate: 6, balanceAsOf: "2026-06-01" }), new Date("2026-06-01"))).toBe(5_000);
+    });
+
+    it("returns the balance from the last projected month", () => {
+      const item = liability({ amount: 1_200, rate: 12, balanceAsOf: "2026-01-01" });
+      expect(getProjectedAmount(item, new Date("2026-03-01"))).toBeCloseTo(1_224.12, 10);
+    });
+  });
+
+  it("feeds getFinanceBalance's totals, so net worth reflects live balances too", () => {
+    const items = [
+      liability({ amount: 1_200, rate: 12, balanceAsOf: "2026-01-01" }),
+      asset({ amount: 10_000, rate: 6, monthlyContribution: 200, balanceAsOf: "2026-01-01" }),
+    ];
+    const balance = getFinanceBalance(items, new Date("2026-02-01"));
+    expect(balance).toEqual({ assets: 10_250, liabilities: 1_212, netWorth: 10_250 - 1_212 });
   });
 });
 

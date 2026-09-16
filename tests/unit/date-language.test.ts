@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addUtcDays,
+  addUtcMonths,
   formatActivityTime,
   formatAgendaDate,
   formatCalendarDate,
@@ -30,6 +31,14 @@ describe("universal date language", () => {
     expect(formatDateInput(new Date("2026-02-03T23:59:59.000Z"))).toBe("2026-02-03");
     expect(formatDateInput(addUtcDays("2026-03-01", -1))).toBe("2026-02-28");
     expect(() => addUtcDays("2026-03-01", 0.5)).toThrow(RangeError);
+  });
+
+  it("adds whole calendar months, clamping the day rather than rolling into the month after", () => {
+    expect(formatDateInput(addUtcMonths("2026-01-31", 1))).toBe("2026-02-28");
+    expect(formatDateInput(addUtcMonths("2024-01-31", 1))).toBe("2024-02-29");
+    expect(formatDateInput(addUtcMonths("2026-01-15", 2))).toBe("2026-03-15");
+    expect(formatDateInput(addUtcMonths("2026-03-31", -1))).toBe("2026-02-28");
+    expect(() => addUtcMonths("2026-01-01", 1.5)).toThrow(RangeError);
   });
 
   it("uses consistent deadline language", () => {

@@ -5,6 +5,7 @@ import { addActivity } from "@/lib/data/activity";
 import { isCalendarDate, isFinanceFrequency, isFinanceKind } from "@/lib/finance";
 import type { FinanceFrequency, FinanceItem, FinanceKind } from "@/lib/finance";
 import { parseDateOnly } from "@/lib/dates";
+import { getToday } from "@/lib/format/server";
 import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
@@ -48,6 +49,7 @@ function validate(item: FinanceItem): string | null {
   if (typeof item.amount !== "number" || !Number.isFinite(item.amount)) return "Enter the amount as a number.";
   if (item.amount < 0) return "The amount cannot be negative.";
   if (item.rate !== undefined && (!Number.isFinite(item.rate) || item.rate < 0)) return "Enter the rate as a positive number.";
+  if (item.monthlyContribution !== undefined && (!Number.isFinite(item.monthlyContribution) || item.monthlyContribution < 0)) return "Enter the monthly amount as a positive number.";
   if (item.category !== undefined && item.category.length > 60) return "Keep the category under 60 characters.";
 
   const recurring = item.kind === "income" || item.kind === "expense";
@@ -65,7 +67,13 @@ export async function saveFinanceItem(item: FinanceItem, updated: boolean): Prom
   const error = validate(item);
   if (error) return { error };
   const name = item.name.trim();
-  const data = { kind: item.kind, name, amount: item.amount, category: item.category?.trim() || null, rate: item.rate ?? null, frequency: item.frequency || null, startDate: date(item.startDate), endDate: date(item.endDate), notes: item.notes?.trim() || null };
+  // KD-044: today becomes the new `balanceAsOf` on every save, not just one
+  // that changes `amount` -- the amount the form submits is always the
+  // owner's current confirmed number by construction (it was either typed
+  // fresh or accepted as prefilled from the live projection), so there is
+  // no case where "the number didn't change" should mean "don't restart the
+  // accrual clock." See getFinanceProjection in lib/finance.ts.
+  const data = { kind: item.kind, name, amount: item.amount, category: item.category?.trim() || null, rate: item.rate ?? null, monthlyContribution: item.monthlyContribution ?? null, balanceAsOf: await getToday(), frequency: item.frequency || null, startDate: date(item.startDate), endDate: date(item.endDate), notes: item.notes?.trim() || null };
   const existing = await prisma.financeItem.findFirst({ where: { id: item.id, userId: user.id }, select: { id: true } });
   if (existing) await prisma.financeItem.update({ where: { id: item.id }, data });
   else await prisma.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });
@@ -107,6 +115,8 @@ function financeItemFrom(kind: FinanceKind, existingId: string | null, formData:
     item.category = value("category");
     const rate = value("rate");
     if (rate !== "") item.rate = Number(rate);
+    const monthlyContribution = value("monthlyContribution");
+    if (monthlyContribution !== "") item.monthlyContribution = Number(monthlyContribution);
   }
   return item;
 }

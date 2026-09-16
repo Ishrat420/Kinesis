@@ -14,6 +14,8 @@ export async function getFinanceItems(): Promise<FinanceItem[]> {
     amount: item.amount,
     category: item.category ?? undefined,
     rate: item.rate ?? undefined,
+    monthlyContribution: item.monthlyContribution ?? undefined,
+    balanceAsOf: item.balanceAsOf.toISOString().slice(0, 10),
     frequency: item.frequency as FinanceFrequency | undefined,
     startDate: item.startDate?.toISOString().slice(0, 10),
     endDate: item.endDate?.toISOString().slice(0, 10),
