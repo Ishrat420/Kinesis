@@ -175,6 +175,148 @@ own query:
   wherever the old five already agreed, and explicitly document/approve
   every place they didn't) is realistic and should gate the change.
 
+### Implementation Phases
+
+A code survey (reading all five functions in full, not just their intent)
+turned up eight concrete disagreements between them, cited below by
+file:line. Some are bugs (nobody chose the inconsistency, it just
+happened); some are real product decisions (both behaviors are
+defensible, but the five currently disagree). Unifying without telling
+these apart first is how a "read-only, low-risk" refactor quietly ships a
+product change. Phases are ordered so each is independently shippable and
+revertable, and so the highest-risk piece (the bell) is deliberately last,
+per the risk assessment above.
+
+#### Phase 0 — Resolve the disagreements (decisions, no code)
+
+Three of the eight are genuine product calls that need a yes/no before
+Phase 1 can pick one behavior to implement:
+
+* **Should "overdue" ever disappear when reminders are turned off?**
+  Currently inconsistent: `getNeedsAttention` never checks
+  `remindersEnabled` (overdue always shows); `getUpcomingAndDue` hides
+  overdue milestones/custom items entirely when it's off
+  (`lib/data/upcoming.ts:94,140`); `collectNotifications` does the same
+  for the same two types (`lib/notifications/engine.ts:327,333-335,338`,
+  which its own comment at lines 154-171 already flags as "a known,
+  separately-tracked inconsistency"). Documents and todos never hide
+  their overdue phase, by design (`upcoming.ts:115-120`: "due and overdue
+  are statements of fact"). **Leaning:** extend that same reasoning to
+  milestones and custom items — reminders-off should only ever suppress
+  advance notice, never a fact that's already true.
+* **Should the StatsGrid Milestones tile start counting overdue
+  milestones?** It's the only one of the four milestone-aware functions
+  that excludes them by design (`lib/goals/milestone-window.ts:52-55`:
+  "Overdue is never filtered... the tile does not count it either",
+  enforced by the two-sided window at `lib/data/goals.ts:144`). Needs Attention, Upcoming & Due, and the bell all include overdue milestones. **Leaning:**
+  keep the tile's current scope — it's documented, deliberate design, not
+  drift — but this means the shared list's consumers need a raw date to
+  filter on, not just a precomputed status, since this is the one place
+  that needs an unusual filter.
+* **Where does "the due date itself" fall — due-soon or already
+  overdue?** Three different answers today for milestones/custom
+  items/todos: `getNeedsAttention` says not yet overdue (strict `<`,
+  `lib/data/attention.ts:25,26,29`); `getUpcomingAndDue` says due-soon
+  for milestones/custom items but already-actionable for todos
+  (`lib/data/upcoming.ts:99,150` vs `125-127`); `collectNotifications`
+  says already overdue for all three (`>=`,
+  `lib/notifications/engine.ts:79,141-143,182`). Documents are the one
+  type all three already agree on (expiry day itself isn't expired yet).
+  **Leaning:** standardize on the bell's convention (due date itself =
+  overdue) for the other three, since it's the most recently written and
+  most carefully commented of the three.
+
+Two more are bugs to just fix while building Phase 1, not decisions:
+
+* `activeGoalWhere(now)` is called with the raw, time-of-day-bearing `now`
+  instead of the precomputed midnight `today` in two of five places
+  (`lib/data/attention.ts:25`, `lib/data/upcoming.ts:46`) — everywhere
+  else (`lib/data/goals.ts:109,145,158`, `lib/notifications/engine.ts:283`)
+  passes `today` correctly. Can make a goal due exactly today flicker out
+  of two of the five lists for part of the day.
+* `collectNotifications` resolves "today" through its own
+  settings-fetch-and-compute path (`lib/notifications/engine.ts:263-270`)
+  instead of the shared, `cache()`-wrapped `getToday()` the other four
+  use (`lib/format/server.ts:34-36`) — same formula, duplicated code,
+  and not deduped against the others within one request.
+
+The remaining two (differing sort orders per consumer; `getExpiringDocuments`
+never checking dismissals the way documents everywhere else do) aren't
+decisions — sort stays a per-consumer, presentation-layer concern over
+the shared list, and the missing dismissal check is just absorbed once
+that consumer moves onto the shared, dismissal-aware layer.
+
+**Deliverable:** this section, above, edited to record whatever was
+actually decided (not just "leaning"), before Phase 1 starts.
+
+#### Phase 1 — Build the shared data layer
+
+One new function (e.g. `lib/data/attention-items.ts`) covering documents,
+milestones, todos, relationships, and custom items — not finance yet
+(matches every existing consumer's scope; Finance joins later per the
+Summary above, once its own overhaul lands). Returns one row per item
+carrying whatever the Phase 0 decisions and every current consumer
+actually need: module/kind, id, title, href, the raw date (for the
+Milestones-tile-style exclusion), and a computed `status`
+(`overdue`/`due-soon`/`fine`) using the Phase 0 boundary decisions. Fixes
+the two bugs above while building it — one canonical `getToday()` call,
+`activeGoalWhere(today)` everywhere.
+
+No consumer is touched yet. Ship this phase as passing unit tests against
+hand-built fixtures that exercise each Phase 0 decision explicitly (the
+ticket's own "verifiable before shipping" plan above) — proof the new
+function does what Phase 0 decided, independent of anything downstream.
+
+#### Phase 2 — Migrate the four stateless consumers, one at a time
+
+Each of these is its own small, revertable change: swap the old query for
+a filter over the Phase 1 list, keep the component's own props/JSX
+untouched, run the suite, check the dashboard, ship, move on.
+
+1. **Needs Attention card** (`components/dashboard/NeedsAttentionCard.tsx`,
+   via `app/(app)/page.tsx:25`) — filter `status === "overdue"`, scoped to
+   `getNeedsAttention`'s current module set.
+2. **Upcoming & Due** (`components/dashboard/ReminderList.tsx`) — filter
+   `status !== "fine"`, scoped to `getUpcomingAndDue`'s module set (the
+   only one that includes relationships). Also fix the accidental double
+   fetch while here — `app/(app)/page.tsx:21` and
+   `components/dashboard/ModuleGrid.tsx:19` each call the old function
+   independently today; wrapping the new shared function in React's
+   `cache()` collapses both to one query per request.
+3. **StatsGrid "Expiring soon" tile + `/documents/expiring-soon`**
+   (`components/dashboard/StatsGrid.tsx:14`,
+   `app/(app)/documents/expiring-soon/page.tsx`) — filter
+   `kind === "document"`. Picks up dismissal-awareness this consumer
+   never had (§G above) and the Phase 0 reminders-off decision, both for
+   the first time — call out any visible count/list change this causes
+   explicitly when shipping this step.
+4. **StatsGrid "Milestones" tile + `/goals/milestones/due-soon`**
+   (`components/dashboard/StatsGrid.tsx:16`,
+   `app/(app)/goals/milestones/due-soon/page.tsx`) — filter
+   `kind === "milestone"` plus whichever date-window rule Phase 0 settled
+   on for this one deliberately-different tile.
+
+#### Phase 3 — Notification bell (deliberately last)
+
+Teach `collectNotifications` to source its candidate records from the
+Phase 1 shared query, so it stops being a sixth, separately-maintained
+implementation of "what's due" — but leave its own type derivation
+(`REMINDER_DUE`/`EXPIRED`/`MILESTONE_DUE`/etc.), the `notificationKey`
+scheme (`lib/notifications/identity.ts:38-46`), and the `NotificationRead`
+dedup table completely untouched. Only which rows feed it changes, never
+how it decides what's already been seen. Needs its own before/after
+snapshot test asserting every existing key still resolves identically —
+a changed key silently un-reads something a real user already dismissed.
+
+#### Phase 4 — Cleanup (once 1–3 are shipped and stable)
+
+Delete the five original functions once nothing calls them. Everything
+past this point is optional/deferred, not blocking: a `/custom-modules/due-soon`
+list page (documents/milestones already set the precedent), whether
+Relationships or Finance ever get their own "due soon" list page, and
+revisiting KD-011's open question ("does this replace or expand Upcoming
+& Due") now that the data underneath is unified either way.
+
 ### Related
 
 - KD-011 (Unified To-Do View) approaches a similar aggregation from the UI
