@@ -171,6 +171,7 @@ KD-017-turn-dashboard-into-decision-surface
 KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 KD-045-mobile-add-custom-module-to-dashboard
+KD-046-order-milestones-by-due-date
 
 ## ✓ Accepted
 
