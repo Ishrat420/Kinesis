@@ -142,6 +142,39 @@ export function getProjectedAmount(item: FinanceItem, today: Date): number {
   return entries.length ? entries[entries.length - 1].balance : item.amount;
 }
 
+/** "1st", "2nd", "3rd", "4th", ... -- for naming the recurring day interest lands on. */
+function ordinal(day: number): string {
+  if (day % 100 >= 11 && day % 100 <= 13) return `${day}th`;
+  return `${day}${["th", "st", "nd", "rd"][day % 10] ?? "th"}`;
+}
+
+/**
+ * The day of the month interest lands on, in words ("the 15th"), for an item
+ * with automatic arithmetic switched on. Fixed by `balanceAsOf` and never
+ * changes month to month, even though the actual date it clamps to might
+ * (the 31st lands on the 28th/29th in February) -- see `getNextInterestDate`
+ * for that concrete next date.
+ */
+export function getInterestDayLabel(item: FinanceItem): string | undefined {
+  if (item.rate === undefined || (item.kind !== "asset" && item.kind !== "liability")) return undefined;
+  const start = item.balanceAsOf ? parseDateOnly(item.balanceAsOf) : null;
+  return start ? `the ${ordinal(start.getUTCDate())}` : undefined;
+}
+
+/**
+ * The next concrete date interest will be applied, for "so I know when to
+ * expect it" display next to a projected balance. `undefined` once a
+ * liability is fully paid off -- getFinanceProjection stops compounding
+ * there too, so there is no next application to name.
+ */
+export function getNextInterestDate(item: FinanceItem, today: Date): string | undefined {
+  if (item.rate === undefined || (item.kind !== "asset" && item.kind !== "liability")) return undefined;
+  const start = item.balanceAsOf ? parseDateOnly(item.balanceAsOf) : null;
+  if (!start) return undefined;
+  if (item.kind === "liability" && getProjectedAmount(item, today) <= 0) return undefined;
+  return formatDateInput(addUtcMonths(start, wholeMonthsElapsed(start, today) + 1));
+}
+
 /**
  * `today` defaults so every existing caller -- none of which project
  * anything, since none of their fixtures carry a `rate` -- keeps working

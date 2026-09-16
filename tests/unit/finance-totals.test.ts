@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   getFinanceBalance,
   getFinanceProjection,
+  getInterestDayLabel,
   getMonthlyCashFlow,
+  getNextInterestDate,
   getProjectedAmount,
   isCalendarDate,
   isFinanceFrequency,
@@ -146,6 +148,44 @@ describe("getFinanceProjection: KD-044 automatic interest/repayment arithmetic",
     ];
     const balance = getFinanceBalance(items, new Date("2026-02-01"));
     expect(balance).toEqual({ assets: 10_250, liabilities: 1_212, netWorth: 10_250 - 1_212 });
+  });
+});
+
+/** "So I know when to expect it": the day-of-month label and the next concrete date, shown on the card and in the edit form. */
+describe("getInterestDayLabel and getNextInterestDate", () => {
+  const asset = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "a", name: "Savings", kind: "asset", amount: 10_000, ...overrides });
+  const liability = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "l", name: "Loan", kind: "liability", amount: 10_000, ...overrides });
+
+  it("names the ordinal day of the month interest was confirmed on", () => {
+    expect(getInterestDayLabel(asset({ rate: 6, balanceAsOf: "2026-09-01" }))).toBe("the 1st");
+    expect(getInterestDayLabel(asset({ rate: 6, balanceAsOf: "2026-09-02" }))).toBe("the 2nd");
+    expect(getInterestDayLabel(asset({ rate: 6, balanceAsOf: "2026-09-03" }))).toBe("the 3rd");
+    expect(getInterestDayLabel(asset({ rate: 6, balanceAsOf: "2026-09-11" }))).toBe("the 11th");
+    expect(getInterestDayLabel(asset({ rate: 6, balanceAsOf: "2026-09-15" }))).toBe("the 15th");
+    expect(getInterestDayLabel(asset({ rate: 6, balanceAsOf: "2026-09-21" }))).toBe("the 21st");
+  });
+
+  it("names nothing for an item with no rate, or no confirmed date yet", () => {
+    expect(getInterestDayLabel(asset({ balanceAsOf: "2026-09-15" }))).toBeUndefined();
+    expect(getInterestDayLabel(asset({ rate: 6 }))).toBeUndefined();
+  });
+
+  it("finds the next occurrence of that day, clamped to the month's length", () => {
+    expect(getNextInterestDate(asset({ rate: 6, balanceAsOf: "2026-01-31" }), new Date("2026-02-10"))).toBe("2026-02-28");
+    expect(getNextInterestDate(liability({ rate: 6, balanceAsOf: "2026-09-15" }), new Date("2026-09-20"))).toBe("2026-10-15");
+  });
+
+  it("stops naming a next date once a liability has been fully paid off", () => {
+    const item = liability({ amount: 100, rate: 12, monthlyContribution: 500, balanceAsOf: "2026-01-01" });
+    // One month at 1% interest and a 500 payment clears a 100 balance outright.
+    expect(getNextInterestDate(item, new Date("2026-06-01"))).toBeUndefined();
+  });
+
+  it("keeps naming a next date for a growing asset, which never pays off", () => {
+    const item = asset({ amount: 10_000, rate: 6, balanceAsOf: "2026-01-01" });
+    expect(getNextInterestDate(item, new Date("2026-06-01"))).toBe("2026-07-01");
   });
 });
 
