@@ -313,22 +313,34 @@ a filter over the Phase 1 list, keep the component's own props/JSX
 untouched, run the suite, check the dashboard, ship, move on.
 
 1. **Needs Attention card** (`components/dashboard/NeedsAttentionCard.tsx`,
-   via `app/(app)/page.tsx:25`) — filter `status === "overdue"`, scoped to
-   `getNeedsAttention`'s current module set.
-2. **Upcoming & Due** (`components/dashboard/ReminderList.tsx`) — filter
-   `status !== "fine"`, scoped to `getUpcomingAndDue`'s module set (the
-   only one that includes relationships). Also fix the accidental double
-   fetch while here — `app/(app)/page.tsx:21` and
-   `components/dashboard/ModuleGrid.tsx:19` each call the old function
-   independently today; wrapping the new shared function in React's
-   `cache()` collapses both to one query per request.
+   via `app/(app)/page.tsx:25`, done) — `getNeedsAttention`
+   (`lib/data/attention.ts`) now filters `getAttentionRecords` through
+   `isOverdueForNeedsAttention`. Component and `AttentionItem` shape
+   unchanged; picks up the `activeGoalWhere` fix.
+2. **Upcoming & Due** (`components/dashboard/ReminderList.tsx`, done) —
+   `getUpcomingAndDue` (`lib/data/upcoming.ts`) now filters through the
+   per-kind phase functions and is wrapped in React's `cache()`, fixing
+   the accidental double fetch (`app/(app)/page.tsx:21` and
+   `components/dashboard/ModuleGrid.tsx:19` both called the old function
+   independently). Also fixes the reminders-off bug Phase 0 found: an
+   overdue milestone/custom item no longer disappears when
+   `remindersEnabled` is off.
 3. **StatsGrid "Expiring soon" tile + `/documents/expiring-soon`**
    (`components/dashboard/StatsGrid.tsx:14`,
-   `app/(app)/documents/expiring-soon/page.tsx`) — filter
-   `kind === "document"`. Picks up dismissal-awareness this consumer
-   never had (§G above) and the Phase 0 reminders-off decision, both for
-   the first time — call out any visible count/list change this causes
-   explicitly when shipping this step.
+   `app/(app)/documents/expiring-soon/page.tsx`, done) —
+   `getExpiringDocuments` now classifies through the shared
+   `documentUpcomingPhase` instead of its own copy of the same expiry
+   math. Revised from the original plan below, now that Phase 0 was
+   reconciled against ADR-010: this tile's `remindersEnabled`-ignoring
+   behaviour is confirmed intended (ADR-010 line 40) and preserved
+   exactly (`remindersEnabled` passed as `true` unconditionally, not
+   read from settings), and dismissal-awareness was deliberately **not**
+   added — this is a reference listing, not a "what needs me right now"
+   surface, and whether a dashboard dismissal should also hide a
+   document here is a product decision of its own, not a side effect of
+   a data-layer migration. No visible behaviour change; see
+   `lib/data/documents.ts` and
+   `tests/integration/documents/expiring-soon.test.ts`.
 4. **StatsGrid "Milestones" tile + `/goals/milestones/due-soon`**
    (`components/dashboard/StatsGrid.tsx:16`,
    `app/(app)/goals/milestones/due-soon/page.tsx`) — filter
