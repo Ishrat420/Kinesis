@@ -3,6 +3,7 @@ import {
   getFinanceBalance,
   getFinanceProjection,
   getInterestDayLabel,
+  getLiabilityHealth,
   getMonthlyCashFlow,
   getNextInterestDate,
   getProjectedAmount,
@@ -186,6 +187,45 @@ describe("getInterestDayLabel and getNextInterestDate", () => {
   it("keeps naming a next date for a growing asset, which never pays off", () => {
     const item = asset({ amount: 10_000, rate: 6, balanceAsOf: "2026-01-01" });
     expect(getNextInterestDate(item, new Date("2026-06-01"))).toBe("2026-07-01");
+  });
+});
+
+/**
+ * KD-044 Part B, scoped to the one case with a real yes/no answer: is a
+ * liability's fixed monthly payment actually outpacing its interest?
+ */
+describe("getLiabilityHealth", () => {
+  const asset = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "a", name: "Savings", kind: "asset", amount: 10_000, ...overrides });
+  const liability = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "l", name: "Loan", kind: "liability", amount: 10_000, rate: 6, monthlyContribution: 200, balanceAsOf: "2026-06-01", ...overrides });
+  const today = new Date("2026-06-01");
+
+  it("is ON TRACK when the payment exceeds this month's interest", () => {
+    // 6% p.a. monthly on 10,000 is 50; a 200 payment comfortably outpaces it.
+    expect(getLiabilityHealth(liability(), today)).toEqual({ status: "ON TRACK", monthlyInterest: 50, payment: 200 });
+  });
+
+  it("is AT RISK when the payment doesn't cover this month's interest", () => {
+    expect(getLiabilityHealth(liability({ monthlyContribution: 30 }), today)).toEqual({ status: "AT RISK", monthlyInterest: 50, payment: 30 });
+  });
+
+  it("is AT RISK, not ON TRACK, when the payment exactly matches interest -- it would never pay off", () => {
+    expect(getLiabilityHealth(liability({ monthlyContribution: 50 }), today)?.status).toBe("AT RISK");
+  });
+
+  it("has nothing to say about an asset -- there is no payoff to be at risk of missing", () => {
+    expect(getLiabilityHealth(asset({ rate: 6, monthlyContribution: 200 }), today)).toBeUndefined();
+  });
+
+  it("has nothing to say about a liability with no rate, or no monthly payment set", () => {
+    expect(getLiabilityHealth(liability({ rate: undefined }), today)).toBeUndefined();
+    expect(getLiabilityHealth(liability({ monthlyContribution: undefined }), today)).toBeUndefined();
+  });
+
+  it("has nothing to say once the liability is already paid off", () => {
+    const paidOff = liability({ amount: 100, monthlyContribution: 500, balanceAsOf: "2026-01-01" });
+    expect(getLiabilityHealth(paidOff, new Date("2026-06-01"))).toBeUndefined();
   });
 });
 

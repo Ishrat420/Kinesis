@@ -175,6 +175,32 @@ export function getNextInterestDate(item: FinanceItem, today: Date): string | un
   return formatDateInput(addUtcMonths(start, wholeMonthsElapsed(start, today) + 1));
 }
 
+export type FinanceLiabilityHealth = {
+  status: "ON TRACK" | "AT RISK";
+  monthlyInterest: number;
+  payment: number;
+};
+
+/**
+ * KD-044 Part B, scoped down to the one case that has a real yes/no answer
+ * without inventing a target Finance doesn't have: a liability with a fixed
+ * monthly payment is structurally a payoff goal, and whether it's converging
+ * depends on nothing else -- does the payment cover this month's interest?
+ *
+ * `undefined` whenever there's nothing to evaluate: an asset has no payoff
+ * to be at risk of missing (it only grows); a liability with no monthly
+ * payment has no plan to assess; one already paid off has nothing left to
+ * track. Reuses Goals' ON TRACK / AT RISK vocabulary (lib/goals/health.ts)
+ * rather than inventing a second one for the same kind of question.
+ */
+export function getLiabilityHealth(item: FinanceItem, today: Date): FinanceLiabilityHealth | undefined {
+  if (item.kind !== "liability" || item.rate === undefined || !item.monthlyContribution) return undefined;
+  const balance = getProjectedAmount(item, today);
+  if (balance <= 0) return undefined;
+  const monthlyInterest = balance * (item.rate / 100 / 12);
+  return { status: item.monthlyContribution > monthlyInterest ? "ON TRACK" : "AT RISK", monthlyInterest, payment: item.monthlyContribution };
+}
+
 /**
  * `today` defaults so every existing caller -- none of which project
  * anything, since none of their fixtures carry a `rate` -- keeps working
