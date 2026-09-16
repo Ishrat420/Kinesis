@@ -18,8 +18,10 @@ import {
   getInterestDayLabel,
   getLiabilityHealth,
   getMonthlyCashFlow,
+  getMonthsToPayoff,
   getNextInterestDate,
   getProjectedAmount,
+  MAX_PAYOFF_MONTHS,
 } from "@/lib/finance";
 import { formatDate } from "@/lib/dates";
 import { deleteFinanceItemAction, saveFinanceItemAction, type FinanceActionState } from "@/app/(app)/finance/actions";
@@ -119,7 +121,7 @@ function ItemSection({ title, subtitle, icon: Icon, items, onEdit, onDelete, tod
 /** Rounded to cents for a number input's defaultValue -- the projection itself stays exact. */
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 
-function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: FinanceItem | null; onSaved: () => void; today: Date }) { const router = useRouter(); const [state, formAction, saving] = useActionState(saveFinanceItemAction.bind(null, kind, item?.id ?? null), initialState); const error = state.error ?? null; useEffect(() => { if (state.saved) { router.refresh(); onSaved(); } }, [state.saved, router, onSaved]); const balance = kind === "liability"; const recurring = kind === "income" || kind === "expense"; const categories = balance ? LIABILITY_CATEGORIES : ASSET_CATEGORIES; const projection = item ? getFinanceProjection(item, today) : []; const defaultAmount = item ? roundMoney(getProjectedAmount(item, today)) : undefined; const interestDay = item ? getInterestDayLabel(item) : undefined; const health = item ? getLiabilityHealth(item, today) : undefined; return <form action={formAction} className="mt-6 space-y-4"><Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field><Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required defaultValue={defaultAmount} className="input pl-8"/></div></Field>{!recurring ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" defaultValue={item?.rate} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field></div><Field label={balance ? "Monthly payment" : "Monthly contribution"}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="monthlyContribution" type="number" min="0" step="0.01" defaultValue={item?.monthlyContribution} placeholder="Optional" className="input pl-8"/></div></Field>{interestDay && <p className="text-xs text-zinc-400">Interest added monthly on {interestDay}.</p>}{health && <FinanceHealthBadge health={health}/>}<FinanceProjectionHistory entries={projection} balance={balance}/></> : <><Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field><div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div></>}<Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>{error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}<button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button></form>; }
+function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: FinanceItem | null; onSaved: () => void; today: Date }) { const router = useRouter(); const [state, formAction, saving] = useActionState(saveFinanceItemAction.bind(null, kind, item?.id ?? null), initialState); const error = state.error ?? null; useEffect(() => { if (state.saved) { router.refresh(); onSaved(); } }, [state.saved, router, onSaved]); const balance = kind === "liability"; const recurring = kind === "income" || kind === "expense"; const categories = balance ? LIABILITY_CATEGORIES : ASSET_CATEGORIES; const projection = item ? getFinanceProjection(item, today) : []; const defaultAmount = item ? roundMoney(getProjectedAmount(item, today)) : undefined; const interestDay = item ? getInterestDayLabel(item) : undefined; const health = item ? getLiabilityHealth(item, today) : undefined; const monthsToPayoff = item ? getMonthsToPayoff(item, today) : undefined; return <form action={formAction} className="mt-6 space-y-4"><Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field><Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required defaultValue={defaultAmount} className="input pl-8"/></div></Field>{!recurring ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" defaultValue={item?.rate} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field></div><Field label={balance ? "Monthly payment" : "Monthly contribution"}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="monthlyContribution" type="number" min="0" step="0.01" defaultValue={item?.monthlyContribution} placeholder="Optional" className="input pl-8"/></div></Field>{interestDay && <p className="text-xs text-zinc-400">Interest added monthly on {interestDay}.</p>}{health && <FinanceHealthBadge health={health} monthsToPayoff={monthsToPayoff}/>}<FinanceProjectionHistory entries={projection} balance={balance}/></> : <><Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field><div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div></>}<Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>{error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}<button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button></form>; }
 
 /**
  * KD-044 Part B: is the fixed monthly payment actually paying this liability
@@ -128,15 +130,33 @@ function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: Finance
  * one for the same kind of question. Edit-only for now -- not shown on the
  * list row.
  */
-function FinanceHealthBadge({ health }: { health: NonNullable<ReturnType<typeof getLiabilityHealth>> }) {
+/** "1 year, 8 months" -- whole months only, since the model never steps in anything finer than a month. */
+function formatPayoffDuration(months: number): string {
+  if (months >= MAX_PAYOFF_MONTHS) return "more than 100 years";
+  const years = Math.floor(months / 12);
+  const remainder = months % 12;
+  const parts = [
+    years ? `${years} year${years === 1 ? "" : "s"}` : "",
+    remainder ? `${remainder} month${remainder === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "less than a month";
+}
+
+function FinanceHealthBadge({ health, monthsToPayoff }: { health: NonNullable<ReturnType<typeof getLiabilityHealth>>; monthsToPayoff?: number }) {
   const money = useMoney();
   const atRisk = health.status === "AT RISK";
+  const netChange = health.payment - health.monthlyInterest;
+  // A payment and its interest can land a fraction of a cent apart without
+  // actually being different, so "exactly flat" is a tolerance, not `=== 0`.
+  const flat = Math.abs(netChange) < 0.005;
   return <div className={`rounded-2xl border p-4 ${atRisk ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
     <p className={`text-xs font-semibold uppercase tracking-[0.1em] ${atRisk ? "text-amber-700" : "text-emerald-700"}`}>{health.status}</p>
     <p className={`mt-1.5 text-sm leading-5 ${atRisk ? "text-amber-800" : "text-emerald-800"}`}>
-      {atRisk
-        ? <>Your {money(health.payment)} payment doesn&apos;t cover this month&apos;s {money(health.monthlyInterest)} interest — the balance will grow instead of shrink.</>
-        : <>Your {money(health.payment)} payment covers this month&apos;s {money(health.monthlyInterest)} interest, so the balance is going down.</>}
+      {flat
+        ? <>This debt will stay exactly the same each month, your {money(health.payment)} payment only covers the {money(health.monthlyInterest)} in interest that&apos;s accruing. At this rate, it will never be paid off.</>
+        : atRisk
+        ? <>This debt will grow by about {money(-netChange)} this month, your {money(health.payment)} payment doesn&apos;t cover the {money(health.monthlyInterest)} in interest that&apos;s accruing. At this rate, it will never be paid off.</>
+        : <>This debt will shrink by about {money(netChange)} this month, your {money(health.payment)} payment covers the {money(health.monthlyInterest)} in interest. At this rate, it will take about {monthsToPayoff !== undefined ? formatPayoffDuration(monthsToPayoff) : "a while"} to pay off.</>}
     </p>
   </div>;
 }

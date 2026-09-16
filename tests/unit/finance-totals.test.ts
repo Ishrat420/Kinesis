@@ -5,11 +5,13 @@ import {
   getInterestDayLabel,
   getLiabilityHealth,
   getMonthlyCashFlow,
+  getMonthsToPayoff,
   getNextInterestDate,
   getProjectedAmount,
   isCalendarDate,
   isFinanceFrequency,
   isFinanceKind,
+  MAX_PAYOFF_MONTHS,
   type FinanceItem,
 } from "@/lib/finance";
 
@@ -226,6 +228,36 @@ describe("getLiabilityHealth", () => {
   it("has nothing to say once the liability is already paid off", () => {
     const paidOff = liability({ amount: 100, monthlyContribution: 500, balanceAsOf: "2026-01-01" });
     expect(getLiabilityHealth(paidOff, new Date("2026-06-01"))).toBeUndefined();
+  });
+});
+
+describe("getMonthsToPayoff", () => {
+  const asset = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "a", name: "Savings", kind: "asset", amount: 10_000, ...overrides });
+  const liability = (overrides: Partial<FinanceItem> = {}): FinanceItem =>
+    ({ id: "l", name: "Loan", kind: "liability", amount: 1_200, rate: 12, monthlyContribution: 500, balanceAsOf: "2026-06-01", ...overrides });
+  const today = new Date("2026-06-01");
+
+  it("counts the months an ON TRACK payment takes to reach zero", () => {
+    // 1200 -[+12,-500]-> 712 -[+7.12,-500]-> 219.12 -[+2.1912,-500]-> 0
+    expect(getMonthsToPayoff(liability(), today)).toBe(3);
+  });
+
+  it("has nothing to say for an AT RISK or exactly-flat liability -- it never reaches zero", () => {
+    expect(getMonthsToPayoff(liability({ monthlyContribution: 5 }), today)).toBeUndefined();
+    // 10,000 at 12% p.a. accrues exactly 100/month -- a 100 payment is flat, not converging.
+    expect(getMonthsToPayoff(liability({ amount: 10_000, monthlyContribution: 100 }), today)).toBeUndefined();
+  });
+
+  it("has nothing to say about an asset, a liability with no plan, or one already paid off", () => {
+    expect(getMonthsToPayoff(asset({ rate: 6, monthlyContribution: 200 }), today)).toBeUndefined();
+    expect(getMonthsToPayoff(liability({ rate: undefined }), today)).toBeUndefined();
+    expect(getMonthsToPayoff(liability({ amount: 0 }), today)).toBeUndefined();
+  });
+
+  it("caps at MAX_PAYOFF_MONTHS rather than looping indefinitely for a payment barely ahead of interest", () => {
+    const barelyOnTrack = liability({ amount: 1_000_000, rate: 12, monthlyContribution: 10_000.05 });
+    expect(getMonthsToPayoff(barelyOnTrack, today)).toBe(MAX_PAYOFF_MONTHS);
   });
 });
 

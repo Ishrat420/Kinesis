@@ -201,6 +201,34 @@ export function getLiabilityHealth(item: FinanceItem, today: Date): FinanceLiabi
   return { status: item.monthlyContribution > monthlyInterest ? "ON TRACK" : "AT RISK", monthlyInterest, payment: item.monthlyContribution };
 }
 
+/** 100 years -- a payment barely ahead of interest still has to terminate the simulation below somewhere. */
+export const MAX_PAYOFF_MONTHS = 1200;
+
+/**
+ * Whole months of the current payment, at the current rate, until this
+ * liability reaches zero, assuming nothing else changes. Simulated the same
+ * month-by-month way `getFinanceProjection` works, rather than a separate
+ * closed-form formula that could quietly disagree with it.
+ *
+ * `undefined` whenever there's no payoff to reach: AT RISK (including
+ * exactly flat), already paid off, or missing a rate or payment. Capped at
+ * `MAX_PAYOFF_MONTHS` so a payment only barely ahead of interest can't loop
+ * for an unreasonable number of iterations.
+ */
+export function getMonthsToPayoff(item: FinanceItem, today: Date): number | undefined {
+  if (item.kind !== "liability" || item.rate === undefined || !item.monthlyContribution) return undefined;
+  const monthlyRate = item.rate / 100 / 12;
+  const payment = item.monthlyContribution;
+  let balance = getProjectedAmount(item, today);
+  if (balance <= 0 || payment <= balance * monthlyRate) return undefined;
+  let months = 0;
+  while (balance > 0 && months < MAX_PAYOFF_MONTHS) {
+    balance = Math.max(0, balance + balance * monthlyRate - payment);
+    months += 1;
+  }
+  return months;
+}
+
 /**
  * `today` defaults so every existing caller -- none of which project
  * anything, since none of their fixtures carry a `rate` -- keeps working
