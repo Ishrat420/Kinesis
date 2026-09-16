@@ -187,44 +187,74 @@ product change. Phases are ordered so each is independently shippable and
 revertable, and so the highest-risk piece (the bell) is deliberately last,
 per the risk assessment above.
 
-#### Phase 0 — Resolve the disagreements (decisions, no code)
+#### Phase 0 — Resolve the disagreements (no code)
 
-Three of the eight are genuine product calls that need a yes/no before
-Phase 1 can pick one behavior to implement:
+**Revised: none of this needs a fresh decision.** ADR-010 (Notification
+And Reminders Awareness Surfaces, `docs/decisions/ADR-010-...md`) is
+Accepted and already specifies, per surface and per record type, exactly
+the three things the first draft of this phase asked us to decide —
+other tickets (KD-027, KD-028, KD-038, KD-040) already defer to it as the
+source of truth for this area, and this one should too. Reading it
+changes the shape of Phase 0 from "make three calls" to "match two known
+bugs against an existing spec, and design Phase 1 around a constraint the
+first draft missed."
 
-* **Should "overdue" ever disappear when reminders are turned off?**
-  Currently inconsistent: `getNeedsAttention` never checks
-  `remindersEnabled` (overdue always shows); `getUpcomingAndDue` hides
-  overdue milestones/custom items entirely when it's off
-  (`lib/data/upcoming.ts:94,140`); `collectNotifications` does the same
-  for the same two types (`lib/notifications/engine.ts:327,333-335,338`,
-  which its own comment at lines 154-171 already flags as "a known,
-  separately-tracked inconsistency"). Documents and todos never hide
-  their overdue phase, by design (`upcoming.ts:115-120`: "due and overdue
-  are statements of fact"). **Leaning:** extend that same reasoning to
-  milestones and custom items — reminders-off should only ever suppress
-  advance notice, never a fact that's already true.
-* **Should the StatsGrid Milestones tile start counting overdue
-  milestones?** It's the only one of the four milestone-aware functions
-  that excludes them by design (`lib/goals/milestone-window.ts:52-55`:
-  "Overdue is never filtered... the tile does not count it either",
-  enforced by the two-sided window at `lib/data/goals.ts:144`). Needs Attention, Upcoming & Due, and the bell all include overdue milestones. **Leaning:**
-  keep the tile's current scope — it's documented, deliberate design, not
-  drift — but this means the shared list's consumers need a raw date to
-  filter on, not just a precomputed status, since this is the one place
-  that needs an unusual filter.
-* **Where does "the due date itself" fall — due-soon or already
-  overdue?** Three different answers today for milestones/custom
-  items/todos: `getNeedsAttention` says not yet overdue (strict `<`,
-  `lib/data/attention.ts:25,26,29`); `getUpcomingAndDue` says due-soon
-  for milestones/custom items but already-actionable for todos
-  (`lib/data/upcoming.ts:99,150` vs `125-127`); `collectNotifications`
-  says already overdue for all three (`>=`,
-  `lib/notifications/engine.ts:79,141-143,182`). Documents are the one
-  type all three already agree on (expiry day itself isn't expired yet).
-  **Leaning:** standardize on the bell's convention (due date itself =
-  overdue) for the other three, since it's the most recently written and
-  most carefully commented of the three.
+* **"Should overdue ever disappear when reminders are off?" — not a
+  decision, a bug.** ADR-010's per-type settings-gate tables are explicit:
+  the `REMINDER_DUE`/advance row always blocks on `reminders is not
+  ticked`, but the due/overdue row always **survives** it, for every
+  type, no exceptions — documents' `EXPIRED`, milestones' "over its due
+  date", custom items' "due", to-dos' "due/overdue" (ADR-010 §Settings
+  gates, all four tables). The code the survey found disagrees with its
+  own spec in exactly two places: `getUpcomingAndDue` wraps its *entire*
+  milestone and custom-item computation — due-soon **and** overdue — in
+  `settings.remindersEnabled ? ... : []` (`lib/data/upcoming.ts:94,140`),
+  and `collectNotifications` gates milestone/custom-item candidates from
+  outside the builder the same way (`lib/notifications/engine.ts:327,333-335,338`).
+  Both silently drop the overdue row when reminders are off, which
+  ADR-010 says should never happen. The engine's own comment (lines
+  154-171) already flags this as "a known, separately-tracked
+  inconsistency" without saying which side is correct — ADR-010 now says:
+  the documents/to-dos pattern (gate the advance phase only, from inside
+  the builder) is correct; milestones/custom items need to move to match
+  it. **Phase 1 fixes these two sites**, it doesn't design new behavior.
+* **"Should the Milestones tile count overdue milestones?" — confirmed:
+  no, unchanged.** ADR-010's Milestones section lists "Milestones due
+  within X day" only under point 1 (the reminder-period phase); point 2
+  (overdue) lists Needs Attention, Upcoming & Due, bell, and calendar,
+  not the tile. Matches the tile's own code comment
+  (`lib/goals/milestone-window.ts:52-55`) exactly. Keep this exclusion in
+  Phase 1 as documented, intended behavior, not drift to fix.
+* **"Where does the due date itself fall?" — confirmed: it's meant to
+  differ by surface, not converge on one rule.** This is the one place
+  the original "leaning" (standardize on the bell's `>=` everywhere) was
+  wrong, and ADR-010 is explicit about why it's wrong: "Needs Attention
+  uses `< today` consistently... No exceptions" (line 26) is one
+  deliberate rule; "the bell does flip its type on the due date... at
+  `today >= dueDate`" (line 30) is a *different*, equally deliberate
+  rule for a different surface answering a different question ("is this
+  now late" vs. "should this notification's urgency escalate"). Upcoming
+  & Due sits in between and varies by type on purpose too — milestones
+  and custom items keep the due date itself as "due soon" (matching
+  Needs Attention's boundary), while to-dos flip to "due" on the due date
+  itself (matching the bell), because "`TODO_DUE` is a statement of fact"
+  (line 123) the same way a document's `EXPIRED` is. Documents are the
+  only type with one universal boundary across every surface (`>
+  expiryDate`, ADR-010 lines 32, 51) because expiry semantics ("valid
+  through D, expired D+1") aren't the same question as a due date's
+  ("due on D, late on D+1"). **Consequence for Phase 1's design:** the
+  shared item can't carry one precomputed `status: overdue | due-soon |
+  fine` enum and expect every consumer to just filter on it — that would
+  either force Needs Attention and the bell onto the same cutoff (wrong,
+  per above) or require the shared function to already know which
+  consumer is asking (defeats the point of unifying). The shared layer
+  should carry the raw fields each surface's rule needs (due/expiry
+  date, `completed`/`archived`, whether the parent goal is active) plus
+  small per-surface status functions — one for "Needs Attention" boundary
+  rules, one for "bell" boundary rules, one for Upcoming & Due's
+  per-type rule — that read ADR-010's tables directly, so the tables
+  stay the one place this logic is written down, exactly as ADR-010's own
+  stated purpose (line 21) intends.
 
 Two more are bugs to just fix while building Phase 1, not decisions:
 
@@ -246,8 +276,17 @@ decisions — sort stays a per-consumer, presentation-layer concern over
 the shared list, and the missing dismissal check is just absorbed once
 that consumer moves onto the shared, dismissal-aware layer.
 
-**Deliverable:** this section, above, edited to record whatever was
-actually decided (not just "leaning"), before Phase 1 starts.
+One more thing ADR-010 settles by *not* settling it: Expiring soon and
+Milestones tiles (and the two pages behind them) ignore `remindersEnabled`
+entirely today, unlike every other surface. ADR-010 names this
+explicitly (line 40) as "never been argued... maybe revisited later" —
+current, acknowledged, and deliberately left alone. Phase 1 preserves it
+as-is; it is not part of this pass.
+
+**Deliverable:** none — ADR-010 already is the deliverable this phase
+was going to produce. Nothing to decide or write before Phase 1 starts,
+only two confirmed bugs to fix while building it and one design
+constraint (above) to build it around.
 
 #### Phase 1 — Build the shared data layer
 
@@ -319,6 +358,10 @@ revisiting KD-011's open question ("does this replace or expand Upcoming
 
 ### Related
 
+- ADR-010 (Notification And Reminders Awareness Surfaces) — the source of
+  truth Phase 0 above reconciles against; every per-surface, per-type
+  boundary and settings-gate this ticket's unification has to preserve is
+  specified there, not re-derived here.
 - KD-011 (Unified To-Do View) approaches a similar aggregation from the UI
   side — one merged view across modules — and explicitly leaves open
   "whether this should replace or expand the existing Upcoming & Due
