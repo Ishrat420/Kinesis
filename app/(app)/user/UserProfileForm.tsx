@@ -10,7 +10,7 @@ const initialState: UserFormState = {};
 export function UserProfileForm({ user }: { user: UserProfile }) {
   const [state, formAction, pending] = useActionState(updateUserAction, initialState);
   return <form action={formAction} className="mt-8 space-y-5 rounded-3xl border border-zinc-200/80 bg-white p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-    <Field label="Preferred name" name="preferredName" value={user.preferredName ?? ""} hint="Optional — this is the name Kinesis will use throughout the app." />
+    <Field label="Preferred name" name="preferredName" value={user.preferredName ?? ""} hint="Optional, you can enter your preferred name for Kinesis." />
     {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
     {state.success && <p role="status" className="text-sm font-medium text-emerald-700">Your profile has been updated everywhere.</p>}
     <div className="flex justify-end border-t border-zinc-100 pt-5"><button disabled={pending} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"><Save className="h-4 w-4" /> {pending ? "Saving…" : "Save profile"}</button></div>
