@@ -1,6 +1,6 @@
 # KD-046 — Order Milestones by Due Date, Not Creation Order
 
-**Status:** Planning Needed  
+**Status:** Done  
 **Priority:** Medium  
 **Tags:** UX / UI
 
@@ -68,3 +68,27 @@ exists twice elsewhere in the same file.
 - `getMilestonesDueSoon` / `getActiveIncompleteMilestones` in
   `lib/data/goals.ts` — the existing due-date-first ordering this ticket
   would extend to the per-goal list.
+
+## What was done
+
+`getGoal()`'s milestone `orderBy` is now
+`[{ completed: "asc" }, { dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }]`,
+resolving the three open questions above:
+
+- **Completed milestones** sort after every incomplete one, regardless of
+  their old due date, rather than scattering among incomplete milestones by
+  date.
+- **Undated milestones** sort last among incomplete ones (`nulls: "last"`),
+  matching `getActiveIncompleteMilestones`'s existing behaviour, rather than
+  jumping the queue.
+- **Manual override** — not built. Nothing today lets someone
+  eyeball-order milestones regardless of date, and nothing did before this
+  change either (`position` was write-once, at creation, never edited). If
+  that's wanted later it's a separate, deliberate ticket.
+- `position` remains the final tiebreak for milestones that share both
+  `completed` and `dueDate`.
+
+Covered by `tests/integration/goals/milestone-ordering.test.ts`, which
+creates milestones in an order the old `position`-only sort would have
+gotten wrong and asserts the new nearest-due-first order, plus a same-due-date
+case pinning `position` as the tiebreak.

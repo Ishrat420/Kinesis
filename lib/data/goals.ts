@@ -33,7 +33,11 @@ function withCustomFields<T extends { object: { fields: (ObjectField & { links: 
 export async function getGoal(id: string) {
   const user = await requireKinesisUser();
   const include = {
-    milestones: { orderBy: { position: "asc" as const } },
+    // Incomplete milestones first (so a finished one doesn't outrank what's
+    // actually next), then nearest due date, matching getMilestonesDueSoon
+    // and getActiveIncompleteMilestones below. Position remains the
+    // tiebreak for same-day/no-date milestones.
+    milestones: { orderBy: [{ completed: "asc" as const }, { dueDate: { sort: "asc" as const, nulls: "last" as const } }, { position: "asc" as const }] },
     metricHistory: { orderBy: { recordedAt: "asc" as const } },
     object: { select: { fields: { orderBy: { position: "asc" as const }, include: { links: { orderBy: { position: "asc" as const } } } } } },
   };

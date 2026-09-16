@@ -171,7 +171,6 @@ KD-017-turn-dashboard-into-decision-surface
 KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 KD-045-mobile-add-custom-module-to-dashboard
-KD-046-order-milestones-by-due-date
 
 ## ✓ Accepted
 
@@ -190,6 +189,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-046-order-milestones-by-due-date
 KD-027-todo-reminder-window
 KD-031-goal-dates-stored-at-end-of-day
 KD-030-custom-module-badge-glyph-colour
