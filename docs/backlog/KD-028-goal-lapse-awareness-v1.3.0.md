@@ -3,6 +3,7 @@
 **Status:** Idea
 **Priority:** Medium
 **Tags:** UX / UI, Architecture, Needs Research
+**Planned Release:** v1.3.0
 
 ## Summary
 

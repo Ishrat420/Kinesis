@@ -7,6 +7,7 @@ One data-layer work, which needs its own planning pass before anything
 else in this ticket can proceed correctly.  
 **Priority:** High  
 **Tags:** UX/UI, Architecture, Technical Debt
+**Planned Release:** v1.3.0
 
 ## Summary
 

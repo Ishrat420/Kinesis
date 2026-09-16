@@ -3,6 +3,7 @@
 **Status:** Accepted — Needs Planning
 **Priority:** High
 **Tags:** Architecture, UX/UI
+**Planned Release:** v1.3.0
 
 ### Problem
 

@@ -3,6 +3,7 @@
 **Status:** Planning Needed
 **Priority:** Medium
 **Tags:** UX / UI, Data Model
+**Planned Release:** v1.3.0
 
 ## Summary
 

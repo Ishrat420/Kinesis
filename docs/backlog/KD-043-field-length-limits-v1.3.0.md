@@ -3,6 +3,7 @@
 **Status:** Planning Needed
 **Priority:** Medium
 **Tags:** Data Model, Technical Debt, UX / UI
+**Planned Release:** v1.3.0
 
 ## Summary
 

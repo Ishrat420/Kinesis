@@ -3,6 +3,7 @@
 **Status:** Planning Needed
 **Priority:** High  
 **Tags:** Security, Needs Research
+**Planned Release:** v1.3.0
 
 ## Summary
 

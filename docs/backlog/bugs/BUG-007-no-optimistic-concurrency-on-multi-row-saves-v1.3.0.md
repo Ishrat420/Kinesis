@@ -2,6 +2,7 @@
 
 **Status:** Partially fixed — Document, Template, and CustomItem are done; `saveRelationshipMap` is still open (see "Why this is filed rather than fixed now", below, which still applies to that surface alone)
 **Priority:** Low
+**Planned Release:** v1.3.0
 
 ## Problem
 
