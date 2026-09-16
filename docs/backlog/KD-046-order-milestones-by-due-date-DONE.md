@@ -3,6 +3,7 @@
 **Status:** Done  
 **Priority:** Medium  
 **Tags:** UX / UI
+**Planned Release:** v1.3.0
 
 ## Summary
 
@@ -45,23 +46,12 @@ same-day or no-date milestones, so nearest-due reads first. That's a
 one-line `orderBy` change in `getGoal()`, following a pattern that already
 exists twice elsewhere in the same file.
 
-## Open questions
+## Other considerations 
 
-- **Where do completed milestones go?** Sorted purely by their old due
-  date, they'd scatter among incomplete ones instead of staying out of the
-  way. `getActiveIncompleteMilestones` sidesteps this by excluding
-  completed milestones entirely, but the goal detail page shows them
-  inline (struck through, presumably) — worth deciding whether completed
-  ones should group after all incomplete ones regardless of date, before
-  just changing the `orderBy` clause.
+- **Where do completed milestones go?** It should go at the bottom of the list, if user undo the action, it should again go back to the position depending on it's due date relative to other milestone.
 - **Milestones with no due date** — sort last (mirroring
-  `getActiveIncompleteMilestones`'s `nulls: "last"`), or first, on the
-  theory that an undated milestone might be the very next thing to define?
-- **Does this ever need a manual override?** Making due date the sort key
-  forecloses eyeball-ordering milestones regardless of date (e.g. grouping
-  related steps) unless a manual reorder affordance is added later. Worth
-  deciding whether that's ever wanted, or whether due-date order is meant
-  to be the permanent rule for this list.
+  `getActiveIncompleteMilestones`'s `nulls: "last"`)
+- **Does this ever need a manual override?** maybe later if flagged during usablity 
 
 ## Related
 
