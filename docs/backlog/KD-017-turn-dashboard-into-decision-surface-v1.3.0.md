@@ -306,11 +306,14 @@ hand-built fixtures that exercise each Phase 0 decision explicitly (the
 ticket's own "verifiable before shipping" plan above) — proof the new
 function does what Phase 0 decided, independent of anything downstream.
 
-#### Phase 2 — Migrate the four stateless consumers, one at a time
+#### Phase 2 — Migrate the four stateless consumers, one at a time (done)
 
 Each of these is its own small, revertable change: swap the old query for
 a filter over the Phase 1 list, keep the component's own props/JSX
-untouched, run the suite, check the dashboard, ship, move on.
+untouched, run the suite, check the dashboard, ship, move on. Three of
+the four ended up as real code migrations; the fourth (Milestones tile)
+turned out to already be unified through its own shared window helper,
+which is itself a useful thing to have confirmed rather than assumed.
 
 1. **Needs Attention card** (`components/dashboard/NeedsAttentionCard.tsx`,
    via `app/(app)/page.tsx:25`, done) — `getNeedsAttention`
@@ -343,9 +346,25 @@ untouched, run the suite, check the dashboard, ship, move on.
    `tests/integration/documents/expiring-soon.test.ts`.
 4. **StatsGrid "Milestones" tile + `/goals/milestones/due-soon`**
    (`components/dashboard/StatsGrid.tsx:16`,
-   `app/(app)/goals/milestones/due-soon/page.tsx`) — filter
-   `kind === "milestone"` plus whichever date-window rule Phase 0 settled
-   on for this one deliberately-different tile.
+   `app/(app)/goals/milestones/due-soon/page.tsx`, no code change
+   needed) — revised from the original plan on actually implementing
+   it: `getMilestonesDueSoon` (`lib/data/goals.ts`) already goes through
+   `milestoneDueSoonWindow` (`lib/goals/milestone-window.ts`), the same
+   shared helper its own "see all" page's `milestoneLists` uses, so the
+   tile and the page were never two disagreeing implementations to begin
+   with — Phase 0's "five implementations" count only holds once you
+   don't also count this tile's own already-shared window helper. That
+   window (`today` through `today + leadDays`, both ends inclusive) is
+   provably the same range `milestoneUpcomingPhase`'s due-soon branch
+   computes with `remindersEnabled` forced `true` (this tile ignores
+   that setting too, same as Expiring soon, ADR-010 line 40). Routing
+   this through `getAttentionRecords` instead would have meant either
+   dropping the query's `dueDate` narrowing (fetching every incomplete
+   milestone to filter in memory) or adding a `position` field to the
+   shared record type purely for this one consumer's same-day tiebreak
+   — real cost for a change with no behaviour or unification value,
+   since there's no actual disagreement here to fix. Left as-is;
+   `tests/unit/milestone-due-soon-agreement.test.ts` already guards it.
 
 #### Phase 3 — Notification bell (deliberately last)
 
