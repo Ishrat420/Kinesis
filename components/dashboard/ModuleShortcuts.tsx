@@ -40,7 +40,6 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
   const [saveFailed, setSaveFailed] = useState(false);
   const customIds = useMemo(() => new Set(customModules.map(({ id }) => id)), [customModules]);
   const selectedCustomCount = order.filter((id) => customIds.has(id)).length;
-  const availableCustomModules = useMemo(() => customModules.filter((module) => !order.includes(module.id)), [customModules, order]);
 
   // A touch drag never fires HTML5's dragstart/dragover/drop, so it tracks
   // its own pointer instead -- which card started it, and what the order was
@@ -176,24 +175,7 @@ export function ModuleShortcuts({ documentCount, documentsExpiringSoon, goalCoun
       </div>
       {selectedCustomCount < MAX_CUSTOM_DASHBOARD_MODULES && (
         <div className="mt-3 rounded-2xl border border-dashed border-zinc-100 px-4 py-2.5 text-center text-[11px] text-zinc-300">
-          {availableCustomModules.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span>Add a custom module:</span>
-              {availableCustomModules.map((module) => (
-                <button
-                  key={module.id}
-                  type="button"
-                  onClick={() => addCustomModuleById(module.id)}
-                  className="min-h-8 rounded-full border border-zinc-200 px-2.5 py-1 font-semibold text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-800"
-                >
-                  + {module.name}
-                </button>
-              ))}
-              <span>or drag one from the sidebar</span>
-            </div>
-          ) : (
-            <>Drop a custom module here · {MAX_CUSTOM_DASHBOARD_MODULES - selectedCustomCount} slots available</>
-          )}
+          Drop a custom module here · {MAX_CUSTOM_DASHBOARD_MODULES - selectedCustomCount} slots available
         </div>
       )}
       {saveFailed && !saving && (
