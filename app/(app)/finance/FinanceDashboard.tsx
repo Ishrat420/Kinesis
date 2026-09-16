@@ -2,7 +2,7 @@
 
 import {
   ArrowDownLeft, ArrowUpRight, Banknote, Building2,
-  CalendarClock, CreditCard, Landmark, Pencil, Plus, Trash2, WalletCards, X,
+  CalendarClock, CreditCard, Landmark, Pencil, Plus, Trash2, TrendingDown, TrendingUp, WalletCards, X,
 } from "lucide-react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
@@ -149,15 +149,21 @@ function FinanceHealthBadge({ health, monthsToPayoff }: { health: NonNullable<Re
   // A payment and its interest can land a fraction of a cent apart without
   // actually being different, so "exactly flat" is a tolerance, not `=== 0`.
   const flat = Math.abs(netChange) < 0.005;
+  const Icon = atRisk ? TrendingDown : TrendingUp;
   return <div className={`rounded-2xl border p-4 ${atRisk ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
-    <p className={`text-xs font-semibold uppercase tracking-[0.1em] ${atRisk ? "text-amber-700" : "text-emerald-700"}`}>{health.status}</p>
-    <p className={`mt-1.5 text-sm leading-5 ${atRisk ? "text-amber-800" : "text-emerald-800"}`}>
-      {flat
-        ? <>This debt will stay exactly the same each month, your {money(health.payment)} payment only covers the {money(health.monthlyInterest)} in interest that&apos;s accruing. At this rate, it will never be paid off.</>
-        : atRisk
-        ? <>This debt will grow by about {money(-netChange)} this month, your {money(health.payment)} payment doesn&apos;t cover the {money(health.monthlyInterest)} in interest that&apos;s accruing. At this rate, it will never be paid off.</>
-        : <>This debt will shrink by about {money(netChange)} this month, your {money(health.payment)} payment covers the {money(health.monthlyInterest)} in interest. At this rate, it will take about {monthsToPayoff !== undefined ? formatPayoffDuration(monthsToPayoff) : "a while"} to pay off.</>}
-    </p>
+    <p className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] ${atRisk ? "text-amber-700" : "text-emerald-700"}`}><Icon className="h-3.5 w-3.5"/>{health.status}</p>
+    <div className={`mt-1.5 space-y-1.5 text-sm leading-5 ${atRisk ? "text-amber-800" : "text-emerald-800"}`}>
+      {flat ? <>
+        <p>This debt will stay exactly the same each month, your {money(health.payment)} payment only covers the {money(health.monthlyInterest)} in interest that&apos;s accruing.</p>
+        <p>At this rate, it will never be paid off.</p>
+      </> : atRisk ? <>
+        <p>This debt will grow by about {money(-netChange)} this month, your {money(health.payment)} payment doesn&apos;t cover the {money(health.monthlyInterest)} in interest that&apos;s accruing.</p>
+        <p>At this rate, it will never be paid off.</p>
+      </> : <>
+        <p>This debt will shrink by about {money(netChange)} this month, your {money(health.payment)} payment covers the {money(health.monthlyInterest)} in interest.</p>
+        <p>At this rate, it will take about {monthsToPayoff !== undefined ? formatPayoffDuration(monthsToPayoff) : "a while"} to pay off.</p>
+      </>}
+    </div>
   </div>;
 }
 
