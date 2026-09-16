@@ -181,7 +181,7 @@ export function CommandBar() {
           })}</ul>
         </> : searchUnavailable
           ? <p role="alert" className="px-4 pb-2 pt-3 text-xs font-medium text-red-600">Search isn&rsquo;t responding right now. You can still capture below.</p>
-          : <p className="px-4 pb-2 pt-3 text-xs text-zinc-400">Nothing matches that yet — capture it instead.</p>}
+          : null}
 
         <SectionLabel>Create</SectionLabel>
         <ul aria-label="Create" role="listbox">{createOptions.map((target, index) => {

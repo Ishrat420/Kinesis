@@ -42,9 +42,6 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
                 <h2 id="manual-document-title" className="text-2xl font-semibold">
                   Add document manually
                 </h2>
-                <p className="mt-1 text-sm text-zinc-500">
-                  Enter the document details now. You can attach a file later.
-                </p>
               </div>
               <button
                 type="button"
