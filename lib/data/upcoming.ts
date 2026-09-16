@@ -1,17 +1,24 @@
+import { cache } from "react";
 import { connection } from "next/server";
 
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { requireKinesisUser } from "@/lib/auth";
-import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { startOfUtcDay } from "@/lib/dates";
 import { getToday } from "@/lib/format/server";
-import { getReminderLeadDays, getReminderWindowEnd } from "@/lib/reminders/policy";
-import { activeGoalWhere } from "@/lib/goals/active";
+import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
-import { isOpenTodoStatus } from "@/lib/todos/status";
 import { dismissalKey } from "@/lib/attention/dismissal";
 import { OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
+import {
+  getAttentionRecords,
+  documentUpcomingPhase,
+  milestoneUpcomingPhase,
+  customItemUpcomingPhase,
+  todoUpcomingPhase,
+  relationshipUpcomingPhase,
+  type AttentionRecord,
+} from "./attention-items";
 
 type BaseUpcomingItem = { id: string; title: string; date: string; timestamp: number; href: string };
 export type UpcomingItem =
@@ -23,139 +30,89 @@ export type UpcomingItem =
   /** A custom module object is shown with its own module's icon and colour. */
   | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string; dismissKey: string });
 
-export async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
+function toUpcomingItem(record: AttentionRecord, today: Date, dismissed: ReadonlySet<string>, leadDays: { milestone: number; relationship: number; customItem: number; todo: number }, remindersEnabled: boolean): UpcomingItem | null {
+  switch (record.kind) {
+    case "document": {
+      const phase = documentUpcomingPhase(record, today, remindersEnabled);
+      if (!phase) return null;
+      const expiry = startOfUtcDay(record.expiryDate)!;
+      const expired = phase === "overdue";
+      // The advance notice and the overdue notice are different things to have
+      // dismissed, even at the same deadline -- see lib/attention/dismissal.ts.
+      // Dismissing one while "expiring soon" must not pre-empt the other, once
+      // this document actually expires.
+      const dismissKey = dismissalKey("document", record.id, expired ? OVERDUE_NOTIFICATION_TYPE.document : "REMINDER_DUE", expiry);
+      if (dismissed.has(dismissKey)) return null;
+      return { id: `document-${record.id}`, kind: "document", title: `${record.name} is ${expired ? "expired" : "expiring"}`, date: expiry.toISOString(), timestamp: expiry.getTime(), href: `/documents/${record.id}`, editHref: `/documents/${record.id}?edit=1`, dismissKey };
+    }
+    case "milestone": {
+      const phase = milestoneUpcomingPhase(record, today, leadDays.milestone, remindersEnabled);
+      if (!phase) return null;
+      const dueDate = startOfUtcDay(record.dueDate)!;
+      return { id: `milestone-${record.id}`, kind: "milestone", title: `${record.name} is ${phase === "overdue" ? "over its due date" : "due soon"}`, date: dueDate.toISOString(), timestamp: dueDate.getTime(), href: `/goals/${record.goalId}`, goalId: record.goalId, milestoneId: record.id };
+    }
+    case "todo": {
+      const phase = todoUpcomingPhase(record, today, leadDays.todo, remindersEnabled);
+      if (!phase) return null;
+      const due = startOfUtcDay(record.dueDate)!;
+      return { id: `todo-${record.id}`, kind: "todo", todoId: record.id, title: `${record.name} is ${phase === "due-soon" ? "due soon" : "due"}`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" };
+    }
+    case "relationship": {
+      const phase = relationshipUpcomingPhase(record, today, leadDays.relationship, remindersEnabled);
+      if (!phase) return null;
+      const occurrence = getNextOccurrence(record, today)!;
+      return { id: `relationship-${record.id}`, kind: "relationship", title: `${possessiveName(record.personName)} ${record.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" };
+    }
+    case "custom": {
+      const phase = customItemUpcomingPhase(record, today, leadDays.customItem, remindersEnabled);
+      if (!phase) return null;
+      const dueDate = startOfUtcDay(record.dueDate)!;
+      const overdue = phase === "overdue";
+      // Same reasoning as a document's dismissal key, above: "due soon" and
+      // "over its due date" are dismissed independently, even at one deadline.
+      const dismissKey = dismissalKey("custom", record.id, overdue ? OVERDUE_NOTIFICATION_TYPE.custom : "REMINDER_DUE", dueDate);
+      if (dismissed.has(dismissKey)) return null;
+      return { id: `custom-${record.id}`, kind: "custom", title: `${record.name} is ${overdue ? "over its due date" : "due soon"}`, date: dueDate.toISOString(), timestamp: dueDate.getTime(), href: `/custom-modules/${record.moduleId}/items/${record.id}`, editHref: `/custom-modules/${record.moduleId}/items/${record.id}`, icon: record.moduleIcon, color: record.moduleColor, dismissKey };
+    }
+  }
+}
+
+/**
+ * KD-017 Phase 2: sourced from the shared `getAttentionRecords` (Phase 1)
+ * instead of its own five queries, using the corrected per-kind phase rules
+ * (KD-017 Phase 0's ADR-010 reconciliation) -- most visibly, an overdue
+ * milestone or custom item no longer disappears when `remindersEnabled` is
+ * off, which it incorrectly did before.
+ *
+ * `cache()`-wrapped because `app/(app)/page.tsx` and
+ * `components/dashboard/ModuleGrid.tsx` both call this, independently, on
+ * the same dashboard render -- previously two full round-trips for the same
+ * answer. Both call it with no arguments, so this also collapses the two
+ * calls' own `now` defaults into the one `Date` the cache is keyed on.
+ */
+export const getUpcomingAndDue = cache(async function getUpcomingAndDue(now = new Date()): Promise<UpcomingItem[]> {
   await connection();
   const user = await requireKinesisUser();
   const today = await getToday(now);
   const settings = await getSettings();
-  const milestoneWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "milestone"));
-  const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
-  const customItemWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "customItem"));
-  const todoWindowEnd = getReminderWindowEnd(today, getReminderLeadDays(settings, "todo"));
-  const [documents, milestones, importantDates, todos, customItems, dismissals] = await Promise.all([
-    prisma.document.findMany({
-      where: { userId: user.id, archived: false, expiryDate: { not: null } },
-      select: { id: true, name: true, expiryDate: true, prompt: true },
-    }),
-    prisma.milestone.findMany({
-      where: {
-        completed: false,
-        // The upper bound is moot once mapped below when reminders are off, but
-        // narrowing here keeps the query from fetching every future milestone.
-        dueDate: { lte: milestoneWindowEnd },
-        goal: { userId: user.id, ...activeGoalWhere(now) },
-      },
-      select: { id: true, name: true, dueDate: true, goalId: true },
-    }),
-    prisma.relationshipImportantDate.findMany({
-      where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] },
-      include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
-    }),
-    prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null, lte: todoWindowEnd } }, select: { id: true, name: true, status: true, dueDate: true } }),
-    prisma.customItem.findMany({
-      where: {
-        archived: false,
-        // The upper bound is moot once mapped below when reminders are off, but
-        // narrowing here keeps the query from fetching every future item.
-        dueDate: { lte: customItemWindowEnd },
-        module: { userId: user.id },
-      },
-      select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { icon: true, color: true } } },
-    }),
+  const leadDays = {
+    milestone: getReminderLeadDays(settings, "milestone"),
+    relationship: getReminderLeadDays(settings, "relationship"),
+    customItem: getReminderLeadDays(settings, "customItem"),
+    todo: getReminderLeadDays(settings, "todo"),
+  };
+
+  const [records, dismissals] = await Promise.all([
+    getAttentionRecords(now),
     // Shared with Needs Attention (lib/data/attention.ts), keyed the same way
     // -- one dismissal hides a record's row on both surfaces at once.
     prisma.attentionDismissal.findMany({ where: { userId: user.id }, select: { itemKey: true } }),
   ]);
   const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));
 
-  const documentItems = documents.flatMap((document): UpcomingItem[] => {
-    const expiry = startOfUtcDay(document.expiryDate!)!;
-    const reminderDate = getExpiryReminderDate(expiry, document.prompt);
-    const expired = expiry < today;
-    if (!expired && (!settings.remindersEnabled || today < reminderDate)) return [];
-    // The advance notice and the overdue notice are different things to have
-    // dismissed, even at the same deadline -- see lib/attention/dismissal.ts.
-    // Dismissing one while "expiring soon" must not pre-empt the other, once
-    // this document actually expires.
-    const dismissKey = dismissalKey("document", document.id, expired ? OVERDUE_NOTIFICATION_TYPE.document : "REMINDER_DUE", expiry);
-    if (dismissed.has(dismissKey)) return [];
-    return [{
-      id: `document-${document.id}`,
-      kind: "document",
-      title: `${document.name} is ${expired ? "expired" : "expiring"}`,
-      date: expiry.toISOString(),
-      timestamp: expiry.getTime(),
-      href: `/documents/${document.id}`,
-      editHref: `/documents/${document.id}?edit=1`,
-      dismissKey,
-    }];
-  });
+  const items = records
+    .map((record) => toUpcomingItem(record, today, dismissed, leadDays, settings.remindersEnabled))
+    .filter((item): item is UpcomingItem => item !== null);
 
-  const milestoneItems = settings.remindersEnabled ? milestones.map((milestone): UpcomingItem => {
-    const dueDate = startOfUtcDay(milestone.dueDate!)!;
-    return {
-      id: `milestone-${milestone.id}`,
-      kind: "milestone",
-      title: `${milestone.name} is ${dueDate < today ? "over its due date" : "due soon"}`,
-      date: dueDate.toISOString(),
-      timestamp: dueDate.getTime(),
-      href: `/goals/${milestone.goalId}`,
-      goalId: milestone.goalId,
-      milestoneId: milestone.id,
-    };
-  }) : [];
-
-  /**
-   * A dated To-Do appears here from its reminder window opening (KD-027),
-   * same as a milestone or custom item, and stays through due and overdue.
-   * Undated captures never appear: the point of ADR-009 is that recording
-   * something must not require a deadline, so inventing one to make it
-   * visible would defeat the feature.
-   *
-   * Unlike milestones and custom items, reminders-off does not blank this
-   * out entirely -- only the advance ("due soon") phase is a prediction;
-   * due and overdue are statements of fact, and survive the switch exactly
-   * as they always have. The query above is narrowed to `todoWindowEnd`
-   * regardless, since that bound is always at or after today and so never
-   * excludes an already-due-or-overdue to-do.
-   */
-  const todoItems = todos.flatMap((todo): UpcomingItem[] => {
-    if (!isOpenTodoStatus(todo.status)) return [];
-    const due = startOfUtcDay(todo.dueDate!)!;
-    const dueSoon = due > today;
-    if (dueSoon && !settings.remindersEnabled) return [];
-    return [{ id: `todo-${todo.id}`, kind: "todo", todoId: todo.id, title: `${todo.name} is ${dueSoon ? "due soon" : "due"}`, date: due.toISOString(), timestamp: due.getTime(), href: "/todos" }];
-  });
-
-  const relationshipWindowEnd = getReminderWindowEnd(today, relationshipLeadDays);
-  const relationshipItems = settings.remindersEnabled ? importantDates.flatMap((importantDate): UpcomingItem[] => {
-    const occurrence = getNextOccurrence(importantDate, today);
-    if (!occurrence || occurrence.getTime() > relationshipWindowEnd.getTime()) return [];
-    const personName = importantDate.relationship
-      ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson.name : importantDate.relationship.firstPerson.name)
-      : importantDate.selfPerson!.name;
-    return [{ id: `relationship-${importantDate.id}`, kind: "relationship", title: `${possessiveName(personName)} ${importantDate.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" }];
-  }) : [];
-
-  const customItemItems = settings.remindersEnabled ? customItems.flatMap((item): UpcomingItem[] => {
-    const dueDate = startOfUtcDay(item.dueDate!)!;
-    const overdue = dueDate < today;
-    // Same reasoning as a document's dismissal key, above: "due soon" and
-    // "over its due date" are dismissed independently, even at one deadline.
-    const dismissKey = dismissalKey("custom", item.id, overdue ? OVERDUE_NOTIFICATION_TYPE.custom : "REMINDER_DUE", dueDate);
-    if (dismissed.has(dismissKey)) return [];
-    return [{
-      id: `custom-${item.id}`,
-      kind: "custom",
-      title: `${item.name} is ${overdue ? "over its due date" : "due soon"}`,
-      date: dueDate.toISOString(),
-      timestamp: dueDate.getTime(),
-      href: `/custom-modules/${item.moduleId}/items/${item.id}`,
-      editHref: `/custom-modules/${item.moduleId}/items/${item.id}`,
-      icon: item.module.icon,
-      color: item.module.color,
-      dismissKey,
-    }];
-  }) : [];
-  return [...documentItems, ...milestoneItems, ...todoItems, ...relationshipItems, ...customItemItems].sort((a, b) => a.timestamp - b.timestamp);
-}
+  return items.sort((a, b) => a.timestamp - b.timestamp);
+});
