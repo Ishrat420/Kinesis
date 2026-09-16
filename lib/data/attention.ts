@@ -4,8 +4,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { dismissalKey } from "@/lib/attention/dismissal";
 import { OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
 import { getToday } from "@/lib/format/server";
-import { activeGoalWhere } from "@/lib/goals/active";
-import { isOpenTodoStatus } from "@/lib/todos/status";
+import { getAttentionRecords, isOverdueForNeedsAttention, type NeedsAttentionEligible } from "./attention-items";
 
 type BaseAttentionItem = { key: string; title: string; context: string; date: string; timestamp: number; href: string };
 export type AttentionItem =
@@ -16,32 +15,49 @@ export type AttentionItem =
   /** A to-do carries its own id, like a milestone's, since it also gets Complete/Reschedule rather than Dismiss. */
   | (BaseAttentionItem & { kind: "todo"; todoId: string });
 
+/**
+ * Every key carries the deadline, and what is being said about it, that it
+ * was built from -- so a dismissal recorded here stops matching the moment
+ * either changes -- see lib/attention/dismissal.ts. Needs Attention only
+ * ever shows the overdue phase, so that half is fixed per kind, the same
+ * constant the bell itself resolves it from. A milestone and a to-do both
+ * get the same shaped key for the React list alone; neither is dismissible,
+ * and the server action rejects both.
+ */
+function toAttentionItem(record: NeedsAttentionEligible): AttentionItem {
+  switch (record.kind) {
+    case "document":
+      return { key: dismissalKey("document", record.id, OVERDUE_NOTIFICATION_TYPE.document, record.expiryDate), kind: "document", title: record.name, context: "Expired document", date: record.expiryDate.toISOString(), timestamp: record.expiryDate.getTime(), href: `/documents/${record.id}`, editHref: `/documents/${record.id}?edit=1` };
+    case "milestone":
+      return { key: dismissalKey("milestone", record.id, "MILESTONE_DUE", record.dueDate), kind: "milestone", title: record.name, context: `Overdue milestone · ${record.goalName}`, date: record.dueDate.toISOString(), timestamp: record.dueDate.getTime(), href: `/goals/${record.goalId}`, goalId: record.goalId, milestoneId: record.id };
+    case "custom":
+      return { key: dismissalKey("custom", record.id, OVERDUE_NOTIFICATION_TYPE.custom, record.dueDate), kind: "custom", title: record.name, context: `Overdue · ${record.moduleName}`, date: record.dueDate.toISOString(), timestamp: record.dueDate.getTime(), href: `/custom-modules/${record.moduleId}/items/${record.id}`, editHref: `/custom-modules/${record.moduleId}/items/${record.id}`, icon: record.moduleIcon, color: record.moduleColor };
+    case "todo":
+      return { key: dismissalKey("todo", record.id, OVERDUE_NOTIFICATION_TYPE.todo, record.dueDate), kind: "todo", todoId: record.id, title: record.name, context: "Overdue to-do", date: record.dueDate.toISOString(), timestamp: record.dueDate.getTime(), href: "/todos" };
+  }
+}
+
+/**
+ * KD-017 Phase 2: sourced from the shared `getAttentionRecords` (Phase 1)
+ * instead of its own four queries. Behaviour is unchanged except for the
+ * Phase 0 bug fix that comes with it -- a milestone on a goal targeted for
+ * today no longer depends on the time of day `now` happens to carry.
+ */
 export async function getNeedsAttention(now = new Date()): Promise<AttentionItem[]> {
   await connection();
   const user = await requireKinesisUser();
   const today = await getToday(now);
-  const [documents, milestones, customItems, todos, dismissals] = await Promise.all([
-    prisma.document.findMany({ where: { userId: user.id, archived: false, expiryDate: { lt: today } }, select: { id: true, name: true, expiryDate: true } }),
-    prisma.milestone.findMany({ where: { completed: false, dueDate: { lt: today }, goal: { userId: user.id, ...activeGoalWhere(now) } }, select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } } }),
-    prisma.customItem.findMany({ where: { archived: false, dueDate: { lt: today }, module: { userId: user.id } }, select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { name: true, icon: true, color: true } } } }),
-    // A To-Do without a due date is not overdue, it is just undated: capture
-    // without a deadline is the point, so only dated ones can fall behind.
-    prisma.todo.findMany({ where: { userId: user.id, dueDate: { lt: today } }, select: { id: true, name: true, status: true, dueDate: true } }),
+  const [records, dismissals] = await Promise.all([
+    getAttentionRecords(now),
     prisma.attentionDismissal.findMany({ where: { userId: user.id }, select: { itemKey: true } }),
   ]);
-  // Every key carries the deadline, and what is being said about it, that it
-  // was built from -- so a dismissal recorded here stops matching the moment
-  // either changes -- see lib/attention/dismissal.ts. Needs Attention only
-  // ever shows the overdue phase, so that half is fixed per kind, the same
-  // constant the bell itself resolves it from. A milestone and a to-do both
-  // get the same shaped key for the React list alone; neither is dismissible,
-  // and the server action rejects both.
-  const items: AttentionItem[] = [
-    ...documents.map((item) => ({ key: dismissalKey("document", item.id, OVERDUE_NOTIFICATION_TYPE.document, item.expiryDate!), kind: "document" as const, title: item.name, context: "Expired document", date: item.expiryDate!.toISOString(), timestamp: item.expiryDate!.getTime(), href: `/documents/${item.id}`, editHref: `/documents/${item.id}?edit=1` })),
-    ...milestones.map((item) => ({ key: dismissalKey("milestone", item.id, "MILESTONE_DUE", item.dueDate!), kind: "milestone" as const, title: item.name, context: `Overdue milestone · ${item.goal.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/goals/${item.goalId}`, goalId: item.goalId, milestoneId: item.id })),
-    ...customItems.map((item) => ({ key: dismissalKey("custom", item.id, OVERDUE_NOTIFICATION_TYPE.custom, item.dueDate!), kind: "custom" as const, title: item.name, context: `Overdue · ${item.module.name}`, date: item.dueDate!.toISOString(), timestamp: item.dueDate!.getTime(), href: `/custom-modules/${item.moduleId}/items/${item.id}`, editHref: `/custom-modules/${item.moduleId}/items/${item.id}`, icon: item.module.icon, color: item.module.color })),
-    ...todos.filter((todo) => isOpenTodoStatus(todo.status)).map((todo) => ({ key: dismissalKey("todo", todo.id, OVERDUE_NOTIFICATION_TYPE.todo, todo.dueDate!), kind: "todo" as const, todoId: todo.id, title: todo.name, context: "Overdue to-do", date: todo.dueDate!.toISOString(), timestamp: todo.dueDate!.getTime(), href: "/todos" })),
-  ];
   const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));
-  return items.filter(({ key }) => !dismissed.has(key)).sort((a, b) => a.timestamp - b.timestamp);
+
+  const items = records
+    .filter((record): record is NeedsAttentionEligible => record.kind !== "relationship")
+    .filter((record) => isOverdueForNeedsAttention(record, today))
+    .map(toAttentionItem)
+    .filter(({ key }) => !dismissed.has(key));
+
+  return items.sort((a, b) => a.timestamp - b.timestamp);
 }

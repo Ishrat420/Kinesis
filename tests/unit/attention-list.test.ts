@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   milestoneFindMany: vi.fn(async (): Promise<unknown[]> => []),
   customItemFindMany: vi.fn(async (): Promise<unknown[]> => []),
   todoFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  relationshipImportantDateFindMany: vi.fn(async (): Promise<unknown[]> => []),
   dismissalFindMany: vi.fn(async (): Promise<unknown[]> => []),
 }));
 
@@ -18,6 +19,11 @@ vi.mock("@/lib/data/prisma", () => ({
     milestone: { findMany: mocks.milestoneFindMany },
     customItem: { findMany: mocks.customItemFindMany },
     todo: { findMany: mocks.todoFindMany },
+    // getNeedsAttention sources records from the shared getAttentionRecords
+    // (KD-017 Phase 1/2), which also queries relationship dates even though
+    // Needs Attention never shows them -- see isOverdueForNeedsAttention's
+    // NeedsAttentionEligible type, which excludes the kind entirely.
+    relationshipImportantDate: { findMany: mocks.relationshipImportantDateFindMany },
     attentionDismissal: { findMany: mocks.dismissalFindMany },
   },
 }));
@@ -43,6 +49,7 @@ describe("Needs Attention: a dismissal holds only while the deadline stands", ()
     mocks.milestoneFindMany.mockResolvedValue([]);
     mocks.customItemFindMany.mockResolvedValue([]);
     mocks.todoFindMany.mockResolvedValue([]);
+    mocks.relationshipImportantDateFindMany.mockResolvedValue([]);
     mocks.dismissalFindMany.mockResolvedValue([]);
   });
 
