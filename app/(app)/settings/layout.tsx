@@ -11,7 +11,7 @@ import { SettingsTabs } from "@/components/settings/SettingsTabs";
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <ModuleContent width="standard">
-      <ModuleHeader eyebrow="System" title="Settings" description="Control how Kinesis looks, notifies you, and handles your data." />
+      <ModuleHeader title="Settings" description="Control how Kinesis looks, notifies you, and handles your data." />
       <div className="mt-6"><SettingsTabs /></div>
       <div className="mt-6">{children}</div>
     </ModuleContent>
