@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn() }));
 
@@ -47,6 +47,10 @@ describe.sequential("updateUserAction's owner-rename cascade", () => {
       ],
     });
     mocks.requireKinesisUser.mockResolvedValue({ id: owner, firstName: "Jordan", lastName: "Rivers", preferredName: null });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: { in: [owner, otherOwner] } } });
   });
 
   it("renames every document credited to the account's old display name", async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn() }));
 
@@ -24,6 +24,7 @@ import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
  */
 
 const owner = "goal-fields-owner";
+const otherOwner = "goal-fields-other-owner";
 const GOAL = "goal-with-fields";
 const TARGET_GOAL = "goal-link-target";
 
@@ -53,6 +54,10 @@ describe.sequential("updateGoalFieldsAction", () => {
     await prisma.user.create({ data: { id: owner, firstName: "Fields", lastName: "Owner", email: "goal-fields@example.test" } });
     objectId = await makeGoal(GOAL, owner);
     targetObjectId = await makeGoal(TARGET_GOAL, owner);
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: { in: [owner, otherOwner] } } });
   });
 
   it("saves a new set of fields, including a Kinesis Link with a chosen target", async () => {
@@ -121,7 +126,6 @@ describe.sequential("updateGoalFieldsAction", () => {
   });
 
   it("does not let a save through for a goal owned by someone else", async () => {
-    const otherOwner = "goal-fields-other-owner";
     await prisma.user.deleteMany({ where: { id: otherOwner } });
     await prisma.user.create({ data: { id: otherOwner, firstName: "Other", lastName: "Owner", email: "goal-fields-other@example.test" } });
     const otherObjectId = await makeGoal("goal-fields-someone-elses-goal", otherOwner);

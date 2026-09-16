@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn() }));
 
@@ -38,6 +38,10 @@ describe.sequential("updateDashboardModuleOrderAction", () => {
       ],
     });
     mocks.requireKinesisUser.mockResolvedValue({ id: owner });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: { in: [owner, otherOwner] } } });
   });
 
   it("persists a reordering of the system modules", async () => {

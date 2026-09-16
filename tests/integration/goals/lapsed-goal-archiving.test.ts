@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn(), getToday: vi.fn() }));
 
@@ -52,6 +52,10 @@ describe.sequential("lapsed-goal auto-archiving", () => {
         { id: otherOwner, firstName: "Lapse", lastName: "Other", email: "lapse-other@example.test" },
       ],
     });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: { in: [owner, otherOwner] } } });
   });
 
   describe("archiveLapsedGoals", () => {
