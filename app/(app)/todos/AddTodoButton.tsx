@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, Check, ChevronDown, ListTodo, Plus, X } from "lucide-react";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import type { TodoStatus } from "@prisma/client";
 import { Modal } from "@/components/overlay/Modal";
 import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
@@ -22,10 +22,10 @@ const initialState: CreateTodoState = {};
  */
 const FIELD_CLASS =
   "w-full rounded-xl border-[1.5px] border-zinc-200 bg-white text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
-const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-xs font-semibold text-zinc-900";
+const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900";
 
 const STATUS_DOT_CLASS: Record<TodoStatus, string> = {
-  TODO: "bg-teal-600",
+  TODO: "bg-zinc-400",
   WAITING: "bg-amber-500",
   DONE: "bg-emerald-500",
 };
@@ -79,6 +79,7 @@ export function AddTodoForm({
   const [status, setStatus] = useState<TodoStatus>("TODO");
   const [dueDate, setDueDate] = useState(initialDueDate);
   const [dateFocused, setDateFocused] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [notes, setNotes] = useState("");
   const [linkObjectIds, setLinkObjectIds] = useState<string[]>(initialLinkObjectIds);
   const [state, formAction, pending] = useActionState(createTodoAction, initialState);
@@ -151,7 +152,8 @@ export function AddTodoForm({
                 Due <span className="font-normal text-zinc-400">optional</span>
               </label>
               <div
-                className={`relative flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
+                onClick={() => dateInputRef.current?.showPicker?.()}
+                className={`relative flex h-[50px] cursor-pointer items-center gap-2 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
                   dateFocused ? "border-teal-600 ring-4 ring-teal-600/15" : "border-zinc-200"
                 }`}
               >
@@ -161,6 +163,7 @@ export function AddTodoForm({
                 </span>
                 <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
                 <input
+                  ref={dateInputRef}
                   type="date"
                   name="dueDate"
                   aria-label="Due date"
