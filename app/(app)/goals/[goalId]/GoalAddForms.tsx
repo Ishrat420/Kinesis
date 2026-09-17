@@ -24,7 +24,7 @@ function ActionError({ error }: { error?: string }) {
  * Safari where it shows nothing at all until a value is picked. The real
  * input still covers the row so it stays keyboard- and screen-reader-operable.
  */
-function DueDateField({ value, onChange, max, ariaLabel }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string }) {
+export function DueDateField({ value, onChange, max, ariaLabel }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string }) {
   const [focused, setFocused] = useState(false);
   const { locale } = useFormatPreferences();
   const inputRef = useRef<HTMLInputElement>(null);
