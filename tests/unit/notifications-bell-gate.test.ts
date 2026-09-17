@@ -13,10 +13,8 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/server", () => ({ connection: () => Promise.resolve() }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/settings", () => ({ getSettings: mocks.getSettings }));
-vi.mock("@/lib/notifications/engine", () => ({
-  collectNotifications: mocks.collectNotifications,
-  runDailyMaintenance: vi.fn(),
-}));
+vi.mock("@/lib/data/notification-collection", () => ({ collectNotifications: mocks.collectNotifications }));
+vi.mock("@/lib/notifications/engine", () => ({ runDailyMaintenance: vi.fn() }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
     notificationRead: { createMany: mocks.readCreateMany, upsert: mocks.readUpsert },

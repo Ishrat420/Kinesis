@@ -11,6 +11,7 @@ import { presentCustomFields } from "@/lib/custom-fields/present";
 import { deleteObjects, objectFor } from "./objects";
 import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
+import { documentUpcomingPhase } from "@/lib/attention/items";
 
 export type DocumentInput = {
   name: string;
@@ -60,6 +61,22 @@ export async function getDocumentSummary() {
   };
 }
 
+/**
+ * KD-017 Phase 2: classification now goes through the shared
+ * `documentUpcomingPhase` (Phase 1) rather than its own copy of the same
+ * boundary math -- there was no disagreement to fix here (documents are the
+ * one type every surface already agreed on), just one fewer place the rule
+ * is written down.
+ *
+ * `remindersEnabled` is deliberately always passed as `true`: this tile and
+ * its "see all" page are the one surface ADR-010 documents as ignoring that
+ * setting entirely (line 40, "never been argued... maybe revisited later").
+ * Preserved as-is, not part of this pass. Dismissal-awareness is likewise
+ * deliberately not added here -- unlike Needs Attention/Upcoming & Due, this
+ * is a reference listing, not a "what needs me right now" surface, and
+ * whether a dismissed-elsewhere document should still count here is a
+ * product decision of its own, not a side effect of this migration.
+ */
 export async function getExpiringDocuments(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
@@ -69,12 +86,11 @@ export async function getExpiringDocuments(now = new Date()) {
     orderBy: { expiryDate: "asc" },
   });
 
-  const upcoming = documents.filter(
-    (document) => getExpiryDetails(document.expiryDate, document.prompt, today).status === "Expiring soon",
-  );
-  const expired = documents
-    .filter((document) => getExpiryDetails(document.expiryDate, document.prompt, today).status === "Expired")
-    .reverse();
+  const phase = (document: (typeof documents)[number]) =>
+    documentUpcomingPhase({ kind: "document", id: document.id, name: document.name, type: document.type, expiryDate: document.expiryDate!, prompt: document.prompt }, today, true);
+
+  const upcoming = documents.filter((document) => phase(document) === "due-soon");
+  const expired = documents.filter((document) => phase(document) === "overdue").reverse();
 
   return { upcoming, expired };
 }

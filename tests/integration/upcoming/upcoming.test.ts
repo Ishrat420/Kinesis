@@ -82,6 +82,34 @@ describe.sequential("Upcoming & Due", () => {
     expect(items.map((item) => item.kind)).toEqual(["todo", "milestone", "custom", "document", "relationship"]);
   });
 
+  /**
+   * Regression: items are sourced from one shared array (getAttentionRecords,
+   * KD-017 Phase 1) rather than five separately concatenated ones, so a
+   * same-day tie can no longer be left to whatever order that array happens
+   * to list kinds in -- that order is an implementation detail, not a
+   * contract, and it visibly changed once during this migration (custom
+   * items moved ahead of to-dos and relationship dates). `id` gives the sort
+   * a real, stable tiebreak that doesn't depend on it.
+   */
+  it("breaks a same-day tie deterministically by id, not by which kind's array happened to list it first", async () => {
+    // Picked so the two orderings disagree: getAttentionRecords lists
+    // milestones before custom items, but "custom-..." sorts before
+    // "milestone-..." alphabetically. A sort that (still) relied on array
+    // order would show the milestone first; this asserts the custom item
+    // does, because id order is what the sort actually promises now.
+    await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Read more", userId: owner } });
+    await prisma.goal.create({ data: { id: "goal-1", name: "Read more", userId: owner, objectId: "goal-obj" } });
+    await prisma.milestone.create({ data: { id: "milestone-1", goalId: "goal-1", name: "Finish chapter 1", dueDate: new Date("2026-06-20") } });
+
+    await prisma.customModule.create({ data: { id: "module-1", name: "Books", normalizedName: "books", icon: "star", color: "#111111", userId: owner } });
+    await prisma.object.create({ data: { id: "item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+    await prisma.customItem.create({ data: { id: "item-1", name: "Dune", dueDate: new Date("2026-06-20"), moduleId: "module-1", objectId: "item-obj" } });
+
+    const items = await getUpcomingAndDue(now);
+
+    expect(items.map((item) => item.id)).toEqual(["custom-item-1", "milestone-milestone-1"]);
+  });
+
   it("excludes a document whose reminder window hasn't opened yet", async () => {
     // Expires in 200 days, with only a 30-day prompt -- well outside its window.
     await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Passport", userId: owner } });

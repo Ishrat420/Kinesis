@@ -306,46 +306,118 @@ hand-built fixtures that exercise each Phase 0 decision explicitly (the
 ticket's own "verifiable before shipping" plan above) — proof the new
 function does what Phase 0 decided, independent of anything downstream.
 
-#### Phase 2 — Migrate the four stateless consumers, one at a time
+#### Phase 2 — Migrate the four stateless consumers, one at a time (done)
 
 Each of these is its own small, revertable change: swap the old query for
 a filter over the Phase 1 list, keep the component's own props/JSX
-untouched, run the suite, check the dashboard, ship, move on.
+untouched, run the suite, check the dashboard, ship, move on. Three of
+the four ended up as real code migrations; the fourth (Milestones tile)
+turned out to already be unified through its own shared window helper,
+which is itself a useful thing to have confirmed rather than assumed.
 
 1. **Needs Attention card** (`components/dashboard/NeedsAttentionCard.tsx`,
-   via `app/(app)/page.tsx:25`) — filter `status === "overdue"`, scoped to
-   `getNeedsAttention`'s current module set.
-2. **Upcoming & Due** (`components/dashboard/ReminderList.tsx`) — filter
-   `status !== "fine"`, scoped to `getUpcomingAndDue`'s module set (the
-   only one that includes relationships). Also fix the accidental double
-   fetch while here — `app/(app)/page.tsx:21` and
-   `components/dashboard/ModuleGrid.tsx:19` each call the old function
-   independently today; wrapping the new shared function in React's
-   `cache()` collapses both to one query per request.
+   via `app/(app)/page.tsx:25`, done) — `getNeedsAttention`
+   (`lib/data/attention.ts`) now filters `getAttentionRecords` through
+   `isOverdueForNeedsAttention`. Component and `AttentionItem` shape
+   unchanged; picks up the `activeGoalWhere` fix.
+2. **Upcoming & Due** (`components/dashboard/ReminderList.tsx`, done) —
+   `getUpcomingAndDue` (`lib/data/upcoming.ts`) now filters through the
+   per-kind phase functions and is wrapped in React's `cache()`, fixing
+   the accidental double fetch (`app/(app)/page.tsx:21` and
+   `components/dashboard/ModuleGrid.tsx:19` both called the old function
+   independently). Also fixes the reminders-off bug Phase 0 found: an
+   overdue milestone/custom item no longer disappears when
+   `remindersEnabled` is off.
 3. **StatsGrid "Expiring soon" tile + `/documents/expiring-soon`**
    (`components/dashboard/StatsGrid.tsx:14`,
-   `app/(app)/documents/expiring-soon/page.tsx`) — filter
-   `kind === "document"`. Picks up dismissal-awareness this consumer
-   never had (§G above) and the Phase 0 reminders-off decision, both for
-   the first time — call out any visible count/list change this causes
-   explicitly when shipping this step.
+   `app/(app)/documents/expiring-soon/page.tsx`, done) —
+   `getExpiringDocuments` now classifies through the shared
+   `documentUpcomingPhase` instead of its own copy of the same expiry
+   math. Revised from the original plan below, now that Phase 0 was
+   reconciled against ADR-010: this tile's `remindersEnabled`-ignoring
+   behaviour is confirmed intended (ADR-010 line 40) and preserved
+   exactly (`remindersEnabled` passed as `true` unconditionally, not
+   read from settings), and dismissal-awareness was deliberately **not**
+   added — this is a reference listing, not a "what needs me right now"
+   surface, and whether a dashboard dismissal should also hide a
+   document here is a product decision of its own, not a side effect of
+   a data-layer migration. No visible behaviour change; see
+   `lib/data/documents.ts` and
+   `tests/integration/documents/expiring-soon.test.ts`.
 4. **StatsGrid "Milestones" tile + `/goals/milestones/due-soon`**
    (`components/dashboard/StatsGrid.tsx:16`,
-   `app/(app)/goals/milestones/due-soon/page.tsx`) — filter
-   `kind === "milestone"` plus whichever date-window rule Phase 0 settled
-   on for this one deliberately-different tile.
+   `app/(app)/goals/milestones/due-soon/page.tsx`, no code change
+   needed) — revised from the original plan on actually implementing
+   it: `getMilestonesDueSoon` (`lib/data/goals.ts`) already goes through
+   `milestoneDueSoonWindow` (`lib/goals/milestone-window.ts`), the same
+   shared helper its own "see all" page's `milestoneLists` uses, so the
+   tile and the page were never two disagreeing implementations to begin
+   with — Phase 0's "five implementations" count only holds once you
+   don't also count this tile's own already-shared window helper. That
+   window (`today` through `today + leadDays`, both ends inclusive) is
+   provably the same range `milestoneUpcomingPhase`'s due-soon branch
+   computes with `remindersEnabled` forced `true` (this tile ignores
+   that setting too, same as Expiring soon, ADR-010 line 40). Routing
+   this through `getAttentionRecords` instead would have meant either
+   dropping the query's `dueDate` narrowing (fetching every incomplete
+   milestone to filter in memory) or adding a `position` field to the
+   shared record type purely for this one consumer's same-day tiebreak
+   — real cost for a change with no behaviour or unification value,
+   since there's no actual disagreement here to fix. Left as-is;
+   `tests/unit/milestone-due-soon-agreement.test.ts` already guards it.
 
-#### Phase 3 — Notification bell (deliberately last)
+#### Phase 3 — Notification bell (deliberately last, done)
 
-Teach `collectNotifications` to source its candidate records from the
-Phase 1 shared query, so it stops being a sixth, separately-maintained
-implementation of "what's due" — but leave its own type derivation
-(`REMINDER_DUE`/`EXPIRED`/`MILESTONE_DUE`/etc.), the `notificationKey`
-scheme (`lib/notifications/identity.ts:38-46`), and the `NotificationRead`
-dedup table completely untouched. Only which rows feed it changes, never
-how it decides what's already been seen. Needs its own before/after
-snapshot test asserting every existing key still resolves identically —
-a changed key silently un-reads something a real user already dismissed.
+`collectNotifications` now sources its candidate records from the Phase 1
+shared `getAttentionRecords`, so it stops being a sixth,
+separately-maintained implementation of "what's due." Its own type
+derivation, the `notificationKey` scheme (`lib/notifications/identity.ts:38-46`),
+and the `NotificationRead` dedup table are completely untouched — only
+which rows feed the candidate builders changes, never how the bell decides
+what's already been seen. No dedicated before/after snapshot test was
+needed in the end: `notificationKey`/the candidate builders' type
+derivation were never touched, and the existing test suite already pins
+exact key strings end to end (`tests/unit/notifications-collect.test.ts`),
+so a changed key would already fail loudly.
+
+One real behaviour fix ships with it, the mirror of Phase 2's Upcoming &
+Due fix: `getMilestoneNotificationCandidate`/`getCustomItemNotificationCandidate`
+used to be gated on `remindersEnabled` from the *outside*, in
+`collectNotifications` itself, which dropped `MILESTONE_DUE`/
+`CUSTOM_ITEM_DUE` along with their advance `REMINDER_DUE` phase. Both now
+gate internally, matching the document/to-do builders' existing pattern —
+the overdue type survives the switch, matching ADR-010.
+
+Two implementation notes worth recording:
+
+* **`getAttentionRecords` needed an escape hatch.** Unlike every Phase 2
+  consumer, `collectNotifications(userId, now)` does not assume "the
+  current session" — it takes `userId` explicitly (both real call sites
+  happen to pass the current session's own id today, but the function
+  was never written to assume that) and resolves `today` from that user's
+  settings directly, never through the session-bound `getToday()`. Silently
+  routing it through the ordinary, `requireKinesisUser()`-based
+  `getAttentionRecords` would have made a userId-parameterized function
+  secretly depend on ambient session state matching that parameter — a
+  latent cross-user risk if that assumption is ever broken. Added an
+  optional `scope: { userId, today }` to `getAttentionRecords`: omitted,
+  every existing caller is unaffected; passed, it skips
+  `requireKinesisUser()`/`getToday()` entirely, deferring to the caller's
+  own explicit values.
+* **`collectNotifications` moved out of `lib/notifications/engine.ts`
+  entirely**, into its own `lib/data/notification-collection.ts`. Engine.ts
+  holds the pure candidate-builder functions (`getDocumentNotificationCandidate`
+  etc.), which a wide range of tests import with no database or session
+  mocking at all — pulling `getAttentionRecords` (which reaches
+  `requireKinesisUser`/`next/server`) into that same file would have made
+  every one of those pure functions un-importable without stubbing both
+  out, exactly the problem KD-017 Phase 1 already solved once by splitting
+  `lib/attention/items.ts` (pure) from `lib/data/attention-items.ts` (I/O).
+  Same fix, same shape, applied here too. It also had to be its own file
+  rather than living directly in `lib/data/notifications.ts` next to
+  `getRecentNotifications`/`markAllNotificationsRead`: those two are
+  unit-tested by mocking `collectNotifications` away as an external
+  dependency, which only works across a real module boundary.
 
 #### Phase 4 — Cleanup (once 1–3 are shipped and stable)
 
