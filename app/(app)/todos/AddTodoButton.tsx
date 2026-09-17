@@ -23,7 +23,6 @@ const initialState: CreateTodoState = {};
 const FIELD_CLASS =
   "w-full rounded-xl border-[1.5px] border-zinc-200 bg-white text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
 const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-xs font-semibold text-zinc-900";
-const FIELD_CAPTION_CLASS = "mt-1.5 text-[11px] leading-snug text-zinc-400";
 
 const STATUS_DOT_CLASS: Record<TodoStatus, string> = {
   TODO: "bg-teal-600",
@@ -91,16 +90,13 @@ export function AddTodoForm({
 
   return (
     <Modal labelledBy="add-todo-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-md">
-      <div className="flex items-start gap-3 border-b border-zinc-200 px-4 py-4 sm:px-8 sm:py-5">
+      <div className="flex items-center gap-3 border-b border-zinc-200 px-3 py-4 sm:px-6 sm:py-5">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
           <ListTodo className="h-5 w-5" aria-hidden="true" />
         </span>
-        <div className="flex-1 pt-0.5">
-          <h2 id="add-todo-title" className="text-xl font-bold text-zinc-900 sm:text-2xl">
-            Add a to-do
-          </h2>
-          <p className="mt-0.5 text-xs text-zinc-500 sm:text-sm">Capture something that needs attention now. You can organise it later.</p>
-        </div>
+        <h2 id="add-todo-title" className="flex-1 text-xl font-bold text-zinc-900 sm:text-2xl">
+          Add a to-do
+        </h2>
         <button
           type="button"
           onClick={onClose}
@@ -112,7 +108,7 @@ export function AddTodoForm({
       </div>
 
       <form action={formAction}>
-        <div className="space-y-4 px-4 py-5 sm:px-8">
+        <div className="space-y-4 px-3 py-5 sm:px-6">
           <div>
             <label htmlFor="todo-name" className={FIELD_LABEL_CLASS}>
               To-do title <span className="font-bold text-red-500">*</span>
@@ -126,7 +122,6 @@ export function AddTodoForm({
               placeholder="What do you need to do?"
               className={`h-[50px] px-3.5 font-medium ${FIELD_CLASS}`}
             />
-            <p className={FIELD_CAPTION_CLASS}>e.g. Renew car registration</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -192,7 +187,6 @@ export function AddTodoForm({
               placeholder="Nothing yet"
               addPlaceholder="Link something else"
             />
-            <p className={FIELD_CAPTION_CLASS}>Link to a document, goal, person, vehicle, etc.</p>
           </div>
 
           <div>
@@ -216,7 +210,7 @@ export function AddTodoForm({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-3 sm:px-8 sm:pt-5 sm:pb-5">
+        <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 px-3 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:pt-5 sm:pb-5">
           <button
             type="button"
             onClick={onClose}
