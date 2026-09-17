@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowDownLeft, ArrowUpRight, Banknote, Building2,
+  ArrowDownLeft, ArrowUpRight, Banknote, Building2, Check, ChevronDown,
   CalendarClock, CreditCard, Landmark, Pencil, Plus, Trash2, TrendingDown, TrendingUp, WalletCards, X,
 } from "lucide-react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
@@ -37,6 +37,19 @@ function useMoney() {
 }
 
 const kindLabels: Record<Kind, string> = { asset: "Asset", liability: "Liability", income: "Income", expense: "Expense" };
+const KIND_ICONS: Record<Kind, typeof Building2> = { asset: Building2, liability: CreditCard, income: ArrowDownLeft, expense: ArrowUpRight };
+const KIND_TONE_CLASS: Record<Kind, string> = {
+  asset: "bg-emerald-50 text-emerald-700", income: "bg-emerald-50 text-emerald-700",
+  liability: "bg-rose-50 text-rose-700", expense: "bg-rose-50 text-rose-700",
+};
+/**
+ * A real border and real size (50px) at rest, the same treatment every
+ * redesigned create/edit form in the app shares, in Finance's own emerald
+ * (matching the module's colour everywhere else it appears -- the command
+ * bar, the flow cards above).
+ */
+const FIELD_CLASS =
+  "h-[50px] w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/15 sm:text-sm";
 /**
  * `items` is read straight from the props on every render rather than seeded
  * into state. The save and delete actions both revalidate this route, so the
@@ -96,8 +109,14 @@ export function FinanceDashboard({ items }: { items: FinanceItem[] }) {
     <div className="mt-5 grid gap-5 xl:grid-cols-2"><ItemSection title="Assets" subtitle={`${assets.length} things you own`} icon={Building2} items={assets} onEdit={openForm} onDelete={setDeleting} today={today}/><ItemSection title="Liabilities" subtitle={`${liabilities.length} things you owe`} icon={CreditCard} items={liabilities} onEdit={openForm} onDelete={setDeleting} today={today}/></div>
     <div className="mt-5"><ItemSection title="Recurring income & expenses" subtitle="Your regular money in and out" icon={WalletCards} items={recurring} onEdit={openForm} onDelete={setDeleting} today={today} recurring/></div>
 
-    {modal && <Modal labelledBy="finance-dialog-title" onClose={closeModal} customHeader panelClassName="p-6 sm:p-7">
-      <div className="flex items-start justify-between"><div><h2 id="finance-dialog-title" className="text-xl font-semibold">{modal === "choose" ? "What would you like to add?" : `${editing ? "Edit" : "Add"} ${kindLabels[formKind]}`}</h2>{modal === "choose" && <p className="mt-1 text-sm text-zinc-500">Choose the type of financial item.</p>}</div><button type="button" aria-label="Close dialog" onClick={closeModal} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5"/></button></div>
+    {modal && <Modal labelledBy="finance-dialog-title" onClose={closeModal} customHeader panelClassName="p-6 sm:p-7 !rounded-t-2xl sm:!rounded-2xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          {modal === "form" && <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${KIND_TONE_CLASS[formKind]}`}>{(() => { const Icon = KIND_ICONS[formKind]; return <Icon className="h-5 w-5" />; })()}</span>}
+          <div><h2 id="finance-dialog-title" className="text-xl font-semibold">{modal === "choose" ? "What would you like to add?" : `${editing ? "Edit" : "Add"} ${kindLabels[formKind]}`}</h2>{modal === "choose" && <p className="mt-1 text-sm text-zinc-500">Choose the type of financial item.</p>}</div>
+        </div>
+        <button type="button" aria-label="Close dialog" onClick={closeModal} className="shrink-0 rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5"/></button>
+      </div>
       {modal === "choose" ? <div className="mt-6 grid grid-cols-2 gap-3">{(["asset", "liability", "income", "expense"] as Kind[]).map((kind) => <button key={kind} onClick={() => openForm(kind)} className="group rounded-2xl border border-zinc-200 p-5 text-left transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${kind === "asset" || kind === "income" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{kind === "income" ? <ArrowDownLeft className="h-5 w-5"/> : kind === "expense" ? <ArrowUpRight className="h-5 w-5"/> : kind === "asset" ? <Building2 className="h-5 w-5"/> : <CreditCard className="h-5 w-5"/>}</span><span className="mt-4 block font-semibold">Add {kindLabels[kind]}</span><span className="mt-1 block text-xs text-zinc-500">{kind === "asset" ? "Something you own" : kind === "liability" ? "A balance you owe" : kind === "income" ? "Recurring money in" : "Recurring money out"}</span></button>)}</div> : <FinanceForm kind={formKind} item={editing} onSaved={closeModal} today={today}/>}
     </Modal>}
     {deleting && <DeleteFinanceItem item={deleting} onCancel={closeDeleteModal} onDeleted={closeDeleteModal}/>}
@@ -159,24 +178,24 @@ function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: Finance
   const monthsToPayoff = liveItem ? getMonthsToPayoff(liveItem, today) : undefined;
 
   return <form action={formAction} className="mt-6 space-y-4">
-    <Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field>
-    <Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required value={amountInput} onChange={(event) => setAmountInput(event.target.value)} className="input pl-8"/></div></Field>
+    <Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className={FIELD_CLASS}/></Field>
+    <Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required value={amountInput} onChange={(event) => setAmountInput(event.target.value)} className={`${FIELD_CLASS} pl-8`}/></div></Field>
     {!recurring ? <>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field>
-        <Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Category"><div className="relative"><select name="category" defaultValue={item?.category} className={`${FIELD_CLASS} appearance-none pr-9`}>{categories.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"/></div></Field>
+        <Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Optional" className={`${FIELD_CLASS} pr-10`}/><span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400">%</span></div></Field>
       </div>
-      <Field label={balance ? "Monthly payment" : "Monthly contribution"}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="monthlyContribution" type="number" min="0" step="0.01" value={contributionInput} onChange={(event) => setContributionInput(event.target.value)} placeholder="Optional" className="input pl-8"/></div></Field>
+      <Field label={balance ? "Monthly payment" : "Monthly contribution"}><div className="relative"><span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">$</span><input name="monthlyContribution" type="number" min="0" step="0.01" value={contributionInput} onChange={(event) => setContributionInput(event.target.value)} placeholder="Optional" className={`${FIELD_CLASS} pl-8`}/></div></Field>
       {interestDay && <p className="text-xs text-zinc-400">Interest added monthly on {interestDay}.</p>}
       {health && <FinanceHealthBadge health={health} monthsToPayoff={monthsToPayoff}/>}
       <FinanceProjectionHistory entries={projection} balance={balance}/>
     </> : <>
-      <Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field>
-      <div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div>
+      <Field label="Frequency *"><div className="relative"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className={`${FIELD_CLASS} appearance-none pr-9`}>{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"/></div></Field>
+      <div className="grid grid-cols-2 gap-3"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className={FIELD_CLASS}/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className={FIELD_CLASS}/></Field></div>
     </>}
-    <Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>
+    <Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
     {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
-    <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button>
+    <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : <><Check className="h-4 w-4" aria-hidden="true"/>{item ? "Save changes" : `Add ${kindLabels[kind]}`}</>}</button>
   </form>;
 }
 
@@ -238,4 +257,8 @@ function FinanceProjectionHistory({ entries, balance }: { entries: ReturnType<ty
   return <div className="rounded-2xl border border-zinc-100 bg-zinc-50/60 p-4"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">Last auto-applied</p><ul className="mt-3 space-y-1.5 text-sm">{entries.map((entry) => <li key={entry.period} className="flex items-center justify-between gap-3 text-zinc-600"><span>{formatDate(entry.period)}</span><span className="text-right">+{money(entry.interest)} interest{entry.contribution !== 0 && <>, {entry.contribution > 0 ? "+" : "−"}{money(Math.abs(entry.contribution))} {balance ? "payment" : "contribution"}</>} → <span className="font-semibold text-zinc-900">{money(entry.balance)}</span></span></li>)}</ul></div>;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-sm font-medium text-zinc-700">{label}</span>{children}</label>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const required = label.endsWith(" *");
+  const text = required ? label.slice(0, -2) : label;
+  return <label className="block"><span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">{text} {required && <span className="font-bold text-red-500">*</span>}</span>{children}</label>;
+}
