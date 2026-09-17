@@ -14,14 +14,22 @@ import { createTodoAction, type CreateTodoState } from "./actions";
 const initialState: CreateTodoState = {};
 
 /**
- * The fill-at-rest, border-and-ring-only-on-focus treatment every field in
- * this form shares, in To-Do's own teal (matching the module's colour
- * everywhere else it appears -- the notification bell, quick capture).
- * `text-base sm:text-sm` keeps mobile Safari from zooming in on focus.
+ * Every field in this form shares a real border and real size at rest --
+ * 50px tall, so it reads as a field before it's been touched, not just once
+ * focused -- in To-Do's own teal (matching the module's colour everywhere
+ * else it appears -- the notification bell, quick capture). `text-base
+ * sm:text-sm` keeps mobile Safari from zooming in on focus.
  */
 const FIELD_CLASS =
-  "w-full rounded-xl border-[1.5px] border-transparent bg-zinc-100 px-3 text-base text-zinc-900 outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
-const FIELD_LABEL_CLASS = "mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-zinc-900";
+  "w-full rounded-xl border-[1.5px] border-zinc-200 bg-white text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
+const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-xs font-semibold text-zinc-900";
+const FIELD_CAPTION_CLASS = "mt-1.5 text-[11px] leading-snug text-zinc-400";
+
+const STATUS_DOT_CLASS: Record<TodoStatus, string> = {
+  TODO: "bg-teal-600",
+  WAITING: "bg-amber-500",
+  DONE: "bg-emerald-500",
+};
 
 /**
  * The in-page equivalent of the command bar's quick capture (KD-008A), for
@@ -83,13 +91,16 @@ export function AddTodoForm({
 
   return (
     <Modal labelledBy="add-todo-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-md">
-      <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-4 sm:px-8 sm:py-5">
+      <div className="flex items-start gap-3 border-b border-zinc-200 px-4 py-4 sm:px-8 sm:py-5">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
           <ListTodo className="h-5 w-5" aria-hidden="true" />
         </span>
-        <h2 id="add-todo-title" className="flex-1 text-xl font-bold text-zinc-900 sm:text-2xl">
-          Add a to-do
-        </h2>
+        <div className="flex-1 pt-0.5">
+          <h2 id="add-todo-title" className="text-xl font-bold text-zinc-900 sm:text-2xl">
+            Add a to-do
+          </h2>
+          <p className="mt-0.5 text-xs text-zinc-500 sm:text-sm">Capture something that needs attention now. You can organise it later.</p>
+        </div>
         <button
           type="button"
           onClick={onClose}
@@ -102,26 +113,33 @@ export function AddTodoForm({
 
       <form action={formAction}>
         <div className="space-y-4 px-4 py-5 sm:px-8">
-          <input
-            name="name"
-            required
-            autoFocus
-            defaultValue={initialName}
-            placeholder="What do you need to do?"
-            aria-label="What do you need to do?"
-            className="w-full border-0 border-b-2 border-transparent bg-transparent pb-2 text-xl font-bold text-zinc-900 outline-none transition placeholder:font-semibold placeholder:text-zinc-400 focus:border-teal-600"
-          />
+          <div>
+            <label htmlFor="todo-name" className={FIELD_LABEL_CLASS}>
+              To-do title <span className="font-bold text-red-500">*</span>
+            </label>
+            <input
+              id="todo-name"
+              name="name"
+              required
+              autoFocus
+              defaultValue={initialName}
+              placeholder="What do you need to do?"
+              className={`h-[50px] px-3.5 font-medium ${FIELD_CLASS}`}
+            />
+            <p className={FIELD_CAPTION_CLASS}>e.g. Renew car registration</p>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="todo-status" className={FIELD_LABEL_CLASS}>Status</label>
               <div className="relative">
+                <span aria-hidden="true" className={`pointer-events-none absolute left-3.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${STATUS_DOT_CLASS[status]}`} />
                 <select
                   id="todo-status"
                   name="status"
                   value={status}
                   onChange={(event) => setStatus(event.target.value as TodoStatus)}
-                  className={`h-11 appearance-none pr-8 ${FIELD_CLASS}`}
+                  className={`h-[50px] appearance-none pl-8 pr-8 ${FIELD_CLASS}`}
                 >
                   {TODO_STATUSES.map((option) => (
                     <option key={option} value={option}>
@@ -138,14 +156,15 @@ export function AddTodoForm({
                 Due <span className="font-normal text-zinc-400">optional</span>
               </label>
               <div
-                className={`relative flex h-11 items-center gap-2 rounded-xl border-[1.5px] px-3 transition ${
-                  dateFocused ? "border-teal-600 bg-white ring-4 ring-teal-600/15" : "border-transparent bg-zinc-100"
+                className={`relative flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
+                  dateFocused ? "border-teal-600 ring-4 ring-teal-600/15" : "border-zinc-200"
                 }`}
               >
                 <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
                 <span className={`flex-1 truncate text-base sm:text-sm ${dueDate ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
                   {dueDate ? formatDate(dueDate, locale) : "Select a date"}
                 </span>
+                <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
                 <input
                   type="date"
                   name="dueDate"
@@ -173,6 +192,7 @@ export function AddTodoForm({
               placeholder="Nothing yet"
               addPlaceholder="Link something else"
             />
+            <p className={FIELD_CAPTION_CLASS}>Link to a document, goal, person, vehicle, etc.</p>
           </div>
 
           <div>
@@ -185,7 +205,7 @@ export function AddTodoForm({
               onChange={(event) => setNotes(event.target.value)}
               rows={4}
               placeholder="Add any extra details…"
-              className={`min-h-[92px] resize-none px-3 py-2.5 leading-relaxed ${FIELD_CLASS}`}
+              className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`}
             />
           </div>
 
@@ -200,7 +220,7 @@ export function AddTodoForm({
           <button
             type="button"
             onClick={onClose}
-            className="h-11 rounded-xl px-5 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 sm:h-10"
+            className="h-11 rounded-xl border-[1.5px] border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-50 sm:h-10"
           >
             Cancel
           </button>
