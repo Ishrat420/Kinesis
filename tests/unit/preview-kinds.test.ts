@@ -11,10 +11,10 @@ describe("resolveKind", () => {
     expect(resolveKind("NUMBER")).toBe("number");
     expect(resolveKind("NUMBER", "CURRENCY")).toBe("currency");
     expect(resolveKind("NUMBER", "PERCENT")).toBe("percent");
+    expect(resolveKind("CHECKBOX")).toBe("boolean");
   });
 
   it("has no kind for a type that can't ever be a preview field", () => {
-    expect(resolveKind("CHECKBOX")).toBeNull();
     expect(resolveKind("LINK")).toBeNull();
   });
 });
@@ -24,6 +24,13 @@ describe("formatPreviewValue", () => {
     expect(formatPreviewValue("text", { value: "" }, context)).toBeNull();
     expect(formatPreviewValue("text", { value: "   " }, context)).toBeNull();
     expect(formatPreviewValue("currency", {}, context)).toBeNull();
+  });
+
+  it("renders a checkbox's true/false state as text, never dropping it as blank", () => {
+    expect(formatPreviewValue("boolean", { value: "true" }, context)).toBe("True");
+    expect(formatPreviewValue("boolean", { value: "false" }, context)).toBe("False");
+    expect(formatPreviewValue("boolean", { value: "" }, context)).toBe("False");
+    expect(formatPreviewValue("boolean", {}, context)).toBe("False");
   });
 
   it("drops a link-count of zero, but not a positive one", () => {

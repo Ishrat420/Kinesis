@@ -28,6 +28,7 @@ function placeholderRaw(kind: ReturnType<typeof resolveKind>, todayIso: string):
     case "status": return { value: "Example" };
     case "text": return { value: "Example text" };
     case "link-count": return { linkCount: 2 };
+    case "boolean": return { value: "true" };
     default: return {};
   }
 }
@@ -101,7 +102,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
 
       {eligible.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">
-          No field on this template can be previewed yet -- Checkbox and Link fields aren&rsquo;t eligible.
+          No field on this template can be previewed yet -- Link fields aren&rsquo;t eligible.
         </p>
       ) : (
         <div className="mt-3 space-y-1.5">
@@ -121,7 +122,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
                   <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-700">{field.label}</span>
-                <span className="text-xs font-medium text-zinc-400">{field.isDueDate ? "Due date" : field.type === "TEXT" ? "Text" : field.type === "NUMBER" ? "Number" : field.type === "DATE" ? "Date" : "Kinesis Link"}</span>
+                <span className="text-xs font-medium text-zinc-400">{field.isDueDate ? "Due date" : field.type === "TEXT" ? "Text" : field.type === "NUMBER" ? "Number" : field.type === "DATE" ? "Date" : field.type === "CHECKBOX" ? "Checkbox" : "Kinesis Link"}</span>
               </label>
             );
           })}

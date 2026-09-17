@@ -10,7 +10,7 @@ import { formatDecimal, formatMoney, formatPercent } from "@/lib/format/numbers"
  * override: the render step only ever deals with a `{value, kind}` pair, not
  * which field or Module it came from.
  */
-export type DisplayKind = "date" | "number" | "currency" | "percent" | "status" | "text" | "link-count";
+export type DisplayKind = "date" | "number" | "currency" | "percent" | "status" | "text" | "link-count" | "boolean";
 
 /** A status badge doesn't wrap, so its label needs a hard cap, not just an ellipsis rule that only kicks in sometimes. */
 const STATUS_CHAR_CAP = 24;
@@ -42,17 +42,18 @@ export function truncateLabel(label: string): string {
  * A custom field's stored `type` (and, for NUMBER, its `numberFormat`
  * refinement) resolved to a display kind -- almost 1:1 off `type`, except
  * NUMBER needs `numberFormat` to pick between number/currency/percent.
- * CHECKBOX and LINK have no display kind: neither maps onto anything in the
- * closed set above, so a field of either type is never offered in the
- * preview-field picker and never reaches this function from one that's
- * already configured (a field removed from the type it needs is dropped the
- * same way a deleted field is -- see Template.previewFields).
+ * LINK has no display kind: it maps onto nothing in the closed set above, so
+ * a LINK field is never offered in the preview-field picker and never
+ * reaches this function from one that's already configured (a field removed
+ * from the type it needs is dropped the same way a deleted field is -- see
+ * Template.previewFields).
  */
 export function resolveKind(type: CustomFieldType, numberFormat?: NumberFieldFormat): DisplayKind | null {
   switch (type) {
     case "TEXT": return "text";
     case "DATE": return "date";
     case "KINESIS_LINK": return "link-count";
+    case "CHECKBOX": return "boolean";
     case "NUMBER": return numberFormat === "CURRENCY" ? "currency" : numberFormat === "PERCENT" ? "percent" : "number";
     default: return null;
   }
@@ -78,6 +79,11 @@ export function formatPreviewValue(
     const count = raw.linkCount ?? 0;
     return count > 0 ? `${count} linked` : null;
   }
+
+  // Unlike every other kind, a checkbox always has a real value -- unchecked
+  // is a state, not an absence of one -- so this is the one kind that never
+  // "drops" for a blank/missing raw value the way the fallthrough below does.
+  if (kind === "boolean") return raw.value === "true" ? "True" : "False";
 
   const value = raw.value?.trim();
   if (!value) return null;
