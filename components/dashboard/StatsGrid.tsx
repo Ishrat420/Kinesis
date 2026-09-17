@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, CheckSquare, Target, TrendingUp } from "lucide-react";
+import { Calendar, CheckSquare, Target, TrendingDown, TrendingUp } from "lucide-react";
 import type { AttentionItem } from "@/lib/data/attention";
 import { NeedsAttentionCard } from "./NeedsAttentionCard";
 import { useFormatPreferences } from "@/lib/format/context";
@@ -15,7 +15,7 @@ export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, 
     // "See all" carries the same window the number was counted with, so the page lists exactly what the tile counted.
     { icon: CheckSquare, title: "Milestones", value: String(milestonesDueSoon), label: `due within ${milestoneDueSoonLabel(milestoneLeadDays)}`, tone: "bg-violet-50", href: MILESTONES_DUE_SOON_HREF },
     { icon: Target, title: "Goals at risk", value: String(goalsAtRisk), label: "on risk", tone: "bg-violet-50", href: "/goals?filter=at-risk" },
-    { icon: TrendingUp, title: "This month", value: formatMoney(netCashFlow, locale, currency), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
+    { icon: netCashFlow < 0 ? TrendingDown : TrendingUp, title: "This month", value: formatMoney(netCashFlow, locale, currency), label: "net cash flow", tone: "bg-teal-50", href: "/finance" },
   ];
   return <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
     <NeedsAttentionCard items={attentionItems} />
