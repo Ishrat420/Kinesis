@@ -194,7 +194,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
     event.stopPropagation();
     if (linkFrom) {
       if (linkFrom !== person.id && !relationshipExists(linkFrom, person.id)) {
-        setPendingConnection({ from: linkFrom, to: person.id, type: person.detail === "Friend" ? "Friend" : "Relationship" });
+        setPendingConnection({ from: linkFrom, to: person.id, type: person.detail === "Friend" ? "Friend" : "Other" });
       }
       return;
     }
@@ -216,7 +216,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
       setPendingConnection({
         from: next[0],
         to: next[1],
-        type: existing?.type ?? (secondPerson?.detail === "Friend" ? "Friend" : "Relationship"),
+        type: existing?.type ?? (secondPerson?.detail === "Friend" ? "Friend" : "Other"),
       });
     } else {
       setPendingConnection(null);
@@ -524,7 +524,7 @@ function ConnectionDialog({ pending, relationship, people, onChange, onCancel, o
   return <div className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/15 p-4 backdrop-blur-[2px]`} onPointerDown={onCancel}>
     <div role="dialog" aria-modal="true" aria-labelledby="connect-dialog-title" onPointerDown={(event) => event.stopPropagation()} className="w-full max-w-sm rounded-[22px] border border-zinc-200 bg-white p-5 shadow-[0_24px_80px_rgba(24,24,27,0.18)]">
       <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1 text-center"><p id="connect-dialog-title" className="truncate text-base font-semibold">{from?.name} <span className="font-normal text-zinc-300">↔</span> {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">{relationship ? "These people are currently connected" : "Choose how these people are connected"}</p></div><PersonDot person={to} /></div>
-      {relationship ? <div className="mb-5 rounded-xl bg-zinc-50 px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400">Relationship type</p><p className="mt-1 text-sm font-semibold text-zinc-700">{relationship.type || "Relationship"}</p></div> : <><label className="mb-2 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400" htmlFor="new-relationship-type">Relationship type</label><select autoFocus id="new-relationship-type" value={pending.type} onChange={(event) => onChange(event.target.value)} className="input mb-5 appearance-none !py-2.5"><option>Friend</option><option>Partner</option><option>Family</option><option>Parent & child</option><option>Sibling</option><option>Colleague</option><option>Relationship</option></select></>}
+      {relationship ? <div className="mb-5 rounded-xl bg-zinc-50 px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400">Relationship type</p><p className="mt-1 text-sm font-semibold text-zinc-700">{relationship.type || "Relationship"}</p></div> : <><label className="mb-2 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400" htmlFor="new-relationship-type">Relationship type</label><select autoFocus id="new-relationship-type" value={pending.type} onChange={(event) => onChange(event.target.value)} className="input mb-5 appearance-none !py-2.5"><option>Friend</option><option>Dating</option><option>Partner</option><option>Spouse</option><option>Ex-partner</option><option>Family</option><option>Pet</option><option>Parent & child</option><option>Sibling</option><option>Colleague</option><option>Housemate</option><option>Professional</option><option>Other</option></select></>}
       <div className="flex items-center justify-between gap-2">{relationship ? <button onClick={onDisconnect} className="map-button !border-red-100 !text-red-600 hover:!bg-red-50"><Trash2 />Unlink people</button> : <span />}<div className="flex gap-2"><button onClick={onCancel} className="map-button">Cancel</button>{!relationship && <button onClick={onConnect} className="map-button map-button-dark"><Link2 />Link people</button>}</div></div>
     </div>
   </div>;
