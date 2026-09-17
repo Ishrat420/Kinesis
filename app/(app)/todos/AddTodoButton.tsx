@@ -8,7 +8,7 @@ import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import type { ObjectLocation } from "@/lib/objects/locations";
-import { TODO_STATUSES, todoStatusLabel } from "@/lib/todos/status";
+import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import { createTodoAction, type CreateTodoState } from "./actions";
 
 const initialState: CreateTodoState = {};
@@ -23,12 +23,6 @@ const initialState: CreateTodoState = {};
 const FIELD_CLASS =
   "w-full rounded-xl border-[1.5px] border-zinc-200 bg-white text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
 const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900";
-
-const STATUS_DOT_CLASS: Record<TodoStatus, string> = {
-  TODO: "bg-zinc-400",
-  WAITING: "bg-amber-500",
-  DONE: "bg-emerald-500",
-};
 
 /**
  * The in-page equivalent of the command bar's quick capture (KD-008A), for
@@ -129,7 +123,7 @@ export function AddTodoForm({
             <div>
               <label htmlFor="todo-status" className={FIELD_LABEL_CLASS}>Status</label>
               <div className="relative">
-                <span aria-hidden="true" className={`pointer-events-none absolute left-3.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${STATUS_DOT_CLASS[status]}`} />
+                <span aria-hidden="true" className={`pointer-events-none absolute left-3.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${todoStatusDotClass(status)}`} />
                 <select
                   id="todo-status"
                   name="status"

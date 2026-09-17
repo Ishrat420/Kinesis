@@ -9,16 +9,19 @@ import type { TodoStatus } from "@prisma/client";
  * it, so callers read labels and order from here instead of hard-coding them.
  */
 const TODO_STATUS_CONFIG = {
-  TODO: { label: "To do", order: 10, open: true },
-  WAITING: { label: "Waiting", order: 20, open: true },
-  DONE: { label: "Done", order: 30, open: false },
-} as const satisfies Record<TodoStatus, { label: string; order: number; open: boolean }>;
+  TODO: { label: "To do", order: 10, open: true, dotClass: "bg-zinc-400" },
+  WAITING: { label: "Waiting", order: 20, open: true, dotClass: "bg-amber-500" },
+  DONE: { label: "Done", order: 30, open: false, dotClass: "bg-emerald-500" },
+} as const satisfies Record<TodoStatus, { label: string; order: number; open: boolean; dotClass: string }>;
 
 /** The statuses in the order a picker should offer them. */
 export const TODO_STATUSES = (Object.keys(TODO_STATUS_CONFIG) as TodoStatus[])
   .sort((first, second) => TODO_STATUS_CONFIG[first].order - TODO_STATUS_CONFIG[second].order);
 
 export const todoStatusLabel = (status: TodoStatus) => TODO_STATUS_CONFIG[status].label;
+
+/** The colour dot shown next to a status in a selector -- grey for "not started yet", amber for waiting, green for done. */
+export const todoStatusDotClass = (status: TodoStatus) => TODO_STATUS_CONFIG[status].dotClass;
 
 /**
  * Whether the To-Do is still asking something of the user. Everything that
