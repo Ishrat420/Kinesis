@@ -27,10 +27,19 @@ const LINK_OPTIONS_CAP = 500;
  * still decides how it is presented and where it opens, so that mapping lives
  * in lib/objects/locations rather than in the column -- and is shared with every
  * other surface that offers objects to point at.
+ *
+ * `excludeObjectId` leaves the record being edited out of its own picker --
+ * pointing something at itself is never a meaningful link, so there is
+ * nothing to choose there, not even an option to reject. A caller with no
+ * such record yet (creating rather than editing) omits it.
  */
-export async function getKinesisLinkOptions(): Promise<KinesisLinkOption[]> {
+export async function getKinesisLinkOptions(excludeObjectId?: string): Promise<KinesisLinkOption[]> {
   const objects = await prisma.object.findMany({
-    where: { userId: (await requireKinesisUser()).id, type: { in: [...KINESIS_LINK_TARGET_TYPES] } },
+    where: {
+      userId: (await requireKinesisUser()).id,
+      type: { in: [...KINESIS_LINK_TARGET_TYPES] },
+      ...(excludeObjectId ? { id: { not: excludeObjectId } } : {}),
+    },
     select: objectLocationSelect,
     orderBy: { name: "asc" },
     take: LINK_OPTIONS_CAP,

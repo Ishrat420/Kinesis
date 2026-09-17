@@ -10,12 +10,14 @@ import { formatDateInput } from "@/lib/dates";
 export default async function DocumentDetailPage({ params, searchParams }: { params: Promise<{ documentId: string }>; searchParams: Promise<{ edit?: string }> }) {
   const { documentId } = await params;
   const { edit } = await searchParams;
-  const [document, documentTypes, user, linkOptions] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser(), getKinesisLinkOptions()]);
+  const [document, documentTypes, user] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser()]);
 
   // One answer for a missing record across every module -- see app/(app)/not-found.tsx.
   if (!document) notFound();
 
-  const history = await getActivityForHref(`/documents/${document.id}`);
+  // Excludes this document's own object -- linking it to itself is never
+  // meaningful, so the picker never offers the choice at all.
+  const [linkOptions, history] = await Promise.all([getKinesisLinkOptions(document.objectId), getActivityForHref(`/documents/${document.id}`)]);
   // Every object the picker could show, not just ones already linked --
   // choosing a new one in the picker, before saving, should show exactly
   // the card it'll actually render as (KD-042), not the compact fallback

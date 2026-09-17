@@ -140,4 +140,23 @@ describe.sequential("a template's Kinesis Link field value", () => {
     await expect(prisma.customItem.findFirst({ where: { name: "Someone else's goal" } })).resolves.toBeNull();
     await prisma.user.deleteMany({ where: { id: "template-values-stranger" } });
   });
+
+  /**
+   * The picker never offers an item as its own link target, but a stale tab
+   * or a hand-built request still could -- this is the enforcement behind
+   * that, checked here rather than a mock since it reads the item's own
+   * `objectId` off the row the save is already writing.
+   */
+  it("refuses a template Kinesis Link field pointed at the item's own object, and writes nothing", async () => {
+    await createCustomItemAction("module-1", {}, form({ name: "Sapiens" }, []));
+    const item = await prisma.customItem.findFirstOrThrow({ where: { name: "Sapiens" }, select: { id: true, objectId: true, updatedAt: true } });
+
+    const result = await updateCustomItemAction("module-1", item.id, {}, form(
+      { name: "Sapiens", updatedAt: item.updatedAt.toISOString() },
+      [{ templateFieldId: "field-related", value: "", targetObjectIds: [item.objectId] }],
+    ));
+
+    expect(result).toMatchObject({ error: "An item can't be linked to itself." });
+    await expect(prisma.objectField.findFirst({ where: { objectId: item.objectId, templateFieldId: "field-related" } })).resolves.toBeNull();
+  });
 });

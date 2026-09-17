@@ -151,6 +151,9 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId, templateFieldId: null }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
+    // The picker never offers this item as its own link target, but a
+    // stale tab or a direct request could still submit one.
+    if ([...form.fields, ...templateValues.values].some((field) => field.targetObjectIds?.includes(ownedItem.objectId))) refuse("An item can't be linked to itself.");
 
     // Conditioned on the row still carrying the stamp the caller read
     // (BUG-007), and run before any of the writes below -- a losing save is

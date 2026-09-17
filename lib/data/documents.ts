@@ -214,6 +214,9 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
     const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) refuse("A custom field's type cannot be changed once it has been saved.");
+    // The picker never offers this document as its own link target, but a
+    // stale tab or a direct request could still submit one.
+    if (customFields.some((field) => field.targetObjectIds?.includes(owned.objectId))) refuse("A document can't be linked to itself.");
 
     // A plain `update()` can't be conditioned on `updatedAt` and still carry
     // this document's own nested field write -- only `updateMany` accepts a

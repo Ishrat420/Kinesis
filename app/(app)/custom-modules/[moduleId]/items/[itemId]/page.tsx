@@ -10,8 +10,11 @@ import { getFormatPreferences } from "@/lib/format/server";
 
 export default async function CustomItemPage({ params }: { params: Promise<{ moduleId: string; itemId: string }> }) {
   const { moduleId, itemId } = await params;
-  const [item, linkOptions, { locale, currency }] = await Promise.all([getCustomItem(moduleId, itemId), getKinesisLinkOptions(), getFormatPreferences()]);
+  const [item, { locale, currency }] = await Promise.all([getCustomItem(moduleId, itemId), getFormatPreferences()]);
   if (!item) notFound();
+  // Excludes this item's own object -- linking it to itself is never
+  // meaningful, so the picker never offers the choice at all.
+  const linkOptions = await getKinesisLinkOptions(item.objectId);
   // Every object the picker could show, not just ones already linked --
   // choosing a new one in the picker, before saving, should show exactly
   // the card it'll actually render as (KD-042), not the compact fallback

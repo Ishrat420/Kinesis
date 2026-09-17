@@ -346,6 +346,9 @@ export async function updateGoalFieldsAction(id: string, _previousState: GoalAct
       const existingFields = await tx.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
       const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
       if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
+      // The picker never offers this goal as its own link target, but a
+      // stale tab or a direct request could still submit one.
+      if (form.fields.some((field) => field.targetObjectIds?.includes(owned.objectId))) refuse("A goal can't be linked to itself.");
       await tx.objectField.deleteMany({ where: { objectId: owned.objectId } });
       // A field's targets are a nested create -- createMany cannot carry
       // those, so each field (with its own links) is created on its own.

@@ -20,8 +20,11 @@ import { milestonesUsingMeasure } from "@/lib/goals/measure";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
-  const [goal, units, { locale }, goalRelationships, today, linkOptions] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getGoalRelationships(goalId), getToday(), getKinesisLinkOptions()]);
+  const [goal, units, { locale }, goalRelationships, today] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getGoalRelationships(goalId), getToday()]);
   if (!goal) notFound();
+  // Excludes this goal's own object -- linking it to itself is never
+  // meaningful, so the picker never offers the choice at all.
+  const linkOptions = await getKinesisLinkOptions(goal.objectId);
   const completed = goal.milestones.filter((item) => item.completed).length;
   const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
   const targetPercent = goal.targetValue ? Math.min(100, Math.max(0, Math.round((goal.currentValue ?? 0) / goal.targetValue * 100))) : 0;

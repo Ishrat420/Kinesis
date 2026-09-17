@@ -111,6 +111,29 @@ describe.sequential("Kinesis Link targets", () => {
 
       expect(options).toHaveLength(500);
     });
+
+    /**
+     * `excludeObjectId` is how a record's own edit page keeps its picker from
+     * offering itself as a link target -- pointing something at itself is
+     * never a meaningful link, so there is nothing to choose, not even an
+     * option to later reject.
+     */
+    it("leaves the excluded object out, everything else unaffected", async () => {
+      await seedOneOfEach(owner, "o");
+
+      const options = await getKinesisLinkOptions("o-doc-obj");
+
+      expect(options.map((option) => option.objectId)).not.toContain("o-doc-obj");
+      expect(options).toHaveLength(5);
+    });
+
+    it("returns every option when nothing is excluded", async () => {
+      await seedOneOfEach(owner, "o");
+
+      const options = await getKinesisLinkOptions(undefined);
+
+      expect(options).toHaveLength(6);
+    });
   });
 
   describe("validateKinesisTargets", () => {

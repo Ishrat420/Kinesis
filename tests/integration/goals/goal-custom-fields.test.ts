@@ -87,6 +87,14 @@ describe.sequential("updateGoalFieldsAction", () => {
     expect(unchanged).toMatchObject({ id: existing.id, type: "TEXT", value: "First" });
   });
 
+  it("refuses a Kinesis Link field pointed at the goal's own object, and writes nothing", async () => {
+    const result = await updateGoalFieldsAction(GOAL, {}, payload([
+      { label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [objectId] },
+    ]));
+    expect(result).toEqual({ error: "A goal can't be linked to itself." });
+    expect(await readFields(objectId)).toHaveLength(0);
+  });
+
   it("requires a target for a brand-new Kinesis Link field, and writes nothing", async () => {
     const result = await updateGoalFieldsAction(GOAL, {}, payload([
       { label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [] },
