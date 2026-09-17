@@ -89,8 +89,8 @@ export function AddTodoForm({
   }, [state.created, onClose]);
 
   return (
-    <Modal labelledBy="add-todo-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-md">
-      <div className="flex items-center gap-3 px-3 py-4 sm:px-6 sm:py-5">
+    <Modal labelledBy="add-todo-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-md !rounded-t-2xl sm:!rounded-2xl">
+      <div className="flex items-center gap-3 px-2.5 py-4 sm:px-5 sm:py-5">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
           <ListTodo className="h-5 w-5" aria-hidden="true" />
         </span>
@@ -108,7 +108,7 @@ export function AddTodoForm({
       </div>
 
       <form action={formAction}>
-        <div className="space-y-4 px-3 py-5 sm:px-6">
+        <div className="space-y-4 px-2.5 py-5 sm:px-5">
           <div>
             <label htmlFor="todo-name" className={FIELD_LABEL_CLASS}>
               To-do title <span className="font-bold text-red-500">*</span>
@@ -210,7 +210,7 @@ export function AddTodoForm({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 px-3 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:pt-5 sm:pb-5">
+        <div className="flex flex-col-reverse gap-2 px-2.5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-3 sm:px-5 sm:pt-5 sm:pb-5">
           <button
             type="button"
             onClick={onClose}
