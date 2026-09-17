@@ -83,7 +83,7 @@ export function AddTodoForm({
 
   return (
     <Modal labelledBy="add-todo-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-md">
-      <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-5 sm:px-8 sm:py-6">
+      <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-4 sm:px-8 sm:py-5">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
           <ListTodo className="h-5 w-5" aria-hidden="true" />
         </span>
@@ -101,7 +101,7 @@ export function AddTodoForm({
       </div>
 
       <form action={formAction}>
-        <div className="space-y-5 px-4 py-6 sm:px-8">
+        <div className="space-y-4 px-4 py-5 sm:px-8">
           <input
             name="name"
             required
@@ -112,50 +112,51 @@ export function AddTodoForm({
             className="w-full border-0 border-b-2 border-transparent bg-transparent pb-2 text-xl font-bold text-zinc-900 outline-none transition placeholder:font-semibold placeholder:text-zinc-400 focus:border-teal-600"
           />
 
-          <div>
-            <label htmlFor="todo-status" className={FIELD_LABEL_CLASS}>Status</label>
-            <div className="relative">
-              <select
-                id="todo-status"
-                name="status"
-                value={status}
-                onChange={(event) => setStatus(event.target.value as TodoStatus)}
-                className={`h-11 appearance-none pr-9 ${FIELD_CLASS}`}
-              >
-                {TODO_STATUSES.map((option) => (
-                  <option key={option} value={option}>
-                    {todoStatusLabel(option)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="todo-status" className={FIELD_LABEL_CLASS}>Status</label>
+              <div className="relative">
+                <select
+                  id="todo-status"
+                  name="status"
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value as TodoStatus)}
+                  className={`h-11 appearance-none pr-8 ${FIELD_CLASS}`}
+                >
+                  {TODO_STATUSES.map((option) => (
+                    <option key={option} value={option}>
+                      {todoStatusLabel(option)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className={FIELD_LABEL_CLASS}>
-              Due <span className="font-normal text-zinc-400">optional</span>
-            </label>
-            <div
-              className={`relative flex h-11 items-center gap-2.5 rounded-xl border-[1.5px] px-3 transition ${
-                dateFocused ? "border-teal-600 bg-white ring-4 ring-teal-600/15" : "border-transparent bg-zinc-100"
-              }`}
-            >
-              <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
-              <span className={`flex-1 text-base sm:text-sm ${dueDate ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
-                {dueDate ? formatDate(dueDate, locale) : "Select a date"}
-              </span>
-              <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
-              <input
-                type="date"
-                name="dueDate"
-                aria-label="Due date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                onFocus={() => setDateFocused(true)}
-                onBlur={() => setDateFocused(false)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              />
+            <div>
+              <label className={FIELD_LABEL_CLASS}>
+                Due <span className="font-normal text-zinc-400">optional</span>
+              </label>
+              <div
+                className={`relative flex h-11 items-center gap-2 rounded-xl border-[1.5px] px-3 transition ${
+                  dateFocused ? "border-teal-600 bg-white ring-4 ring-teal-600/15" : "border-transparent bg-zinc-100"
+                }`}
+              >
+                <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+                <span className={`flex-1 truncate text-base sm:text-sm ${dueDate ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
+                  {dueDate ? formatDate(dueDate, locale) : "Select a date"}
+                </span>
+                <input
+                  type="date"
+                  name="dueDate"
+                  aria-label="Due date"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                  onFocus={() => setDateFocused(true)}
+                  onBlur={() => setDateFocused(false)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </div>
             </div>
           </div>
 
