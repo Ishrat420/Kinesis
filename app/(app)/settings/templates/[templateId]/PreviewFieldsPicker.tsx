@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Check } from "lucide-react";
 import { PreviewStats } from "@/components/custom-fields/PreviewStats";
 import { resolveKind, formatPreviewValue } from "@/lib/custom-fields/kinds";
 import type { CustomFieldType, NumberFieldFormat } from "@/lib/custom-fields/types";
@@ -107,8 +108,17 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
             const checked = selected.includes(field.id);
             const disabled = !checked && selected.length >= MAX_PREVIEW_FIELDS;
             return (
-              <label key={`${field.id}:${resetRevision}`} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${disabled ? "opacity-40" : "hover:bg-zinc-50"}`}>
-                <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(field.id)} className="h-4 w-4 rounded border-zinc-300" />
+              <label key={`${field.id}:${resetRevision}`} className={`flex items-center gap-3.5 rounded-xl px-3 py-3 ${disabled ? "opacity-40" : "hover:bg-zinc-50"}`}>
+                <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggle(field.id)}
+                    className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-md border-2 border-zinc-300 bg-white transition checked:border-zinc-900 checked:bg-zinc-900 disabled:cursor-not-allowed"
+                  />
+                  <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
+                </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-700">{field.label}</span>
                 <span className="text-xs font-medium text-zinc-400">{field.isDueDate ? "Due date" : field.type === "TEXT" ? "Text" : field.type === "NUMBER" ? "Number" : field.type === "DATE" ? "Date" : "Kinesis Link"}</span>
               </label>
