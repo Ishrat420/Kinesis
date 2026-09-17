@@ -644,7 +644,7 @@ function ImportantDateForm({ exampleLabel = "Anniversary", onSave, onCancel }: {
     <RelationshipDateField value={date} onChange={setDate} ariaLabel="Important date" required />
     <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11px] font-medium text-zinc-600">
       <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
-        <input type="checkbox" checked={repeatsYearly} onChange={(event) => setRepeatsYearly(event.target.checked)} className="peer h-4 w-4 shrink-0 cursor-pointer appearance-none rounded border-[1.5px] border-zinc-300 bg-white transition checked:border-zinc-900 checked:bg-zinc-900" />
+        <input type="checkbox" checked={repeatsYearly} onChange={(event) => setRepeatsYearly(event.target.checked)} className="peer h-4 w-4 shrink-0 cursor-pointer appearance-none rounded border-[1.5px] border-zinc-300 bg-white outline-none transition checked:border-zinc-900 checked:bg-zinc-900 focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:ring-offset-1" />
         <Check aria-hidden="true" className="pointer-events-none absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100" />
       </span>
       Yearly

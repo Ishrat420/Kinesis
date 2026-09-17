@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clock3 } from "lucide-react";
+import { Check, Clock3 } from "lucide-react";
 import { KinesisLinkList } from "./KinesisLinkField";
-import { FIELD_INPUT_CLASS } from "./field-styles";
+import { CHECKBOX_INPUT_CLASS, FIELD_INPUT_CLASS } from "./field-styles";
 import type { CustomFieldType, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
@@ -82,7 +82,10 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
     return (
       <label className="flex h-11 items-center justify-end rounded-xl border border-zinc-200 bg-white px-4">
         <span className="sr-only">{field.label}</span>
-        <input type="checkbox" checked={field.value === "true"} onChange={(event) => onChange({ value: String(event.target.checked) })} className="h-5 w-5 rounded border-zinc-300" />
+        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+          <input type="checkbox" checked={field.value === "true"} onChange={(event) => onChange({ value: String(event.target.checked) })} className={CHECKBOX_INPUT_CLASS} />
+          <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
+        </span>
       </label>
     );
   }

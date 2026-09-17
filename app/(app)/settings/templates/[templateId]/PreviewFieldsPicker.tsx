@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { PreviewStats } from "@/components/custom-fields/PreviewStats";
+import { CHECKBOX_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { resolveKind, formatPreviewValue } from "@/lib/custom-fields/kinds";
 import type { CustomFieldType, NumberFieldFormat } from "@/lib/custom-fields/types";
 import { TEMPLATE_PREVIEW_FIELDS_FORM_KEY } from "@/lib/templates/parse";
@@ -115,7 +116,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
                     checked={checked}
                     disabled={disabled}
                     onChange={() => toggle(field.id)}
-                    className="peer h-5 w-5 shrink-0 cursor-pointer appearance-none rounded-md border-2 border-zinc-300 bg-white transition checked:border-zinc-900 checked:bg-zinc-900 disabled:cursor-not-allowed"
+                    className={CHECKBOX_INPUT_CLASS}
                   />
                   <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
                 </span>

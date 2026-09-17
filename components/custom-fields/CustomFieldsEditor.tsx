@@ -10,7 +10,7 @@ import {
   type KinesisLinkOption,
 } from "@/lib/custom-fields/types";
 import { KinesisLinkList } from "@/components/custom-fields/KinesisLinkField";
-import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
+import { CHECKBOX_INPUT_CLASS, FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
@@ -245,7 +245,10 @@ function FieldInput({ field, index, linkOptions, previews, update }: {
     return (
       <label className="flex h-[50px] items-center justify-end rounded-xl border-[1.5px] border-zinc-200 bg-white px-4">
         <span className="sr-only">Checkbox value</span>
-        <input type="checkbox" checked={field.value === "true"} onChange={(event) => update({ value: String(event.target.checked) })} className="h-5 w-5 rounded border-zinc-300" />
+        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+          <input type="checkbox" checked={field.value === "true"} onChange={(event) => update({ value: String(event.target.checked) })} className={CHECKBOX_INPUT_CLASS} />
+          <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
+        </span>
       </label>
     );
   }
