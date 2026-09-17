@@ -13,12 +13,18 @@ import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { startOfDayIn } from "@/lib/dates";
 import { getAttentionRecords } from "./attention-items";
+import { notificationRecordLink } from "@/lib/notifications/identity";
 
 /**
  * Every notification the owner should currently see, computed rather than
- * stored. Nothing is written here: the candidates are a pure function of
- * the records, the day and the settings, and the only thing read that is
- * not derivable is which of them have already been read.
+ * stored: the candidates themselves are still a pure function of the
+ * records, the day and the settings, no different than before. The one
+ * write here is narrower than that -- not the notification, only the
+ * instant this itemKey was first derived for this owner, and only the first
+ * time (see the `NotificationFirstSeen` block below); a re-run for the same
+ * key, on the next page load, writes nothing new. Everything else this
+ * function reads-not-writes, exactly as before: which of them have already
+ * been read.
  *
  * KD-017 Phase 3: records come from the shared `getAttentionRecords`
  * (Phase 1) instead of five queries of this function's own -- it stops
@@ -70,9 +76,9 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
   const readAtByKey = new Map(reads.map((read) => [read.itemKey, read.readAt]));
   const readAtFor = (key: string) => readAtByKey.get(key) ?? null;
 
-  const derived: DerivedNotification[] = [];
+  const derived: Omit<DerivedNotification, "firstSeenAt">[] = [];
   for (const record of records) {
-    const notification = ((): DerivedNotification | null => {
+    const notification = ((): Omit<DerivedNotification, "firstSeenAt"> | null => {
       switch (record.kind) {
         case "document":
           return toDerivedNotification("document", record.id, getDocumentNotificationCandidate(record, today, remindersEnabled, locale), readAtFor);
@@ -93,5 +99,41 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
     if (notification) derived.push(notification);
   }
 
-  return derived.sort(byRecency);
+  // `NotificationFirstSeen`: when each of these reached the owner, for
+  // byRecency to sort by -- first, not read order, not deadline order (see
+  // lib/notifications/engine.ts). One batched lookup for keys already known,
+  // one batched insert for whichever are new, rather than a round trip per
+  // notification: this runs on every page load (Topbar renders it on every
+  // authenticated route), so anything per-notification here runs that often.
+  const keys = derived.map((notification) => notification.key);
+  const seen = keys.length
+    ? await prisma.notificationFirstSeen.findMany({ where: { userId, itemKey: { in: keys } }, select: { itemKey: true, firstSeenAt: true } })
+    : [];
+  const firstSeenByKey = new Map(seen.map((row) => [row.itemKey, row.firstSeenAt]));
+  const newlySeen = derived.filter((notification) => !firstSeenByKey.has(notification.key));
+  if (newlySeen.length) {
+    try {
+      await prisma.notificationFirstSeen.createMany({
+        data: newlySeen.map((notification) => ({
+          id: crypto.randomUUID(), userId, itemKey: notification.key, firstSeenAt: now,
+          ...notificationRecordLink(notification.source, notification.sourceId),
+        })),
+        skipDuplicates: true,
+      });
+    } catch (failure) {
+      // A failed write here must never take the bell down -- everything
+      // newly seen this render still sorts correctly (as "now", below); it
+      // just isn't durable yet, and the next render that reaches this line
+      // tries recording it again.
+      console.error("Failed to record when a notification was first seen", failure);
+    }
+    for (const notification of newlySeen) firstSeenByKey.set(notification.key, now);
+  }
+
+  const withFirstSeen: DerivedNotification[] = derived.map((notification) => ({
+    ...notification,
+    firstSeenAt: firstSeenByKey.get(notification.key)!,
+  }));
+
+  return withFirstSeen.sort(byRecency);
 }

@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   customItemFindMany: vi.fn(async (): Promise<unknown[]> => []),
   todoFindMany: vi.fn(async (): Promise<unknown[]> => []),
   readFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  firstSeenFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  firstSeenCreateMany: vi.fn(async () => ({ count: 0 })),
   goalUpdateMany: vi.fn(async () => ({ count: 0 })),
 }));
 
@@ -28,6 +30,7 @@ vi.mock("@/lib/data/prisma", () => ({
     customItem: { findMany: mocks.customItemFindMany },
     todo: { findMany: mocks.todoFindMany },
     notificationRead: { findMany: mocks.readFindMany },
+    notificationFirstSeen: { findMany: mocks.firstSeenFindMany, createMany: mocks.firstSeenCreateMany },
     goal: { updateMany: mocks.goalUpdateMany },
   },
 }));
@@ -56,19 +59,44 @@ const settings = (overrides: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.settingsFindUnique.mockResolvedValue(settings());
-  for (const query of [mocks.documentFindMany, mocks.milestoneFindMany, mocks.importantDateFindMany, mocks.customItemFindMany, mocks.todoFindMany, mocks.readFindMany]) {
+  for (const query of [mocks.documentFindMany, mocks.milestoneFindMany, mocks.importantDateFindMany, mocks.customItemFindMany, mocks.todoFindMany, mocks.readFindMany, mocks.firstSeenFindMany]) {
     query.mockResolvedValue([]);
   }
+  mocks.firstSeenCreateMany.mockResolvedValue({ count: 0 });
 });
 
-describe("collecting derives rather than stores", () => {
-  it("writes nothing at all", async () => {
+describe("collecting derives the notification itself; only when it was first seen is recorded", () => {
+  it("writes nothing to NotificationRead -- only reads it", async () => {
     mocks.documentFindMany.mockResolvedValue(expiredPassport);
     await collectNotifications("user-1", NOW);
 
-    // Every mocked client member is a read. A write would have thrown on an
-    // undefined method rather than passing quietly.
     expect(mocks.readFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The fix this whole file's "ordering follows when each notification first
+   * reached the owner" describe block below exists to pin: a notification
+   * needs its own record of when it first appeared, because nothing else
+   * derivable means that -- see NotificationFirstSeen in the schema and
+   * lib/notifications/engine.ts's byRecency.
+   */
+  it("records the first-seen instant for a notification no one has derived before", async () => {
+    mocks.documentFindMany.mockResolvedValue(expiredPassport);
+
+    await collectNotifications("user-1", NOW);
+
+    expect(mocks.firstSeenCreateMany).toHaveBeenCalledTimes(1);
+    const [{ data }] = mocks.firstSeenCreateMany.mock.calls[0] as unknown as [{ data: { itemKey: string; firstSeenAt: Date }[] }];
+    expect(data).toEqual([expect.objectContaining({ itemKey: "document:doc-1:EXPIRED:2026-03-01", firstSeenAt: NOW })]);
+  });
+
+  it("never re-records a key that already has a first-seen row -- first seen means first, not most recent", async () => {
+    mocks.documentFindMany.mockResolvedValue(expiredPassport);
+    mocks.firstSeenFindMany.mockResolvedValue([{ itemKey: "document:doc-1:EXPIRED:2026-03-01", firstSeenAt: day("2026-03-01") }]);
+
+    await collectNotifications("user-1", NOW);
+
+    expect(mocks.firstSeenCreateMany).not.toHaveBeenCalled();
   });
 
   /**
@@ -153,9 +181,12 @@ describe("Reminders governs advance notice only", () => {
     mocks.milestoneFindMany.mockResolvedValue([{ id: "milestone-1", name: "Submit application", dueDate: day("2026-06-25"), goalId: "goal-1", goal: { name: "Move house" } }]);
     mocks.customItemFindMany.mockResolvedValue([{ id: "item-1", name: "Passport renewal", dueDate: day("2026-06-20"), moduleId: "module-1", module: { name: "Books", icon: "star", color: "#111111" } }]);
 
+    // Order isn't the point here (that's the describe block below) -- both
+    // being newly seen in the same request ties them on firstSeenAt, so
+    // which sorts first is whatever byUrgency's tiebreak says.
     const collected = await collectNotifications("user-1", NOW);
 
-    expect(collected).toMatchObject([{ type: "MILESTONE_DUE" }, { type: "CUSTOM_ITEM_DUE" }]);
+    expect(collected.map(({ type }) => type).sort()).toEqual(["CUSTOM_ITEM_DUE", "MILESTONE_DUE"]);
   });
 
   it("withholds a milestone or custom item's advance reminder when reminders are off, unlike its overdue phase", async () => {
@@ -174,54 +205,62 @@ describe("Reminders governs advance notice only", () => {
   });
 });
 
-describe("ordering is deterministic", () => {
+describe("ordering follows when each notification first reached the owner", () => {
   /**
-   * The bell is an inbox, not a countdown -- newest alert on top, where
-   * "newest" means the day the notification's own current message became
-   * true (its advance window opening, or the deadline itself once overdue),
-   * not how soon or how overdue the deadline is. That's Upcoming & Due's own
-   * ordering (lib/data/upcoming.ts), sorted the opposite way on purpose.
+   * The bug this replaced triggeredAt-based ordering to fix: a brand-new
+   * document with a short runway to its deadline has an old reminder-window
+   * date (expiry minus however long a prompt), so sorting by that date put
+   * it at the bottom the moment it first appeared -- exactly backwards from
+   * an inbox, where the thing that just arrived belongs on top regardless of
+   * what it's about.
    */
-  it("puts whichever notification most recently started speaking first, not the nearest deadline", async () => {
-    // doc-1 (Passport) expired back on 1 March -- an old alert. doc-2
-    // (Licence) only opened its advance window on 1 February, older still.
-    // todo-1 became overdue on 1 June -- the most recent of the three, even
-    // though its deadline (1 June) is not the soonest or the most overdue.
-    mocks.documentFindMany.mockResolvedValue([...expiringLicence, ...expiredPassport]);
+  it("puts a brand-new notification on top, even though its deadline-derived date is old", async () => {
+    // doc-1 (Passport) expired back on 1 March -- an old date to derive from,
+    // but there is no NotificationFirstSeen row for it at all: this is the
+    // first time anything has ever asked about it. todo-1 was already seen
+    // on 1 June, nearly a month before "now".
+    mocks.documentFindMany.mockResolvedValue(expiredPassport);
     mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-06-01"), status: "TODO" }]);
+    mocks.firstSeenFindMany.mockResolvedValue([{ itemKey: "todo:todo-1:TODO_DUE:2026-06-01", firstSeenAt: day("2026-06-01") }]);
 
     expect((await collectNotifications("user-1", NOW)).map(({ sourceId }) => sourceId))
-      .toEqual(["todo-1", "doc-1", "doc-2"]);
+      .toEqual(["doc-1", "todo-1"]);
+  });
+
+  it("orders two already-seen notifications by which was first seen more recently, ignoring their deadlines", async () => {
+    // doc-1 (Passport) expired back on 1 March, doc-2 (Licence) isn't due
+    // until 1 August -- the far-later deadline -- but doc-1 only reached the
+    // owner on 20 June, after doc-2 (10 June).
+    mocks.documentFindMany.mockResolvedValue([...expiringLicence, ...expiredPassport]);
+    mocks.firstSeenFindMany.mockResolvedValue([
+      { itemKey: "document:doc-1:EXPIRED:2026-03-01", firstSeenAt: day("2026-06-20") },
+      { itemKey: "document:doc-2:REMINDER_DUE:2026-08-01", firstSeenAt: day("2026-06-10") },
+    ]);
+
+    expect((await collectNotifications("user-1", NOW)).map(({ sourceId }) => sourceId))
+      .toEqual(["doc-1", "doc-2"]);
   });
 
   /**
-   * Everything here is calendar-day granularity, so two notifications
-   * starting to speak on the very same day is common, not an edge case.
-   * The tie favours the more urgent one -- the same comparator that used to
-   * be the primary sort (byUrgency) is still reached for, just demoted to
-   * tiebreak.
+   * Two notifications can only ever tie on the exact same firstSeenAt
+   * instant when both are new in the very same request (real timestamps, so
+   * an actual tie needs the same read to have created both). Which one wins
+   * genuinely doesn't matter -- byUrgency (the deadline-based comparator
+   * that used to be the primary sort) still breaks it, only so the order
+   * stays stable rather than depending on array order.
    */
-  it("breaks a same-day tie in favour of the more urgent notification", async () => {
-    // Licence's advance window opens today (1 July), 6 months ahead of its
-    // real 1 January 2027 deadline -- merely a first notice. The to-do
-    // becomes overdue today too, its deadline itself today -- already late.
-    // Both started speaking today; the to-do is the more urgent of the two.
-    mocks.documentFindMany.mockResolvedValue([{ id: "doc-2", name: "Licence", type: "Licence", expiryDate: day("2027-01-01"), prompt: 180, archived: false }]);
-    mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-07-01"), status: "TODO" }]);
-
-    expect((await collectNotifications("user-1", NOW)).map(({ sourceId }) => sourceId))
-      .toEqual(["todo-1", "doc-2"]);
-  });
-
-  /** Nothing in the comparator reads the clock, so the panel cannot reshuffle itself. */
-  it("breaks ties the same way every time", async () => {
-    const sameDay = [
+  it("breaks a tie between two notifications first seen at the same instant, consistently", async () => {
+    const sameInstant = [
       { id: "doc-a", name: "A", type: "T", expiryDate: day("2026-03-01"), prompt: 180, archived: false },
-      { id: "doc-b", name: "B", type: "T", expiryDate: day("2026-03-01"), prompt: 180, archived: false },
+      { id: "doc-b", name: "B", type: "T", expiryDate: day("2026-04-01"), prompt: 180, archived: false },
     ];
-    mocks.documentFindMany.mockResolvedValue(sameDay);
+    mocks.documentFindMany.mockResolvedValue(sameInstant);
+    mocks.firstSeenFindMany.mockResolvedValue([
+      { itemKey: "document:doc-a:EXPIRED:2026-03-01", firstSeenAt: NOW },
+      { itemKey: "document:doc-b:EXPIRED:2026-04-01", firstSeenAt: NOW },
+    ]);
     const first = (await collectNotifications("user-1", NOW)).map(({ key }) => key);
-    mocks.documentFindMany.mockResolvedValue([...sameDay].reverse());
+    mocks.documentFindMany.mockResolvedValue([...sameInstant].reverse());
     const second = (await collectNotifications("user-1", NOW)).map(({ key }) => key);
 
     expect(second).toEqual(first);

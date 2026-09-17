@@ -18,6 +18,7 @@ model User {
   financeItems        FinanceItem[]
   documents           Document[]
   notificationReads   NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
   documentTypes       DocumentType[]
   goals               Goal[]
   people              Person[]
@@ -129,6 +130,7 @@ model Document {
   notesLabel          String               @default("Notes")
   linkLabel           String               @default("Link")
   notificationReads   NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
   dismissals          AttentionDismissal[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -382,6 +384,7 @@ model RelationshipImportantDate {
   relationship   Relationship?  @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
   selfPerson     Person?        @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
   attentionDismissals AttentionDismissal[]
 
   @@index([relationshipId, date])
@@ -420,6 +423,7 @@ model Milestone {
   position      Int            @default(0)
   goal          Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
 
   @@index([goalId, position])
 }
@@ -473,6 +477,7 @@ model CustomItem {
   objectId      String               @unique
   object        Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
   dismissals    AttentionDismissal[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
@@ -634,6 +639,7 @@ model Todo {
   object      Object     @relation(fields: [objectId], references: [id], onDelete: Cascade)
 
   notificationReads NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
   dismissals    AttentionDismissal[]
 
   createdAt DateTime @default(now())
@@ -677,6 +683,43 @@ model NotificationRead {
   customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
   todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
   readAt             DateTime                   @default(now())
+
+  @@unique([userId, itemKey])
+  @@index([documentId])
+  @@index([milestoneId])
+  @@index([relationshipDateId])
+  @@index([customItemId])
+  @@index([todoId])
+}
+
+/**
+ * When the bell first showed each notification -- the moment `collectNotifications`
+ * first derived a given itemKey and found no row here yet, not when it was
+ * opened, read, or marked. Written once per itemKey and never touched again,
+ * so the bell can sort "which alert reached me first" independently of when
+ * (or whether) anyone has looked at it -- `NotificationRead`, right above,
+ * already owns that separate question and is untouched by this.
+ *
+ * Same shape as `NotificationRead` for the same reason: one nullable FK per
+ * notification source, purely for referential integrity, so deleting the
+ * record takes its first-seen row with it too.
+ */
+model NotificationFirstSeen {
+  id                 String                     @id
+  itemKey            String
+  documentId         String?
+  milestoneId        String?
+  relationshipDateId String?
+  customItemId       String?
+  todoId             String?
+  userId             String
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
+  customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
+  todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  firstSeenAt        DateTime                   @default(now())
 
   @@unique([userId, itemKey])
   @@index([documentId])

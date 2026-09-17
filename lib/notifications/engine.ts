@@ -219,6 +219,14 @@ export type DerivedNotification = NotificationCandidate & {
   source: NotificationSource;
   sourceId: string;
   readAt: Date | null;
+  /**
+   * When the bell first showed this exact notification -- not derivable from
+   * the candidate alone (see `triggeredAt` below), so `toDerivedNotification`
+   * cannot fill it in; `collectNotifications` (`lib/data/notification-collection.ts`)
+   * attaches it afterwards, once it knows every key in this render and has
+   * resolved (or recorded) each one's own `NotificationFirstSeen` row.
+   */
+  firstSeenAt: Date;
   /** Set for a custom item, so it wears its own module's icon and colour. */
   moduleIcon: string | null;
   moduleColor: string | null;
@@ -235,42 +243,47 @@ export type DerivedNotification = NotificationCandidate & {
  * separate query the identical way). The bell below no longer sorts by this
  * directly -- it wants newest-alert-on-top, not soonest-deadline-on-top -- but
  * still reaches for this exact comparator to break a tie between two things
- * that started speaking on the same calendar day.
+ * that first reached the owner at the exact same instant.
  */
 const byUrgency = (first: DerivedNotification, second: DerivedNotification) =>
   first.expiryDate.getTime() - second.expiryDate.getTime() || first.key.localeCompare(second.key);
 
 /**
- * The day a notification's *current* message became true: the day its
- * advance window opened, while it's still counting down ("expires in 3
- * days"), or the deadline itself once it reads overdue ("is overdue by 2
- * days"). Not a stored event time -- there is no event log here, by design
- * (see `collectNotifications` below) -- it's derived from the two dates
- * every candidate already carries.
- */
-function triggeredAt(notification: DerivedNotification) {
-  return notification.type === "REMINDER_DUE" && notification.reminderAt ? notification.reminderAt : notification.expiryDate;
-}
-
-/**
- * Ordered by which notification most recently started saying what it
- * currently says -- newest first, like an inbox, not soonest-deadline-first
- * like Upcoming & Due. Everything here is calendar-day granularity, so
- * same-day arrivals are common (three documents that all expired today,
- * say); `byUrgency` breaks that tie, favouring the more urgent one, with its
- * own key compare underneath it for full determinism.
+ * Ordered by which notification reached the owner first -- newest on top,
+ * like an inbox, not soonest-deadline-first like Upcoming & Due.
+ *
+ * Sorts by `firstSeenAt` (`NotificationFirstSeen`, written once per itemKey
+ * the moment it's first derived -- see `collectNotifications`), which is
+ * deliberately *not* the deadline or reminder-window date a notification is
+ * about: a document created today with only two weeks left still reached the
+ * owner today, even though the calendar date its message counts down from
+ * (`expiryDate − prompt`) is well in the past. This was `triggeredAt`
+ * (that deadline-derived date) until it visibly put a brand-new alert at the
+ * bottom of the list -- exactly this mismatch.
+ *
+ * `byUrgency` only breaks a tie between two notifications with the identical
+ * `firstSeenAt` instant (both derived for the first time in the same
+ * request); it doesn't matter which of those sorts first, so any
+ * deterministic order does.
  */
 const byRecency = (first: DerivedNotification, second: DerivedNotification) =>
-  triggeredAt(second).getTime() - triggeredAt(first).getTime() || byUrgency(first, second);
+  second.firstSeenAt.getTime() - first.firstSeenAt.getTime() || byUrgency(first, second);
 
 /**
  * Builds a `DerivedNotification` from a candidate, if there is one -- shared
- * by `collectNotifications` (`lib/data/notifications.ts`), which is the only
- * caller, but kept here since it closes over nothing but its own arguments
- * and belongs next to the candidate/`DerivedNotification` shapes it stitches
- * together. `readAtFor` is a lookup rather than a value because the key it
- * must be looked up by -- record, type and deadline -- only exists once the
- * candidate itself is known to exist.
+ * by `collectNotifications` (`lib/data/notification-collection.ts`), which is
+ * the only caller, but kept here since it closes over nothing but its own
+ * arguments and belongs next to the candidate/`DerivedNotification` shapes it
+ * stitches together. `readAtFor` is a lookup rather than a value because the
+ * key it must be looked up by -- record, type and deadline -- only exists
+ * once the candidate itself is known to exist.
+ *
+ * Missing `firstSeenAt`, unlike `readAt`: resolving it means knowing every
+ * key this render produced first (to batch one lookup, and one insert for
+ * whichever are new, rather than a round trip per notification), which this
+ * function -- building exactly one notification at a time -- cannot do.
+ * `collectNotifications` attaches it afterwards, in one pass over everything
+ * this returns.
  */
 export function toDerivedNotification(
   source: NotificationSource,
@@ -278,7 +291,7 @@ export function toDerivedNotification(
   candidate: NotificationCandidate | null,
   readAtFor: (key: string) => Date | null,
   module?: { icon: string; color: string },
-): DerivedNotification | null {
+): Omit<DerivedNotification, "firstSeenAt"> | null {
   if (!candidate) return null;
   const key = notificationKey(source, sourceId, candidate.type, candidate.expiryDate);
   return {

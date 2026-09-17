@@ -33,6 +33,7 @@ const settings = (overrides: Record<string, unknown> = {}) => ({
 /** A derived notification, only as far as the bell cares about it. */
 const derived = (key: string, readAt: Date | null = null): DerivedNotification => ({
   key, source: "todo", sourceId: key, readAt,
+  firstSeenAt: new Date("2026-01-05T00:00:00.000Z"),
   type: "TODO_DUE", reminderAt: null, timeUntilExpiry: null,
   expiryDate: new Date("2026-01-07T00:00:00.000Z"),
   documentName: key, documentType: "To-do", message: `${key} is due today`,

@@ -1,7 +1,7 @@
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { runDailyMaintenance, type DerivedNotification } from "@/lib/notifications/engine";
-import { NOTIFICATION_LINK_FIELD, type NotificationSource } from "@/lib/notifications/identity";
+import { notificationRecordLink, type NotificationSource } from "@/lib/notifications/identity";
 import { requireKinesisUser } from "@/lib/auth";
 import { collectNotifications } from "./notification-collection";
 
@@ -38,9 +38,6 @@ export async function getRecentNotifications(limit = 8) {
   return { enabled: true as const, notifications: notifications.slice(0, limit), unreadCount };
 }
 
-/** The columns that tie a read marker to its record, so deleting the record clears it. */
-const linkFor = (source: NotificationSource, sourceId: string) => ({ [NOTIFICATION_LINK_FIELD[source]]: sourceId });
-
 /**
  * Whether a record named by the browser is actually the owner's.
  *
@@ -73,7 +70,7 @@ export async function markNotificationRead(key: string, source: NotificationSour
   await prisma.notificationRead.upsert({
     where: { userId_itemKey: { userId: user.id, itemKey: key } },
     update: {},
-    create: { id: crypto.randomUUID(), userId: user.id, itemKey: key, ...linkFor(source, sourceId) },
+    create: { id: crypto.randomUUID(), userId: user.id, itemKey: key, ...notificationRecordLink(source, sourceId) },
   });
 }
 
@@ -85,7 +82,7 @@ export async function markAllNotificationsRead() {
   await prisma.notificationRead.createMany({
     data: unread.map((notification) => ({
       id: crypto.randomUUID(), userId: user.id, itemKey: notification.key,
-      ...linkFor(notification.source, notification.sourceId),
+      ...notificationRecordLink(notification.source, notification.sourceId),
     })),
     skipDuplicates: true,
   });

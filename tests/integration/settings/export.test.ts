@@ -57,6 +57,7 @@ const EXPECTED_KEYS: Record<string, string[]> = {
   AttentionDismissal: ["attentionDismissals"],
   ActivityEvent: ["activityEvents"],
   NotificationRead: ["notificationReads"],
+  NotificationFirstSeen: ["notificationFirstSeens"],
   SecurityEvent: ["securityEvents"],
 };
 

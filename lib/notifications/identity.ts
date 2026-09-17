@@ -20,6 +20,16 @@ export const NOTIFICATION_LINK_FIELD = {
 } as const satisfies Record<NotificationSource, string>;
 
 /**
+ * The `{ [column]: id }` shape both `NotificationRead` and
+ * `NotificationFirstSeen` rows take their one source FK from -- shared so the
+ * two tables, which mirror each other's shape for the same referential-
+ * integrity reason, can't drift apart on which column a source maps to.
+ */
+export function notificationRecordLink(source: NotificationSource, sourceId: string) {
+  return { [NOTIFICATION_LINK_FIELD[source]]: sourceId };
+}
+
+/**
  * What makes two notifications the same notification.
  *
  * The record, what it is saying, and the deadline it is saying it about --
