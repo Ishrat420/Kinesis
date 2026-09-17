@@ -23,7 +23,7 @@ import {
   getProjectedAmount,
   MAX_PAYOFF_MONTHS,
 } from "@/lib/finance";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatDateInput } from "@/lib/dates";
 import { deleteFinanceItemAction, saveFinanceItemAction, type FinanceActionState } from "@/app/(app)/finance/actions";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
@@ -121,7 +121,64 @@ function ItemSection({ title, subtitle, icon: Icon, items, onEdit, onDelete, tod
 /** Rounded to cents for a number input's defaultValue -- the projection itself stays exact. */
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 
-function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: FinanceItem | null; onSaved: () => void; today: Date }) { const router = useRouter(); const [state, formAction, saving] = useActionState(saveFinanceItemAction.bind(null, kind, item?.id ?? null), initialState); const error = state.error ?? null; useEffect(() => { if (state.saved) { router.refresh(); onSaved(); } }, [state.saved, router, onSaved]); const balance = kind === "liability"; const recurring = kind === "income" || kind === "expense"; const categories = balance ? LIABILITY_CATEGORIES : ASSET_CATEGORIES; const projection = item ? getFinanceProjection(item, today) : []; const defaultAmount = item ? roundMoney(getProjectedAmount(item, today)) : undefined; const interestDay = item ? getInterestDayLabel(item) : undefined; const health = item ? getLiabilityHealth(item, today) : undefined; const monthsToPayoff = item ? getMonthsToPayoff(item, today) : undefined; return <form action={formAction} className="mt-6 space-y-4"><Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field><Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required defaultValue={defaultAmount} className="input pl-8"/></div></Field>{!recurring ? <><div className="grid gap-4 sm:grid-cols-2"><Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" defaultValue={item?.rate} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field></div><Field label={balance ? "Monthly payment" : "Monthly contribution"}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="monthlyContribution" type="number" min="0" step="0.01" defaultValue={item?.monthlyContribution} placeholder="Optional" className="input pl-8"/></div></Field>{interestDay && <p className="text-xs text-zinc-400">Interest added monthly on {interestDay}.</p>}{health && <FinanceHealthBadge health={health} monthsToPayoff={monthsToPayoff}/>}<FinanceProjectionHistory entries={projection} balance={balance}/></> : <><Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field><div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div></>}<Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>{error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}<button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button></form>; }
+function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: FinanceItem | null; onSaved: () => void; today: Date }) {
+  const router = useRouter();
+  const [state, formAction, saving] = useActionState(saveFinanceItemAction.bind(null, kind, item?.id ?? null), initialState);
+  const error = state.error ?? null;
+  useEffect(() => { if (state.saved) { router.refresh(); onSaved(); } }, [state.saved, router, onSaved]);
+  const balance = kind === "liability";
+  const recurring = kind === "income" || kind === "expense";
+  const categories = balance ? LIABILITY_CATEGORIES : ASSET_CATEGORIES;
+  const projection = item ? getFinanceProjection(item, today) : [];
+  const defaultAmount = item ? roundMoney(getProjectedAmount(item, today)) : undefined;
+  const interestDay = item ? getInterestDayLabel(item) : undefined;
+
+  // Amount, rate and monthly payment are controlled (rather than
+  // defaultValue-only) so the AT RISK / ON TRACK badge below can recompute
+  // as the person types, instead of only reflecting whatever was true when
+  // the dialog opened -- which otherwise stays stale until they save,
+  // reopen, and look again. On save the server always sets balanceAsOf to
+  // today (see saveFinanceItem in actions.ts) and the amount submitted
+  // becomes the new confirmed balance, so evaluating health against exactly
+  // that -- today's typed amount, zero elapsed months -- is what "saved
+  // right now" would actually produce.
+  const [amountInput, setAmountInput] = useState(defaultAmount !== undefined ? String(defaultAmount) : "");
+  const [rateInput, setRateInput] = useState(item?.rate !== undefined ? String(item.rate) : "");
+  const [contributionInput, setContributionInput] = useState(item?.monthlyContribution !== undefined ? String(item.monthlyContribution) : "");
+
+  const liveAmount = Number(amountInput);
+  const liveRate = rateInput.trim() === "" ? undefined : Number(rateInput);
+  const liveContribution = contributionInput.trim() === "" ? undefined : Number(contributionInput);
+  const canEvaluateLive = Number.isFinite(liveAmount)
+    && (liveRate === undefined || Number.isFinite(liveRate))
+    && (liveContribution === undefined || Number.isFinite(liveContribution));
+  const liveItem: FinanceItem | null = canEvaluateLive
+    ? { id: item?.id ?? "", kind, name: item?.name ?? "", amount: liveAmount, rate: liveRate, monthlyContribution: liveContribution, balanceAsOf: formatDateInput(today) }
+    : null;
+  const health = liveItem ? getLiabilityHealth(liveItem, today) : undefined;
+  const monthsToPayoff = liveItem ? getMonthsToPayoff(liveItem, today) : undefined;
+
+  return <form action={formAction} className="mt-6 space-y-4">
+    <Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className="input"/></Field>
+    <Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required value={amountInput} onChange={(event) => setAmountInput(event.target.value)} className="input pl-8"/></div></Field>
+    {!recurring ? <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Category"><select name="category" defaultValue={item?.category} className="input">{categories.map((value) => <option key={value}>{value}</option>)}</select></Field>
+        <Field label={`${balance ? "Interest" : "Interest / growth"} rate`}><div className="relative"><input name="rate" type="number" min="0" step="0.01" value={rateInput} onChange={(event) => setRateInput(event.target.value)} placeholder="Optional" className="input pr-10"/><span className="absolute right-4 top-3 text-zinc-400">%</span></div></Field>
+      </div>
+      <Field label={balance ? "Monthly payment" : "Monthly contribution"}><div className="relative"><span className="absolute left-4 top-3 text-zinc-400">$</span><input name="monthlyContribution" type="number" min="0" step="0.01" value={contributionInput} onChange={(event) => setContributionInput(event.target.value)} placeholder="Optional" className="input pl-8"/></div></Field>
+      {interestDay && <p className="text-xs text-zinc-400">Interest added monthly on {interestDay}.</p>}
+      {health && <FinanceHealthBadge health={health} monthsToPayoff={monthsToPayoff}/>}
+      <FinanceProjectionHistory entries={projection} balance={balance}/>
+    </> : <>
+      <Field label="Frequency *"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className="input">{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select></Field>
+      <div className="grid grid-cols-2 gap-4"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className="input"/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className="input"/></Field></div>
+    </>}
+    <Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className="input resize-none"/></Field>
+    {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
+    <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : item ? "Save changes" : `Add ${kindLabels[kind]}`}</button>
+  </form>;
+}
 
 /**
  * KD-044 Part B: is the fixed monthly payment actually paying this liability
