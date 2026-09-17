@@ -111,45 +111,35 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <input
-              name="name"
-              required
-              autoFocus
-              placeholder="What will you do next?"
-              className="h-11 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-4 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm"
-            />
-          </div>
-          <div className="sm:w-60">
-            <label className="mb-1.5 block text-xs font-semibold text-zinc-700">
-              Due <span className="font-normal text-zinc-400">optional</span>
-            </label>
-            <DueDateField
-              value={dueDate}
-              onChange={setDueDate}
-              max={latestDueDate}
-              ariaLabel={latestDueDate ? "Milestone due date, must be before the goal target date" : "Optional milestone due date"}
-            />
-          </div>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          name="name"
+          required
+          autoFocus
+          placeholder="What will you do next?"
+          className="h-11 min-w-0 flex-1 rounded-xl border-[1.5px] border-zinc-200 bg-white px-4 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm"
+        />
         {hasTarget && (
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-zinc-700">
-              Value {unit && <span className="font-normal text-zinc-400">({unit})</span>}
-            </label>
-            <input
-              name="value"
-              type="number"
-              step="any"
-              min="0"
-              placeholder="2"
-              aria-label="Optional target value"
-              className="h-11 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm"
-            />
-          </div>
+          <input
+            name="value"
+            type="number"
+            step="any"
+            min="0"
+            placeholder="2"
+            aria-label="Optional target value"
+            className="h-11 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:w-24 sm:text-sm"
+          />
         )}
+        {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
+        <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
+        <div className="sm:w-48">
+          <DueDateField
+            value={dueDate}
+            onChange={setDueDate}
+            max={latestDueDate}
+            ariaLabel={latestDueDate ? "Milestone due date, must be before the goal target date" : "Optional milestone due date"}
+          />
+        </div>
       </div>
       <ActionError error={state.error} />
       <div className="mt-4 flex justify-end"><button disabled={pending} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50"><Plus className="h-4 w-4" /> {pending ? "Saving…" : "Save milestone"}</button></div>
