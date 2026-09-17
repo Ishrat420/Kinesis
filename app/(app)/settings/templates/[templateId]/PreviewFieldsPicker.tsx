@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import { PreviewStats } from "@/components/custom-fields/PreviewStats";
 import { CHECKBOX_INPUT_CLASS } from "@/components/custom-fields/field-styles";
-import { resolveKind, formatPreviewValue } from "@/lib/custom-fields/kinds";
+import { resolveKind, formatPreviewValue, resolvePreviewFieldRaw } from "@/lib/custom-fields/kinds";
 import type { CustomFieldType, NumberFieldFormat } from "@/lib/custom-fields/types";
 import { TEMPLATE_PREVIEW_FIELDS_FORM_KEY } from "@/lib/templates/parse";
 import { useFormResetKey } from "@/lib/hooks/form-reset-key";
@@ -13,25 +13,6 @@ const MAX_PREVIEW_FIELDS = 3;
 
 type PreviewableField = { id: string; label: string; type: CustomFieldType; numberFormat?: NumberFieldFormat; isDueDate: boolean };
 type SampleValues = { dueDate: string; values: Record<string, { value: string; linkCount: number }> } | null;
-
-/** A placeholder raw value per kind, used only when nothing exists under the template yet to show a real one. */
-function placeholderRaw(kind: ReturnType<typeof resolveKind>, todayIso: string): { value?: string; linkCount?: number } {
-  switch (kind) {
-    case "date": {
-      const date = new Date(todayIso);
-      date.setUTCDate(date.getUTCDate() + 21);
-      return { value: date.toISOString().slice(0, 10) };
-    }
-    case "number": return { value: "42" };
-    case "currency": return { value: "1234" };
-    case "percent": return { value: "12.5" };
-    case "status": return { value: "Example" };
-    case "text": return { value: "Example text" };
-    case "link-count": return { linkCount: 2 };
-    case "boolean": return { value: "true" };
-    default: return {};
-  }
-}
 
 /**
  * "Show on card" (KD-042) -- lives on the template's *own* saved field list,
@@ -86,16 +67,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
     if (!field) return [];
     const kind = resolveKind(field.type, field.numberFormat);
     if (!kind) return [];
-    // A field can lack a value under the sample object without being empty --
-    // a CHECKBOX never gets an ObjectField row written for it while it's still
-    // unchecked (saveTemplateFieldValues treats "" as nothing to persist), yet
-    // formatPreviewValue's boolean case always renders "True"/"False", never
-    // drops for a missing value. Matching getCustomItemPreviews' own `?? ""`
-    // here (rather than falling through to `undefined`) keeps this preview
-    // agreeing with the real linked card instead of silently omitting the field.
-    const raw = field.isDueDate
-      ? { value: sample?.dueDate }
-      : sample ? (sample.values[id] ?? { value: "" }) : placeholderRaw(kind, today);
+    const raw = resolvePreviewFieldRaw(kind, field.isDueDate, sample, id, today);
     const formatted = formatPreviewValue(kind, raw, { locale, currency, today: new Date(today) });
     return formatted !== null ? [{ label: field.label, kind, value: formatted }] : [];
   }), [selected, eligible, sample, locale, currency, today]);

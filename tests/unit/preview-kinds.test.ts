@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPreviewValue, resolveKind, truncateLabel } from "@/lib/custom-fields/kinds";
+import { formatPreviewValue, resolveKind, resolvePreviewFieldRaw, truncateLabel } from "@/lib/custom-fields/kinds";
 
 const context = { locale: "en-US", currency: "USD", today: new Date("2026-01-01T00:00:00.000Z") };
 
@@ -68,6 +68,49 @@ describe("formatPreviewValue", () => {
     const value = formatPreviewValue("text", { value: long }, context)!;
     expect(value.length).toBeLessThanOrEqual(40);
     expect(value.endsWith("…")).toBe(true);
+  });
+});
+
+describe("resolvePreviewFieldRaw", () => {
+  const todayIso = "2026-01-01";
+
+  it("falls back to a made-up placeholder when nothing exists under the template yet", () => {
+    expect(resolvePreviewFieldRaw("text", false, null, "field-1", todayIso)).toEqual({ value: "Example text" });
+    expect(resolvePreviewFieldRaw("boolean", false, null, "field-1", todayIso)).toEqual({ value: "true" });
+  });
+
+  it("reads a due-date field from the sample's own dueDate, never its values map", () => {
+    const sample = { dueDate: "2026-02-14", values: {} };
+    expect(resolvePreviewFieldRaw("date", true, sample, "field-1", todayIso)).toEqual({ value: "2026-02-14" });
+  });
+
+  it("returns a real sample value untouched when the field has one", () => {
+    const sample = { dueDate: "", values: { "field-1": { value: "Paris", linkCount: 0 } } };
+    expect(resolvePreviewFieldRaw("text", false, sample, "field-1", todayIso)).toEqual({ value: "Paris", linkCount: 0 });
+  });
+
+  /**
+   * The bug this guards against: a CHECKBOX field with a real sample object
+   * but no ObjectField row for it (never toggled on, since
+   * saveTemplateFieldValues treats "" as nothing to persist) used to resolve
+   * to `undefined` here and get dropped from the preview entirely, even
+   * though formatPreviewValue's boolean case never drops -- it always
+   * renders "True"/"False" -- and the real linked card
+   * (getCustomItemPreviews) already defaults the same missing value to ""
+   * and shows "False". The settings-page preview silently disagreed with
+   * the real card until this matched that same default.
+   */
+  it("defaults a checkbox field missing from a real sample to false, not dropped", () => {
+    const sample = { dueDate: "", values: {} };
+    const raw = resolvePreviewFieldRaw("boolean", false, sample, "checkbox-field", todayIso);
+    expect(raw).toEqual({ value: "" });
+    expect(formatPreviewValue("boolean", raw, context)).toBe("False");
+  });
+
+  it("still drops a non-boolean field missing from a real sample, matching formatPreviewValue's own blank rule", () => {
+    const sample = { dueDate: "", values: {} };
+    const raw = resolvePreviewFieldRaw("text", false, sample, "text-field", todayIso);
+    expect(formatPreviewValue("text", raw, context)).toBeNull();
   });
 });
 

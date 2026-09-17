@@ -102,3 +102,46 @@ export function formatPreviewValue(
   if (kind === "status") return truncate(value, STATUS_CHAR_CAP);
   return truncate(value, TEXT_CHAR_CAP);
 }
+
+/** A made-up raw value per kind, used only when nothing exists under a template yet so its live preview can still show a representative value. */
+export function placeholderPreviewRaw(kind: DisplayKind, todayIso: string): { value?: string; linkCount?: number } {
+  switch (kind) {
+    case "date": {
+      const date = new Date(todayIso);
+      date.setUTCDate(date.getUTCDate() + 21);
+      return { value: date.toISOString().slice(0, 10) };
+    }
+    case "number": return { value: "42" };
+    case "currency": return { value: "1234" };
+    case "percent": return { value: "12.5" };
+    case "status": return { value: "Example" };
+    case "text": return { value: "Example text" };
+    case "link-count": return { linkCount: 2 };
+    case "boolean": return { value: "true" };
+    default: return {};
+  }
+}
+
+/**
+ * The raw value a preview field should format from, given an optional
+ * sample object's stored values. A missing value under a real sample is not
+ * the same as no sample at all: a CHECKBOX field never gets an ObjectField
+ * row written while it's still unchecked (saveTemplateFieldValues treats ""
+ * as nothing to persist), so `sample.values[fieldId]` comes back `undefined`
+ * for it -- and `formatPreviewValue`'s boolean case needs `{ value: "" }`,
+ * not `undefined`, to render "False" rather than being read as absent. This
+ * mirrors getCustomItemPreviews' own `?? ""` default for the same reason, so
+ * every preview consumer (this settings page included) agrees with the real
+ * linked card on what an untouched checkbox shows.
+ */
+export function resolvePreviewFieldRaw(
+  kind: DisplayKind,
+  isDueDate: boolean,
+  sample: { dueDate: string; values: Record<string, { value: string; linkCount: number }> } | null,
+  fieldId: string,
+  todayIso: string,
+): { value?: string; linkCount?: number } {
+  if (isDueDate) return { value: sample?.dueDate };
+  if (!sample) return placeholderPreviewRaw(kind, todayIso);
+  return sample.values[fieldId] ?? { value: "" };
+}
