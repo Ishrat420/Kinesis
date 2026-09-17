@@ -9,19 +9,17 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { UploadDocumentButton } from "./UploadDocumentButton";
 import { ManualDocumentButton } from "./ManualDocumentButton";
 import { DocumentsList } from "./DocumentsList";
-import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 import { getFormatPreferences } from "@/lib/format/server";
 import { readCaptureParams } from "@/lib/capture/params";
 
 
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [capture, documents, documentTypes, documentSummary, user, linkOptions, { locale }] = await Promise.all([
+  const [capture, documents, documentTypes, documentSummary, linkOptions, { locale }] = await Promise.all([
     searchParams.then(readCaptureParams),
     getDocuments(),
     getDocumentTypes(),
     getDocumentSummary(),
-    getCurrentUser(),
     getKinesisLinkOptions(),
     getFormatPreferences(),
   ]);
@@ -33,7 +31,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         description="Store, track, and connect important documents."
         actions={
           <>
-            <ManualDocumentButton documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} capture={capture} />
+            <ManualDocumentButton documentTypes={documentTypes} linkOptions={linkOptions} capture={capture} />
             <UploadDocumentButton />
           </>
         }

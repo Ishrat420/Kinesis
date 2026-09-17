@@ -38,7 +38,7 @@ export function DocumentTypeSelect({
 
   return (
     <label className="block">
-      <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Document type</span>
+      <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Document type <span className="font-bold text-red-500">*</span></span>
       <div ref={container} className="relative">
         <input
           name="type"

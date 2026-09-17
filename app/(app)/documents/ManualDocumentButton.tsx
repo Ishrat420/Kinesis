@@ -28,7 +28,7 @@ const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-sm font-semibold 
  * in place; the source To-Do travels back with the form so the create action can
  * retire the To-Do once the document exists.
  */
-export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, capture }: { documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; capture?: { title: string; from?: string } }) {
+export function ManualDocumentButton({ documentTypes, linkOptions, capture }: { documentTypes: DocumentTypeOption[]; linkOptions: KinesisLinkOption[]; capture?: { title: string; from?: string } }) {
   const [open, setOpen] = useState(Boolean(capture));
   const [state, formAction, pending] = useActionState(
     createDocumentAction,
@@ -85,13 +85,7 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
                   </div>
                 </div>
 
-                <div>
-                  <div className="mb-3 flex items-end justify-between">
-                    <h3 className="font-semibold text-zinc-900">Document information</h3>
-                    <span className="text-xs font-medium text-zinc-400">Owner: {ownerName}</span>
-                  </div>
-                  <DocumentFields linkOptions={linkOptions} />
-                </div>
+                <DocumentFields linkOptions={linkOptions} />
 
                 {state.error && (
                   <p role="alert" className="text-sm font-medium text-red-600">
@@ -139,7 +133,9 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={`document-${name}`} className={FIELD_LABEL_CLASS}>{label}</label>
+      <label htmlFor={`document-${name}`} className={FIELD_LABEL_CLASS}>
+        {label} <span className="font-bold text-red-500">*</span>
+      </label>
       <input
         id={`document-${name}`}
         name={name}
