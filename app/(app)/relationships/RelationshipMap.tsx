@@ -10,6 +10,7 @@ import {
   BuildingComplex,
   CalendarDays,
   Cat,
+  Check,
   ChevronDown,
   FaceSlightlySmiling,
   Gamepad2,
@@ -407,7 +408,7 @@ function SelfRelationshipInspector({ selfRelationship, onChange }: { selfRelatio
       <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that keep you connected to yourself.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...selfRelationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: selfRelationship.practices.filter((item) => item.id !== practice.id) })} />)}{selfRelationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...selfRelationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: selfRelationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{selfRelationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
       <RelationshipSection icon={CalendarDays} title="Important Dates" addLabel="Add date" onAdd={() => setAdding("date")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Keep meaningful dates here. Reminders are configurable.</p>{adding === "date" && <ImportantDateForm onCancel={() => setAdding(null)} onSave={(date) => { onChange({ importantDates: [...selfRelationship.importantDates, date] }); setAdding(null); }} />}<div className="space-y-2">{selfRelationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => onChange({ importantDates: selfRelationship.importantDates.filter((item) => item.id !== date.id) })} />)}{selfRelationship.importantDates.length === 0 && adding !== "date" && <EmptyDetail>No important dates yet.</EmptyDetail>}</div></RelationshipSection>
-      <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={selfRelationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about the relationship you have with yourself…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
+      <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={selfRelationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about the relationship you have with yourself…" className={NOTES_TEXTAREA_CLASS} /></RelationshipSection>
     </div>
   </div>;
 }
@@ -418,7 +419,7 @@ function InspectorTab({ active, disabled, onClick, children }: { active: boolean
 
 function RelationshipChoice({ person, relationship, relationships, people, onChange }: { person: Person; relationship: Relationship; relationships: Relationship[]; people: Person[]; onChange: (id: string) => void }) {
   if (relationships.length < 2) return null;
-  return <div className="border-b border-zinc-100 bg-zinc-50 px-5 py-3"><label htmlFor="person-relationship" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[.12em] text-zinc-400">Relationship with</label><select id="person-relationship" value={relationship.id} onChange={(event) => onChange(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs">{relationships.map((item) => { const otherId = item.from === person.id ? item.to : item.from; return <option key={item.id} value={item.id}>{people.find((candidate) => candidate.id === otherId)?.name ?? "Unknown person"}</option>; })}</select></div>;
+  return <div className="border-b border-zinc-100 bg-zinc-50 px-5 py-3"><label htmlFor="person-relationship" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[.12em] text-zinc-400">Relationship with</label><div className="relative"><select id="person-relationship" value={relationship.id} onChange={(event) => onChange(event.target.value)} className={`min-h-11 appearance-none pr-8 ${DENSE_FIELD_CLASS}`}>{relationships.map((item) => { const otherId = item.from === person.id ? item.to : item.from; return <option key={item.id} value={item.id}>{people.find((candidate) => candidate.id === otherId)?.name ?? "Unknown person"}</option>; })}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" /></div></div>;
 }
 
 function PersonInspector({ person, relationships, people, onChange, onLink, onRemoveRelationship, onDelete }: { person: Person; relationships: Relationship[]; people: Person[]; onChange: (patch: Partial<Person>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDelete: () => void }) {
@@ -458,7 +459,7 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
             {addingDate && <ImportantDateForm exampleLabel="Birthday" onCancel={() => setAddingDate(false)} onSave={(date) => { changeOwnFacts({ importantDates: [...person.selfRelationship.importantDates, date] }); setAddingDate(false); }} />}
             <div className="space-y-2">{person.selfRelationship.importantDates.map((date) => <DetailItem key={date.id} title={date.label} detail={`${formatDate(date.date, locale)}${date.repeatsYearly ? " · Yearly" : ""}`} onDelete={() => changeOwnFacts({ importantDates: person.selfRelationship.importantDates.filter((item) => item.id !== date.id) })} />)}{person.selfRelationship.importantDates.length === 0 && !addingDate && <EmptyDetail>No important dates yet.</EmptyDetail>}</div>
           </RelationshipSection>
-          <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={person.selfRelationship.notes} onChange={(event) => changeOwnFacts({ notes: event.target.value })} placeholder={`Add a note about ${person.name}…`} className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
+          <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={person.selfRelationship.notes} onChange={(event) => changeOwnFacts({ notes: event.target.value })} placeholder={`Add a note about ${person.name}…`} className={NOTES_TEXTAREA_CLASS} /></RelationshipSection>
         </>
       )}
 
@@ -486,7 +487,7 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Relationship details</p><p className="mt-0.5 text-[11px] text-zinc-400">{involvesSelf ? "Shared between two people" : "A connection between two people in your life"}</p></div><Link2 className="h-4 w-4 text-zinc-400" /></div>
     <div className="px-5 py-5">
       <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1 text-center"><p className="truncate text-base font-semibold">{from?.name} <span className="font-normal text-zinc-300">↔</span> {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">{relationship.type}</p></div><PersonDot person={to} /></div>
-      <InspectorLabel>Relationship type</InspectorLabel><input value={relationship.type ?? ""} onChange={(event) => onChange({ type: event.target.value || null })} placeholder="Choose a relationship type" className="input mb-5 !py-2.5" />
+      <InspectorLabel>Relationship type</InspectorLabel><input value={relationship.type ?? ""} onChange={(event) => onChange({ type: event.target.value || null })} placeholder="Choose a relationship type" className="mb-5 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-4 py-2.5 text-base text-zinc-900 outline-none transition placeholder:text-zinc-300 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15 sm:text-sm" />
       {involvesSelf && <>
         <RelationshipSection icon={Heart} title="Connection Practices" addLabel="Add practice" onAdd={() => setAdding("practice")}><p className="mb-2 text-[10px] leading-4 text-zinc-400">Ongoing behaviours that maintain this relationship.</p>{adding === "practice" && <PracticeForm today={today} onCancel={() => setAdding(null)} onSave={(practice) => { onChange({ practices: [...relationship.practices, practice] }); setAdding(null); }} />}<div className="space-y-2">{relationship.practices.map((practice) => <DetailItem key={practice.id} title={practice.title} detail={practiceDetail(practice, locale)} onDelete={() => onChange({ practices: relationship.practices.filter((item) => item.id !== practice.id) })} />)}{relationship.practices.length === 0 && adding !== "practice" && <EmptyDetail>No connection practices yet.</EmptyDetail>}</div></RelationshipSection>
         <RelationshipSection icon={BookOpen} title="Reflections" addLabel="Add reflection" onAdd={() => setAdding("reflection")}>{adding === "reflection" && <ReflectionForm today={today} onCancel={() => setAdding(null)} onSave={(reflection) => { onChange({ reflections: [reflection, ...relationship.reflections] }); setAdding(null); }} />}<div className="space-y-2">{relationship.reflections.map((reflection) => <div key={reflection.id} className="group relative rounded-xl bg-zinc-50 p-3 pr-9"><p className="text-[11px] leading-5 text-zinc-600">{reflection.text}</p><p className="mt-2 text-[10px] font-medium text-zinc-400">{formatDate(reflection.date, locale)}</p><DeleteItemButton onClick={() => onChange({ reflections: relationship.reflections.filter((item) => item.id !== reflection.id) })} /></div>)}{relationship.reflections.length === 0 && adding !== "reflection" && <EmptyDetail>Dated notes about how this relationship is going.</EmptyDetail>}</div></RelationshipSection>
@@ -508,7 +509,7 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
           <div className="space-y-2">{relationship.linkedGoals.map((goalId) => { const goal = goals.find((item) => item.id === goalId); const onUnlink = () => onChange({ linkedGoals: relationship.linkedGoals.filter((id) => id !== goalId) }); return goal ? <LinkedGoal key={goalId} goal={goal} onUnlink={onUnlink} /> : <UnavailableLinkedGoal key={goalId} onUnlink={onUnlink} />; })}{!relationship.linkedGoals.length && adding !== "goal" && <EmptyDetail>No goals linked yet.</EmptyDetail>}</div>
         </RelationshipSection>
       </>}
-      <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={relationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about this relationship…" className="input min-h-20 resize-none !py-2.5 text-xs" /></RelationshipSection>
+      <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={relationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about this relationship…" className={NOTES_TEXTAREA_CLASS} /></RelationshipSection>
       <button onClick={onDelete} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove connection</button>
     </div>
   </div>;
@@ -524,10 +525,62 @@ function ConnectionDialog({ pending, relationship, people, onChange, onCancel, o
   return <div className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/15 p-4 backdrop-blur-[2px]`} onPointerDown={onCancel}>
     <div role="dialog" aria-modal="true" aria-labelledby="connect-dialog-title" onPointerDown={(event) => event.stopPropagation()} className="w-full max-w-sm rounded-[22px] border border-zinc-200 bg-white p-5 shadow-[0_24px_80px_rgba(24,24,27,0.18)]">
       <div className="mb-5 flex items-center gap-3"><PersonDot person={from} /><div className="min-w-0 flex-1 text-center"><p id="connect-dialog-title" className="truncate text-base font-semibold">{from?.name} <span className="font-normal text-zinc-300">↔</span> {to?.name}</p><p className="mt-0.5 text-xs text-zinc-400">{relationship ? "These people are currently connected" : "Choose how these people are connected"}</p></div><PersonDot person={to} /></div>
-      {relationship ? <div className="mb-5 rounded-xl bg-zinc-50 px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400">Relationship type</p><p className="mt-1 text-sm font-semibold text-zinc-700">{relationship.type || "Relationship"}</p></div> : <><label className="mb-2 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400" htmlFor="new-relationship-type">Relationship type</label><select autoFocus id="new-relationship-type" value={pending.type} onChange={(event) => onChange(event.target.value)} className="input mb-5 appearance-none !py-2.5"><option>Friend</option><option>Dating</option><option>Partner</option><option>Spouse</option><option>Ex-partner</option><option>Family</option><option>Pet</option><option>Parent & child</option><option>Sibling</option><option>Colleague</option><option>Housemate</option><option>Professional</option><option>Other</option></select></>}
+      {relationship ? <div className="mb-5 rounded-xl bg-zinc-50 px-4 py-3"><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400">Relationship type</p><p className="mt-1 text-sm font-semibold text-zinc-700">{relationship.type || "Relationship"}</p></div> : <><label className="mb-2 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400" htmlFor="new-relationship-type">Relationship type</label><div className="relative mb-5"><select autoFocus id="new-relationship-type" value={pending.type} onChange={(event) => onChange(event.target.value)} className="w-full appearance-none rounded-xl border-[1.5px] border-zinc-200 bg-white px-4 py-2.5 pr-10 text-base text-zinc-900 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15 sm:text-sm"><option>Friend</option><option>Dating</option><option>Partner</option><option>Spouse</option><option>Ex-partner</option><option>Family</option><option>Pet</option><option>Parent & child</option><option>Sibling</option><option>Colleague</option><option>Housemate</option><option>Professional</option><option>Other</option></select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" /></div></>}
       <div className="flex items-center justify-between gap-2">{relationship ? <button onClick={onDisconnect} className="map-button !border-red-100 !text-red-600 hover:!bg-red-50"><Trash2 />Unlink people</button> : <span />}<div className="flex gap-2"><button onClick={onCancel} className="map-button">Cancel</button>{!relationship && <button onClick={onConnect} className="map-button map-button-dark"><Link2 />Link people</button>}</div></div>
     </div>
   </div>;
+}
+
+/**
+ * The compact bordered/roomier-focus treatment used by every small inline
+ * form in this inspector (Practice, Reflection, Important Date), in
+ * Relationships' own rose (matching the module's colour everywhere else it
+ * appears). Kept dense -- text-xs, rounded-lg -- since these live inside a
+ * narrow sidebar panel, not a dialog; only the border weight and focus
+ * treatment move to match every other redesigned form.
+ */
+const DENSE_FIELD_CLASS =
+  "w-full rounded-lg border-[1.5px] border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15";
+const NOTES_TEXTAREA_CLASS =
+  "min-h-20 w-full resize-none rounded-xl border-[1.5px] border-zinc-200 bg-white px-4 py-2.5 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/15";
+
+/**
+ * The dense equivalent of a plain `<input type="date">`: reads as a row with
+ * an answer on it rather than a native date input's blank box, and the
+ * row's onClick calls showPicker() on the real input directly, since a
+ * plain click-through to a transparent absolutely-positioned input isn't
+ * reliably opening the calendar. `normal-case tracking-normal` undoes the
+ * uppercase/tracking some of these fields inherit from a wrapping label.
+ */
+function RelationshipDateField({ value, onChange, ariaLabel, required = false }: { value: string; onChange: (value: string) => void; ariaLabel: string; required?: boolean }) {
+  const [focused, setFocused] = useState(false);
+  const { locale } = useFormatPreferences();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      onClick={() => inputRef.current?.showPicker?.()}
+      className={`relative flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border-[1.5px] bg-white px-3 py-2 transition ${
+        focused ? "border-rose-500 ring-4 ring-rose-500/15" : "border-zinc-200"
+      }`}
+    >
+      <CalendarDays aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+      <span className={`flex-1 truncate text-xs normal-case tracking-normal ${value ? "font-medium text-zinc-900" : "font-normal text-zinc-400"}`}>
+        {value ? formatDate(value, locale) : "Select a date"}
+      </span>
+      <input
+        ref={inputRef}
+        type="date"
+        required={required}
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </div>
+  );
 }
 
 /**
@@ -544,10 +597,13 @@ function PracticeForm({ today, onSave, onCancel }: { today: string; onSave: (pra
   const [cadence, setCadence] = useState<PracticeCadence>("Weekly");
   const [anchorDate, setAnchorDate] = useState(today);
   return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (title.trim() && anchorDate) onSave({ id: crypto.randomUUID(), title: title.trim(), cadence, anchorDate }); }}>
-    <input autoFocus required value={title} onChange={(event) => setTitle(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder="Practice, e.g. Sunday walk" aria-label="Practice name" />
-    <select required value={cadence} onChange={(event) => setCadence(event.target.value as PracticeCadence)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Practice frequency">{PRACTICE_CADENCES.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+    <input autoFocus required value={title} onChange={(event) => setTitle(event.target.value)} className={`min-h-11 ${DENSE_FIELD_CLASS}`} placeholder="Practice, e.g. Sunday walk" aria-label="Practice name" />
+    <div className="relative">
+      <select required value={cadence} onChange={(event) => setCadence(event.target.value as PracticeCadence)} className={`min-h-11 appearance-none pr-8 ${DENSE_FIELD_CLASS}`} aria-label="Practice frequency">{PRACTICE_CADENCES.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+    </div>
     <label className="block text-[10px] font-semibold uppercase tracking-[.12em] text-zinc-400">Starts on
-      <input required type="date" value={anchorDate} onChange={(event) => setAnchorDate(event.target.value)} className="input mt-1 !rounded-lg !px-3 !py-2 text-xs font-normal normal-case tracking-normal text-zinc-950" aria-label="Practice start date" />
+      <div className="mt-1"><RelationshipDateField value={anchorDate} onChange={setAnchorDate} ariaLabel="Practice start date" required /></div>
     </label>
     <p className="text-[10px] leading-4 text-zinc-400">The calendar counts from this day: weekly lands on the same weekday, monthly on the same date.</p>
     <FormActions onCancel={onCancel} />
@@ -570,8 +626,8 @@ function ReflectionForm({ today, onSave, onCancel }: { today: string; onSave: (r
   const [text, setText] = useState("");
   const [date, setDate] = useState(today);
   return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (text.trim() && date) onSave({ id: crypto.randomUUID(), text: text.trim(), date }); }}>
-    <textarea autoFocus required value={text} onChange={(event) => setText(event.target.value)} className="input min-h-20 resize-y !rounded-lg !px-3 !py-2 text-xs" placeholder="How is this relationship going?" aria-label="Reflection" />
-    <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Reflection date" />
+    <textarea autoFocus required value={text} onChange={(event) => setText(event.target.value)} className={`min-h-20 resize-y ${DENSE_FIELD_CLASS}`} placeholder="How is this relationship going?" aria-label="Reflection" />
+    <RelationshipDateField value={date} onChange={setDate} ariaLabel="Reflection date" required />
     <FormActions onCancel={onCancel} />
   </form>;
 }
@@ -583,9 +639,15 @@ function ImportantDateForm({ exampleLabel = "Anniversary", onSave, onCancel }: {
   // so that is the default; a one-off event is the exception a person unchecks.
   const [repeatsYearly, setRepeatsYearly] = useState(true);
   return <form className="mb-2 space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3" onSubmit={(event) => { event.preventDefault(); if (label.trim() && date) onSave({ id: crypto.randomUUID(), label: label.trim(), date, repeatsYearly }); }}>
-    <input autoFocus required value={label} onChange={(event) => setLabel(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" placeholder={`Occasion, e.g. ${exampleLabel}`} aria-label="Date name" />
-    <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="input !rounded-lg !px-3 !py-2 text-xs" aria-label="Important date" />
-    <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11px] font-medium text-zinc-600"><input type="checkbox" checked={repeatsYearly} onChange={(event) => setRepeatsYearly(event.target.checked)} className="h-3.5 w-3.5 accent-zinc-900" />Yearly</label>
+    <input autoFocus required value={label} onChange={(event) => setLabel(event.target.value)} className={`min-h-11 ${DENSE_FIELD_CLASS}`} placeholder={`Occasion, e.g. ${exampleLabel}`} aria-label="Date name" />
+    <RelationshipDateField value={date} onChange={setDate} ariaLabel="Important date" required />
+    <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11px] font-medium text-zinc-600">
+      <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
+        <input type="checkbox" checked={repeatsYearly} onChange={(event) => setRepeatsYearly(event.target.checked)} className="peer h-4 w-4 shrink-0 cursor-pointer appearance-none rounded border-[1.5px] border-zinc-300 bg-white transition checked:border-rose-500 checked:bg-rose-500" />
+        <Check aria-hidden="true" className="pointer-events-none absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100" />
+      </span>
+      Yearly
+    </label>
     <FormActions onCancel={onCancel} />
   </form>;
 }
