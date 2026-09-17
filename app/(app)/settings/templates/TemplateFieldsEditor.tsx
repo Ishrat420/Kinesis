@@ -135,7 +135,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
             </select>
             <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           </div>
-          <div className="hidden h-11 md:block md:w-[140px]" />
+          <div className="hidden h-[50px] md:block md:w-[140px]" />
         </div>
         {fields.map((field, index) => (
             <div key={`${field.key}:${resetRevision}`} className="grid min-w-0 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -222,7 +222,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
         <button
           type="button"
           onClick={addField}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300"
+          className="inline-flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300"
         >
           <Plus className="h-4 w-4" /> Add field
         </button>

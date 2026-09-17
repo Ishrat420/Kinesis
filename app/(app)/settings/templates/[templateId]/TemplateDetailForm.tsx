@@ -41,7 +41,10 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
   return (
     <form action={formAction} className="space-y-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <input type="hidden" name="updatedAt" value={currentUpdatedAt} />
-      <label className="block text-sm font-semibold">Name<input name="name" defaultValue={name} required maxLength={60} className={`mt-2 ${FIELD_INPUT_CLASS}`} /></label>
+      <div>
+        <label htmlFor="template-name" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Name <span className="font-bold text-red-500">*</span></label>
+        <input id="template-name" name="name" defaultValue={name} required maxLength={60} className={FIELD_INPUT_CLASS} />
+      </div>
 
       <TemplateFieldsEditor initialFields={fields} locked={locked} />
 
