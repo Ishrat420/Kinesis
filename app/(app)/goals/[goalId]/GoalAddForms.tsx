@@ -17,6 +17,42 @@ function ActionError({ error }: { error?: string }) {
   return <p role="alert" className="mt-3 text-sm font-medium text-red-600">{error}</p>;
 }
 
+/**
+ * A due-date field that reads as a row with an answer on it ("Due 5 Jan
+ * 2026") rather than a native date input's blank box -- which, empty and
+ * unstyled, is easy to mistake for a broken field, especially on mobile
+ * Safari where it shows nothing at all until a value is picked. The real
+ * input still covers the row so it stays keyboard- and screen-reader-operable.
+ */
+function DueDateField({ value, onChange, max, ariaLabel }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string }) {
+  const [focused, setFocused] = useState(false);
+  const { locale } = useFormatPreferences();
+
+  return (
+    <div
+      className={`relative flex h-11 items-center gap-2.5 rounded-xl border-[1.5px] bg-white px-3 transition ${
+        focused ? "border-violet-500 ring-4 ring-violet-500/15" : "border-zinc-200"
+      }`}
+    >
+      <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+      <span className={`flex-1 truncate text-base sm:text-sm ${value ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
+        {value ? formatDate(value, locale) : "Select a date"}
+      </span>
+      <input
+        type="date"
+        name="dueDate"
+        aria-label={ariaLabel}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </div>
+  );
+}
+
 export function AddMilestoneForm({
   action,
   hasTarget,
@@ -60,26 +96,58 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [dueDate, setDueDate] = useState("");
   const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
   useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
 
   return (
-    <form action={formAction} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <form action={formAction} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:p-5">
+      <div className="mb-4 flex items-center justify-between">
         <p className="text-sm font-semibold text-zinc-800">New milestone</p>
         <button type="button" onClick={onDone} aria-label="Cancel adding milestone" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700">
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input name="name" required autoFocus placeholder="What will you do next?" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400" />
-        {hasTarget && <input name="value" type="number" step="any" min="0" placeholder="2" aria-label="Optional target value" className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24" />}
-        {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
-        <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
-        <input name="dueDate" type="date" max={latestDueDate} aria-label="Optional milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-600 outline-none sm:w-40" />
+      <div className="space-y-3">
+        <input
+          name="name"
+          required
+          autoFocus
+          placeholder="What will you do next?"
+          className="h-11 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-4 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm"
+        />
+        <div className={`grid gap-3 ${hasTarget ? "grid-cols-2" : "grid-cols-1"}`}>
+          {hasTarget && (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-zinc-700">
+                Value {unit && <span className="font-normal text-zinc-400">({unit})</span>}
+              </label>
+              <input
+                name="value"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="2"
+                aria-label="Optional target value"
+                className="h-11 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm"
+              />
+            </div>
+          )}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-zinc-700">
+              Due <span className="font-normal text-zinc-400">optional</span>
+            </label>
+            <DueDateField
+              value={dueDate}
+              onChange={setDueDate}
+              max={latestDueDate}
+              ariaLabel={latestDueDate ? "Milestone due date, must be before the goal target date" : "Optional milestone due date"}
+            />
+          </div>
+        </div>
       </div>
       <ActionError error={state.error} />
-      <div className="mt-3 flex justify-end"><button disabled={pending} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-50"><Plus className="h-4 w-4" /> {pending ? "Saving…" : "Save milestone"}</button></div>
+      <div className="mt-4 flex justify-end"><button disabled={pending} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50"><Plus className="h-4 w-4" /> {pending ? "Saving…" : "Save milestone"}</button></div>
     </form>
   );
 }
@@ -188,9 +256,9 @@ function MeasurableTargetFields({ action, removeAction, units, targetValue, curr
           <p className="text-sm font-semibold text-zinc-800">{hasTarget ? "Update measurable target" : "New measurable target"}</p>
           <button type="button" onClick={onDone} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
         </div>
-        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
-        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
-        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Current value<input name="currentValue" type="number" min="0" step="any" required defaultValue={currentValue ?? ""} placeholder="2,000" className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none focus:border-violet-400" /></label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /></label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Current value<input name="currentValue" type="number" min="0" step="any" required defaultValue={currentValue ?? ""} placeholder="2,000" className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /></label>
         {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
         {removeState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{removeState.error}</p>}
         <div className="flex gap-2 sm:col-span-3">
