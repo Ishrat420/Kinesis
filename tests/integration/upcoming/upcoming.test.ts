@@ -15,6 +15,7 @@ import { prisma } from "@/lib/data/prisma";
 import { getUpcomingAndDue } from "@/lib/data/upcoming";
 import { dismissAttentionItem } from "@/app/actions";
 import { dismissalKey } from "@/lib/attention/dismissal";
+import { addUtcDays, startOfUtcDay } from "@/lib/dates";
 
 /**
  * getUpcomingAndDue reads five unrelated tables against a per-type reminder
@@ -290,6 +291,63 @@ describe.sequential("Upcoming & Due", () => {
       // Now well past the due date -- the item is genuinely overdue.
       const afterDueDate = new Date("2026-07-01T00:00:00.000Z");
       await expect(getUpcomingAndDue(afterDueDate)).resolves.toEqual([expect.objectContaining({ kind: "custom", title: "Dune is over its due date" })]);
+    });
+  });
+
+  describe("an Important Date's Create To-Do and Dismiss actions (KD-047)", () => {
+    it("carries the person's linkable object id and a suggested to-do title", async () => {
+      await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Sam", userId: owner } });
+      await prisma.person.create({ data: { id: "person-1", name: "Sam", userId: owner, objectId: "person-obj" } });
+      await prisma.relationshipImportantDate.create({ data: { id: "date-1", selfPersonId: "person-1", label: "Birthday", date: new Date("2026-06-30"), repeatsYearly: true } });
+
+      const items = await getUpcomingAndDue(now);
+
+      expect(items).toEqual([expect.objectContaining({
+        kind: "relationship",
+        personObjectId: "person-obj",
+        suggestedTodoTitle: "Do something for Sam's birthday",
+      })]);
+    });
+
+    /**
+     * Unlike a document or custom item's static field, a relationship date's
+     * dismissal deadline is derived (`dismissAttentionItem` -> `currentDeadline`
+     * resolves it via the real, ambient `getToday()`, not an injected clock --
+     * there is no per-call "now" a dismiss button can pass it, the same as
+     * production). These two tests anchor to the real day the suite runs on,
+     * rather than the file's fixed historical `now`, so the dismissed
+     * occurrence they name always matches what the action independently
+     * recomputes.
+     */
+    it("hides a relationship date once its advance notice is dismissed, same as a document or custom item", async () => {
+      await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Sam", userId: owner } });
+      await prisma.person.create({ data: { id: "person-1", name: "Sam", userId: owner, objectId: "person-obj" } });
+      const today = startOfUtcDay(new Date())!;
+      const occurrence = addUtcDays(today, 15);
+      await prisma.relationshipImportantDate.create({ data: { id: "date-1", selfPersonId: "person-1", label: "Birthday", date: occurrence, repeatsYearly: false } });
+
+      await expect(getUpcomingAndDue(today)).resolves.toEqual([expect.objectContaining({ kind: "relationship" })]);
+
+      await dismissAttentionItem(dismissalKey("relationship", "date-1", "REMINDER_DUE", occurrence));
+
+      await expect(getUpcomingAndDue(today)).resolves.toEqual([]);
+    });
+
+    it("revives a dismissed relationship date once it is rescheduled to a new date", async () => {
+      await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Sam", userId: owner } });
+      await prisma.person.create({ data: { id: "person-1", name: "Sam", userId: owner, objectId: "person-obj" } });
+      const today = startOfUtcDay(new Date())!;
+      const occurrence = addUtcDays(today, 15);
+      await prisma.relationshipImportantDate.create({ data: { id: "date-1", selfPersonId: "person-1", label: "Birthday", date: occurrence, repeatsYearly: false } });
+      await dismissAttentionItem(dismissalKey("relationship", "date-1", "REMINDER_DUE", occurrence));
+      await expect(getUpcomingAndDue(today)).resolves.toEqual([]);
+
+      // Editing the date makes a new deadline -- the old dismissal key stops
+      // matching, the same mechanism a rescheduled document or custom item
+      // relies on (see the "revives a dismissed document..." test above).
+      await prisma.relationshipImportantDate.update({ where: { id: "date-1" }, data: { date: addUtcDays(today, 20) } });
+
+      await expect(getUpcomingAndDue(today)).resolves.toEqual([expect.objectContaining({ kind: "relationship" })]);
     });
   });
 });

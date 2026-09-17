@@ -28,7 +28,7 @@ type DocumentAttentionRecord = { kind: "document"; id: string; name: string; typ
 type MilestoneAttentionRecord = { kind: "milestone"; id: string; name: string; dueDate: Date; goalId: string; goalName: string };
 type CustomItemAttentionRecord = { kind: "custom"; id: string; name: string; dueDate: Date; moduleId: string; moduleName: string; moduleIcon: string; moduleColor: string };
 type TodoAttentionRecord = { kind: "todo"; id: string; name: string; dueDate: Date };
-type RelationshipAttentionRecord = { kind: "relationship"; id: string; label: string; date: Date; repeatsYearly: boolean; personName: string };
+type RelationshipAttentionRecord = { kind: "relationship"; id: string; label: string; date: Date; repeatsYearly: boolean; personName: string; personObjectId: string };
 
 export type AttentionRecord =
   | DocumentAttentionRecord

@@ -2,15 +2,19 @@ import type { NotificationType } from "@prisma/client";
 import { formatDateInput, type DateInput } from "@/lib/dates";
 
 /**
- * Needs Attention rows a person can dismiss.
+ * Rows a person can dismiss.
  *
  * A milestone and a to-do are both deliberately absent: KD-017 gives each
  * "Mark complete" and "Reschedule" instead, on the reasoning that hiding an
  * unfinished item without either resolving it or moving it just buries real
  * work. The card renders no Dismiss button for either, and `parseDismissalKey`
  * rejects both their keys, so the two sides agree rather than drifting apart.
+ *
+ * `relationship` (KD-047) is Upcoming & Due only -- Needs Attention never
+ * shows a relationship date at all (ADR-010), so there is no second surface
+ * for this kind's dismissal to agree with.
  */
-export type DismissibleKind = "document" | "custom";
+export type DismissibleKind = "document" | "custom" | "relationship";
 
 /**
  * What a dismissal of each kind may actually be about: its advance notice,
@@ -23,6 +27,9 @@ export type DismissibleKind = "document" | "custom";
 const DISMISSIBLE_TYPES = {
   document: ["REMINDER_DUE", "EXPIRED"],
   custom: ["REMINDER_DUE", "CUSTOM_ITEM_DUE"],
+  // A relationship date is never overdue (ADR-010), so it only ever has the
+  // one advance-notice type to dismiss -- no overdue counterpart to list.
+  relationship: ["REMINDER_DUE"],
 } as const satisfies Record<DismissibleKind, readonly NotificationType[]>;
 
 const DISMISSIBLE_KINDS = Object.keys(DISMISSIBLE_TYPES) as DismissibleKind[];

@@ -174,8 +174,6 @@ KD-045-mobile-add-custom-module-to-dashboard
 
 ## ✓ Accepted
 
-KD-047-important-dates-row-actions
-
 ## 🚧 In Progress
 
 
@@ -190,6 +188,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-047-important-dates-row-actions
 KD-046-order-milestones-by-due-date
 KD-027-todo-reminder-window
 KD-031-goal-dates-stored-at-end-of-day

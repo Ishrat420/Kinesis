@@ -382,6 +382,7 @@ model RelationshipImportantDate {
   relationship   Relationship?  @relation(fields: [relationshipId], references: [id], onDelete: Cascade)
   selfPerson     Person?        @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
+  attentionDismissals AttentionDismissal[]
 
   @@index([relationshipId, date])
   @@index([selfPersonId, date])
@@ -695,20 +696,23 @@ model AttentionDismissal {
   // One of these is set, naming the record the key points at. They exist for
   // referential integrity alone -- deleting the record takes its dismissals with
   // it, rather than leaving rows nothing can ever match or clean up.
-  documentId   String?
-  customItemId String?
-  todoId       String?
-  userId       String
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  document     Document?   @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  customItem   CustomItem? @relation(fields: [customItemId], references: [id], onDelete: Cascade)
-  todo         Todo?       @relation(fields: [todoId], references: [id], onDelete: Cascade)
-  createdAt    DateTime    @default(now())
+  documentId         String?
+  customItemId       String?
+  todoId             String?
+  relationshipDateId String?
+  userId             String
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
+  todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
+  createdAt          DateTime                   @default(now())
 
   @@unique([userId, itemKey])
   @@index([documentId])
   @@index([customItemId])
   @@index([todoId])
+  @@index([relationshipDateId])
 }
 
 model ActivityEvent {

@@ -8,17 +8,21 @@ const mocks = vi.hoisted(() => ({
   notificationReadUpsert: vi.fn<(args: { where: unknown; create: Record<string, unknown> }) => unknown>(() => ({ __op: "markRead" })),
   documentFindFirst: vi.fn(),
   customItemFindFirst: vi.fn(),
+  relationshipImportantDateFindFirst: vi.fn(),
+  getToday: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
+vi.mock("@/lib/format/server", () => ({ getToday: mocks.getToday }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
     attentionDismissal: { upsert: mocks.dismissalUpsert },
     notificationRead: { upsert: mocks.notificationReadUpsert },
     document: { findFirst: mocks.documentFindFirst },
     customItem: { findFirst: mocks.customItemFindFirst },
+    relationshipImportantDate: { findFirst: mocks.relationshipImportantDateFindFirst },
     $transaction: mocks.transaction,
   },
 }));
@@ -35,6 +39,7 @@ describe("dismissAttentionItem: only rows that offer a Dismiss button", () => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue({ id: "owner-id" });
     mocks.transaction.mockResolvedValue([]);
+    mocks.getToday.mockResolvedValue(at("2026-06-15"));
   });
 
   it("records a dismissal for an expired document", async () => {
@@ -60,6 +65,14 @@ describe("dismissAttentionItem: only rows that offer a Dismiss button", () => {
     await dismissAttentionItem("document:document-1:REMINDER_DUE:2026-06-01");
 
     expect(written()?.create).toMatchObject({ itemKey: "document:document-1:REMINDER_DUE:2026-06-01", documentId: "document-1" });
+  });
+
+  it("records a dismissal for a relationship date that is due soon (KD-047)", async () => {
+    mocks.relationshipImportantDateFindFirst.mockResolvedValue({ date: at("2026-07-01"), repeatsYearly: false });
+
+    await dismissAttentionItem("relationship:date-1:REMINDER_DUE:2026-07-01");
+
+    expect(written()?.create).toMatchObject({ itemKey: "relationship:date-1:REMINDER_DUE:2026-07-01", relationshipDateId: "date-1" });
   });
 
   it("refuses a milestone, which the card no longer offers to dismiss", async () => {
@@ -98,6 +111,7 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue({ id: "owner-id" });
     mocks.transaction.mockResolvedValue([]);
+    mocks.getToday.mockResolvedValue(at("2026-06-15"));
   });
 
   it("writes nothing when the date has already moved on", async () => {
@@ -139,6 +153,27 @@ describe("dismissAttentionItem: a dismissal is scoped to one deadline", () => {
     );
   });
 
+  it("scopes a relationship date lookup to the owner's own relationships or self-person (KD-047)", async () => {
+    mocks.relationshipImportantDateFindFirst.mockResolvedValue({ date: at("2026-07-01"), repeatsYearly: false });
+
+    await dismissAttentionItem("relationship:date-1:REMINDER_DUE:2026-07-01");
+
+    expect(mocks.relationshipImportantDateFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "date-1", OR: [{ relationship: { userId: "owner-id" } }, { selfPerson: { userId: "owner-id" } }] } }),
+    );
+  });
+
+  it("writes nothing once a yearly relationship date has rolled forward past the dismissed occurrence", async () => {
+    // Repeats yearly; "today" is past this year's June 1, so the current
+    // occurrence is next year's -- the same reason a rescheduled document's
+    // old dismissal stops matching.
+    mocks.relationshipImportantDateFindFirst.mockResolvedValue({ date: at("2026-06-01"), repeatsYearly: true });
+
+    await dismissAttentionItem("relationship:date-1:REMINDER_DUE:2026-06-01");
+
+    expect(written()).toBeUndefined();
+  });
+
   it("keys the row on the deadline, so a later date is a separate dismissal", async () => {
     mocks.documentFindFirst.mockResolvedValue({ expiryDate: at("2026-07-01") });
 
@@ -155,6 +190,7 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue({ id: "owner-id" });
     mocks.transaction.mockResolvedValue([]);
+    mocks.getToday.mockResolvedValue(at("2026-06-15"));
   });
 
   /**
@@ -183,6 +219,16 @@ describe("dismissAttentionItem: dismissing also quiets the bell", () => {
 
     expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
       create: expect.objectContaining({ itemKey: "custom:item-1:CUSTOM_ITEM_DUE:2026-06-01", customItemId: "item-1" }),
+    });
+  });
+
+  it("names the right notification for a relationship date (KD-047)", async () => {
+    mocks.relationshipImportantDateFindFirst.mockResolvedValue({ date: at("2026-07-01"), repeatsYearly: false });
+
+    await dismissAttentionItem("relationship:date-1:REMINDER_DUE:2026-07-01");
+
+    expect(mocks.notificationReadUpsert.mock.calls[0]?.[0]).toMatchObject({
+      create: expect.objectContaining({ itemKey: "relationship:date-1:REMINDER_DUE:2026-07-01", relationshipDateId: "date-1" }),
     });
   });
 

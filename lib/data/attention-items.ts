@@ -91,15 +91,22 @@ export async function getAttentionRecords(now = new Date(), scope?: { userId: st
     ...milestones.map((milestone): AttentionRecord => ({ kind: "milestone", id: milestone.id, name: milestone.name, dueDate: milestone.dueDate!, goalId: milestone.goalId, goalName: milestone.goal.name })),
     ...customItems.map((item): AttentionRecord => ({ kind: "custom", id: item.id, name: item.name, dueDate: item.dueDate!, moduleId: item.moduleId, moduleName: item.module.name, moduleIcon: item.module.icon, moduleColor: item.module.color })),
     ...todos.filter((todo) => isOpenTodoStatus(todo.status)).map((todo): AttentionRecord => ({ kind: "todo", id: todo.id, name: todo.name, dueDate: todo.dueDate! })),
-    ...importantDates.map((importantDate): AttentionRecord => ({
-      kind: "relationship",
-      id: importantDate.id,
-      label: importantDate.label,
-      date: importantDate.date,
-      repeatsYearly: importantDate.repeatsYearly,
-      personName: importantDate.relationship
-        ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson.name : importantDate.relationship.firstPerson.name)
-        : importantDate.selfPerson!.name,
-    })),
+    ...importantDates.map((importantDate): AttentionRecord => {
+      // The "other" person a date is about, whether it comes from a two-person
+      // relationship or the self-person's own calendar -- the same person a
+      // to-do created from this date should link to (see KD-047).
+      const person = importantDate.relationship
+        ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson : importantDate.relationship.firstPerson)
+        : importantDate.selfPerson!;
+      return {
+        kind: "relationship",
+        id: importantDate.id,
+        label: importantDate.label,
+        date: importantDate.date,
+        repeatsYearly: importantDate.repeatsYearly,
+        personName: person.name,
+        personObjectId: person.objectId,
+      };
+    }),
   ];
 }

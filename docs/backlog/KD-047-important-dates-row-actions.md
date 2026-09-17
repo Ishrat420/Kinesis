@@ -1,6 +1,6 @@
 # KD-047 — Add Action Icons to Important Dates in Upcoming & Due
 
-**Status:** Accepted
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI
 
@@ -96,3 +96,48 @@ color as the rest of the app's to-do theme, not a generic hover tint.
 - `BUG-006-notification-panel-behind-relationship-inspector` — unrelated
   bug in the same general notification/attention surface area, no direct
   dependency.
+
+## What was done
+
+Built as planned, with one addition the implementation notes didn't
+anticipate: `AttentionDismissal` had no `relationshipDateId` column at all
+(only `documentId`/`customItemId`/`todoId` existed, plus a
+`num_nonnulls(...) = 1` check constraint enumerating exactly those three) --
+so a relationship date couldn't be dismissed without a schema change.
+Migration `20261003000000_relationship_attention_dismissal` adds the
+column, its index and FK to `RelationshipImportantDate`, and widens the
+check constraint to admit it as a fourth option.
+
+- `lib/attention/items.ts` / `lib/data/attention-items.ts` — the
+  `relationship`-kind record now carries `personObjectId` (the linked
+  Person's `Object.id`, resolved from whichever side of the relationship
+  isn't the self-person, or the self-person directly for a self-only date).
+- `lib/attention/dismissal.ts` — `relationship` added to `DismissibleKind`,
+  with `REMINDER_DUE` as its only dismissible notice (it never goes
+  overdue, so there's no second type to enumerate).
+- `lib/data/upcoming.ts` — the relationship `UpcomingItem` now carries
+  `dismissKey`, `personObjectId`, and a `suggestedTodoTitle` ("Do something
+  for {possessive name} {label, lowercased}"), and is filtered out once
+  dismissed, same as document/custom rows.
+- `app/actions.ts` — `dismissAttentionItem`'s `currentDeadline` resolves a
+  relationship dismissal's current deadline via `getNextOccurrence` (today
+  resolved for real, not injected -- there's no per-call "now" a dismiss
+  button can pass it), so an edited or rolled-forward date correctly
+  un-dismisses the row, mirroring a rescheduled document.
+- `app/(app)/todos/AddTodoButton.tsx` — `AddTodoForm` exported with optional
+  `initialName`/`initialDueDate`/`initialLinkObjectIds` props, so a caller
+  can open it pre-filled instead of blank.
+- `components/dashboard/CreateTodoFromDateButton.tsx` (new) — the
+  circle-plus trigger, `ICON_ACTION_CLASS` styled with a teal-600 hover
+  (`#0d9488`, matching the to-do theme color), opening `AddTodoForm`
+  pre-filled from the row.
+- `components/dashboard/ReminderList.tsx` — `UpcomingActions` renders
+  `CreateTodoFromDateButton` + `DismissButton` for `kind === "relationship"`;
+  `ReminderList` fetches `getTodoLinkOptions()` only when the list actually
+  has a relationship row.
+
+Covered by `tests/unit/attention-dismissal.test.ts`,
+`tests/unit/attention-dismissal-action.test.ts`,
+`tests/unit/attention-items.test.ts`, and
+`tests/integration/upcoming/upcoming.test.ts` (the last exercises the real
+create-to-do prefill data and the dismiss/revive cycle against Postgres).

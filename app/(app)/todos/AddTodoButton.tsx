@@ -38,11 +38,29 @@ export function AddTodoButton({ linkOptions }: { linkOptions: ObjectLocation[] }
   );
 }
 
-function AddTodoForm({ linkOptions, onClose }: { linkOptions: ObjectLocation[]; onClose: () => void }) {
+/**
+ * Exported so a caller that already knows some of a to-do's details up front
+ * -- Upcoming & Due's "create a to-do from this Important Date" action
+ * (KD-047) -- can open this same dialog pre-filled instead of blank, rather
+ * than building a second create form for the same fields.
+ */
+export function AddTodoForm({
+  linkOptions,
+  onClose,
+  initialName = "",
+  initialDueDate = "",
+  initialLinkObjectIds = [],
+}: {
+  linkOptions: ObjectLocation[];
+  onClose: () => void;
+  initialName?: string;
+  initialDueDate?: string;
+  initialLinkObjectIds?: string[];
+}) {
   const [status, setStatus] = useState<TodoStatus>("TODO");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState(initialDueDate);
   const [notes, setNotes] = useState("");
-  const [linkObjectIds, setLinkObjectIds] = useState<string[]>([]);
+  const [linkObjectIds, setLinkObjectIds] = useState<string[]>(initialLinkObjectIds);
   const [state, formAction, pending] = useActionState(createTodoAction, initialState);
 
   useEffect(() => {
@@ -75,6 +93,7 @@ function AddTodoForm({ linkOptions, onClose }: { linkOptions: ObjectLocation[]; 
               name="name"
               required
               autoFocus
+              defaultValue={initialName}
               placeholder="e.g. Renew car registration"
               className="mt-2 h-12 w-full rounded-xl border border-zinc-200 px-4 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400"
             />

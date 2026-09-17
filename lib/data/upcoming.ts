@@ -25,7 +25,7 @@ export type UpcomingItem =
   /** `dismissKey` is the same key Needs Attention dismisses this exact record/deadline under -- see lib/attention/dismissal.ts. Dismissing here hides it there too, for free, since both read the one AttentionDismissal table. */
   | (BaseUpcomingItem & { kind: "document"; editHref: string; dismissKey: string })
   | (BaseUpcomingItem & { kind: "milestone"; goalId: string; milestoneId: string })
-  | (BaseUpcomingItem & { kind: "relationship" })
+  | (BaseUpcomingItem & { kind: "relationship"; dismissKey: string; personObjectId: string; suggestedTodoTitle: string })
   | (BaseUpcomingItem & { kind: "todo"; todoId: string })
   /** A custom module object is shown with its own module's icon and colour. */
   | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string; dismissKey: string });
@@ -61,7 +61,23 @@ function toUpcomingItem(record: AttentionRecord, today: Date, dismissed: Readonl
       const phase = relationshipUpcomingPhase(record, today, leadDays.relationship, remindersEnabled);
       if (!phase) return null;
       const occurrence = getNextOccurrence(record, today)!;
-      return { id: `relationship-${record.id}`, kind: "relationship", title: `${possessiveName(record.personName)} ${record.label} is coming`, date: occurrence.toISOString(), timestamp: occurrence.getTime(), href: "/relationships" };
+      // Same reasoning as a document's dismissal key, above: dismissed here
+      // means dismissed for *this* occurrence -- a relationship date only
+      // ever has the one advance-notice phase to dismiss (KD-047), never an
+      // overdue counterpart, since it rolls forward before it can go overdue.
+      const dismissKey = dismissalKey("relationship", record.id, "REMINDER_DUE", occurrence);
+      if (dismissed.has(dismissKey)) return null;
+      return {
+        id: `relationship-${record.id}`,
+        kind: "relationship",
+        title: `${possessiveName(record.personName)} ${record.label} is coming`,
+        date: occurrence.toISOString(),
+        timestamp: occurrence.getTime(),
+        href: "/relationships",
+        dismissKey,
+        personObjectId: record.personObjectId,
+        suggestedTodoTitle: `Do something for ${possessiveName(record.personName)} ${record.label.toLowerCase()}`,
+      };
     }
     case "custom": {
       const phase = customItemUpcomingPhase(record, today, leadDays.customItem, remindersEnabled);

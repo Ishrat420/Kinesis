@@ -3,10 +3,11 @@ import { dismissalKey, isDismissibleKind, parseDismissalKey } from "@/lib/attent
 
 const at = (day: string) => new Date(`${day}T00:00:00.000Z`);
 
-describe("which Needs Attention rows offer a Dismiss button", () => {
-  it("accepts the two kinds the card renders one for", () => {
+describe("which rows offer a Dismiss button", () => {
+  it("accepts the two kinds Needs Attention renders one for, plus Upcoming & Due's relationship dates (KD-047)", () => {
     expect(isDismissibleKind("document")).toBe(true);
     expect(isDismissibleKind("custom")).toBe(true);
+    expect(isDismissibleKind("relationship")).toBe(true);
   });
 
   it("rejects a milestone, which resolves or reschedules instead of hiding", () => {
@@ -78,15 +79,18 @@ describe("parseDismissalKey: reading a key back", () => {
     expect(parseDismissalKey("document:document-1:EXPIRED:2026-06-01")).toEqual({ kind: "document", id: "document-1", type: "EXPIRED", date: "2026-06-01" });
     expect(parseDismissalKey("custom:item-1:REMINDER_DUE:2026-06-01")).toEqual({ kind: "custom", id: "item-1", type: "REMINDER_DUE", date: "2026-06-01" });
     expect(parseDismissalKey("custom:item-1:CUSTOM_ITEM_DUE:2026-06-01")).toEqual({ kind: "custom", id: "item-1", type: "CUSTOM_ITEM_DUE", date: "2026-06-01" });
+    expect(parseDismissalKey("relationship:date-1:REMINDER_DUE:2026-06-01")).toEqual({ kind: "relationship", id: "date-1", type: "REMINDER_DUE", date: "2026-06-01" });
   });
 
   it("rejects a type that does not belong to the kind, even if it is a real notification type", () => {
     // MILESTONE_DUE and CUSTOM_ITEM_DUE are both real, but neither means
-    // anything for a document -- and EXPIRED means nothing for a custom item.
-    // Each dismissible kind is limited to the two notices it can actually carry.
+    // anything for a document -- and EXPIRED means nothing for a custom item
+    // or a relationship date, which is never overdue (ADR-010). Each
+    // dismissible kind is limited to the notices it can actually carry.
     expect(parseDismissalKey("document:document-1:MILESTONE_DUE:2026-06-01")).toBeNull();
     expect(parseDismissalKey("document:document-1:CUSTOM_ITEM_DUE:2026-06-01")).toBeNull();
     expect(parseDismissalKey("custom:item-1:EXPIRED:2026-06-01")).toBeNull();
+    expect(parseDismissalKey("relationship:date-1:EXPIRED:2026-06-01")).toBeNull();
   });
 
   it("rejects a legacy key carrying no type at all, so an old dismissal cannot hide anything", () => {

@@ -5,11 +5,14 @@ import { requireKinesisUser } from "@/lib/auth";
 import { parseDismissalKey, type DismissibleKind } from "@/lib/attention/dismissal";
 import { notificationKey } from "@/lib/notifications/identity";
 import { formatDateInput } from "@/lib/dates";
+import { getToday } from "@/lib/format/server";
+import { getNextOccurrence } from "@/lib/relationships/occurrence";
 
 /** The column that links a dismissal, and its notifications, back to the record. */
 const LINK_FIELD = {
   document: "documentId",
   custom: "customItemId",
+  relationship: "relationshipDateId",
 } as const satisfies Record<DismissibleKind, string>;
 
 /**
@@ -22,6 +25,17 @@ async function currentDeadline(kind: DismissibleKind, id: string, userId: string
   if (kind === "document") {
     const document = await prisma.document.findFirst({ where: { id, userId }, select: { expiryDate: true } });
     return document?.expiryDate ?? null;
+  }
+  if (kind === "relationship") {
+    // A relationship date's deadline is never the stored `date` itself once
+    // it repeats yearly -- it's whichever occurrence is still ahead, the same
+    // value `lib/data/upcoming.ts` built the dismissed key's date from.
+    const importantDate = await prisma.relationshipImportantDate.findFirst({
+      where: { id, OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
+      select: { date: true, repeatsYearly: true },
+    });
+    if (!importantDate) return null;
+    return getNextOccurrence(importantDate, await getToday());
   }
   const item = await prisma.customItem.findFirst({ where: { id, module: { userId } }, select: { dueDate: true } });
   return item?.dueDate ?? null;
