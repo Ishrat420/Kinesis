@@ -20,7 +20,7 @@ const initialState: CreateTodoState = {};
  * `text-base sm:text-sm` keeps mobile Safari from zooming in on focus.
  */
 const FIELD_CLASS =
-  "h-11 w-full rounded-xl border-[1.5px] border-transparent bg-zinc-100 px-3 text-base text-zinc-900 outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
+  "w-full rounded-xl border-[1.5px] border-transparent bg-zinc-100 px-3 text-base text-zinc-900 outline-none transition focus:border-teal-600 focus:bg-white focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
 const FIELD_LABEL_CLASS = "mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-zinc-900";
 
 /**
@@ -83,7 +83,7 @@ export function AddTodoForm({
 
   return (
     <Modal labelledBy="add-todo-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-md">
-      <div className="flex items-center gap-3 border-b border-zinc-200 px-6 py-5 sm:px-8 sm:py-6">
+      <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-5 sm:px-8 sm:py-6">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
           <ListTodo className="h-5 w-5" aria-hidden="true" />
         </span>
@@ -101,7 +101,7 @@ export function AddTodoForm({
       </div>
 
       <form action={formAction}>
-        <div className="space-y-5 px-6 py-6 sm:px-8">
+        <div className="space-y-5 px-4 py-6 sm:px-8">
           <input
             name="name"
             required
@@ -120,7 +120,7 @@ export function AddTodoForm({
                 name="status"
                 value={status}
                 onChange={(event) => setStatus(event.target.value as TodoStatus)}
-                className={`appearance-none pr-9 ${FIELD_CLASS}`}
+                className={`h-11 appearance-none pr-9 ${FIELD_CLASS}`}
               >
                 {TODO_STATUSES.map((option) => (
                   <option key={option} value={option}>
@@ -182,9 +182,9 @@ export function AddTodoForm({
               name="notes"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              rows={3}
+              rows={4}
               placeholder="Add any extra details…"
-              className={`resize-none px-3 py-2.5 ${FIELD_CLASS}`}
+              className={`min-h-[92px] resize-none px-3 py-2.5 leading-relaxed ${FIELD_CLASS}`}
             />
           </div>
 
@@ -195,7 +195,7 @@ export function AddTodoForm({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-3 sm:px-8 sm:pt-5 sm:pb-5">
+        <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-3 sm:px-8 sm:pt-5 sm:pb-5">
           <button
             type="button"
             onClick={onClose}
