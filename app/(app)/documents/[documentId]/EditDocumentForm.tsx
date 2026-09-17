@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, ExternalLink, FileText, Pencil, Save, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Clock3, ExternalLink, FileText, Pencil, Save, X } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
@@ -167,7 +167,19 @@ function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, 
   return <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6"><form action={formAction} className="space-y-5">
     <input type="hidden" name="updatedAt" value={updatedAt} />
     <div className="grid gap-3 sm:grid-cols-2"><Field label="Document name" name="name" value={document.name} required /><DocumentTypeSelect types={documentTypes} defaultValue={document.type} /></div>
-    <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium text-zinc-600">Reminder<select name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 outline-none focus:border-zinc-400">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}</select></label><div className="text-sm font-medium text-zinc-600">Time until expiry<div role="status" className={`mt-1.5 flex h-11 items-center gap-2 rounded-xl px-3 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div></div></div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div>
+        <label htmlFor="edit-document-reminder" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Reminder</label>
+        <div className="relative">
+          <select id="edit-document-reminder" name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="h-[50px] w-full appearance-none rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 pr-9 text-base text-zinc-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}</select>
+          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        </div>
+      </div>
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Time until expiry</p>
+        <div role="status" className={`flex h-[50px] items-center gap-2 rounded-xl px-3.5 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div>
+      </div>
+    </div>
     <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} /></div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not archived"}</button><input type="hidden" name="archived" value={String(archived)} /></div>
     {state.error && (state.conflict ? <SaveConflictNotice message={state.error} /> : <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>)}
@@ -197,4 +209,11 @@ function PromotedField({ label, value, detail, detailTone }: { label: string; va
   return <div className="rounded-2xl bg-blue-50/50 p-4"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</dt><dd className="mt-2 text-lg font-semibold text-zinc-900">{value}</dd><p className={`mt-1 inline-flex rounded-full text-sm ${detailTone ? `px-2.5 py-1 font-semibold ${detailClass}` : detailClass}`}>{detail}</p></div>;
 }
 function Metadata({ label, value, link = false }: { label: string; value?: string; link?: boolean }) { const shown = value || EMPTY_VALUE; return <div><dt className="text-xs font-medium text-zinc-400">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-zinc-700">{link && value ? <a href={value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a> : shown}</dd></div>; }
-function Field({ label, name, value, required }: { label: string; name: string; value: string; required?: boolean }) { return <label className="block text-sm font-medium text-zinc-600">{label}<input name={name} defaultValue={value} required={required} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 outline-none focus:border-zinc-400" /></label>; }
+function Field({ label, name, value, required }: { label: string; name: string; value: string; required?: boolean }) {
+  return (
+    <div>
+      <label htmlFor={`edit-document-${name}`} className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">{label}</label>
+      <input id={`edit-document-${name}`} name={name} defaultValue={value} required={required} className="h-[50px] w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm" />
+    </div>
+  );
+}

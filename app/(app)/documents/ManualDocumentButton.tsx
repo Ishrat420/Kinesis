@@ -68,7 +68,7 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
               {capture?.from && <input type="hidden" name={CAPTURE_SOURCE_PARAM} value={capture.from} />}
               <div className="space-y-4 px-2.5 py-5 sm:px-5">
                 <Field label="Document name" name="name" placeholder="e.g. Australian passport" defaultValue={capture?.title} autoFocus />
-                <DocumentTypeSelect types={documentTypes} size="lg" />
+                <DocumentTypeSelect types={documentTypes} />
 
                 <div>
                   <label htmlFor="document-reminder" className={FIELD_LABEL_CLASS}>Reminder</label>
@@ -90,7 +90,7 @@ export function ManualDocumentButton({ documentTypes, ownerName, linkOptions, ca
                     <h3 className="font-semibold text-zinc-900">Document information</h3>
                     <span className="text-xs font-medium text-zinc-400">Owner: {ownerName}</span>
                   </div>
-                  <DocumentFields linkOptions={linkOptions} size="lg" />
+                  <DocumentFields linkOptions={linkOptions} />
                 </div>
 
                 {state.error && (

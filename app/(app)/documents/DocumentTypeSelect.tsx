@@ -13,14 +13,10 @@ export type DocumentTypeOption = {
 export function DocumentTypeSelect({
   types,
   defaultValue = "",
-  size = "default",
 }: {
   types: DocumentTypeOption[];
   defaultValue?: string;
-  /** "lg" is the bordered/roomy treatment used by the create-document dialog; the edit form shares this component and keeps the default. */
-  size?: "default" | "lg";
 }) {
-  const lg = size === "lg";
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState(types);
@@ -41,9 +37,9 @@ export function DocumentTypeSelect({
   );
 
   return (
-    <label className={lg ? "block" : "block text-sm font-medium text-zinc-700"}>
-      {lg ? <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Document type</span> : "Document type"}
-      <div ref={container} className={lg ? "relative" : "relative mt-2"}>
+    <label className="block">
+      <span className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Document type</span>
+      <div ref={container} className="relative">
         <input
           name="type"
           value={value}
@@ -59,13 +55,9 @@ export function DocumentTypeSelect({
             setOpen(true);
             setError("");
           }}
-          className={
-            lg
-              ? "h-[50px] w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 pr-12 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm"
-              : "h-12 w-full rounded-xl border border-zinc-200 px-4 pr-12 text-base outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm"
-          }
+          className="h-[50px] w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 pr-12 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm"
         />
-        <button type="button" aria-label="Show document types" onClick={() => setOpen((current) => !current)} className={`absolute right-0.5 flex items-center justify-center rounded-lg text-zinc-400 outline-none hover:bg-zinc-50 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300 ${lg ? "top-1/2 h-11 w-11 -translate-y-1/2" : "top-0.5 h-11 w-11"}`}>
+        <button type="button" aria-label="Show document types" onClick={() => setOpen((current) => !current)} className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 outline-none hover:bg-zinc-50 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-300">
           <ChevronDown className="h-4 w-4" />
         </button>
 
