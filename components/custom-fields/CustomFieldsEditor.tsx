@@ -243,7 +243,7 @@ function FieldInput({ field, index, linkOptions, previews, update }: {
 
   if (field.type === "CHECKBOX") {
     return (
-      <label className="flex h-[50px] items-center justify-end rounded-xl border-[1.5px] border-zinc-200 bg-white px-4">
+      <label className="flex h-[50px] items-center justify-end px-4">
         <span className="sr-only">Checkbox value</span>
         <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
           <input type="checkbox" checked={field.value === "true"} onChange={(event) => update({ value: String(event.target.checked) })} className={CHECKBOX_INPUT_CLASS} />
