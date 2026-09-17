@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, FileText, Plus, X } from "lucide-react";
+import { Bell, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
 import { useActionState, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
@@ -66,26 +66,13 @@ export function ManualDocumentButton({ documentTypes, linkOptions, capture }: { 
 
             <form action={formAction}>
               {capture?.from && <input type="hidden" name={CAPTURE_SOURCE_PARAM} value={capture.from} />}
-              <div className="space-y-4 px-2.5 py-5 sm:px-5">
+              <div className="space-y-5 px-2.5 py-5 sm:px-5">
                 <Field label="Document name" name="name" placeholder="e.g. Australian passport" defaultValue={capture?.title} autoFocus />
                 <DocumentTypeSelect types={documentTypes} />
 
-                <div>
-                  <label htmlFor="document-reminder" className={FIELD_LABEL_CLASS}>Reminder</label>
-                  <div className="relative">
-                    <select
-                      id="document-reminder"
-                      name="prompt"
-                      defaultValue="180"
-                      className={`appearance-none pr-9 ${FIELD_CLASS}`}
-                    >
-                      {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
-                    </select>
-                    <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                  </div>
+                <div className="border-t border-zinc-100 pt-5">
+                  <DocumentFields linkOptions={linkOptions} afterDates={<ReminderField />} />
                 </div>
-
-                <DocumentFields linkOptions={linkOptions} />
 
                 {state.error && (
                   <p role="alert" className="text-sm font-medium text-red-600">
@@ -115,6 +102,38 @@ export function ManualDocumentButton({ documentTypes, linkOptions, capture }: { 
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * Same layered pattern as DocumentFields' DateRowField: a styled visual row
+ * with the real `<select>` stretched transparently on top of it, so the
+ * control stays keyboard- and screen-reader-operable while reading as a row
+ * with an answer on it, in place of a native select box.
+ */
+function ReminderField() {
+  const [label, setLabel] = useState<string>(
+    () => REMINDER_OPTIONS.find((option) => option.days === 180)?.label ?? "6 months",
+  );
+  return (
+    <div>
+      <label htmlFor="document-reminder" className={FIELD_LABEL_CLASS}>Reminder</label>
+      <div className="relative flex h-[50px] items-center gap-2.5 rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 transition focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-600/15">
+        <Bell aria-hidden="true" className="h-4 w-4 shrink-0 text-blue-600" />
+        <span className="flex-1 truncate text-base font-medium text-zinc-900 sm:text-sm">{label} before expiry</span>
+        <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+        <select
+          id="document-reminder"
+          name="prompt"
+          defaultValue="180"
+          onChange={(event) => setLabel(REMINDER_OPTIONS.find((option) => String(option.days) === event.target.value)?.label ?? "")}
+          className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+        >
+          {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
+        </select>
+      </div>
+      <p className="mt-2 text-xs text-zinc-400">We&rsquo;ll notify you before the expiry date arrives.</p>
+    </div>
   );
 }
 

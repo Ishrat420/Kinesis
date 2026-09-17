@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, ChevronDown, Link2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
@@ -24,6 +24,7 @@ export function DocumentFields({
   onExpiryDateChange,
   linkOptions,
   previews,
+  afterDates,
 }: {
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
@@ -31,17 +32,30 @@ export function DocumentFields({
   onExpiryDateChange?: (value: string) => void;
   linkOptions: KinesisLinkOption[];
   previews?: Record<string, KinesisLinkPreviewStat[]>;
+  /** Rendered right after the Expiry/Issue pair, in the same visual group -- lets a caller (the create dialog's Reminder field) sit beside the dates it reminds against instead of stranded in its own section. */
+  afterDates?: ReactNode;
 }) {
   return (
-    <div className="space-y-4">
-      <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={onExpiryDateChange} />
-      <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
-      <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" value={values.documentNumber} />
-      <EditableField label={labels.country} labelName="countryLabel" name="country" value={values.country} />
-      <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
-      <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={onExpiryDateChange} />
+        <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
+      </div>
 
-      <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} />
+      {afterDates}
+
+      <div className="space-y-4 border-t border-zinc-100 pt-5">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">More details</p>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" value={values.documentNumber} />
+          <EditableField label={labels.country} labelName="countryLabel" name="country" value={values.country} />
+        </div>
+        <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
+        <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
+
+        <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} />
+      </div>
     </div>
   );
 }
@@ -54,7 +68,7 @@ const inputClass = "h-[50px] min-w-0 w-full rounded-xl border-[1.5px] border-zin
 
 function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, onChange }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; onChange?: (value: string) => void }) {
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:items-center">
+    <div className="min-w-0 space-y-2">
       <EditableLabel name={labelName} initialValue={label} ariaLabel={`${label} field name`} />
       {multiline ? (
         <textarea name={name} defaultValue={value} aria-label={label} rows={3} className={`${inputClass} min-h-[92px] resize-y py-3`} />
@@ -129,9 +143,9 @@ function EditableLabel({ name, initialValue, ariaLabel, placeholder }: { name: s
   }
 
   return (
-    <div className="flex min-h-[50px] min-w-0 items-center px-3 py-1">
+    <div className="flex min-w-0 items-center">
       <input type="hidden" name={name} value={value} />
-      <button type="button" onDoubleClick={() => setEditing(true)} title="Double-click to edit field name" className="min-h-[50px] min-w-0 w-full cursor-default whitespace-normal break-words rounded-lg text-left text-sm font-semibold text-zinc-900 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300">
+      <button type="button" onDoubleClick={() => setEditing(true)} title="Double-click to edit field name" className="min-w-0 max-w-full cursor-default whitespace-normal break-words rounded-md text-left text-sm font-semibold text-zinc-900 outline-none focus-visible:ring-2 focus-visible:ring-zinc-300">
         {value}
       </button>
     </div>
