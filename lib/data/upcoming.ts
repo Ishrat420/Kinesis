@@ -114,5 +114,12 @@ export const getUpcomingAndDue = cache(async function getUpcomingAndDue(now = ne
     .map((record) => toUpcomingItem(record, today, dismissed, leadDays, settings.remindersEnabled))
     .filter((item): item is UpcomingItem => item !== null);
 
-  return items.sort((a, b) => a.timestamp - b.timestamp);
+  // `id` breaks a same-day tie deterministically -- relying on array order to
+  // do it, as this used to, broke silently the moment records started coming
+  // from one shared array (getAttentionRecords) instead of five separately
+  // concatenated ones: two items due on the exact same day (common, not an
+  // edge case) could swap which showed first purely because the shared
+  // array happens to list custom items before to-dos, where the old code's
+  // own concatenation listed them the other way around.
+  return items.sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id));
 });
