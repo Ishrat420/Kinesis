@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  ArrowDownLeft, ArrowUpRight, Banknote, Building2, Check, ChevronDown,
+  ArrowDownLeft, ArrowUpRight, Banknote, Building2, CalendarDays, Check, ChevronDown,
   CalendarClock, CreditCard, Landmark, Pencil, Plus, Trash2, TrendingDown, TrendingUp, WalletCards, X,
 } from "lucide-react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ASSET_CATEGORIES,
@@ -140,6 +140,47 @@ function ItemSection({ title, subtitle, icon: Icon, items, onEdit, onDelete, tod
 /** Rounded to cents for a number input's defaultValue -- the projection itself stays exact. */
 function roundMoney(value: number) { return Math.round(value * 100) / 100; }
 
+/**
+ * A date field that reads as a row with an answer on it ("5 Jan 2026")
+ * rather than a native date input's blank box -- easy to mistake for a
+ * broken field, especially on mobile Safari where it shows nothing at all
+ * until a value is picked. The row's onClick calls showPicker() on the real
+ * input directly, since a plain click-through to a transparent absolutely-
+ * positioned input isn't reliably opening the calendar; the real input is
+ * still what's keyboard- and screen-reader-operable.
+ */
+function DateField({ name, value, onChange, ariaLabel }: { name: string; value: string; onChange: (value: string) => void; ariaLabel: string }) {
+  const [focused, setFocused] = useState(false);
+  const { locale } = useFormatPreferences();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      onClick={() => inputRef.current?.showPicker?.()}
+      className={`relative flex h-[50px] cursor-pointer items-center gap-2.5 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
+        focused ? "border-emerald-600 ring-4 ring-emerald-600/15" : "border-zinc-200"
+      }`}
+    >
+      <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+      <span className={`flex-1 truncate text-base sm:text-sm ${value ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
+        {value ? formatDate(value, locale) : "Select a date"}
+      </span>
+      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+      <input
+        ref={inputRef}
+        type="date"
+        name={name}
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </div>
+  );
+}
+
 function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: FinanceItem | null; onSaved: () => void; today: Date }) {
   const router = useRouter();
   const [state, formAction, saving] = useActionState(saveFinanceItemAction.bind(null, kind, item?.id ?? null), initialState);
@@ -164,6 +205,8 @@ function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: Finance
   const [amountInput, setAmountInput] = useState(defaultAmount !== undefined ? String(defaultAmount) : "");
   const [rateInput, setRateInput] = useState(item?.rate !== undefined ? String(item.rate) : "");
   const [contributionInput, setContributionInput] = useState(item?.monthlyContribution !== undefined ? String(item.monthlyContribution) : "");
+  const [startDateInput, setStartDateInput] = useState(item?.startDate ?? "");
+  const [endDateInput, setEndDateInput] = useState(item?.endDate ?? "");
 
   const liveAmount = Number(amountInput);
   const liveRate = rateInput.trim() === "" ? undefined : Number(rateInput);
@@ -191,7 +234,7 @@ function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: Finance
       <FinanceProjectionHistory entries={projection} balance={balance}/>
     </> : <>
       <Field label="Frequency *"><div className="relative"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className={`${FIELD_CLASS} appearance-none pr-9`}>{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"/></div></Field>
-      <div className="grid grid-cols-2 gap-3"><Field label="Start date"><input name="startDate" type="date" defaultValue={item?.startDate} className={FIELD_CLASS}/></Field><Field label="End date"><input name="endDate" type="date" defaultValue={item?.endDate} className={FIELD_CLASS}/></Field></div>
+      <div className="grid grid-cols-2 gap-3"><Field label="Start date"><DateField name="startDate" value={startDateInput} onChange={setStartDateInput} ariaLabel="Start date"/></Field><Field label="End date"><DateField name="endDate" value={endDateInput} onChange={setEndDateInput} ariaLabel="End date"/></Field></div>
     </>}
     <Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
     {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
