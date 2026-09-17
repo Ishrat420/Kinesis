@@ -24,7 +24,7 @@ import { getNextOccurrence, type ImportantDateOccurrenceInput } from "@/lib/rela
  * Prisma client, and importable from `next/server`-free contexts.
  */
 
-type DocumentAttentionRecord = { kind: "document"; id: string; name: string; expiryDate: Date; prompt: number };
+type DocumentAttentionRecord = { kind: "document"; id: string; name: string; type: string; expiryDate: Date; prompt: number };
 type MilestoneAttentionRecord = { kind: "milestone"; id: string; name: string; dueDate: Date; goalId: string; goalName: string };
 type CustomItemAttentionRecord = { kind: "custom"; id: string; name: string; dueDate: Date; moduleId: string; moduleName: string; moduleIcon: string; moduleColor: string };
 type TodoAttentionRecord = { kind: "todo"; id: string; name: string; dueDate: Date };

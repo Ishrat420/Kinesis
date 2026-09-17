@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
+vi.mock("next/server", () => ({ connection: vi.fn() }));
+// collectNotifications passes userId/today through explicitly (see
+// getAttentionRecords's `scope` param), so this is never actually called --
+// it only needs to exist because lib/data/notifications.ts imports it at
+// module scope for its other exports (getRecentNotifications, etc.).
+vi.mock("@/lib/auth", () => ({ requireKinesisUser: vi.fn() }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {
     userSettings: { findUnique: mocks.settingsFindUnique },
@@ -25,7 +32,7 @@ vi.mock("@/lib/data/prisma", () => ({
   },
 }));
 
-import { collectNotifications } from "@/lib/notifications/engine";
+import { collectNotifications } from "@/lib/data/notification-collection";
 
 const NOW = new Date("2026-07-01T00:00:00.000Z");
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -131,6 +138,34 @@ describe("Reminders governs advance notice only", () => {
     expect(await collectNotifications("user-1", NOW)).toEqual([]);
   });
 
+  /**
+   * KD-017 Phase 0/3's actual bug fix, pinned end to end through
+   * collectNotifications rather than just the candidate builder directly
+   * (tests/unit/notification-candidates.test.ts already covers that): the
+   * old code gated getMilestoneNotificationCandidate/
+   * getCustomItemNotificationCandidate from the outside, on remindersEnabled,
+   * which dropped MILESTONE_DUE/CUSTOM_ITEM_DUE along with the advance
+   * REMINDER_DUE they used to gate correctly. ADR-010 says the overdue phase
+   * should survive, same as EXPIRED/TODO_DUE above.
+   */
+  it("still speaks for an overdue milestone or custom item when reminders are off", async () => {
+    mocks.settingsFindUnique.mockResolvedValue(settings({ remindersEnabled: false }));
+    mocks.milestoneFindMany.mockResolvedValue([{ id: "milestone-1", name: "Submit application", dueDate: day("2026-06-25"), goalId: "goal-1", goal: { name: "Move house" } }]);
+    mocks.customItemFindMany.mockResolvedValue([{ id: "item-1", name: "Passport renewal", dueDate: day("2026-06-20"), moduleId: "module-1", module: { name: "Books", icon: "star", color: "#111111" } }]);
+
+    const collected = await collectNotifications("user-1", NOW);
+
+    expect(collected).toMatchObject([{ type: "MILESTONE_DUE" }, { type: "CUSTOM_ITEM_DUE" }]);
+  });
+
+  it("withholds a milestone or custom item's advance reminder when reminders are off, unlike its overdue phase", async () => {
+    mocks.settingsFindUnique.mockResolvedValue(settings({ remindersEnabled: false }));
+    mocks.milestoneFindMany.mockResolvedValue([{ id: "milestone-1", name: "Submit application", dueDate: day("2026-07-15"), goalId: "goal-1", goal: { name: "Move house" } }]);
+    mocks.customItemFindMany.mockResolvedValue([{ id: "item-1", name: "Passport renewal", dueDate: day("2026-07-20"), moduleId: "module-1", module: { name: "Books", icon: "star", color: "#111111" } }]);
+
+    expect(await collectNotifications("user-1", NOW)).toEqual([]);
+  });
+
   it("still raises a to-do's advance reminder once reminders are back on", async () => {
     mocks.settingsFindUnique.mockResolvedValue(settings({ todoReminderLeadDays: 7 }));
     mocks.todoFindMany.mockResolvedValue([{ id: "todo-1", name: "Renew rego", dueDate: day("2026-07-05"), status: "TODO" }]);
@@ -193,39 +228,14 @@ describe("ordering is deterministic", () => {
   });
 });
 
-describe("the narrowed queries cannot drop a candidate", () => {
-  it("looks a full year ahead for documents, which is the longest reminder there is", async () => {
-    await collectNotifications("user-1", NOW);
-    const [{ where }] = mocks.documentFindMany.mock.calls[0] as unknown as [{ where: { expiryDate: { lte: Date } } }];
-
-    // The longest prompt is a calendar year, so anything expiring sooner than
-    // that could already be inside its reminder window.
-    expect(where.expiryDate.lte.getTime()).toBeGreaterThanOrEqual(day("2027-07-01").getTime());
-  });
-
-  it("looks exactly as far ahead as each lead time allows", async () => {
-    mocks.settingsFindUnique.mockResolvedValue(settings({ milestoneReminderLeadDays: 10, customItemReminderLeadDays: 45 }));
-    await collectNotifications("user-1", NOW);
-
-    const [milestone] = mocks.milestoneFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
-    const [custom] = mocks.customItemFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
-    expect(milestone.where.dueDate.lte).toEqual(day("2026-07-11"));
-    expect(custom.where.dueDate.lte).toEqual(day("2026-08-15"));
-  });
-
-  /** With nothing configured, a to-do uses the same 30-day default as the others (KD-027). */
-  it("looks 30 days ahead for a To-Do by default", async () => {
-    await collectNotifications("user-1", NOW);
-    const [{ where }] = mocks.todoFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
-
-    expect(where.dueDate.lte).toEqual(day("2026-07-31"));
-  });
-
-  it("looks as far ahead as the to-do lead time allows, once configured differently from the default", async () => {
-    mocks.settingsFindUnique.mockResolvedValue(settings({ todoReminderLeadDays: 7 }));
-    await collectNotifications("user-1", NOW);
-
-    const [{ where }] = mocks.todoFindMany.mock.calls[0] as unknown as [{ where: { dueDate: { lte: Date } } }];
-    expect(where.dueDate.lte).toEqual(day("2026-07-08"));
-  });
-});
+/**
+ * KD-017 Phase 3: collectNotifications no longer runs its own five queries,
+ * each narrowed to just far enough ahead to matter (a year for documents,
+ * each type's own lead time otherwise) -- it reads from the shared
+ * getAttentionRecords (KD-017 Phase 1), which fetches every structurally
+ * eligible record with no date narrowing at all, the same tradeoff already
+ * made for every other consumer of that function. There is no query window
+ * left to test here; whether a distant or near date produces a candidate is
+ * exercised directly, without a database in between, in
+ * tests/unit/notification-candidates.test.ts.
+ */

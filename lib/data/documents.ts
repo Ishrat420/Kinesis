@@ -87,7 +87,7 @@ export async function getExpiringDocuments(now = new Date()) {
   });
 
   const phase = (document: (typeof documents)[number]) =>
-    documentUpcomingPhase({ kind: "document", id: document.id, name: document.name, expiryDate: document.expiryDate!, prompt: document.prompt }, today, true);
+    documentUpcomingPhase({ kind: "document", id: document.id, name: document.name, type: document.type, expiryDate: document.expiryDate!, prompt: document.prompt }, today, true);
 
   const upcoming = documents.filter((document) => phase(document) === "due-soon");
   const expired = documents.filter((document) => phase(document) === "overdue").reverse();

@@ -1,10 +1,9 @@
 import type { CustomItem, Document, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
-import { addUtcDays, differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
+import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
-import { getReminderLeadDays, getReminderWindowStart } from "@/lib/reminders/policy";
-import { activeGoalWhere } from "@/lib/goals/active";
+import { getReminderWindowStart } from "@/lib/reminders/policy";
 import { notificationKey, type NotificationSource } from "./identity";
 import { archiveLapsedGoals } from "@/lib/data/goal-status";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
@@ -63,20 +62,32 @@ export function getDocumentNotificationCandidate(
   };
 }
 
-/** Opens a reminder `leadDays` before the due date and keeps it current while the milestone is overdue. */
+/**
+ * Opens a reminder `leadDays` before the due date and keeps it current while
+ * the milestone is overdue.
+ *
+ * `remindersEnabled` gates only the advance phase, from inside this builder
+ * -- the same pattern `getTodoNotificationCandidate` already uses, and the
+ * one ADR-010's settings-gate tables call for (`MILESTONE_DUE` survives
+ * `reminders is not ticked`; only `REMINDER_DUE` blocks). `collectNotifications`
+ * used to gate this whole function from the outside instead, which dropped
+ * the overdue phase too -- exactly the bug KD-017 Phase 0 found.
+ */
 export function getMilestoneNotificationCandidate(
   milestone: Pick<Milestone, "id" | "name" | "dueDate"> & { goal: { id: string; name: string } },
   today: Date,
   leadDays = 0,
+  remindersEnabled = true,
 ): NotificationCandidate | null {
   if (!milestone.dueDate) return null;
   today = startOfUtcDay(today)!;
   const dueDate = startOfUtcDay(milestone.dueDate)!;
   const reminderAt = getReminderWindowStart(dueDate, leadDays);
-  if (today < reminderAt) return null;
+  const type = today >= dueDate ? "MILESTONE_DUE" : remindersEnabled && today >= reminderAt ? "REMINDER_DUE" : null;
+  if (!type) return null;
 
   return {
-    type: today < dueDate ? "REMINDER_DUE" : "MILESTONE_DUE",
+    type,
     reminderAt,
     timeUntilExpiry: null,
     expiryDate: dueDate,
@@ -125,20 +136,25 @@ export function getRelationshipDateNotificationCandidate(
  * rather than counting down, and keeps it current while the item is
  * overdue -- the same shape as a milestone, since a custom item's due date
  * behaves exactly like one once it stops being merely a bare alert time.
+ *
+ * `remindersEnabled` gates only the advance phase, from inside this builder
+ * -- same reasoning and same KD-017 Phase 0 fix as
+ * `getMilestoneNotificationCandidate` above.
  */
 export function getCustomItemNotificationCandidate(
   item: Pick<CustomItem, "id" | "name" | "dueDate" | "moduleId">,
   today: Date,
   leadDays = 0,
   locale?: string,
+  remindersEnabled = true,
 ): NotificationCandidate | null {
   if (!item.dueDate) return null;
   today = startOfUtcDay(today)!;
   const dueDate = startOfUtcDay(item.dueDate)!;
   const reminderAt = getReminderWindowStart(dueDate, leadDays);
-  if (today < reminderAt) return null;
-
   const dueSoon = today < dueDate;
+  if (dueSoon && (!remindersEnabled || today < reminderAt)) return null;
+
   return {
     type: dueSoon ? "REMINDER_DUE" : "CUSTOM_ITEM_DUE",
     reminderAt,
@@ -165,9 +181,11 @@ export function getCustomItemNotificationCandidate(
  * -- it is a statement of fact, not an advance notice, so turning reminders
  * off must not silence it. The new advance phase, `REMINDER_DUE`, is gated,
  * and that check sits inside this builder rather than around it, following
- * the document builder's pattern rather than the milestone/custom-item one
- * (which gate from the outside, in `collectNotifications` below -- a known,
- * separately-tracked inconsistency, not one to repeat here).
+ * the document builder's pattern -- now also the pattern
+ * `getMilestoneNotificationCandidate`/`getCustomItemNotificationCandidate`
+ * follow, after KD-017 Phase 3 moved their own `remindersEnabled` gate
+ * inside for the same reason (they used to gate from the outside, in
+ * `collectNotifications`, which dropped their overdue phase too).
  */
 export function getTodoNotificationCandidate(
   todo: Pick<Todo, "id" | "name" | "dueDate" | "status">,
@@ -246,103 +264,35 @@ const byRecency = (first: DerivedNotification, second: DerivedNotification) =>
   triggeredAt(second).getTime() - triggeredAt(first).getTime() || byUrgency(first, second);
 
 /**
- * Every notification the owner should currently see, computed rather than stored.
- *
- * This used to be a reconcile pass that deleted and re-inserted rows for every
- * record on every page render. Nothing is written here at all: the candidates
- * are a pure function of the records, the day and the settings, and the only
- * thing read from the database that is not derivable is which of them have
- * already been read.
- *
- * The queries are narrowed to records that could actually produce a candidate.
- * That is only possible because nothing needs cleaning up any more -- the old
- * pass had to load every To-Do, dated or not, purely so it could reconcile away
- * a row for one whose date had been cleared.
+ * Builds a `DerivedNotification` from a candidate, if there is one -- shared
+ * by `collectNotifications` (`lib/data/notifications.ts`), which is the only
+ * caller, but kept here since it closes over nothing but its own arguments
+ * and belongs next to the candidate/`DerivedNotification` shapes it stitches
+ * together. `readAtFor` is a lookup rather than a value because the key it
+ * must be looked up by -- record, type and deadline -- only exists once the
+ * candidate itself is known to exist.
  */
-export async function collectNotifications(userId: string, now = new Date()): Promise<DerivedNotification[]> {
-  const settings = await prisma.userSettings.findUnique({ where: { userId } });
-  const remindersEnabled = settings?.remindersEnabled ?? true;
-  const milestoneLeadDays = getReminderLeadDays(settings, "milestone");
-  const relationshipLeadDays = getReminderLeadDays(settings, "relationship");
-  const customItemLeadDays = getReminderLeadDays(settings, "customItem");
-  const todoLeadDays = getReminderLeadDays(settings, "todo");
-  const { locale, timeZone } = resolveFormatPreferences(settings);
-  const today = startOfDayIn(timeZone, now);
-
-  const [documents, milestones, relationshipDates, customItems, todos, reads] = await Promise.all([
-    // A document's reminder opens up to a calendar year before it expires, so
-    // that is the bound. The exact prompt is per-record and calendar-based, so
-    // the last word stays with the candidate itself.
-    prisma.document.findMany({
-      where: { userId, archived: false, expiryDate: { not: null, lte: addUtcDays(today, 366) } },
-    }),
-    prisma.milestone.findMany({
-      where: {
-        completed: false,
-        dueDate: { not: null, lte: addUtcDays(today, milestoneLeadDays) },
-        goal: { userId, ...activeGoalWhere(today) },
-      },
-      include: { goal: { select: { id: true, name: true } } },
-    }),
-    // Not narrowed: a yearly date rolls forward to its next occurrence, so the
-    // stored date says little about when it next speaks. The set is one row per
-    // birthday or anniversary, which is small by nature.
-    prisma.relationshipImportantDate.findMany({
-      where: { OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
-      include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
-    }),
-    prisma.customItem.findMany({
-      where: { archived: false, dueDate: { not: null, lte: addUtcDays(today, customItemLeadDays) }, module: { userId } },
-      include: { module: { select: { icon: true, color: true } } },
-    }),
-    prisma.todo.findMany({
-      where: { userId, dueDate: { not: null, lte: addUtcDays(today, todoLeadDays) } },
-      select: { id: true, name: true, dueDate: true, status: true },
-    }),
-    prisma.notificationRead.findMany({ where: { userId }, select: { itemKey: true, readAt: true } }),
-  ]);
-
-  const readAtByKey = new Map(reads.map((read) => [read.itemKey, read.readAt]));
-  const derived: DerivedNotification[] = [];
-  const add = (
-    source: NotificationSource,
-    sourceId: string,
-    candidate: NotificationCandidate | null,
-    module?: { icon: string; color: string },
-  ) => {
-    if (!candidate) return;
-    const key = notificationKey(source, sourceId, candidate.type, candidate.expiryDate);
-    derived.push({
-      ...candidate, key, source, sourceId,
-      readAt: readAtByKey.get(key) ?? null,
-      moduleIcon: module?.icon ?? null,
-      moduleColor: module?.color ?? null,
-    });
+export function toDerivedNotification(
+  source: NotificationSource,
+  sourceId: string,
+  candidate: NotificationCandidate | null,
+  readAtFor: (key: string) => Date | null,
+  module?: { icon: string; color: string },
+): DerivedNotification | null {
+  if (!candidate) return null;
+  const key = notificationKey(source, sourceId, candidate.type, candidate.expiryDate);
+  return {
+    ...candidate,
+    key,
+    source,
+    sourceId,
+    readAt: readAtFor(key),
+    moduleIcon: module?.icon ?? null,
+    moduleColor: module?.color ?? null,
   };
-
-  for (const document of documents) {
-    add("document", document.id, getDocumentNotificationCandidate(document, today, remindersEnabled, locale));
-  }
-  for (const milestone of milestones) {
-    add("milestone", milestone.id, remindersEnabled ? getMilestoneNotificationCandidate(milestone, today, milestoneLeadDays) : null);
-  }
-  for (const importantDate of relationshipDates) {
-    const personName = importantDate.relationship
-      ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson.name : importantDate.relationship.firstPerson.name)
-      : importantDate.selfPerson!.name;
-    add("relationship", importantDate.id, remindersEnabled
-      ? getRelationshipDateNotificationCandidate({ ...importantDate, personName }, today, relationshipLeadDays)
-      : null);
-  }
-  for (const item of customItems) {
-    add("custom", item.id, remindersEnabled ? getCustomItemNotificationCandidate(item, today, customItemLeadDays, locale) : null, item.module);
-  }
-  for (const todo of todos) {
-    add("todo", todo.id, getTodoNotificationCandidate(todo, today, todoLeadDays, remindersEnabled));
-  }
-
-  return derived.sort(byRecency);
 }
+
+export { byRecency };
 
 /**
  * The daily pass, which no longer has notifications to write.

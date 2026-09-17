@@ -3,9 +3,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
+// collectNotifications passes userId/today through explicitly (see
+// getAttentionRecords's `scope` param), so this is never actually called --
+// it only needs to exist because lib/data/notifications.ts imports it at
+// module scope for its other exports.
+vi.mock("@/lib/auth", () => ({ requireKinesisUser: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
-import { collectNotifications } from "@/lib/notifications/engine";
+import { collectNotifications } from "@/lib/data/notification-collection";
 
 /**
  * The whole chain, against a real database: the stored zone, the day it

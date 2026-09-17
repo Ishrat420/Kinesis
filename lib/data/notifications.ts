@@ -1,8 +1,11 @@
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
-import { collectNotifications, runDailyMaintenance, type DerivedNotification } from "@/lib/notifications/engine";
+import { runDailyMaintenance, type DerivedNotification } from "@/lib/notifications/engine";
 import { NOTIFICATION_LINK_FIELD, type NotificationSource } from "@/lib/notifications/identity";
 import { requireKinesisUser } from "@/lib/auth";
+import { collectNotifications } from "./notification-collection";
+
+export { collectNotifications };
 
 /** The daily cron: goals that have lapsed are archived, and nothing else is written. */
 export async function evaluateNotifications(now = new Date()) {

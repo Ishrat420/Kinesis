@@ -47,39 +47,47 @@ export {
  * targeted for today for part of the day); and `today` itself is always
  * the one shared, `getFormatPreferences`-cached call, never a second,
  * separately-implemented resolution of the same value.
+ *
+ * `scope` is an escape hatch for `collectNotifications`
+ * (`lib/notifications/engine.ts`), the one caller that does *not* run for
+ * "whoever the current session is" -- it takes `userId` as an explicit
+ * argument and resolves `today` from that user's own settings directly,
+ * deliberately never through the ambient-session-bound `requireKinesisUser`/
+ * `getToday`. Passing both through here preserves that: every other caller
+ * omits `scope` and gets the ordinary session-bound behaviour unchanged.
  */
-export async function getAttentionRecords(now = new Date()): Promise<AttentionRecord[]> {
+export async function getAttentionRecords(now = new Date(), scope?: { userId: string; today: Date }): Promise<AttentionRecord[]> {
   await connection();
-  const user = await requireKinesisUser();
-  const today = await getToday(now);
+  const userId = scope?.userId ?? (await requireKinesisUser()).id;
+  const today = scope?.today ?? await getToday(now);
 
   const [documents, milestones, customItems, todos, importantDates] = await Promise.all([
     prisma.document.findMany({
-      where: { userId: user.id, archived: false, expiryDate: { not: null } },
-      select: { id: true, name: true, expiryDate: true, prompt: true },
+      where: { userId, archived: false, expiryDate: { not: null } },
+      select: { id: true, name: true, type: true, expiryDate: true, prompt: true },
     }),
     prisma.milestone.findMany({
-      where: { completed: false, dueDate: { not: null }, goal: { userId: user.id, ...activeGoalWhere(today) } },
+      where: { completed: false, dueDate: { not: null }, goal: { userId, ...activeGoalWhere(today) } },
       select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } },
     }),
     prisma.customItem.findMany({
-      where: { archived: false, dueDate: { not: null }, module: { userId: user.id } },
+      where: { archived: false, dueDate: { not: null }, module: { userId } },
       select: { id: true, name: true, dueDate: true, moduleId: true, module: { select: { name: true, icon: true, color: true } } },
     }),
     // A To-Do without a due date is just undated, not overdue -- capture
     // without a deadline is the point (ADR-009) -- so it never appears here.
     prisma.todo.findMany({
-      where: { userId: user.id, dueDate: { not: null } },
+      where: { userId, dueDate: { not: null } },
       select: { id: true, name: true, dueDate: true, status: true },
     }),
     prisma.relationshipImportantDate.findMany({
-      where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] },
+      where: { OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
   ]);
 
   return [
-    ...documents.map((document): AttentionRecord => ({ kind: "document", id: document.id, name: document.name, expiryDate: document.expiryDate!, prompt: document.prompt })),
+    ...documents.map((document): AttentionRecord => ({ kind: "document", id: document.id, name: document.name, type: document.type, expiryDate: document.expiryDate!, prompt: document.prompt })),
     ...milestones.map((milestone): AttentionRecord => ({ kind: "milestone", id: milestone.id, name: milestone.name, dueDate: milestone.dueDate!, goalId: milestone.goalId, goalName: milestone.goal.name })),
     ...customItems.map((item): AttentionRecord => ({ kind: "custom", id: item.id, name: item.name, dueDate: item.dueDate!, moduleId: item.moduleId, moduleName: item.module.name, moduleIcon: item.module.icon, moduleColor: item.module.color })),
     ...todos.filter((todo) => isOpenTodoStatus(todo.status)).map((todo): AttentionRecord => ({ kind: "todo", id: todo.id, name: todo.name, dueDate: todo.dueDate! })),

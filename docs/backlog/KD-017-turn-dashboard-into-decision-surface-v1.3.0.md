@@ -366,17 +366,58 @@ which is itself a useful thing to have confirmed rather than assumed.
    since there's no actual disagreement here to fix. Left as-is;
    `tests/unit/milestone-due-soon-agreement.test.ts` already guards it.
 
-#### Phase 3 — Notification bell (deliberately last)
+#### Phase 3 — Notification bell (deliberately last, done)
 
-Teach `collectNotifications` to source its candidate records from the
-Phase 1 shared query, so it stops being a sixth, separately-maintained
-implementation of "what's due" — but leave its own type derivation
-(`REMINDER_DUE`/`EXPIRED`/`MILESTONE_DUE`/etc.), the `notificationKey`
-scheme (`lib/notifications/identity.ts:38-46`), and the `NotificationRead`
-dedup table completely untouched. Only which rows feed it changes, never
-how it decides what's already been seen. Needs its own before/after
-snapshot test asserting every existing key still resolves identically —
-a changed key silently un-reads something a real user already dismissed.
+`collectNotifications` now sources its candidate records from the Phase 1
+shared `getAttentionRecords`, so it stops being a sixth,
+separately-maintained implementation of "what's due." Its own type
+derivation, the `notificationKey` scheme (`lib/notifications/identity.ts:38-46`),
+and the `NotificationRead` dedup table are completely untouched — only
+which rows feed the candidate builders changes, never how the bell decides
+what's already been seen. No dedicated before/after snapshot test was
+needed in the end: `notificationKey`/the candidate builders' type
+derivation were never touched, and the existing test suite already pins
+exact key strings end to end (`tests/unit/notifications-collect.test.ts`),
+so a changed key would already fail loudly.
+
+One real behaviour fix ships with it, the mirror of Phase 2's Upcoming &
+Due fix: `getMilestoneNotificationCandidate`/`getCustomItemNotificationCandidate`
+used to be gated on `remindersEnabled` from the *outside*, in
+`collectNotifications` itself, which dropped `MILESTONE_DUE`/
+`CUSTOM_ITEM_DUE` along with their advance `REMINDER_DUE` phase. Both now
+gate internally, matching the document/to-do builders' existing pattern —
+the overdue type survives the switch, matching ADR-010.
+
+Two implementation notes worth recording:
+
+* **`getAttentionRecords` needed an escape hatch.** Unlike every Phase 2
+  consumer, `collectNotifications(userId, now)` does not assume "the
+  current session" — it takes `userId` explicitly (both real call sites
+  happen to pass the current session's own id today, but the function
+  was never written to assume that) and resolves `today` from that user's
+  settings directly, never through the session-bound `getToday()`. Silently
+  routing it through the ordinary, `requireKinesisUser()`-based
+  `getAttentionRecords` would have made a userId-parameterized function
+  secretly depend on ambient session state matching that parameter — a
+  latent cross-user risk if that assumption is ever broken. Added an
+  optional `scope: { userId, today }` to `getAttentionRecords`: omitted,
+  every existing caller is unaffected; passed, it skips
+  `requireKinesisUser()`/`getToday()` entirely, deferring to the caller's
+  own explicit values.
+* **`collectNotifications` moved out of `lib/notifications/engine.ts`
+  entirely**, into its own `lib/data/notification-collection.ts`. Engine.ts
+  holds the pure candidate-builder functions (`getDocumentNotificationCandidate`
+  etc.), which a wide range of tests import with no database or session
+  mocking at all — pulling `getAttentionRecords` (which reaches
+  `requireKinesisUser`/`next/server`) into that same file would have made
+  every one of those pure functions un-importable without stubbing both
+  out, exactly the problem KD-017 Phase 1 already solved once by splitting
+  `lib/attention/items.ts` (pure) from `lib/data/attention-items.ts` (I/O).
+  Same fix, same shape, applied here too. It also had to be its own file
+  rather than living directly in `lib/data/notifications.ts` next to
+  `getRecentNotifications`/`markAllNotificationsRead`: those two are
+  unit-tested by mocking `collectNotifications` away as an external
+  dependency, which only works across a real module boundary.
 
 #### Phase 4 — Cleanup (once 1–3 are shipped and stable)
 

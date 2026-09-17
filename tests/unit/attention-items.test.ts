@@ -21,7 +21,7 @@ const today = at("2026-06-15");
 
 describe("isOverdueForNeedsAttention (ADR-010 line 26: strict < today, no exceptions)", () => {
   it("does not count the deadline's own day as overdue, for any kind", () => {
-    expect(isOverdueForNeedsAttention({ kind: "document", id: "d", name: "Passport", expiryDate: today, prompt: 180 }, today)).toBe(false);
+    expect(isOverdueForNeedsAttention({ kind: "document", id: "d", name: "Passport", type: "Identity", expiryDate: today, prompt: 180 }, today)).toBe(false);
     expect(isOverdueForNeedsAttention({ kind: "milestone", id: "m", name: "M", dueDate: today, goalId: "g", goalName: "G" }, today)).toBe(false);
     expect(isOverdueForNeedsAttention({ kind: "custom", id: "c", name: "C", dueDate: today, moduleId: "mod", moduleName: "Mod", moduleIcon: "star", moduleColor: "#000" }, today)).toBe(false);
     expect(isOverdueForNeedsAttention({ kind: "todo", id: "t", name: "T", dueDate: today }, today)).toBe(false);
@@ -29,7 +29,7 @@ describe("isOverdueForNeedsAttention (ADR-010 line 26: strict < today, no except
 
   it("counts the day after as overdue, for any kind", () => {
     const yesterday = at("2026-06-14");
-    expect(isOverdueForNeedsAttention({ kind: "document", id: "d", name: "Passport", expiryDate: yesterday, prompt: 180 }, today)).toBe(true);
+    expect(isOverdueForNeedsAttention({ kind: "document", id: "d", name: "Passport", type: "Identity", expiryDate: yesterday, prompt: 180 }, today)).toBe(true);
     expect(isOverdueForNeedsAttention({ kind: "milestone", id: "m", name: "M", dueDate: yesterday, goalId: "g", goalName: "G" }, today)).toBe(true);
     expect(isOverdueForNeedsAttention({ kind: "custom", id: "c", name: "C", dueDate: yesterday, moduleId: "mod", moduleName: "Mod", moduleIcon: "star", moduleColor: "#000" }, today)).toBe(true);
     expect(isOverdueForNeedsAttention({ kind: "todo", id: "t", name: "T", dueDate: yesterday }, today)).toBe(true);
@@ -37,7 +37,7 @@ describe("isOverdueForNeedsAttention (ADR-010 line 26: strict < today, no except
 });
 
 describe("documentUpcomingPhase (ADR-010: expiry is one universal boundary, > expiryDate)", () => {
-  const document = (expiryDate: Date, prompt = 30) => ({ kind: "document" as const, id: "d", name: "Passport", expiryDate, prompt });
+  const document = (expiryDate: Date, prompt = 30) => ({ kind: "document" as const, id: "d", name: "Passport", type: "Identity", expiryDate, prompt });
 
   it("is not yet overdue on the expiry day itself", () => {
     expect(documentUpcomingPhase(document(today), today, true)).not.toBe("overdue");
