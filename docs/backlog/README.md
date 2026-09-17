@@ -174,6 +174,7 @@ KD-045-mobile-add-custom-module-to-dashboard
 
 ## ✓ Accepted
 
+KD-047-important-dates-row-actions
 
 ## 🚧 In Progress
 
