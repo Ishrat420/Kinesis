@@ -31,6 +31,7 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
         title="To-Dos"
         description="Things you have captured, whether or not you have decided where they belong yet."
         icon={<ListTodo className="h-6 w-6" />}
+        iconClassName="bg-teal-50 text-teal-600"
         actions={<AddTodoButton linkOptions={linkOptions} />}
       />
 
