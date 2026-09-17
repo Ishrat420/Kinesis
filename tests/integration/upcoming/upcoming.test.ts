@@ -194,6 +194,46 @@ describe.sequential("Upcoming & Due", () => {
     expect(items).toEqual([expect.objectContaining({ kind: "todo", title: "Overdue is due" })]);
   });
 
+  /**
+   * Every one of milestone/customItem/relationship's own configured lead-days
+   * settings was only ever exercised at its 30-day default (see
+   * REMINDER_LEAD_DEFAULTS) -- ubiquitous in every other test's seedSettings
+   * call, but never itself the thing under test the way todoReminderLeadDays
+   * is above. Each of these proves the setting is actually read and applied,
+   * not just plumbed through unused: a due date close enough that the
+   * (untouched) 30-day default would already surface it, made to disappear
+   * once a much shorter lead is configured -- the only way to prove the
+   * configured value, not the default, is what decided the outcome.
+   */
+  it("respects a configured milestoneReminderLeadDays, not just the 30-day default", async () => {
+    await seedSettings(owner, { milestoneReminderLeadDays: 3 });
+    await prisma.object.create({ data: { id: "lead-goal-obj", type: "GOAL", name: "Read more", userId: owner } });
+    await prisma.goal.create({ data: { id: "lead-goal", name: "Read more", userId: owner, objectId: "lead-goal-obj" } });
+    // 10 days out: well inside the 30-day default window, but a 3-day lead
+    // (opening 2026-06-22) hasn't opened yet relative to `now` (2026-06-15).
+    await prisma.milestone.create({ data: { id: "lead-milestone", goalId: "lead-goal", name: "Finish chapter 1", dueDate: new Date("2026-06-25") } });
+
+    await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+  });
+
+  it("respects a configured customItemReminderLeadDays, not just the 30-day default", async () => {
+    await seedSettings(owner, { customItemReminderLeadDays: 3 });
+    await prisma.customModule.create({ data: { id: "lead-module", name: "Books", normalizedName: "lead books", icon: "star", color: "#111111", userId: owner } });
+    await prisma.object.create({ data: { id: "lead-item-obj", type: "CUSTOM_ITEM", name: "Dune", userId: owner } });
+    await prisma.customItem.create({ data: { id: "lead-item", name: "Dune", dueDate: new Date("2026-06-25"), moduleId: "lead-module", objectId: "lead-item-obj" } });
+
+    await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+  });
+
+  it("respects a configured relationshipReminderLeadDays, not just the 30-day default", async () => {
+    await seedSettings(owner, { relationshipReminderLeadDays: 3 });
+    await prisma.object.create({ data: { id: "lead-person-obj", type: "PERSON", name: "Sam", userId: owner } });
+    await prisma.person.create({ data: { id: "lead-person", name: "Sam", userId: owner, objectId: "lead-person-obj" } });
+    await prisma.relationshipImportantDate.create({ data: { id: "lead-date", selfPersonId: "lead-person", label: "Birthday", date: new Date("2026-06-25"), repeatsYearly: false } });
+
+    await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+  });
+
   it("rolls a yearly-repeating date forward to next year once this year's has passed", async () => {
     await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Sam", userId: owner } });
     await prisma.person.create({ data: { id: "person-1", name: "Sam", userId: owner, objectId: "person-obj" } });
