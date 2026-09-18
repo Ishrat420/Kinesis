@@ -2,7 +2,12 @@
 
 **Status:** Idea
 **Priority:** Medium
-**Tags:** UX / UI, Maturity Dependent
+**Tags:** UX / UI, Maturity Dependent, Foundation Dependent
+
+**Depends on:** KD-048 (Object Event Model) — this ticket's whole example
+output is a curated read over a structured event log, which doesn't exist
+yet. Revisit once KD-048's Phase 1–3 have shipped and there's real event
+data to build a Timeline over.
 
 ## Summary
 
