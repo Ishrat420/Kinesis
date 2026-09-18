@@ -1,8 +1,25 @@
 # KD-049 — Typed Kinesis Links
 
-**Status:** Accepted — Needs Planning
+**Status:** In Progress (Phase 1 shipped)
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
+
+**Phase 1 status:** Shipped. `ObjectRelationship`'s uniqueness is now
+`(userId, pairKey, type)`; `ObjectRelationshipType` gained `CUSTOM` and
+`ObjectRelationship` gained a nullable `customLabel` column
+(`20261006000000_kinesis_link_type_aware_uniqueness`). The canonical label
+table moved from `lib/goals/relationships.ts` to
+`lib/objects/relationship-labels.ts` (`OBJECT_RELATIONSHIP_TYPES`,
+`ObjectRelationshipTypeValue`, `relationshipLabel` — same content,
+non-goal-specific home and names), with `LinkedGoals.tsx`,
+`app/(app)/goals/actions.ts` and `lib/data/goals.ts` updated to match.
+`lib/data/goals.ts`'s `getGoalRelationships` now narrows a relationship's
+`type` to the 5 canonical values before handing it to `LinkedGoals` — a
+Goal↔Goal link can't be `CUSTOM` yet (nothing on this page can create one),
+so this keeps that true at the type level rather than widening the
+component for a case Phase 2 hasn't built a picker for. Phases 2–4 (the
+generalized Kinesis Links section, card decoration, dogfooding Goals onto
+it) are still ahead.
 
 **Revision note (2):** rewritten after review. Three architectural
 corrections from that review are folded in below: uniqueness is

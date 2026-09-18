@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GOAL_RELATIONSHIP_TYPES, relationshipLabel } from "@/lib/goals/relationships";
+import { OBJECT_RELATIONSHIP_TYPES, relationshipLabel } from "@/lib/objects/relationship-labels";
 import { objectPairKey } from "@/lib/objects/relationships";
 
 const mocks = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ describe("typed goal relationships", () => {
   });
 
   it("provides the curated forward and inverse vocabulary", () => {
-    expect(GOAL_RELATIONSHIP_TYPES).toEqual(["SUPPORTS", "BLOCKS", "DEPENDS_ON", "RELATES_TO", "ALONGSIDE"]);
+    expect(OBJECT_RELATIONSHIP_TYPES).toEqual(["SUPPORTS", "BLOCKS", "DEPENDS_ON", "RELATES_TO", "ALONGSIDE"]);
     expect(relationshipLabel("SUPPORTS")).toBe("Supports");
     expect(relationshipLabel("SUPPORTS", true)).toBe("Supported by");
     expect(relationshipLabel("BLOCKS", true)).toBe("Blocked by");

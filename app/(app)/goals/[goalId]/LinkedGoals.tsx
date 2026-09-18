@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { ArrowUpRight, MoreHorizontal, Pencil, Plus, Target, Trash2, X } from "lucide-react";
-import { GOAL_RELATIONSHIP_TYPES, relationshipLabel, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { OBJECT_RELATIONSHIP_TYPES, relationshipLabel, type ObjectRelationshipTypeValue } from "@/lib/objects/relationship-labels";
 import type { GoalActionState } from "../actions";
 
 type GoalOption = { id: string; name: string; status: string };
-type LinkedGoal = { id: string; type: GoalRelationshipType; inverse: boolean; goal: GoalOption };
+type LinkedGoal = { id: string; type: ObjectRelationshipTypeValue; inverse: boolean; goal: GoalOption };
 
 export function LinkedGoals({ linked, availableGoals, addAction, updateAction, removeAction }: {
   linked: LinkedGoal[];
@@ -33,7 +33,7 @@ export function LinkedGoals({ linked, availableGoals, addAction, updateAction, r
       {availableGoals.length > 0 && !creating && <button type="button" onClick={() => setCreating(true)} className="flex h-10 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800"><Plus className="h-4 w-4" /> Link goal</button>}
     </div>
     {creating && availableGoals.length > 0 && <form action={formAction} className={`grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)_auto] ${linked.length > 0 ? "mt-5" : "mt-3"}`}>
-      <select name="type" aria-label="Relationship type" defaultValue="SUPPORTS" className="h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-medium outline-none focus:border-zinc-500">{GOAL_RELATIONSHIP_TYPES.map((type) => <option key={type} value={type}>{relationshipLabel(type)}</option>)}</select>
+      <select name="type" aria-label="Relationship type" defaultValue="SUPPORTS" className="h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-medium outline-none focus:border-zinc-500">{OBJECT_RELATIONSHIP_TYPES.map((type) => <option key={type} value={type}>{relationshipLabel(type)}</option>)}</select>
       <select name="targetGoalId" required aria-label="Goal to link" defaultValue="" className="h-11 min-w-0 rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500"><option value="" disabled>Select a goal</option>{availableGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.name}{goal.status === "Archived" ? " (Archived)" : ""}</option>)}</select>
       <div className="flex gap-2"><button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Add link</button><button type="button" onClick={() => setCreating(false)} aria-label="Cancel linking goal" className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-200"><X className="h-4 w-4" /></button></div>
       {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
@@ -42,7 +42,7 @@ export function LinkedGoals({ linked, availableGoals, addAction, updateAction, r
       {linked.map((relationship) => <div key={relationship.id} className="grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 transition hover:border-zinc-300 hover:bg-zinc-50 sm:grid-cols-[44px_minmax(130px,180px)_minmax(0,1fr)_40px] sm:items-center">
         {editingId === relationship.id ? <form action={saveRelationship.bind(null, relationship.id)} className="flex w-full flex-col gap-2 sm:col-span-4 sm:flex-row sm:items-center">
           <select name="type" aria-label={`Relationship to ${relationship.goal.name}`} defaultValue={relationship.type} className="h-10 min-w-44 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-800 outline-none focus:border-zinc-500">
-            {GOAL_RELATIONSHIP_TYPES.map((type) => <option key={type} value={type}>{relationshipLabel(type, relationship.inverse)}</option>)}
+            {OBJECT_RELATIONSHIP_TYPES.map((type) => <option key={type} value={type}>{relationshipLabel(type, relationship.inverse)}</option>)}
           </select>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-700">{relationship.goal.name}</span>
           <button className="h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button>

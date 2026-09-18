@@ -10,6 +10,18 @@ import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { getToday } from "@/lib/format/server";
+import { OBJECT_RELATIONSHIP_TYPES, type ObjectRelationshipTypeValue } from "@/lib/objects/relationship-labels";
+
+/**
+ * A Goal <-> Goal link can only ever be created as one of the 5 canonical
+ * types (see `addGoalRelationshipAction`'s own validation) -- `CUSTOM`
+ * (KD-049) has no Goals UI to produce it yet. This narrows the type read back
+ * from the shared `ObjectRelationship` table to what `LinkedGoals` actually
+ * knows how to render, rather than widening that component for a case that
+ * can't happen through this page.
+ */
+const isCanonicalRelationshipType = (type: string): type is ObjectRelationshipTypeValue =>
+  (OBJECT_RELATIONSHIP_TYPES as readonly string[]).includes(type);
 
 /** Every goal this user owns. No archive-on-read (KD-028): a goal's status is only ever what was last set, by hand. */
 export async function getGoals() {
@@ -65,9 +77,11 @@ export async function getGoalRelationships(goalId: string) {
   const goalByObjectId = new Map(goals.flatMap(({ objectId: linkedObjectId, ...goal }) =>
     goal.id === goalId ? [] : [[linkedObjectId, goal] as const]));
   const linked = relationships.flatMap((relationship) => {
+    const { type } = relationship;
+    if (!isCanonicalRelationshipType(type)) return [];
     const inverse = relationship.targetObjectId === objectId;
     const goal = goalByObjectId.get(inverse ? relationship.sourceObjectId : relationship.targetObjectId);
-    return goal ? [{ ...relationship, inverse, goal }] : [];
+    return goal ? [{ ...relationship, type, inverse, goal }] : [];
   });
   const linkedIds = new Set(linked.map(({ goal }) => goal.id));
   return { linked, availableGoals: [...goalByObjectId.values()].filter(({ id }) => !linkedIds.has(id)) };

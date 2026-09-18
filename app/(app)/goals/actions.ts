@@ -8,7 +8,7 @@ import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { formatDate, parseDateOnly } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
-import { GOAL_RELATIONSHIP_TYPES, type GoalRelationshipType } from "@/lib/goals/relationships";
+import { OBJECT_RELATIONSHIP_TYPES, type ObjectRelationshipTypeValue } from "@/lib/objects/relationship-labels";
 import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
 import { revalidateShell } from "@/lib/actions/revalidate";
@@ -131,10 +131,10 @@ export async function deleteGoalAction(id: string) {
 export async function addGoalRelationshipAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const targetId = value(data, "targetGoalId");
-  const type = value(data, "type") as GoalRelationshipType;
+  const type = value(data, "type") as ObjectRelationshipTypeValue;
   if (!targetId) return { error: "Choose a goal to link." };
   if (targetId === id) return { error: "A goal cannot be linked to itself." };
-  if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return { error: "Choose a valid relationship type." };
+  if (!OBJECT_RELATIONSHIP_TYPES.includes(type)) return { error: "Choose a valid relationship type." };
   const owned = await prisma.goal.findMany({ where: { userId: user.id, id: { in: [id, targetId] } }, select: { id: true, objectId: true } });
   if (owned.length !== 2) return { error: "One or more goals were not found." };
   const objectByGoal = new Map(owned.map((goal) => [goal.id, goal.objectId]));
@@ -152,8 +152,8 @@ export async function addGoalRelationshipAction(id: string, _previousState: Goal
 
 export async function updateGoalRelationshipAction(id: string, relationshipId: string, data: FormData) {
   const user = await requireKinesisUser();
-  const type = value(data, "type") as GoalRelationshipType;
-  if (!GOAL_RELATIONSHIP_TYPES.includes(type)) return;
+  const type = value(data, "type") as ObjectRelationshipTypeValue;
+  if (!OBJECT_RELATIONSHIP_TYPES.includes(type)) return;
   const objectId = await goalObjectId(user.id, id);
   if (!objectId) return;
   const relationship = await prisma.objectRelationship.findFirst({ where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] }, select: endpointGoals });

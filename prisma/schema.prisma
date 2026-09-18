@@ -240,6 +240,9 @@ enum ObjectRelationshipType {
   DEPENDS_ON
   RELATES_TO
   ALONGSIDE
+  // Ad-hoc free text (KD-049), set via ObjectRelationship.customLabel --
+  // typed fresh per relationship, never saved as a reusable named type.
+  CUSTOM
 }
 
 model Object {
@@ -277,6 +280,11 @@ model Object {
   @@index([templateId])
 }
 
+/// A pair may hold one relationship *per type* (KD-049), not just one relationship
+/// overall: `Goal A SUPPORTS Goal B` and `Goal A ALONGSIDE Goal B` are both valid
+/// at once, each its own row. The uniqueness key is `(userId, pairKey, type)`, not
+/// `(userId, pairKey)` -- what stays singular per pair is one row per *type*, whose
+/// inverse is always derived from that row rather than stored a second time.
 model ObjectRelationship {
   id             String                 @id @default(uuid())
   sourceObjectId String
@@ -284,13 +292,16 @@ model ObjectRelationship {
   sourceObject   Object                 @relation("RelationshipSource", fields: [sourceObjectId], references: [id], onDelete: Cascade)
   targetObject   Object                 @relation("RelationshipTarget", fields: [targetObjectId], references: [id], onDelete: Cascade)
   type           ObjectRelationshipType
+  /// Set only when type = CUSTOM -- ad-hoc text typed fresh per relationship,
+  /// shown on both sides (no separate forward/inverse custom text yet).
+  customLabel    String?
   pairKey        String
   userId         String
   user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
-  @@unique([userId, pairKey])
+  @@unique([userId, pairKey, type])
   @@index([userId, sourceObjectId])
   @@index([userId, targetObjectId])
 }
