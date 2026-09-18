@@ -1,15 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
-import { CalendarDays, Check, Ellipsis, Link2, Search } from "lucide-react";
+import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
+import { CalendarClock, CalendarDays, Check, Ellipsis, Link2, Search, X } from "lucide-react";
 import type { TodoRecord } from "@/lib/data/todos";
-import { isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/status";
+import { isOpenTodoStatus, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
+import { groupTodosByUrgency, type TodoUrgencyGroup } from "@/lib/todos/groups";
 import { TODO_SCOPES, DEFAULT_TODO_SCOPE, type TodoScope } from "@/lib/todos/scopes";
 import { formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { CaptureDetailsDialog } from "@/components/capture/CaptureDetailsDialog";
+import { InlineDatePicker } from "@/components/dashboard/InlineDatePicker";
 import { useToday } from "@/lib/format/context";
-import { deleteTodoAction, setTodoStatusAction } from "./actions";
+import { deleteTodoAction, setTodoStatusAction, updateTodoDueDateAction, type TodoActionState } from "./actions";
+
+const initialRescheduleState: TodoActionState = {};
+
+/** A group heading's colour, matching the app's existing overdue/due-soon/neutral semantics. */
+const GROUP_LABEL_CLASS: Record<TodoUrgencyGroup, string> = {
+  overdue: "text-red-600",
+  "due-soon": "text-amber-700",
+  later: "text-zinc-500",
+  "no-date": "text-zinc-400",
+  completed: "text-zinc-400",
+};
 
 const inScope = (todo: TodoRecord, scope: TodoScope) =>
   scope === "all" || (scope === "connected" ? todo.links.length > 0 : todo.links.length === 0);
@@ -17,8 +30,10 @@ const inScope = (todo: TodoRecord, scope: TodoScope) =>
 export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; locale: string; scope: TodoScope }) {
   const [editing, setEditing] = useState<TodoRecord | null>(null);
   const [query, setQuery] = useState("");
+  const today = useToday();
   const trimmedQuery = query.trim().toLowerCase();
   const visible = todos.filter((todo) => inScope(todo, scope) && (!trimmedQuery || todo.name.toLowerCase().includes(trimmedQuery)));
+  const groups = groupTodosByUrgency(visible, today);
 
   return (
     <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -45,9 +60,19 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
       </div>
 
       {visible.length ? (
-        <ul className="divide-y divide-zinc-100">
-          {visible.map((todo) => <TodoRow key={todo.id} todo={todo} locale={locale} onEdit={() => setEditing(todo)} />)}
-        </ul>
+        <div className="space-y-6">
+          {groups.map((group) => (
+            <div key={group.key}>
+              <div className="mb-1 flex items-baseline gap-2 border-b border-zinc-100 pb-2">
+                <span className={`text-xs font-bold uppercase tracking-widest ${GROUP_LABEL_CLASS[group.key]}`}>{group.label}</span>
+                <span className="text-xs font-semibold text-zinc-400">{group.todos.length}</span>
+              </div>
+              <ul className="divide-y divide-zinc-100">
+                {group.todos.map((todo) => <TodoRow key={todo.id} todo={todo} locale={locale} onEdit={() => setEditing(todo)} />)}
+              </ul>
+            </div>
+          ))}
+        </div>
       ) : trimmedQuery ? (
         <div className="rounded-2xl border border-dashed border-zinc-200 py-14 text-center">
           <p className="font-semibold text-zinc-700">No to-dos match &ldquo;{query.trim()}&rdquo;</p>
@@ -94,6 +119,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
   // already done on page load, playing the animation on every visit to the
   // board instead of only when someone just marked it done.
   const [hasToggled, setHasToggled] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
 
   /**
    * These used to be awaited and ignored inside the transition, so a failed
@@ -127,7 +153,10 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       <div className="min-w-0 flex-1">
         <p className={`break-words font-medium ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</p>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
-          <span>{todoStatusLabel(todo.status)}</span>
+          <span className="inline-flex items-center">
+            <span aria-hidden="true" className={`mr-1.5 h-1.5 w-1.5 rounded-full ${todoStatusDotClass(todo.status)}`} />
+            {todoStatusLabel(todo.status)}
+          </span>
           {!open && todo.completedAt && <span>· {formatDate(todo.completedAt, locale)}</span>}
           {open && todo.dueDate && (
             <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold ${todo.dueDate < today ? "bg-red-50 text-red-600" : "bg-zinc-100 text-zinc-700"}`}>
@@ -140,9 +169,21 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
             </Link>
           ))}
         </p>
+        {todo.notes && <p className="mt-1 truncate text-xs italic text-zinc-400">{todo.notes}</p>}
       </div>
 
-      <details className="relative shrink-0">
+      {rescheduling ? (
+        <TodoRescheduleForm todoId={todo.id} dueDate={todo.dueDate} onDone={() => setRescheduling(false)} />
+      ) : (
+      <div className="flex shrink-0 items-center gap-1">
+        {open && (
+          <button
+            type="button" onClick={() => setRescheduling(true)}
+            aria-label={`Reschedule ${todo.name}`} title="Reschedule"
+            className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"
+          ><CalendarClock className="h-4 w-4" /></button>
+        )}
+      <details className="relative">
         <summary aria-label={`${todo.name} actions`} className="list-none rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><Ellipsis className="h-5 w-5" /></summary>
         <div className="absolute right-0 z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-lg">
           <button type="button" onClick={onEdit} className="w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50">Edit</button>
@@ -153,8 +194,34 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
           >Delete</button>
         </div>
       </details>
+      </div>
+      )}
 
       {error && <p role="alert" className="w-full text-sm font-medium text-red-600">{error}</p>}
     </li>
+  );
+}
+
+/**
+ * Mounted only while rescheduling, so a fresh `useActionState` starts each
+ * time it opens -- kept in the row, `state.saved` would flip false to true
+ * exactly once and stay true across every later reschedule in the same
+ * session (the same pitfall `MilestoneEditForm` documents), and the effect
+ * below fires on that transition, so a second reschedule would save silently
+ * with no form closing to show for it.
+ */
+function TodoRescheduleForm({ todoId, dueDate, onDone }: { todoId: string; dueDate: Date | null; onDone: () => void }) {
+  const [state, formAction] = useActionState(updateTodoDueDateAction.bind(null, todoId), initialRescheduleState);
+  useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
+
+  return (
+    <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <InlineDatePicker name="dueDate" defaultValue={dueDate ? formatDateInput(dueDate) : ""} ariaLabel="New due date" />
+        <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
+        <button type="button" onClick={onDone} aria-label="Cancel reschedule" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
+      </div>
+      {state.error && <p role="alert" className="text-xs font-medium text-red-600">{state.error}</p>}
+    </form>
   );
 }

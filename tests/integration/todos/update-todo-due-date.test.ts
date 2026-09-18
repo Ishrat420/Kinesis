@@ -55,7 +55,7 @@ describe.sequential("updateTodoDueDateAction", () => {
 
     const state = await updateTodoDueDateAction("todo-1", {}, form({ dueDate: "2026-09-20" }));
 
-    expect(state).toEqual({});
+    expect(state).toEqual({ saved: true });
     const todo = await prisma.todo.findUniqueOrThrow({ where: { id: "todo-1" } });
     expect(todo.dueDate?.toISOString()).toBe("2026-09-20T00:00:00.000Z");
   });

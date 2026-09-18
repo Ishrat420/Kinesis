@@ -13,7 +13,7 @@ import { refusalOf } from "@/lib/actions/refusal";
 
 export type CaptureState = { error?: string; captured?: { id: string; name: string } };
 /** What a row-level action reports back to the board. */
-export type TodoActionState = { error?: string };
+export type TodoActionState = { error?: string; saved?: boolean };
 export type TodoDetailsState = { error?: string; saved?: boolean };
 export type CreateTodoState = { error?: string; created?: boolean };
 
@@ -190,7 +190,7 @@ export async function updateTodoDueDateAction(id: string, _previousState: TodoAc
     return { error: refused };
   }
   refresh();
-  return {};
+  return { saved: true };
 }
 
 export async function deleteTodoAction(id: string): Promise<TodoActionState> {
