@@ -14,7 +14,7 @@ import { useFormatPreferences } from "@/lib/format/context";
  * actually submits (via `name`), just visually replaced by the formatted
  * text and icons on top of it.
  */
-export function InlineDatePicker({ name, defaultValue, ariaLabel }: { name: string; defaultValue: string; ariaLabel: string }) {
+export function InlineDatePicker({ name, defaultValue, ariaLabel, min, required = true }: { name: string; defaultValue: string; ariaLabel: string; min?: string; required?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(defaultValue);
   const [focused, setFocused] = useState(false);
@@ -32,7 +32,8 @@ export function InlineDatePicker({ name, defaultValue, ariaLabel }: { name: stri
         ref={inputRef}
         type="date"
         name={name}
-        required
+        required={required}
+        min={min}
         autoFocus
         aria-label={ariaLabel}
         value={value}

@@ -4,6 +4,7 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { formatDateInput, formatFutureDate, formatShortMonthYear } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
+import { InlineDatePicker } from "@/components/dashboard/InlineDatePicker";
 import type { GoalActionState } from "../actions";
 
 const initialState: GoalActionState = {};
@@ -81,14 +82,12 @@ function TargetDateForm({ targetDate, earliestAllowed, action, onDone }: {
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
-      <CalendarDays className="h-4 w-4 text-zinc-300" />
-      <input
-        name="targetDate" type="date" autoFocus
-        min={earliestAllowed ? formatDateInput(earliestAllowed) : undefined}
-        aria-label="Goal target date"
-        title={earliestAllowed ? "Must be after every milestone due date" : undefined}
+      <InlineDatePicker
+        name="targetDate"
         defaultValue={targetDate ? formatDateInput(targetDate) : ""}
-        className="h-9 rounded-lg border border-white/20 bg-white/10 px-2 text-sm text-white outline-none focus:border-violet-300"
+        ariaLabel="Goal target date"
+        min={earliestAllowed ? formatDateInput(earliestAllowed) : undefined}
+        required={false}
       />
       <button disabled={pending} className="h-9 rounded-lg bg-white px-3 text-sm font-semibold text-zinc-900 disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>
       <button type="button" onClick={onDone} className="h-9 px-2 text-sm font-medium text-zinc-400 hover:text-zinc-200">Cancel</button>
