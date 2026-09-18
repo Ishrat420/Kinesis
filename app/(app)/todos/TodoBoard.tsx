@@ -89,6 +89,11 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
   // own once the transition below settles without it having moved (failure).
   const [optimisticOpen, setOptimisticOpen] = useOptimistic(status);
   const open = optimisticOpen;
+  // Gates the pop animation below to an actual toggle in this session, rather
+  // than `open` itself -- that would also be false for a to-do that was
+  // already done on page load, playing the animation on every visit to the
+  // board instead of only when someone just marked it done.
+  const [hasToggled, setHasToggled] = useState(false);
 
   /**
    * These used to be awaited and ignored inside the transition, so a failed
@@ -104,6 +109,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
   function toggleDone() {
     startTransition(async () => {
       setOptimisticOpen(!status);
+      setHasToggled(true);
       setError(null);
       setError((await setTodoStatusAction(todo.id, status ? "DONE" : "TODO")).error ?? null);
     });
@@ -116,7 +122,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         aria-label={open ? `Mark ${todo.name} done` : `Reopen ${todo.name}`}
         onClick={toggleDone}
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-70 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
-      ><Check className={`h-4 w-4 ${open ? "" : "checkbox-pop"}`} aria-hidden="true" /></button>
+      ><Check className={`h-4 w-4 ${!open && hasToggled ? "checkbox-pop" : ""}`} aria-hidden="true" /></button>
 
       <div className="min-w-0 flex-1">
         <p className={`break-words font-medium ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</p>

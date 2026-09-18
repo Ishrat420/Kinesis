@@ -44,11 +44,17 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   const [isToggling, startToggle] = useTransition();
   const [toggleError, setToggleError] = useState<string | null>(null);
   const completed = optimisticCompleted;
+  // Gates the pop animation below to an actual toggle in this session, rather
+  // than `completed` itself -- that would also be true the instant a goal
+  // with already-completed milestones first renders, playing the animation
+  // on every page load instead of only when someone just completed one.
+  const [justToggled, setJustToggled] = useState(false);
   // Both the checkbox and the Undo button drive the same toggle, so they share
   // one result: whichever was pressed, the reason it failed shows on this row.
   function handleToggle() {
     startToggle(async () => {
       setOptimisticCompleted(!milestone.completed);
+      setJustToggled(true);
       setToggleError(null);
       const result = await toggleAction();
       if (result.error) setToggleError(result.error);
@@ -87,7 +93,7 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   if (editing) return <MilestoneEditForm milestone={milestone} hasTarget={hasTarget} unit={unit} latestDueDate={latestDueDate} updateAction={updateAction} onDone={() => setEditing(false)} />;
 
   return <div role="button" tabIndex={0} onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setEditing(true); }} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition hover:border-violet-200 hover:bg-violet-50/30 ${completed ? "border-emerald-100 bg-emerald-50/60" : "border-zinc-200"}`}>
-    <button type="button" disabled={isToggling} onClick={(event) => { event.stopPropagation(); handleToggle(); }} aria-label={completed ? "Reopen milestone" : "Complete milestone"} aria-pressed={completed} className="-m-2 rounded-full p-2 text-zinc-400 transition active:scale-90 disabled:opacity-70">{completed ? <Check key="done" className="checkbox-pop h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle key="open" className="h-6 w-6"/>}</button>
+    <button type="button" disabled={isToggling} onClick={(event) => { event.stopPropagation(); handleToggle(); }} aria-label={completed ? "Reopen milestone" : "Complete milestone"} aria-pressed={completed} className="-m-2 rounded-full p-2 text-zinc-400 transition active:scale-90 disabled:opacity-70">{completed ? <Check key="done" className={`h-6 w-6 rounded-full bg-emerald-500 p-1 text-white ${justToggled ? "checkbox-pop" : ""}`}/> : <Circle key="open" className="h-6 w-6"/>}</button>
     <div className="min-w-0 flex-1">
       <p className={`font-medium ${completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
       {completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, today)}</p>}
