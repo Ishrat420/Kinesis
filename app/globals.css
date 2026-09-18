@@ -24,7 +24,22 @@ body {
   color: var(--foreground);
 }
 
+@keyframes checkbox-pop {
+  0% { transform: scale(0.55); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
 @layer components {
+  /* A short, overshooting pop so marking something complete reads as a
+     satisfying, immediate response rather than a flat icon swap -- applied
+     to the checkmark the instant it appears (a fresh element every toggle,
+     via the completed/not-completed conditional render, so this always
+     replays rather than needing to be re-triggered by hand). */
+  .checkbox-pop {
+    animation: checkbox-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
   .input {
     @apply min-h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 outline-none transition placeholder:text-zinc-300 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100 sm:text-sm;
   }

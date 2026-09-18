@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { CalendarDays, Check, Ellipsis, Link2, Search } from "lucide-react";
 import type { TodoRecord } from "@/lib/data/todos";
 import { isOpenTodoStatus, todoStatusLabel } from "@/lib/todos/status";
@@ -82,7 +82,13 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
   const today = useToday();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const open = isOpenTodoStatus(todo.status);
+  const status = isOpenTodoStatus(todo.status);
+  // Shown the instant the checkbox is clicked, before the server round trip
+  // that used to be the only thing that ever changed it. Reconciles itself
+  // once the real `todo.status` prop catches up (success), or reverts on its
+  // own once the transition below settles without it having moved (failure).
+  const [optimisticOpen, setOptimisticOpen] = useOptimistic(status);
+  const open = optimisticOpen;
 
   /**
    * These used to be awaited and ignored inside the transition, so a failed
@@ -95,14 +101,22 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
     setError((await action()).error ?? null);
   });
 
+  function toggleDone() {
+    startTransition(async () => {
+      setOptimisticOpen(!status);
+      setError(null);
+      setError((await setTodoStatusAction(todo.id, status ? "DONE" : "TODO")).error ?? null);
+    });
+  }
+
   return (
     <li id={`todo-${todo.id}`} className="flex flex-wrap items-center gap-3 py-4 scroll-mt-24">
       <button
         type="button" disabled={pending} aria-pressed={!open}
         aria-label={open ? `Mark ${todo.name} done` : `Reopen ${todo.name}`}
-        onClick={() => run(() => setTodoStatusAction(todo.id, open ? "DONE" : "TODO"))}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition disabled:opacity-50 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
-      ><Check className="h-4 w-4" aria-hidden="true" /></button>
+        onClick={toggleDone}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-70 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
+      ><Check className={`h-4 w-4 ${open ? "" : "checkbox-pop"}`} aria-hidden="true" /></button>
 
       <div className="min-w-0 flex-1">
         <p className={`break-words font-medium ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</p>

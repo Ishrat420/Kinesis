@@ -40,10 +40,17 @@ export function ResolveActions({ dueDate, onComplete, complete, reschedule }: {
   // would unmount this row (and any error it has to show) right along with it.
   const [completing, startCompleting] = useTransition();
   const [completeError, setCompleteError] = useState<string | null>(null);
+  // Filled in the instant the click lands, before the server round trip that
+  // used to be the only thing that ever changed how this button looked --
+  // that gap is what read as slow. Reverts on its own if `complete` reports
+  // an error; on success the row is gone (via onComplete or revalidation)
+  // before there's a next render to show it un-fill.
+  const [justCompleted, setJustCompleted] = useState(false);
   const handleComplete = () => startCompleting(async () => {
+    setJustCompleted(true);
     setCompleteError(null);
     const result = await complete();
-    if (result.error) setCompleteError(result.error);
+    if (result.error) { setJustCompleted(false); setCompleteError(result.error); }
     else onComplete?.();
   });
 
@@ -60,7 +67,7 @@ export function ResolveActions({ dueDate, onComplete, complete, reschedule }: {
 
   return <div className="flex shrink-0 flex-col items-end gap-1.5" onClick={(event) => event.stopPropagation()}>
     <div className="flex items-center gap-2">
-      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark complete" title="Mark complete" className={`${ICON_ACTION_CLASS} hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50`}><CircleCheck className="h-4 w-4" /></button>
+      <button type="button" disabled={completing} onClick={handleComplete} aria-label="Mark complete" title="Mark complete" className={`${ICON_ACTION_CLASS} active:scale-90 disabled:opacity-70 ${justCompleted ? "bg-emerald-50 text-emerald-600" : "hover:bg-emerald-50 hover:text-emerald-600"}`}><CircleCheck className={`h-4 w-4 ${justCompleted ? "checkbox-pop" : ""}`} /></button>
       <button type="button" onClick={() => setRescheduling(true)} aria-label="Reschedule" title="Reschedule" className={`${ICON_ACTION_CLASS} hover:bg-blue-50 hover:text-blue-600`}><CalendarClock className="h-4 w-4" /></button>
     </div>
     {completeError && <p role="alert" className="text-xs font-medium text-red-600">{completeError}</p>}

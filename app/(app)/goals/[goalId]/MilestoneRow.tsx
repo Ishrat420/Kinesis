@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
 import { CalendarDays, Check, Circle, Ellipsis, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { displayNumber } from "@/lib/goals/format";
 import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
@@ -34,12 +34,29 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
   deleteAction: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  // Shown the instant the checkbox is clicked, before the server round trip
+  // that used to be the only thing that ever changed it -- that gap was the
+  // "click takes half a second" complaint. Reconciles itself once the real
+  // `milestone.completed` prop catches up (success), or reverts on its own
+  // once the transition below settles without it having moved (failure);
+  // either way `toggleError` explains a failure the button already undid.
+  const [optimisticCompleted, setOptimisticCompleted] = useOptimistic(milestone.completed);
+  const [isToggling, startToggle] = useTransition();
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const completed = optimisticCompleted;
   // Both the checkbox and the Undo button drive the same toggle, so they share
   // one result: whichever was pressed, the reason it failed shows on this row.
-  const [toggleState, toggleFormAction] = useActionState(() => toggleAction(), initialState);
+  function handleToggle() {
+    startToggle(async () => {
+      setOptimisticCompleted(!milestone.completed);
+      setToggleError(null);
+      const result = await toggleAction();
+      if (result.error) setToggleError(result.error);
+    });
+  }
   const [autoCompletionFeedback, setAutoCompletionFeedback] = useState<FeedbackState>(() => autoCompletionFeedbackState(milestone.autoCompleted, milestone.completedAt));
   const today = useToday();
-  const overdue = !milestone.completed && Boolean(milestone.dueDate && milestone.dueDate < today);
+  const overdue = !completed && Boolean(milestone.dueDate && milestone.dueDate < today);
   const { locale } = useFormatPreferences();
   const date = milestone.dueDate ? formatDate(milestone.dueDate, locale) : undefined;
   const completedDate = milestone.completedAt ? formatDate(milestone.completedAt, locale) : undefined;
@@ -69,15 +86,15 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
 
   if (editing) return <MilestoneEditForm milestone={milestone} hasTarget={hasTarget} unit={unit} latestDueDate={latestDueDate} updateAction={updateAction} onDone={() => setEditing(false)} />;
 
-  return <div role="button" tabIndex={0} onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setEditing(true); }} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition hover:border-violet-200 hover:bg-violet-50/30 ${milestone.completed ? "border-emerald-100 bg-emerald-50/60" : "border-zinc-200"}`}>
-    <form action={toggleFormAction} onClick={(event) => event.stopPropagation()}><button aria-label={milestone.completed ? "Reopen milestone" : "Complete milestone"} className="mt-0.5 text-zinc-400">{milestone.completed ? <Check className="h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle className="h-6 w-6"/>}</button></form>
+  return <div role="button" tabIndex={0} onClick={() => setEditing(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setEditing(true); }} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition hover:border-violet-200 hover:bg-violet-50/30 ${completed ? "border-emerald-100 bg-emerald-50/60" : "border-zinc-200"}`}>
+    <button type="button" disabled={isToggling} onClick={(event) => { event.stopPropagation(); handleToggle(); }} aria-label={completed ? "Reopen milestone" : "Complete milestone"} aria-pressed={completed} className="-m-2 rounded-full p-2 text-zinc-400 transition active:scale-90 disabled:opacity-70">{completed ? <Check key="done" className="checkbox-pop h-6 w-6 rounded-full bg-emerald-500 p-1 text-white"/> : <Circle key="open" className="h-6 w-6"/>}</button>
     <div className="min-w-0 flex-1">
-      <p className={`font-medium ${milestone.completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
-      {milestone.completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, today)}</p>}
-      {toggleState.error && <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{toggleState.error}</p>}
+      <p className={`font-medium ${completed ? "text-zinc-500 line-through" : "text-zinc-900"}`}>{title}</p>
+      {completed ? <p className="mt-1 text-xs font-medium text-emerald-700">Completed{completedDate ? ` ${completedDate}` : ""}</p> : milestone.dueDate && <p className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${overdue ? "text-red-600" : "text-zinc-500"}`}>{overdue ? <TriangleAlert className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}{date} · {formatDeadline(milestone.dueDate, today)}</p>}
+      {toggleError && <p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{toggleError}</p>}
       {autoCompletionFeedback !== "hidden" && <div role="status" className={`mt-3 flex w-fit items-center gap-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-all duration-500 ${autoCompletionFeedback === "fading" ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"}`}>
         <span className="inline-flex items-center gap-2"><span className="h-2 w-2 bg-amber-400" />Completed automatically</span>
-        <form action={toggleFormAction} onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 font-semibold hover:text-amber-950"><RotateCcw className="h-3.5 w-3.5"/> Undo</button></form>
+        <button type="button" disabled={isToggling} onClick={(event) => { event.stopPropagation(); handleToggle(); }} className="inline-flex items-center gap-1 font-semibold hover:text-amber-950 disabled:opacity-70"><RotateCcw className="h-3.5 w-3.5"/> Undo</button>
         <button type="button" onClick={(event) => { event.stopPropagation(); dismissAutoCompletionFeedback(); }} aria-label="Dismiss automatic completion message" className="p-0.5 text-amber-500 hover:bg-amber-100 hover:text-amber-800"><X className="h-3.5 w-3.5" /></button>
       </div>}
     </div>
