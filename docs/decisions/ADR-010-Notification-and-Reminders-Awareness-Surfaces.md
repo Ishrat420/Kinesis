@@ -146,7 +146,7 @@ Deliberate exceptions, with the reason attached:
 Deliberate exceptions, with the reason attached:
 - Gated on `status: "Active"` -- exactly `activeGoalWhere` now (KD-028 removed the old auto-archive-on-lapse, so there is no longer a second, date-aware notion of "active" to disagree with the column). A goal stops being eligible for this row the moment someone changes its status by hand, and not a moment before.
 - Never gated on `remindersEnabled`, the same reasoning `EXPIRED`/`TODO_DUE` get: this is a statement of fact once overdue, not a prediction.
-- Not a `DismissibleKind` (`lib/attention/dismissal.ts`): its row carries Edit due date and Change status instead of Dismiss, the same reasoning a milestone or to-do gets Complete/Reschedule rather than Dismiss.
+- Not a `DismissibleKind` (`lib/attention/dismissal.ts`): its row carries Change status and Edit due date instead of Dismiss, the same reasoning a milestone or to-do gets Complete/Reschedule rather than Dismiss (`GoalOverdueActions`).
 
 |  | `In-app notification is not ticked` | `reminders is not ticked` | `status` not `"Active"` |
 | --- | --- | --- | --- |

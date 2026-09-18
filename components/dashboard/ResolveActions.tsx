@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { CalendarClock, CircleCheck, X } from "lucide-react";
 import { formatDateInput } from "@/lib/dates";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
+import { InlineDatePicker } from "./InlineDatePicker";
 
 const initialActionState: { error?: string } = {};
 
@@ -49,7 +50,7 @@ export function ResolveActions({ dueDate, onComplete, complete, reschedule }: {
   if (rescheduling) {
     return <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
-        <input name="dueDate" type="date" required autoFocus defaultValue={formatDateInput(dueDate)} aria-label="New due date" className="h-9 rounded-lg border border-zinc-200 px-2 text-xs text-zinc-700 outline-none focus:border-zinc-400" />
+        <InlineDatePicker name="dueDate" defaultValue={formatDateInput(dueDate)} ariaLabel="New due date" />
         <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
         <button type="button" onClick={() => setRescheduling(false)} aria-label="Cancel reschedule" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
       </div>

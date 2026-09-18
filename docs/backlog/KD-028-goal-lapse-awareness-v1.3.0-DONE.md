@@ -1,9 +1,31 @@
 # KD-028 — Goal lapse awareness
 
-**Status:** Idea
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI, Architecture, Needs Research
 **Planned Release:** v1.3.0
+
+## Decision
+
+**Option 4 — do not archive silently at all**, not the "Proposed shape" below. `archiveLapsedGoals` and `effectiveStatus` are deleted outright, not narrowed: a goal's `status` column now only ever changes because a person changed it, through the existing Change status action. `activeGoalWhere` is exactly `{ status: "Active" }`, with no date comparison anywhere in the codebase any more.
+
+The practical effect: a goal past its target date, left Active, is simply still Active. Its milestones keep reminding, it keeps counting toward Goals at risk, its calendar pins keep drawing — none of that silently stops any more. The only visible sign is `isGoalOverdue(status, targetDate, today)` (`lib/goals/format.ts`), a pure display predicate, computed on every read rather than written anywhere:
+
+* A red **"OVERDUE"** chip on the goal's row on `/goals` (next to "AT RISK" — the two are independent signals and can both show), and a red card border.
+* On `/goals/[goalId]`, the header's eyebrow reads "Overdue goal" instead of "`{status}` goal", in red, with a red ring around the whole header.
+* A `GOAL_DUE` row in **Upcoming & Due**, **Needs Attention**, and the **notification bell** — this is the one place the shipped shape goes further than the original "Proposed shape" below, which explicitly left the bell out to sidestep the race it worried about. Once auto-archive is gone entirely, that race doesn't exist to sidestep: nothing ever contests the `status: "Active"` read, so raising the bell too was free.
+
+None of it has a lead-up phase — no `REMINDER_DUE`, no lead-days setting. That part of the original decision (ADR-010 "Other Exceptions" #3: a goal target is self-imposed, the actionable pressure belongs to its milestones) was never in question and is unchanged.
+
+**The row's actions are Change status and Edit due date, not Dismiss** — same reasoning a milestone or to-do gets Complete/Reschedule instead of Dismiss (`components/dashboard/GoalOverdueActions.tsx`). Change status (arrow-right-left icon) comes first, Edit due date (calendar icon) second; both open inline, matching the rest of the dashboard's inline-edit pattern, and both use the same formatted-text-over-a-native-input date picker (`components/dashboard/InlineDatePicker.tsx`) the newer capture/create forms use, not a bare `<input type="date">`.
+
+**Options 1–3 from the original write-up were not built, and don't need to be.** They existed to explain a silent, unilateral state change after the fact — the goal's own page saying why it lapsed (Option 3), an activity-log entry as the permanent record (Option 2), a Needs Attention row as the announcement (Option 1, kept, but as a *live* reconciled row, not an event). Once the state change itself is removed (Option 4), there is nothing left to explain or log: the goal never silently became anything, so there's no "why did this happen" to answer.
+
+This also settles the original **Open questions**: "does widening Needs Attention beyond overdue hold" — it doesn't need to widen; a `GOAL_DUE` row is exactly as overdue as everything else there. "Should the calendar keep drawing target dates for archived goals" — the calendar's own goal query already has no status filter (`lib/data/calendar.ts`) and still doesn't; that inconsistency with documents was pre-existing and out of scope here. "Should a lapse be announced when nothing observable changed" — moot, since nothing is an event any more; the row shows or doesn't, every time, on the same reconciled basis as every other kind's overdue notice.
+
+See ADR-010's "Goal (KD-028)" section and "Other Exceptions" #3 for the settings-gate table and the full policy writeup. Implementation: `lib/goals/format.ts` (`isGoalOverdue`), `lib/goals/active.ts` (`activeGoalWhere`), `lib/attention/items.ts` (`goalUpcomingPhase`, `isOverdueForNeedsAttention`), `lib/data/attention-items.ts` (the goal query), `lib/data/upcoming.ts` / `lib/data/attention.ts` (the `"goal"` kind), `lib/notifications/engine.ts` (`getGoalNotificationCandidate`), `prisma/migrations/20261005000000_goal_overdue_notifications` (the `GOAL_DUE` type and `goalId` FK columns). Also removed as dead weight once nothing archived anything any more: the daily cron (`app/api/notifications/evaluate`, `evaluateNotifications`, `runDailyMaintenance`) whose only job was that archive.
+
+Tests: `tests/unit/notification-candidates.test.ts`, `tests/unit/attention-items.test.ts`, `tests/unit/goal-status-format.test.ts`, `tests/unit/goal-lapse.test.ts`, `tests/integration/upcoming/upcoming.test.ts`, `tests/integration/attention/attention.test.ts`, `tests/integration/attention/attention-items.test.ts`, `tests/integration/notifications/derived-notifications.test.ts`. Verified: typecheck, lint, full unit and integration suites all pass.
 
 ## Summary
 
