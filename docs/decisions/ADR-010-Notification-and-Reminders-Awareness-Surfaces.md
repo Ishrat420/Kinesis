@@ -167,13 +167,12 @@ Justification: That is expected because a Date as a custom field is intended to 
 We will however, show these general dates in the calendar because so user can see and track them from there, they can also see them when they open that particular object. But It should not have reminder mechanism to it.
 
 ------
-3. **Goal target dates are calendar-only.** A goal past its target never reminds and is never overdue.
+3. **Goal target dates are calendar-only.** A goal past its target never reminds, however it's overdue.
 
-Justification: We will need more idea and thought to decide the exact direction. Current idea is, a goal target is self-imposed. Assumption is, nothing external happens when you miss it e.g. no fine, no invalid passport, no locked account. Milestones and to-dos are where the actionable pressure belongs, and they already have it. For reminder lead, the idea is to leave it out for now and wait for someone to want it. 
+Justification: Current idea is, a goal target is self-imposed. Assumption is, nothing external happens when you miss it e.g. no fine, no invalid passport, no locked account. Milestones are where the actionable pressure belongs, and they already have it. Most people will create milestones with due date to manage tasks under goal, and so sending another separate reminder for goals might not serve them well.  
+So the idea is to leave it out for now and wait until real users start presenting better use case. 
 
-However, the target date already has function, goals get archived when it passes its target date. Downstream, that goal drops out of Goals at risk, its milestones stop appearing in Needs Attention, and their reminder pins vanish from the calendar.
-
-Where it does appear: the calendar (a plain "{name} target" item, no reminder pin), and indirectly in Goals at risk via calculateGoalHealth, which takes targetDate as an input. Not in Upcoming & Due, not in notifications, not in Needs Attention.
+However, the target date already has function, goals get archived when it passes its target date. Downstream, that goal drops out of Goals at risk, its milestones stop appearing in Needs Attention, and their reminder pins vanish from the calendar. So sending a notification when goals are overdued becomes important. 
 
 The issue is the silent archive. If a date is consequential enough to change the record's state, it's consequential enough to mention. KD-028 is raised to consider a solution for this issue. 
 
