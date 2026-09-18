@@ -21,8 +21,9 @@ type TargetDateAction = (state: GoalActionState, data: FormData) => Promise<Goal
  *
  * Saving needs nothing more than the action: the target date is read fresh by
  * goal health, the calendar's pin, the milestone forms' bound, and by
- * `activeGoalWhere` deciding whether this goal still reminds at all -- so
- * revalidating the routes is the whole of "recalculate everywhere".
+ * `isGoalOverdue` deciding whether this goal's own chip and border read
+ * Overdue (KD-028) -- so revalidating the routes is the whole of
+ * "recalculate everywhere".
  */
 export function GoalTargetDate({ targetDate, earliestAllowed, action }: {
   targetDate: Date | null;

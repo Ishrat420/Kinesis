@@ -1,18 +1,11 @@
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
-import { runDailyMaintenance, type DerivedNotification } from "@/lib/notifications/engine";
+import type { DerivedNotification } from "@/lib/notifications/engine";
 import { notificationRecordLink, type NotificationSource } from "@/lib/notifications/identity";
 import { requireKinesisUser } from "@/lib/auth";
 import { collectNotifications } from "./notification-collection";
 
 export { collectNotifications };
-
-/** The daily cron: goals that have lapsed are archived, and nothing else is written. */
-export async function evaluateNotifications(now = new Date()) {
-  const users = await prisma.user.findMany({ select: { id: true } });
-  const results = await Promise.all(users.map(({ id }) => runDailyMaintenance(id, now)));
-  return { goalsArchived: results.reduce((total, result) => total + result.goalsArchived, 0) };
-}
 
 /**
  * What the bell shows, and whether it is shown at all.

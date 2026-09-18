@@ -5,7 +5,7 @@ import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalRelationships, getGoalUnits } from "@/lib/data/goals";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
-import { displayNumber } from "@/lib/goals/format";
+import { displayNumber, isGoalOverdue } from "@/lib/goals/format";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalFieldsAction, updateGoalRelationshipAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneAction } from "../actions";
 import { GoalStatusSelect } from "./GoalStatusSelect";
@@ -41,6 +41,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
     : null;
   const overdueMilestones = goal.milestones.filter((milestone) => !milestone.completed && milestone.dueDate && milestone.dueDate < today);
   const hasMilestoneRisk = overdueMilestones.length > 0;
+  const overdue = isGoalOverdue(goal.status, goal.targetDate, today);
   // Every object the picker could show, not just ones already linked --
   // choosing a new one in the picker, before saving, should show exactly
   // the card it'll actually render as (KD-042), not the compact fallback
@@ -50,7 +51,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-xl border-[1.5px] border-red-200 bg-white px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
 
-    <header className="mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9"><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-zinc-400">{goal.status} goal</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 -ml-1.5"><GoalTargetDate targetDate={goal.targetDate} earliestAllowed={earliestTargetDate(goal.milestones)} action={targetDateAction} /></div></div></div></header>
+    <header className={`mt-8 rounded-3xl bg-zinc-950 p-7 text-white shadow-xl md:p-9 ${overdue ? "border-2 border-red-500" : ""}`}><div className="flex items-start gap-5"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20"><Target className="h-7 w-7 text-violet-300"/></div><div><p className={`text-xs font-semibold uppercase tracking-[.18em] ${overdue ? "text-red-400" : "text-zinc-400"}`}>{overdue ? "Overdue goal" : `${goal.status} goal`}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{goal.name}</h1>{goal.note && <p className="mt-3 max-w-3xl leading-7 text-zinc-300">{goal.note}</p>}<div className="mt-5 -ml-1.5"><GoalTargetDate targetDate={goal.targetDate} earliestAllowed={earliestTargetDate(goal.milestones)} action={targetDateAction} /></div></div></div></header>
 
     <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"><div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Milestones</h2><p className="mt-1 text-sm text-zinc-500">Your current understanding of the path forward.</p></div><Flag className="h-5 w-5 text-violet-500"/></div>

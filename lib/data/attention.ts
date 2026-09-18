@@ -52,7 +52,7 @@ export async function getNeedsAttention(now = new Date()): Promise<AttentionItem
   const user = await requireKinesisUser();
   const today = await getToday(now);
   const [records, dismissals] = await Promise.all([
-    getAttentionRecords(now),
+    getAttentionRecords(),
     prisma.attentionDismissal.findMany({ where: { userId: user.id }, select: { itemKey: true } }),
   ]);
   const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));

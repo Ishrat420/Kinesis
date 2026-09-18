@@ -71,7 +71,7 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
   const today = startOfDayIn(timeZone, now);
 
   const [records, reads] = await Promise.all([
-    getAttentionRecords(now, { userId, today }),
+    getAttentionRecords({ userId }),
     prisma.notificationRead.findMany({ where: { userId }, select: { itemKey: true, readAt: true } }),
   ]);
   const readAtByKey = new Map(reads.map((read) => [read.itemKey, read.readAt]));

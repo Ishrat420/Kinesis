@@ -1,7 +1,6 @@
 import { connection } from "next/server";
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
-import { getToday } from "@/lib/format/server";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import type { AttentionRecord } from "@/lib/attention/items";
@@ -39,28 +38,23 @@ export {
  * Every record any awareness surface could show, with only structural
  * exclusions applied -- not filtered by any reminder window or
  * `remindersEnabled`, both of which vary by surface (and, for Upcoming &
- * Due, by kind) per ADR-010.
- *
- * Fixes two bugs the five existing implementations have between them
- * (KD-017 Phase 0): `activeGoalWhere` is always given the precomputed
- * `today`, never the raw, time-of-day-bearing `now` (`getNeedsAttention`
- * and `getUpcomingAndDue` currently pass `now`, which can drop a goal
- * targeted for today for part of the day); and `today` itself is always
- * the one shared, `getFormatPreferences`-cached call, never a second,
- * separately-implemented resolution of the same value.
+ * Due, by kind) per ADR-010, nor by any date at all: every remaining
+ * structural exclusion here is boolean (archived, completed, closed) or the
+ * stored status column (`activeGoalWhere`, KD-028), so there is no `today`
+ * for this function itself to resolve or be given. Each caller still
+ * resolves its own `today` separately, for the date-based phase functions
+ * (`lib/attention/items.ts`) it runs over these records afterwards.
  *
  * `scope` is an escape hatch for `collectNotifications`
- * (`lib/notifications/engine.ts`), the one caller that does *not* run for
- * "whoever the current session is" -- it takes `userId` as an explicit
- * argument and resolves `today` from that user's own settings directly,
- * deliberately never through the ambient-session-bound `requireKinesisUser`/
- * `getToday`. Passing both through here preserves that: every other caller
- * omits `scope` and gets the ordinary session-bound behaviour unchanged.
+ * (`lib/data/notification-collection.ts`), the one caller that takes
+ * `userId` as an explicit argument rather than resolving it from the
+ * ambient session -- passing it through here preserves that; every other
+ * caller omits `scope` and gets the ordinary session-bound
+ * `requireKinesisUser` instead.
  */
-export async function getAttentionRecords(now = new Date(), scope?: { userId: string; today: Date }): Promise<AttentionRecord[]> {
+export async function getAttentionRecords(scope?: { userId: string }): Promise<AttentionRecord[]> {
   await connection();
   const userId = scope?.userId ?? (await requireKinesisUser()).id;
-  const today = scope?.today ?? await getToday(now);
 
   const [documents, milestones, customItems, todos, importantDates, goals] = await Promise.all([
     prisma.document.findMany({
@@ -68,7 +62,7 @@ export async function getAttentionRecords(now = new Date(), scope?: { userId: st
       select: { id: true, name: true, type: true, expiryDate: true, prompt: true },
     }),
     prisma.milestone.findMany({
-      where: { completed: false, dueDate: { not: null }, goal: { userId, ...activeGoalWhere(today) } },
+      where: { completed: false, dueDate: { not: null }, goal: { userId, ...activeGoalWhere() } },
       select: { id: true, name: true, dueDate: true, goalId: true, goal: { select: { name: true } } },
     }),
     prisma.customItem.findMany({
@@ -85,12 +79,10 @@ export async function getAttentionRecords(now = new Date(), scope?: { userId: st
       where: { OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
     }),
-    // Raw `status: "Active"` on purpose, not `activeGoalWhere` -- that helper
-    // (and `effectiveStatus`) already treats a goal past its target date as
-    // Archived the instant it passes, which is precisely the moment this
-    // query needs to still see it, so the overdue notice has a goal left to
-    // be about (KD-028). `archiveLapsedGoals` writes that same column once a
-    // page happens to trigger it; until it does, this row keeps surfacing.
+    // `activeGoalWhere` would also match here (it's exactly `status: "Active"`
+    // now, KD-028) -- spelled out rather than reused because this query cares
+    // specifically about the status column a goal's own actions write to,
+    // not "whatever activeGoalWhere happens to mean" if that ever changes.
     prisma.goal.findMany({
       where: { userId, status: "Active", targetDate: { not: null } },
       select: { id: true, name: true, targetDate: true },

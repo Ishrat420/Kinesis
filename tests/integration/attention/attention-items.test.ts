@@ -14,12 +14,17 @@ import { getAttentionRecords } from "@/lib/data/attention-items";
  * KD-017 Step One, Phase 1: `getAttentionRecords` is the one query each
  * record kind needs. This runs against the real database because the point
  * is exactly which rows survive the structural filters (archived, completed,
- * closed, undated, the parent goal no longer active) -- and, specifically,
- * that a goal targeted for today survives regardless of the time of day
- * `now` carries, which `getNeedsAttention`/`getUpcomingAndDue` currently get
- * wrong (KD-017 Phase 0, `activeGoalWhere(now)` instead of `activeGoalWhere
- * (today)`). `getToday` runs for real here, not mocked, so that bug fix is
- * actually exercised rather than assumed.
+ * closed, undated, the parent goal no longer active).
+ *
+ * "Parent goal no longer active" used to also mean "past its own target
+ * date" (a date comparison `activeGoalWhere` made against a precomputed
+ * `today`, which is what this file originally existed to pin down --
+ * `activeGoalWhere(now)` instead of `activeGoalWhere(today)` could drop a
+ * goal targeted for today for part of the day). KD-028 removed that: a goal
+ * is "not active" purely by its stored status column now, with no date
+ * comparison anywhere, so that whole bug class -- and the "at what time of
+ * day" question -- no longer applies. See the lapsed-goal tests below for
+ * the current rule instead.
  */
 
 const owner = "attention-items-owner";
@@ -37,8 +42,6 @@ describe.sequential("getAttentionRecords", () => {
     mocks.requireKinesisUser.mockResolvedValue({ id: owner });
     await prisma.user.deleteMany({ where: { id: owner } });
     await prisma.user.create({ data: { id: owner, firstName: "Attention", lastName: "Items", email: "attention-items@example.test" } });
-    // Fixed at UTC so the activeGoalWhere-boundary test below can reason about
-    // exact instants without a real-world timezone offset in the way.
     await prisma.userSettings.create({ data: { userId: owner, timeZone: "UTC" } });
   });
 
@@ -74,34 +77,32 @@ describe.sequential("getAttentionRecords", () => {
     await prisma.person.create({ data: { id: "person-self", objectId: person.id, userId: owner, name: "Self", isSelf: true } });
     await prisma.relationshipImportantDate.create({ data: { id: "date-eligible", selfPersonId: "person-self", label: "Birthday", date: new Date("2026-06-25") } });
 
-    const records = await getAttentionRecords(new Date("2026-06-15T12:00:00.000Z"));
+    const records = await getAttentionRecords();
 
     expect(kinds(records)).toEqual(["custom", "document", "milestone", "relationship", "todo"]);
     expect(records.map((record) => record.id).sort()).toEqual(["date-eligible", "doc-eligible", "item-eligible", "milestone-eligible", "todo-eligible"]);
   });
 
-  it("keeps a milestone whose goal targets today, regardless of the time of day `now` carries", async () => {
-    // The bug this pins: activeGoalWhere(now) instead of activeGoalWhere(today)
-    // would compare `targetDate: { gte: now } ` against a `now` that is late in
-    // the day, so a goal targeted for midnight today would fail that
-    // comparison until the clock caught back up to midnight -- a goal that
-    // should read Active for the whole day dropping its milestones for part
-    // of it.
-    const goal = await makeGoal("goal-today", "Active", new Date("2026-06-15T00:00:00.000Z"));
-    await prisma.milestone.create({ data: { id: "milestone-today-goal", goalId: goal.id, name: "M", dueDate: new Date("2026-07-01") } });
-
-    const lateInTheDay = new Date("2026-06-15T23:30:00.000Z");
-    const records = await getAttentionRecords(lateInTheDay);
-
-    expect(records.map((record) => record.id)).toContain("milestone-today-goal");
-  });
-
-  it("excludes a milestone whose goal already lapsed past its target date", async () => {
+  /**
+   * KD-028: a goal past its own target date, left Active, no longer
+   * auto-archives -- its milestones keep reminding exactly as before it
+   * lapsed. Only a manual status change (tested below) drops them.
+   */
+  it("keeps a milestone whose goal has lapsed past its target date, since the goal is still Active", async () => {
     const goal = await makeGoal("goal-lapsed", "Active", new Date("2026-06-01T00:00:00.000Z"));
     await prisma.milestone.create({ data: { id: "milestone-lapsed-goal", goalId: goal.id, name: "M", dueDate: new Date("2026-07-01") } });
 
-    const records = await getAttentionRecords(new Date("2026-06-15T12:00:00.000Z"));
+    const records = await getAttentionRecords();
 
-    expect(records.map((record) => record.id)).not.toContain("milestone-lapsed-goal");
+    expect(records.map((record) => record.id)).toContain("milestone-lapsed-goal");
+  });
+
+  it("excludes a milestone whose goal was manually set to a non-Active status", async () => {
+    const goal = await makeGoal("goal-revisit", "Revisit Later", new Date("2026-12-01T00:00:00.000Z"));
+    await prisma.milestone.create({ data: { id: "milestone-inactive-goal", goalId: goal.id, name: "M", dueDate: new Date("2026-07-01") } });
+
+    const records = await getAttentionRecords();
+
+    expect(records.map((record) => record.id)).not.toContain("milestone-inactive-goal");
   });
 });

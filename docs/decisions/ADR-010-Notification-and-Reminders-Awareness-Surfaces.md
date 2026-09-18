@@ -71,10 +71,9 @@ Deliberate exceptions, with the reason attached:
 
 
 Deliberate exceptions, with the reason attached: 
-- The trigger for this is added on some pre-conditions: The milestone is not completed, The goal is active. **"goal not active" occurs `effectiveStatus(goal.status, goal.targetDate) !== "Active"` — in five situations:**
-    - The goal was set to **Finished**, **Archived**, or **Revisit Later** by hand.
-    - Its **target date passed** (which takes effect the moment it passes). 
-    - There's also a third route into the *Completed* milestone column: recording a goal's current value auto-completes every milestone whose value it has reached.
+- The trigger for this is added on some pre-conditions: The milestone is not completed, The goal is active. **"goal not active" is exactly `goal.status !== "Active"` (`activeGoalWhere`)** — the goal was set to **Finished**, **Archived**, or **Revisit Later** by hand. Nothing else drops it.
+- There's also a second route into the *Completed* milestone column: recording a goal's current value auto-completes every milestone whose value it has reached.
+- **A goal past its own target date, left Active, is not "goal not active."** Before KD-028 it was: the target date passing silently archived the goal (see "Other Exceptions" #3), which took every one of its unfinished milestones out of Needs Attention, Upcoming & Due, the bell and the calendar's reminder pins along with it, with nothing said anywhere. That auto-archive is gone. A goal past its target stays exactly as Active as it was, and so do its milestones' reminders — only the goal's own chip and border read "Overdue" now.
 
 
 ###  Settings gates, Milestones
@@ -145,7 +144,7 @@ Deliberate exceptions, with the reason attached:
 2. A goal past its target date, still `status: "Active"`, shows up in Needs attention, and in Upcoming & Due, bell/notification, as `GOAL_DUE`.
 
 Deliberate exceptions, with the reason attached:
-- Gated on the raw `status` column being `"Active"`, not `activeGoalWhere`/`effectiveStatus` -- those already treat a goal past its target date as Archived the instant it passes, which is exactly the condition this row exists to catch before `archiveLapsedGoals` gets there. See the known race noted under "Other Exceptions" #3.
+- Gated on `status: "Active"` -- exactly `activeGoalWhere` now (KD-028 removed the old auto-archive-on-lapse, so there is no longer a second, date-aware notion of "active" to disagree with the column). A goal stops being eligible for this row the moment someone changes its status by hand, and not a moment before.
 - Never gated on `remindersEnabled`, the same reasoning `EXPIRED`/`TODO_DUE` get: this is a statement of fact once overdue, not a prediction.
 - Not a `DismissibleKind` (`lib/attention/dismissal.ts`): its row carries Edit due date and Change status instead of Dismiss, the same reasoning a milestone or to-do gets Complete/Reschedule rather than Dismiss.
 
@@ -155,6 +154,7 @@ Deliberate exceptions, with the reason attached:
 | Upcoming & Due — over its due date | **survives** | **survives** | blocks |
 | Needs attention | **survives** | **survives** | blocks |
 | Calendar target pin | **survives** | **survives** | **survives** (calendar's own goal query has no status filter -- see "Other Exceptions" #3) |
+| Goals list / detail page — "Overdue" chip and red border | **survives** | **survives** | blocks (`isGoalOverdue`, display-only, changes nothing else) |
 
 
 ## Relationship important date
@@ -189,9 +189,9 @@ We will however, show these general dates in the calendar because so user can se
 
 But unlike the original decision here, a goal *does* now announce once it is actually overdue: still `status: "Active"` and its target date has passed. It shows in Upcoming & Due ("`{name}` is over its due date"), in Needs Attention, and in the bell as `GOAL_DUE` -- the same reconciled, read-every-time shape as `EXPIRED`/`MILESTONE_DUE`/`CUSTOM_ITEM_DUE`/`TODO_DUE`, not a stored event, so there is no row to protect from a delete pass.
 
-Why this needed deciding at all: the target date already had a function before this -- `archiveLapsedGoals` silently flips a lapsed goal to Archived on the next page load that happens to trigger it, which drops it out of Goals at risk and takes its milestones out of Needs Attention, Upcoming & Due and the calendar's reminder pins, with nothing said anywhere. If a date is consequential enough to change the record's state, it's consequential enough to mention. This decision is deliberately narrower than that whole problem: KD-028's own proposed shape additionally wants the goal's own page to explain *why* it lapsed and what stopped (Option 3) and an activity-log entry as the permanent record (Option 2), neither of which is built yet -- the bell/Needs Attention/Upcoming & Due row here is only KD-028's Option 1 extended to also raise the bell, which its author had originally left out specifically to sidestep the race below. It was added anyway because a goal still worth noticing is more useful surfaced in all three places at once than not at all.
+**A goal no longer auto-archives when its target date passes, at all.** The original version of this decision kept the old silent `archiveLapsedGoals` behaviour (a lapsed Active goal quietly flipped to Archived on the next page load that happened to trigger it, taking its milestones out of Needs Attention, Upcoming & Due, and the calendar's reminder pins with it) and only added the overdue notice on top, as a warning shortly before that silent archive landed. That combination has a real race: whichever of the notice's own read and the archive's own write happens to run first, in whichever request, decides whether the notice is ever actually seen -- and since the archive fires from ordinary page loads (`getGoalDashboardSummary`, `getGoalsForLinking`, the old `syncAndGetGoals`), it usually won. KD-028 itself named this exact hazard under "Why this is not simply 'add a notification'".
 
-**The known race.** `archiveLapsedGoals` (called from `getGoalDashboardSummary`, `getGoalsForLinking`, and `syncAndGetGoals`) writes `status: "Archived"` the moment any of those run for a lapsed goal -- often the very same request that is also trying to read `status: "Active"` to decide whether to show the overdue notice (`app/(app)/page.tsx` sequences its own two reads before calling `getGoalDashboardSummary` to reduce this, but the bell, rendered independently by `Topbar`, is not covered by that ordering). A goal can therefore go overdue and be archived away again before anyone visibly sees the notice, on an unlucky render. This is the exact hazard KD-028 raised under "Why this is not simply 'add a notification'"; it is accepted here as a known, narrow gap rather than solved, since closing it fully means moving `archiveLapsedGoals` off every read path (KD-028's Option 4) -- a larger, separate decision.
+The fix taken here is KD-028's own **Option 4**: don't archive silently at all. `archiveLapsedGoals` and `effectiveStatus` are gone, and `activeGoalWhere` is exactly `{ status: "Active" }` -- no date comparison anywhere. A goal past its target date, left Active, is simply still Active: its milestones keep reminding, it keeps counting toward Goals at risk, its calendar pins keep drawing, and the `GOAL_DUE` notice keeps showing, indefinitely, until a person acts (Change status, or a new target date) -- the same way an overdue to-do never resolves itself. The one thing that changes is purely visual: `isGoalOverdue(status, targetDate, today)` drives a red "Overdue" chip and border on the goal's own list row and detail page, replacing what the silent archive used to do invisibly. This also removes the race outright, rather than narrowing it: there is no longer any write for the notice's own read to lose to.
 
 ------
 4. **Finance dates are invisible.** `FinanceItem.startDate/endDate` appear on no surface at all.

@@ -1,101 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { activeGoalWhere, lapsedGoalWhere } from "@/lib/goals/active";
-import { effectiveStatus } from "@/lib/goals/format";
+import { activeGoalWhere } from "@/lib/goals/active";
 import { earliestTargetDate } from "@/lib/goals/target-date";
 
 const at = (day: string) => new Date(`${day}T00:00:00.000Z`);
-const NOW = at("2026-07-01");
 
-/** Whether a goal row would be returned by a `where`, evaluated the way Prisma would. */
-function matches(where: { status?: unknown; OR?: unknown[] }, goal: { status: string; targetDate: Date | null }) {
-  const clause = (part: Record<string, never> | Record<string, unknown>): boolean => {
-    if ("targetDate" in part) {
-      const rule = (part as { targetDate: null | { gte?: Date; lt?: Date } }).targetDate;
-      if (rule === null) return goal.targetDate === null;
-      if (rule.gte) return goal.targetDate !== null && goal.targetDate >= rule.gte;
-      if (rule.lt) return goal.targetDate !== null && goal.targetDate < rule.lt;
-    }
-    if ("status" in part) {
-      const rule = (part as { status: string | { not: string } }).status;
-      return typeof rule === "string" ? goal.status === rule : goal.status !== rule.not;
-    }
-    return false;
-  };
-  const statusOk = where.status === undefined || goal.status === where.status;
-  const orOk = where.OR === undefined || (where.OR as Record<string, unknown>[]).some(clause);
-  return statusOk && orOk;
-}
-
-const active = (targetDate: Date | null) => ({ status: "Active", targetDate });
-
-describe("activeGoalWhere: the lapse applied as a query rather than a stored column", () => {
-  it("keeps a goal whose target date is still ahead", () => {
-    expect(matches(activeGoalWhere(NOW), active(at("2026-12-31")))).toBe(true);
+describe("activeGoalWhere: purely the stored column (KD-028 removed the date-based lapse)", () => {
+  it("is exactly status: Active, with no date comparison at all", () => {
+    expect(activeGoalWhere()).toEqual({ status: "Active" });
   });
 
-  it("keeps a goal with no target date at all, which can never lapse", () => {
-    expect(matches(activeGoalWhere(NOW), active(null))).toBe(true);
-  });
-
-  it("drops a goal whose target date has passed, even though the column still says Active", () => {
-    // This is the whole point: before, the row stayed Active in the database
-    // until some page happened to persist the change, and its milestones kept
-    // reminding until then.
-    expect(matches(activeGoalWhere(NOW), active(at("2026-06-30")))).toBe(false);
-  });
-
-  it("drops a goal closed by hand, whatever its target date says", () => {
-    expect(matches(activeGoalWhere(NOW), { status: "Finished", targetDate: at("2026-12-31") })).toBe(false);
-    expect(matches(activeGoalWhere(NOW), { status: "Archived", targetDate: null })).toBe(false);
-  });
-
-  it("agrees with effectiveStatus, which the goal's own status chip reads", () => {
-    // Two expressions of one rule -- a `where` and a function. They are only
-    // safe to keep apart while they answer identically.
-    const goals = [
-      active(at("2026-12-31")),
-      active(at("2026-06-30")),
-      active(null),
-      { status: "Finished", targetDate: at("2026-12-31") },
-    ];
-    for (const goal of goals) {
-      expect(matches(activeGoalWhere(NOW), goal)).toBe(effectiveStatus(goal.status, goal.targetDate, NOW) === "Active");
-    }
-  });
-
-  it("holds a goal active through the whole of its target day", () => {
-    // Target dates are stored at midnight, so `gte` still holds the goal
-    // active for the entire target day and only drops it once tomorrow's
-    // midnight arrives.
-    expect(matches(activeGoalWhere(at("2026-07-01")), active(at("2026-07-01")))).toBe(true);
-    expect(matches(activeGoalWhere(at("2026-07-02")), active(at("2026-07-01")))).toBe(false);
-  });
-});
-
-describe("lapsedGoalWhere: the complement the engine cleans up by", () => {
-  it("catches a goal that has lapsed past its target date", () => {
-    expect(matches(lapsedGoalWhere(NOW), active(at("2026-06-30")))).toBe(true);
-  });
-
-  it("catches a goal closed by hand", () => {
-    expect(matches(lapsedGoalWhere(NOW), { status: "Archived", targetDate: null })).toBe(true);
-  });
-
-  it("leaves a goal that is genuinely still active", () => {
-    expect(matches(lapsedGoalWhere(NOW), active(at("2026-12-31")))).toBe(false);
-    expect(matches(lapsedGoalWhere(NOW), active(null))).toBe(false);
-  });
-
-  it("is the exact complement of activeGoalWhere", () => {
-    const goals = [
-      active(at("2026-12-31")),
-      active(at("2026-06-30")),
-      active(null),
-      { status: "Revisit Later", targetDate: at("2026-12-31") },
-    ];
-    for (const goal of goals) {
-      expect(matches(lapsedGoalWhere(NOW), goal)).toBe(!matches(activeGoalWhere(NOW), goal));
-    }
+  it("takes no arguments -- there is no 'today' left to be given", () => {
+    expect(activeGoalWhere.length).toBe(0);
   });
 });
 

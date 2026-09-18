@@ -1,11 +1,8 @@
 import type { CustomItem, Document, Goal, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
-import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
-import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
-import { resolveFormatPreferences } from "@/lib/format/preferences";
+import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { getReminderWindowStart } from "@/lib/reminders/policy";
 import { notificationKey, type NotificationSource } from "./identity";
-import { archiveLapsedGoals } from "@/lib/data/goal-status";
 import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
@@ -335,17 +332,3 @@ export function toDerivedNotification(
 }
 
 export { byRecency };
-
-/**
- * The daily pass, which no longer has notifications to write.
- *
- * What is left is the one genuine write: a goal past its target date is
- * archived, so its own status chip converges without anyone having to open the
- * goals page. Everything else the cron used to do is now answered on read.
- */
-export async function runDailyMaintenance(userId: string, now = new Date()) {
-  const settings = await prisma.userSettings.findUnique({ where: { userId }, select: { timeZone: true } });
-  const { timeZone } = resolveFormatPreferences(settings);
-  const { count } = await archiveLapsedGoals(userId, startOfDayIn(timeZone, now));
-  return { goalsArchived: count };
-}

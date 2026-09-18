@@ -128,7 +128,7 @@ export const getUpcomingAndDue = cache(async function getUpcomingAndDue(now = ne
   };
 
   const [records, dismissals] = await Promise.all([
-    getAttentionRecords(now),
+    getAttentionRecords(),
     // Shared with Needs Attention (lib/data/attention.ts), keyed the same way
     // -- one dismissal hides a record's row on both surfaces at once.
     prisma.attentionDismissal.findMany({ where: { userId: user.id }, select: { itemKey: true } }),

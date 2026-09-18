@@ -78,9 +78,7 @@ describe("the dashboard tile's count and the page's filtered list describe one s
     const { where } = await tileQuery(30);
 
     expect(where.completed).toBe(false);
-    // "Active" is asked of the target date as well as the column: a goal whose
-    // target date has passed is archived whether or not the column says so yet.
-    expect(where.goal).toEqual({ userId: "owner-id", ...activeGoalWhere(now) });
+    expect(where.goal).toEqual({ userId: "owner-id", ...activeGoalWhere() });
   });
 
   it("selects the same milestones the filtered page renders", async () => {

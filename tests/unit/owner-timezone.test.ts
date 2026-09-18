@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatDateInput, formatDeadline, startOfDayIn, startOfUtcDay } from "@/lib/dates";
 import { getTodoNotificationCandidate, getMilestoneNotificationCandidate } from "@/lib/notifications/engine";
-import { activeGoalWhere, lapsedGoalWhere } from "@/lib/goals/active";
 import { getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_TIME_ZONE, isSupportedTimeZone, resolveFormatPreferences } from "@/lib/format/preferences";
 
@@ -73,19 +72,6 @@ describe("what the owner sees at 9am", () => {
   it("reads a deadline in whole days from the owner's day", () => {
     expect(formatDeadline(day("2026-01-07"), today)).toBe("due today");
     expect(formatDeadline(day("2026-01-06"), today)).toBe("1 day overdue");
-  });
-
-  /**
-   * Not in the report, but the same root cause: a target date is stored at the
-   * last millisecond of its day, so comparing it against the clock kept a goal
-   * Active through the small hours of the following local day.
-   */
-  it("lapses a goal whose target date was yesterday where the owner is", () => {
-    const targetDate = new Date("2026-01-06T23:59:59.999Z");
-    expect(targetDate >= today).toBe(false);
-    expect(targetDate >= NINE_AM_SYDNEY).toBe(true);
-    expect(activeGoalWhere(today).OR).toContainEqual({ targetDate: { gte: today } });
-    expect(lapsedGoalWhere(today).OR).toContainEqual({ targetDate: { lt: today } });
   });
 });
 

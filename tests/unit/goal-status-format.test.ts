@@ -1,37 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_GOAL_UNITS, GOAL_STATUSES, displayNumber, effectiveStatus } from "@/lib/goals/format";
+import { DEFAULT_GOAL_UNITS, GOAL_STATUSES, displayNumber, isGoalOverdue } from "@/lib/goals/format";
 
 const now = new Date("2026-06-15T10:00:00.000Z");
 
-describe("effectiveStatus: showing an Active goal as Archived once its target date passes", () => {
-  it("archives an Active goal whose target date is in the past", () => {
-    expect(effectiveStatus("Active", new Date("2026-06-14T00:00:00.000Z"), now)).toBe("Archived");
+describe("isGoalOverdue: a display-only fact, not a status change (KD-028)", () => {
+  it("is overdue once an Active goal's target date is in the past", () => {
+    expect(isGoalOverdue("Active", new Date("2026-06-14T00:00:00.000Z"), now)).toBe(true);
   });
 
-  it("keeps an Active goal active while its target date is still ahead", () => {
-    expect(effectiveStatus("Active", new Date("2026-06-16T00:00:00.000Z"), now)).toBe("Active");
+  it("is not overdue while an Active goal's target date is still ahead", () => {
+    expect(isGoalOverdue("Active", new Date("2026-06-16T00:00:00.000Z"), now)).toBe(false);
   });
 
-  it("keeps an Active goal active when it has no target date to expire against", () => {
-    expect(effectiveStatus("Active", null, now)).toBe("Active");
+  it("is never overdue with no target date to have passed", () => {
+    expect(isGoalOverdue("Active", null, now)).toBe(false);
   });
 
-  it("leaves every non-Active status untouched, so a finished goal is never relabelled", () => {
+  it("is never overdue for a status other than Active -- it was already resolved, by hand", () => {
     const pastDate = new Date("2020-01-01T00:00:00.000Z");
 
-    expect(effectiveStatus("Finished", pastDate, now)).toBe("Finished");
-    expect(effectiveStatus("Revisit Later", pastDate, now)).toBe("Revisit Later");
-    expect(effectiveStatus("Archived", pastDate, now)).toBe("Archived");
+    expect(isGoalOverdue("Finished", pastDate, now)).toBe(false);
+    expect(isGoalOverdue("Revisit Later", pastDate, now)).toBe(false);
+    expect(isGoalOverdue("Archived", pastDate, now)).toBe(false);
   });
 
   it("compares instants, so a target date earlier the same day already counts as passed", () => {
     // Target dates are stored at UTC midnight, which is behind a mid-morning
     // "now" on the same calendar day.
-    expect(effectiveStatus("Active", new Date("2026-06-15T00:00:00.000Z"), now)).toBe("Archived");
+    expect(isGoalOverdue("Active", new Date("2026-06-15T00:00:00.000Z"), now)).toBe(true);
   });
 
-  it("does not archive a target date later on the same day", () => {
-    expect(effectiveStatus("Active", new Date("2026-06-15T23:00:00.000Z"), now)).toBe("Active");
+  it("is not overdue for a target date later on the same day", () => {
+    expect(isGoalOverdue("Active", new Date("2026-06-15T23:00:00.000Z"), now)).toBe(false);
   });
 
   it("recognises every status the application offers", () => {

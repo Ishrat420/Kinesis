@@ -2,27 +2,20 @@ import type { FieldLink, ObjectField } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { presentCustomFields } from "@/lib/custom-fields/present";
-import { DEFAULT_GOAL_UNITS, effectiveStatus } from "@/lib/goals/format";
+import { DEFAULT_GOAL_UNITS } from "@/lib/goals/format";
 import { calculateGoalHealth } from "@/lib/goals/health";
 import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { activeGoalWhere } from "@/lib/goals/active";
-import { archiveLapsedGoals } from "./goal-status";
 import { getToday } from "@/lib/format/server";
 
-export async function syncAndGetGoals() {
+/** Every goal this user owns. No archive-on-read (KD-028): a goal's status is only ever what was last set, by hand. */
+export async function getGoals() {
   await connection();
   const user = await requireKinesisUser();
-  const today = await getToday();
-  const goals = await prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true, metricHistory: { orderBy: { recordedAt: "asc" } } }, orderBy: { updatedAt: "desc" } });
-  const overdue = goals.filter((goal) => effectiveStatus(goal.status, goal.targetDate, today) === "Archived" && goal.status === "Active");
-  if (overdue.length) {
-    await prisma.goal.updateMany({ where: { userId: user.id, id: { in: overdue.map(({ id }) => id) } }, data: { status: "Archived" } });
-    overdue.forEach((goal) => { goal.status = "Archived"; });
-  }
-  return goals;
+  return prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true, metricHistory: { orderBy: { recordedAt: "asc" } } }, orderBy: { updatedAt: "desc" } });
 }
 
 /** Presents a goal the way every caller of this file already expects: `customFields` as its own flat array. */
@@ -43,8 +36,6 @@ export async function getGoal(id: string) {
   };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, include });
   if (!goal) return null;
-  const status = effectiveStatus(goal.status, goal.targetDate, await getToday());
-  if (status !== goal.status) return prisma.goal.update({ where: { id }, data: { status }, include }).then(withCustomFields);
   return withCustomFields(goal);
 }
 
@@ -91,7 +82,6 @@ export async function getGoalUnits() {
 export async function getGoalsForLinking() {
   await connection();
   const user = await requireKinesisUser();
-  await archiveLapsedGoals(user.id, await getToday());
   return prisma.goal.findMany({
     where: { userId: user.id },
     select: { id: true, name: true, status: true },
@@ -103,10 +93,9 @@ export async function getGoalDashboardSummary(now = new Date()) {
   await connection();
   const user = await requireKinesisUser();
   const today = await getToday(now);
-  await archiveLapsedGoals(user.id, today);
 
   const goals = await prisma.goal.findMany({
-    where: { userId: user.id, ...activeGoalWhere(today) },
+    where: { userId: user.id, ...activeGoalWhere() },
     include: { metricHistory: { orderBy: { recordedAt: "asc" } }, milestones: { select: { completed: true, dueDate: true } } },
   });
 
@@ -142,20 +131,20 @@ export async function getMilestonesDueSoon(now = new Date()) {
     where: {
       completed: false,
       dueDate: { gte: window.from, lte: window.to },
-      goal: { userId: user.id, ...activeGoalWhere(today) },
+      goal: { userId: user.id, ...activeGoalWhere() },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: "asc" }, { position: "asc" }],
   });
 }
 
-export async function getActiveIncompleteMilestones(now = new Date()) {
+export async function getActiveIncompleteMilestones() {
   await connection();
   const user = await requireKinesisUser();
   return prisma.milestone.findMany({
     where: {
       completed: false,
-      goal: { userId: user.id, ...activeGoalWhere(await getToday(now)) },
+      goal: { userId: user.id, ...activeGoalWhere() },
     },
     include: { goal: { select: { id: true, name: true } } },
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { position: "asc" }],
