@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   milestoneFindMany: vi.fn(async (): Promise<unknown[]> => []),
   todoFindMany: vi.fn(async (): Promise<unknown[]> => []),
   dismissalFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  userFindUnique: vi.fn(async (): Promise<unknown> => null),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -27,6 +28,7 @@ vi.mock("@/lib/data/prisma", () => ({
     milestone: { findMany: mocks.milestoneFindMany },
     todo: { findMany: mocks.todoFindMany },
     attentionDismissal: { findMany: mocks.dismissalFindMany },
+    user: { findUnique: mocks.userFindUnique },
   },
 }));
 

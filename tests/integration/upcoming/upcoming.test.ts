@@ -425,4 +425,29 @@ describe.sequential("Upcoming & Due", () => {
       await expect(getUpcomingAndDue(today)).resolves.toEqual([expect.objectContaining({ kind: "relationship" })]);
     });
   });
+
+  describe("a shared important date, attached to a Relationship rather than one Person", () => {
+    it("credits both people, not just the one the date happens to be stored against", async () => {
+      // The date sits on person-1 (Karen) via relationshipId, not selfPersonId
+      // -- the "Shared Important Dates" section of a Relationship, as opposed
+      // to a date entered on one Person's own page alone.
+      await prisma.object.create({ data: { id: "self-obj", type: "PERSON", name: "Upcoming Owner", userId: owner } });
+      await prisma.person.create({ data: { id: "self-person", name: "Upcoming Owner", isSelf: true, userId: owner, objectId: "self-obj" } });
+      await prisma.object.create({ data: { id: "person-obj", type: "PERSON", name: "Karen", userId: owner } });
+      await prisma.person.create({ data: { id: "person-1", name: "Karen", userId: owner, objectId: "person-obj" } });
+      await prisma.relationship.create({ data: { id: "relationship-1", firstPersonId: "self-person", secondPersonId: "person-1", userId: owner } });
+      await prisma.relationshipImportantDate.create({ data: { id: "date-1", relationshipId: "relationship-1", label: "Anniversary", date: new Date("2026-06-25"), repeatsYearly: true } });
+
+      const items = await getUpcomingAndDue(now);
+
+      // getUserDisplayName resolves the owner's own user record (firstName
+      // "Upcoming", no preferredName) to "Upcoming" -- the same name that
+      // would show up anywhere else the account owner is displayed.
+      expect(items).toEqual([expect.objectContaining({
+        kind: "relationship",
+        title: "Upcoming and Karen's Anniversary is coming",
+        suggestedTodoTitle: "Do something for Upcoming and Karen's anniversary",
+      })]);
+    });
+  });
 });

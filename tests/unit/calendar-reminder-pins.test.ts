@@ -83,7 +83,7 @@ describe("reminderOpensAt agrees with the notification engine, for every source"
   it("matches an important date's reminderAt, measured from the occurrence", () => {
     const occurrence = at("2026-07-01");
     const candidate = getRelationshipDateNotificationCandidate(
-      { id: "important-1", label: "Birthday", date: occurrence, repeatsYearly: true, personName: "Alice" },
+      { id: "important-1", label: "Birthday", date: occurrence, repeatsYearly: true, personName: "Alice", pairedWithName: null },
       at("2026-06-01"),
       30,
     );

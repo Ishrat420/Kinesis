@@ -7,7 +7,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { startOfUtcDay } from "@/lib/dates";
 import { getToday } from "@/lib/format/server";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
-import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
+import { getNextOccurrence, relationshipDateSubject } from "@/lib/relationships/occurrence";
 import { dismissalKey } from "@/lib/attention/dismissal";
 import { OVERDUE_NOTIFICATION_TYPE } from "@/lib/notifications/identity";
 import {
@@ -70,16 +70,17 @@ function toUpcomingItem(record: AttentionRecord, today: Date, dismissed: Readonl
       // overdue counterpart, since it rolls forward before it can go overdue.
       const dismissKey = dismissalKey("relationship", record.id, "REMINDER_DUE", occurrence);
       if (dismissed.has(dismissKey)) return null;
+      const subject = relationshipDateSubject(record.personName, record.pairedWithName);
       return {
         id: `relationship-${record.id}`,
         kind: "relationship",
-        title: `${possessiveName(record.personName)} ${record.label} is coming`,
+        title: `${subject} ${record.label} is coming`,
         date: occurrence.toISOString(),
         timestamp: occurrence.getTime(),
         href: "/relationships",
         dismissKey,
         personObjectId: record.personObjectId,
-        suggestedTodoTitle: `Do something for ${possessiveName(record.personName)} ${record.label.toLowerCase()}`,
+        suggestedTodoTitle: `Do something for ${subject} ${record.label.toLowerCase()}`,
       };
     }
     case "custom": {

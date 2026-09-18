@@ -27,6 +27,23 @@ export function possessiveName(name: string) {
 }
 
 /**
+ * The subject of a reminder about an important date: "Karen's Birthday" for
+ * one personal to a single person, or "Alex and Karen's Anniversary" for one
+ * shared between two people -- a date entered under a Relationship's own
+ * "Shared Important Dates" rather than on one Person's page alone.
+ *
+ * `pairedWithName` is the other half of that pair (resolved by the caller,
+ * since knowing whether that half is the account owner -- and what to call
+ * them -- needs data this pure function doesn't have). Joint possession
+ * names both people but puts the apostrophe-s on the last one only ("Tom and
+ * Jerry's house" is their shared house, not two separate ones), the same
+ * convention English already uses for anything two people own together.
+ */
+export function relationshipDateSubject(personName: string, pairedWithName: string | null) {
+  return pairedWithName ? `${pairedWithName} and ${possessiveName(personName)}` : possessiveName(personName);
+}
+
+/**
  * Every calendar date this important date falls on within `[start, end]`.
  *
  * `getNextOccurrence` answers the bell's question -- "what is the one date

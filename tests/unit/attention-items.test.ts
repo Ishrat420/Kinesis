@@ -108,7 +108,7 @@ describe("todoUpcomingPhase (ADR-010 line 123: TODO_DUE is a statement of fact, 
 });
 
 describe("relationshipUpcomingPhase (ADR-010 Other Exceptions #1: never overdue; gated fully on remindersEnabled)", () => {
-  const importantDate = (date: Date, repeatsYearly = false) => ({ kind: "relationship" as const, id: "r", label: "Birthday", date, repeatsYearly, personName: "Alex", personObjectId: "object-alex" });
+  const importantDate = (date: Date, repeatsYearly = false) => ({ kind: "relationship" as const, id: "r", label: "Birthday", date, repeatsYearly, personName: "Alex", personObjectId: "object-alex", pairedWithName: null });
 
   it("is due-soon inside the lead window", () => {
     expect(relationshipUpcomingPhase(importantDate(at("2026-06-20")), today, 30, true)).toBe("due-soon");

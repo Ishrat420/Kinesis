@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   firstSeenCreateMany: vi.fn(async () => ({ count: 0 })),
   goalFindMany: vi.fn(async (): Promise<unknown[]> => []),
   goalUpdateMany: vi.fn(async () => ({ count: 0 })),
+  userFindUnique: vi.fn(async (): Promise<unknown> => null),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -33,6 +34,7 @@ vi.mock("@/lib/data/prisma", () => ({
     notificationRead: { findMany: mocks.readFindMany },
     notificationFirstSeen: { findMany: mocks.firstSeenFindMany, createMany: mocks.firstSeenCreateMany },
     goal: { findMany: mocks.goalFindMany, updateMany: mocks.goalUpdateMany },
+    user: { findUnique: mocks.userFindUnique },
   },
 }));
 

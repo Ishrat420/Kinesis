@@ -3,7 +3,7 @@ import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
 import { getReminderWindowStart } from "@/lib/reminders/policy";
 import { notificationKey, type NotificationSource } from "./identity";
-import { getNextOccurrence, possessiveName } from "@/lib/relationships/occurrence";
+import { getNextOccurrence, relationshipDateSubject } from "@/lib/relationships/occurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 
 type NotificationCandidate = {
@@ -104,7 +104,7 @@ export function getMilestoneNotificationCandidate(
  * ahead of `now`, so there is nothing here to distinguish from "due".
  */
 export function getRelationshipDateNotificationCandidate(
-  importantDate: Pick<RelationshipImportantDate, "id" | "label" | "date" | "repeatsYearly"> & { personName: string },
+  importantDate: Pick<RelationshipImportantDate, "id" | "label" | "date" | "repeatsYearly"> & { personName: string; pairedWithName: string | null },
   today: Date,
   leadDays = 0,
 ): NotificationCandidate | null {
@@ -115,14 +115,15 @@ export function getRelationshipDateNotificationCandidate(
   const reminderAt = getReminderWindowStart(occurrence, leadDays);
   if (today < reminderAt) return null;
 
-  const title = `${possessiveName(importantDate.personName)} ${importantDate.label}`;
+  const { personName, pairedWithName } = importantDate;
+  const title = `${relationshipDateSubject(personName, pairedWithName)} ${importantDate.label}`;
   return {
     type: "REMINDER_DUE",
     reminderAt,
     timeUntilExpiry: null,
     expiryDate: occurrence,
     documentName: title,
-    documentType: `Important date · ${importantDate.personName}`,
+    documentType: `Important date · ${pairedWithName ? `${pairedWithName} and ${personName}` : personName}`,
     message: `${title} is ${formatFutureDate(occurrence, today)}`,
     actionUrl: "/relationships",
   };

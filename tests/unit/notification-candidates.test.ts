@@ -24,12 +24,13 @@ const milestone = (dueDate: string | null) => ({
   goal: { id: "goal-1", name: "Move house" },
 });
 
-const importantDate = (date: string, repeatsYearly = true, personName = "Alice") => ({
+const importantDate = (date: string, repeatsYearly = true, personName = "Alice", pairedWithName: string | null = null) => ({
   id: "important-date-1",
   label: "Birthday",
   date: at(date),
   repeatsYearly,
   personName,
+  pairedWithName,
 });
 
 const customItem = (dueDate: string | null) => ({
@@ -299,6 +300,15 @@ describe("getRelationshipDateNotificationCandidate: alerting on an upcoming impo
     const candidate = getRelationshipDateNotificationCandidate(importantDate("2020-07-01"), at("2026-06-15"), 30);
 
     expect(candidate?.expiryDate.toISOString()).toBe("2026-07-01T00:00:00.000Z");
+  });
+
+  /** A date shared between two people (an Anniversary) credits both, not just one -- see relationshipDateSubject. */
+  it("credits both people for a date paired between two people, not just one", () => {
+    const candidate = getRelationshipDateNotificationCandidate(importantDate("2020-07-01", true, "Karen", "Alex"), at("2026-07-01"), 30);
+
+    expect(candidate?.documentName).toBe("Alex and Karen's Birthday");
+    expect(candidate?.message).toBe("Alex and Karen's Birthday is today");
+    expect(candidate).toMatchObject({ documentType: "Important date · Alex and Karen" });
   });
 });
 

@@ -28,7 +28,17 @@ type DocumentAttentionRecord = { kind: "document"; id: string; name: string; typ
 type MilestoneAttentionRecord = { kind: "milestone"; id: string; name: string; dueDate: Date; goalId: string; goalName: string };
 type CustomItemAttentionRecord = { kind: "custom"; id: string; name: string; dueDate: Date; moduleId: string; moduleName: string; moduleIcon: string; moduleColor: string };
 type TodoAttentionRecord = { kind: "todo"; id: string; name: string; dueDate: Date };
-type RelationshipAttentionRecord = { kind: "relationship"; id: string; label: string; date: Date; repeatsYearly: boolean; personName: string; personObjectId: string };
+/**
+ * `pairedWithName` is set only for a date attached to a Relationship rather
+ * than to one Person alone -- the "Shared Important Dates" section
+ * (`RelationshipMap.tsx`) -- and names the *other* half of that pair, so a
+ * reminder can credit both people rather than crediting a shared event to
+ * only one of them. Resolved by `getAttentionRecords`, which already knows
+ * (and, when that half is the account owner, already resolves the display
+ * name for) both members of the relationship; null for a date personal to
+ * one Person, where there is no pairing to name.
+ */
+type RelationshipAttentionRecord = { kind: "relationship"; id: string; label: string; date: Date; repeatsYearly: boolean; personName: string; personObjectId: string; pairedWithName: string | null };
 /**
  * A goal itself, not one of its milestones (KD-028). No `status` field: like
  * "archived" for a document or "closed" for a to-do, "not Active" is a

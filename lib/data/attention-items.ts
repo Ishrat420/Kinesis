@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
+import { getUserDisplayName } from "./user";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import type { AttentionRecord } from "@/lib/attention/items";
@@ -56,7 +57,7 @@ export async function getAttentionRecords(scope?: { userId: string }): Promise<A
   await connection();
   const userId = scope?.userId ?? (await requireKinesisUser()).id;
 
-  const [documents, milestones, customItems, todos, importantDates, goals] = await Promise.all([
+  const [documents, milestones, customItems, todos, importantDates, goals, selfUser] = await Promise.all([
     prisma.document.findMany({
       where: { userId, archived: false, expiryDate: { not: null } },
       select: { id: true, name: true, type: true, expiryDate: true, prompt: true },
@@ -87,7 +88,15 @@ export async function getAttentionRecords(scope?: { userId: string }): Promise<A
       where: { userId, status: "Active", targetDate: { not: null } },
       select: { id: true, name: true, targetDate: true },
     }),
+    // Only needed to credit the account owner by name in a shared important
+    // date's reminder ("Alex and Karen's Anniversary") rather than their
+    // Person record's own, separately-editable `name` -- see `pairedWithName`
+    // below. One indexed lookup, run alongside everything else here rather
+    // than only when an importantDate actually needs it, since needing it is
+    // the common case for anyone who tracks a spouse or partner.
+    prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, preferredName: true } }),
   ]);
+  const selfDisplayName = selfUser ? getUserDisplayName(selfUser) : null;
 
   return [
     ...documents.map((document): AttentionRecord => ({ kind: "document", id: document.id, name: document.name, type: document.type, expiryDate: document.expiryDate!, prompt: document.prompt })),
@@ -98,9 +107,19 @@ export async function getAttentionRecords(scope?: { userId: string }): Promise<A
       // The "other" person a date is about, whether it comes from a two-person
       // relationship or the self-person's own calendar -- the same person a
       // to-do created from this date should link to (see KD-047).
-      const person = importantDate.relationship
-        ? (importantDate.relationship.firstPerson.isSelf ? importantDate.relationship.secondPerson : importantDate.relationship.firstPerson)
+      const relationship = importantDate.relationship;
+      const person = relationship
+        ? (relationship.firstPerson.isSelf ? relationship.secondPerson : relationship.firstPerson)
         : importantDate.selfPerson!;
+      // Set only when this date came from a Relationship's own "Shared
+      // Important Dates" (not a single Person's page): the pair's other
+      // member, so an Anniversary can credit both people instead of reading
+      // as though it belongs to `person` alone. `selfDisplayName` over the
+      // owner's own Person.name for the same reason search results do
+      // (lib/search/providers.ts) -- that name is independently editable and
+      // can drift from what the owner is actually called.
+      const partner = relationship ? (person.id === relationship.firstPerson.id ? relationship.secondPerson : relationship.firstPerson) : null;
+      const pairedWithName = partner ? (partner.isSelf ? selfDisplayName ?? partner.name : partner.name) : null;
       return {
         kind: "relationship",
         id: importantDate.id,
@@ -109,6 +128,7 @@ export async function getAttentionRecords(scope?: { userId: string }): Promise<A
         repeatsYearly: importantDate.repeatsYearly,
         personName: person.name,
         personObjectId: person.objectId,
+        pairedWithName,
       };
     }),
     ...goals.map((goal): AttentionRecord => ({ kind: "goal", id: goal.id, name: goal.name, targetDate: goal.targetDate! })),

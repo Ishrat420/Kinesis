@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getNextOccurrence, occurrencesInRange, possessiveName } from "@/lib/relationships/occurrence";
+import { getNextOccurrence, occurrencesInRange, possessiveName, relationshipDateSubject } from "@/lib/relationships/occurrence";
 
 const at = (day: string) => new Date(`${day}T00:00:00.000Z`);
 const iso = (date: Date) => date.toISOString().slice(0, 10);
@@ -53,6 +53,20 @@ describe("possessiveName: wording for reminder titles", () => {
 
   it("is case-insensitive when checking the trailing s", () => {
     expect(possessiveName("THOMAS")).toBe("THOMAS'");
+  });
+});
+
+describe("relationshipDateSubject: crediting a shared date to both people, not just one", () => {
+  it("falls back to a plain possessive when the date belongs to one person alone", () => {
+    expect(relationshipDateSubject("Karen", null)).toBe("Karen's");
+  });
+
+  it("names the other half of the pair first, for a date shared between two people", () => {
+    expect(relationshipDateSubject("Karen", "Alex")).toBe("Alex and Karen's");
+  });
+
+  it("still only apostrophises the last name in a joint pair, matching joint-possession English", () => {
+    expect(relationshipDateSubject("Chris", "Alex")).toBe("Alex and Chris'");
   });
 });
 
