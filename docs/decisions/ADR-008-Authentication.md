@@ -91,10 +91,11 @@ constraints to preserve all ownership relationships.
 The sign-in route is public so an unauthenticated owner can establish a Clerk
 session. Static assets and Next.js internals are excluded by the proxy matcher.
 
-`/api/notifications/evaluate` is also excluded from Clerk session enforcement
-because it is invoked as a scheduled server-to-server job. It is not anonymous:
-the Route Handler fails closed when `CRON_SECRET` is missing and requires an exact
-`Authorization: Bearer <CRON_SECRET>` header before evaluating notifications.
+There used to be a second carve-out here for `/api/notifications/evaluate`, a
+scheduled server-to-server job authenticated by a `CRON_SECRET` bearer token
+rather than a Clerk session. That route is gone (KD-028): the daily archive
+it existed to run no longer happens at all, so there is no longer a
+scheduled job that needs to reach the app outside a Clerk session.
 
 No other application or API route is intentionally public.
 
@@ -273,7 +274,6 @@ and session infrastructure Kinesis must implement and maintain.
 - `KINESIS_OWNER_CLERK_USER_ID`: the only Clerk user ID allowed to access this
   deployment.
 - `DATABASE_URL`: PostgreSQL connection used by Prisma.
-- `CRON_SECRET`: bearer credential for scheduled notification evaluation.
 
 Secrets must not be exposed through `NEXT_PUBLIC_` variables. Preview and
 production deployments need consistent owner configuration when both should be

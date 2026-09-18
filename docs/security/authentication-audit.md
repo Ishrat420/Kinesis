@@ -36,9 +36,8 @@ not yet finalized.
 
 ## What is already in place
 
-- `proxy.ts` makes only the sign-in screen and the separately authenticated cron
-  endpoint public. Unauthenticated page requests are redirected and API requests
-  use Clerk's protection response.
+- `proxy.ts` makes only the sign-in screen public. Unauthenticated page
+  requests are redirected and API requests use Clerk's protection response.
 - `requireKinesisUser()` obtains the session identity from Clerk, checks it against
   `currentUser()`, requires a primary email, and maps the external identity to the
   local user.
@@ -49,12 +48,9 @@ not yet finalized.
   ownership condition through a parent relation.
 - The data-export endpoint authenticates the caller, scopes each exported domain,
   omits `clerkUserId`, and disables response caching.
-- The notification evaluator fails closed when `CRON_SECRET` is absent and checks
-  its bearer credential before processing all users.
 - Clerk's `UserButton` supplies the normal sign-out/account-management surface.
 - Vitest coverage now verifies the principal proxy status paths, configured-owner
-  checks, concurrent initial provisioning behavior, export scoping, and cron
-  authentication.
+  checks, concurrent initial provisioning behavior, and export scoping.
 - Sensitive export and bulk-deletion operations use Clerk reverification on both
   the client flow and server boundary; deletion additionally checks an exact
   confirmation phrase on the server.
@@ -112,7 +108,7 @@ Status: Functionally resolved and covered by a cross-user authorization unit tes
 The repository now tests page redirects, API 401 responses, public proxy
 exceptions, missing/mismatched owner configuration, database-backed initial owner
 provisioning and rotation (including real concurrent requests), export isolation,
-cron-secret behavior, and database-backed cross-user isolation for the current
+and database-backed cross-user isolation for the current
 document, goal, finance, custom-module, notification, and relationship action
 surfaces. The cross-user contract includes full goal-milestone and custom-item
 parent/child mismatch matrices. Session-expiry rejection also has unit coverage.

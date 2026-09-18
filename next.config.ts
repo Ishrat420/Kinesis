@@ -62,10 +62,6 @@ const nextConfig: NextConfig = {
           "/((?!api(?:/|$)|_next/static(?:/|$)|_next/image(?:/|$)|favicon.ico$|icon.png$).*)",
         headers: [{ key: "Cache-Control", value: "private, no-store" }],
       },
-      {
-        source: "/api/notifications/evaluate",
-        headers: [{ key: "Cache-Control", value: "private, no-store" }],
-      },
     ];
   },
 };

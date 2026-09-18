@@ -1,13 +1,64 @@
 # KD-017 — Turn the Dashboard Into a Decision Surface
 
-**Status:** Planning Needed — the original Context-Specific Actions
-section below has shipped (Dismiss/Edit on documents and custom items,
-Complete/Reschedule on milestones and to-dos); what remains is the Step
-One data-layer work, which needs its own planning pass before anything
-else in this ticket can proceed correctly.  
+**Status:** Done — Context-Specific Actions shipped, and Step One (below)
+went through all four planned phases; see "What shipped" below for the
+one place this undersold itself and the one phase that turned out to be
+unnecessary.
 **Priority:** High  
 **Tags:** UX/UI, Architecture, Technical Debt
 **Planned Release:** v1.3.0
+
+## What shipped
+
+Every phase below is complete, verified by reading the current code
+against each phase's own claim, not just trusting its "(done)" label:
+
+* **Phase 1** — `getAttentionRecords` (`lib/data/attention-items.ts`)
+  exists and is the one query each record kind needs.
+* **Phase 2** — `getNeedsAttention`, `getUpcomingAndDue`, and
+  `getExpiringDocuments` all confirmed filtering through it (the last one
+  via the shared `documentUpcomingPhase`, exactly as claimed). The
+  Milestones tile needed no change, also confirmed: it was already
+  unified through its own `milestoneDueSoonWindow` helper before this
+  ticket started.
+* **Phase 3** — `collectNotifications` (`lib/data/notification-collection.ts`)
+  sources from `getAttentionRecords` too. The bell no longer runs a sixth,
+  separate query.
+
+**The literal problem this ticket named is fixed**: "five independent
+implementations, each with its own idea of a reminder window" meant five
+separate database queries that could silently disagree about which
+*records* even qualify. That's genuinely one query now, not a rename.
+
+**One thing worth being exact about, not overselling:** the ticket's own
+summary framed the end state as "one function computes every dated item
+... every consumer becomes a filter over that one list." What actually
+shipped is one shared function for the *records*, plus several small,
+deliberately-separate functions deciding each record's *status* —
+`lib/attention/items.ts`'s phase functions (Upcoming & Due / Needs
+Attention) and `lib/notifications/engine.ts`'s candidate builders (the
+bell) still each implement their own day-boundary math, not a shared one.
+This is not leftover work; Phase 0's own planning explicitly decided
+against unifying it, because ADR-010 treats the bell and Upcoming & Due
+as answering genuinely different questions. Concretely: on a milestone's
+own due date, Upcoming & Due calls it "due soon" (`milestoneUpcomingPhase`,
+tested) while the bell fires `MILESTONE_DUE` ("due today") the same day —
+correct per ADR-010, but it means a future change to "what counts as
+overdue" for a kind still has to be made in two places, by design, not by
+accident.
+
+**Phase 4 (delete the five original functions) is moot, not skipped.**
+It was written assuming the migration would produce new functions
+alongside old ones to later delete. It didn't: Phases 1–3 rewired
+`getNeedsAttention`, `getUpcomingAndDue`, `collectNotifications`,
+`getExpiringDocuments`, and `getMilestonesDueSoon` in place, under their
+own original names. Grepping the codebase for each of the five confirms
+none has a second, orphaned implementation anywhere. There is nothing
+left matching Phase 4's description to delete.
+
+"Document Renewal Behaviour" (below) remains explicitly out of scope,
+marked "Future work" in its own section — not part of what "Done" covers
+here.
 
 ## Summary
 

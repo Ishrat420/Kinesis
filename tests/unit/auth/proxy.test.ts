@@ -10,7 +10,6 @@ vi.mock("@clerk/nextjs/server", () => ({
     const pathname = new URL(request.url).pathname;
     return patterns.some((pattern) => {
       if (pattern === "/sign-in(.*)") return pathname.startsWith("/sign-in");
-      if (pattern === "/api/notifications/evaluate") return pathname === pattern;
       if (pattern === "/api(.*)") return pathname.startsWith("/api");
       if (pattern === "/trpc(.*)") return pathname.startsWith("/trpc");
       return false;
@@ -62,7 +61,19 @@ describe("authentication proxy", () => {
     expect(response?.status).toBe(401);
   });
 
-  it.each(["/sign-in", "/sign-in/factor-one", "/api/notifications/evaluate"])("allows public exception %s through", async (path) => {
+  /**
+   * `/api/notifications/evaluate` used to be a second public exception here,
+   * for the daily cron that archived lapsed goals. That route is gone
+   * (KD-028) and was never re-added as an exception -- this pins that no
+   * route is treated as a scheduled-job exception any more.
+   */
+  it("no longer carves out the old cron route -- it is just another unauthenticated API request", async () => {
+    const response = await invoke("/api/notifications/evaluate");
+    expect(response?.status).toBe(401);
+    expect(clerk.auth).toHaveBeenCalled();
+  });
+
+  it.each(["/sign-in", "/sign-in/factor-one"])("allows public exception %s through", async (path) => {
     await expect(invoke(path)).resolves.toBeUndefined();
     expect(clerk.auth).not.toHaveBeenCalled();
   });

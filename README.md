@@ -85,7 +85,7 @@ app/
   (app)/         Authenticated routes, one directory per module
                  (goals/, documents/, finance/, relationships/,
                  custom-modules/, todos/, calendar/, settings/, user/)
-  api/           Route handlers (notification cron, CSP reports, settings export)
+  api/           Route handlers (CSP reports, settings export)
   sign-in/       Clerk sign-in page — the one route that isn't behind auth
 lib/
   data/          Server-side data access, one file per module, plus the
@@ -214,66 +214,33 @@ of PostgreSQL rather than a hardcoded one, so a table missing from either
 feature fails its test instead of silently shipping incomplete. See
 "Account-Wide Sweep Coverage" in the testing strategy doc.
 
-## Notifications and the daily maintenance job
+## Notifications
 
-In-app notifications (the bell) are **derived, not stored**: `getRecentNotifications`
-computes what should currently be visible — documents nearing expiry, due
-milestones, due To-Dos, upcoming relationship dates, due custom items —
-directly from the live records every time it is read. There is nothing to
-trigger and nothing to wait for: create or edit a record so it falls inside
-its own reminder window (for a document, an expiry date and a `prompt`
-period that includes today), then open the app and check the bell.
+In-app notifications (the bell), Upcoming & Due, and Needs Attention are all
+**derived, not stored**: each computes what should currently be visible —
+documents nearing expiry, due milestones, due To-Dos, upcoming relationship
+dates, due custom items, overdue goals — directly from the live records
+every time it is read. There is nothing to trigger, nothing to wait for, and
+no scheduled job involved: create or edit a record so it falls inside its
+own reminder window (for a document, an expiry date and a `prompt` period
+that includes today), then open the app and check the bell.
 
-The one thing that genuinely can't wait for a page view is archiving goals
-whose target date has passed, so that still runs as a scheduled job. In
-production, Vercel calls `/api/notifications/evaluate` once a day at 19:00
-UTC (`vercel.json`'s `crons` entry). For local testing, trigger it manually:
-
-1. Set `DATABASE_URL`, apply the migrations, and start the application:
-
-   ```bash
-   npx prisma migrate deploy
-   npm run dev
-   ```
-
-2. Set `CRON_SECRET` in `.env` — the route fails closed (`503`) if it is
-   unset at all, in every environment, so there is no way to call it
-   locally without one. Any value works locally; it only has to match what
-   you send below.
-
-3. In another terminal, trigger the job:
-
-   ```bash
-   curl --fail-with-body \
-     -H "Authorization: Bearer $CRON_SECRET" \
-     http://localhost:3000/api/notifications/evaluate
-   ```
-
-   A successful response looks like this:
-
-   ```json
-   {"goalsArchived":1}
-   ```
-
-   `goalsArchived` is the number of goals, across every user, that were
-   Active with a target date in the past and were just moved to Archived.
-   It will read `0` on a normal run; that's not a failure; it just means no
-   goal happened to lapse today.
+There used to be a daily cron (`/api/notifications/evaluate`) whose only job
+was silently archiving a goal once its target date passed. That's gone
+(KD-028): a goal's status only ever changes when someone changes it, through
+the app's own Change status action. A goal past its target date, left
+Active, keeps its milestones reminding and shows a red "Overdue" chip
+instead. See `docs/decisions/ADR-010-Notification-and-Reminders-Awareness-Surfaces.md`
+for the full policy this drives from, and `docs/backlog/KD-028-goal-lapse-awareness-v1.3.0-DONE.md`
+for how that decision was reached.
 
 ### Troubleshooting
 
-- **`503 Cron authentication is not configured`:** `CRON_SECRET` is not set
-  in the environment the app is running in. Set it and restart the server.
-- **`401 Unauthorized`:** the `Authorization` header didn't match
-  `Bearer $CRON_SECRET`. There is no way to bypass this by removing
-  `CRON_SECRET` — that produces the `503` above instead.
-- **`goalsArchived` is always `0`:** expected unless a goal is genuinely
-  Active with a target date before today. This endpoint no longer creates
-  or touches any other notification.
-- **The bell doesn't show something you expect:** this isn't the cron's
-  concern any more — the bell recomputes live. Check the record's own
-  dates/settings (reminder lead days, whether reminders are enabled) rather
-  than this endpoint.
+- **The bell/Upcoming & Due/Needs Attention doesn't show something you
+  expect:** none of these involve a cron or a background job — they
+  recompute live on every read. Check the record's own dates/settings
+  (reminder lead days, whether reminders are enabled, the goal or parent
+  goal's status) rather than looking for something to trigger.
 - **The database reports that a table does not exist:** run
   `npx prisma migrate deploy` against that database.
 
