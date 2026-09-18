@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import {
   PointerEvent as ReactPointerEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -69,6 +70,18 @@ const colors = [
   "#4d7a74", "#b98a94", "#7c5468", "#8a8f5c", "#4f5b66", "#a35d4a", "#8f7a3a", "#8c8a85",
 ];
 
+/**
+ * A new person used to always land on the same hardcoded colour, so a map
+ * with more than one addition needed a manual colour change every time just
+ * to tell the bubbles apart. Picks the first palette colour nobody on the
+ * map is wearing yet; once every colour is taken, cycles by position rather
+ * than piling everyone back onto the first one.
+ */
+function pickNextColor(existing: Person[]): string {
+  const used = new Set(existing.map((person) => person.color));
+  return colors.find((color) => !used.has(color)) ?? colors[existing.length % colors.length];
+}
+
 export function RelationshipMap({ goals, userDisplayName, initialData }: { goals: GoalOption[]; userDisplayName: string; initialData: RelationshipMapData }) {
   const startingPeople = initialData.people.length ? initialData.people : initialPeople.map((person) => ({ ...person, name: userDisplayName }));
   const [people, setPeople] = useState(startingPeople);
@@ -85,6 +98,11 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   const canvas = useRef<HTMLDivElement>(null);
   const action = useRef<{ kind: "node" | "pan"; id?: string; x: number; y: number; ox: number; oy: number } | null>(null);
   const sheetDrag = useRef<{ y: number; state: SheetState } | null>(null);
+  // Consumed once, by the inspector's own mount effect, the moment it puts
+  // focus in the name field -- so reselecting this same person later (a
+  // fresh mount too, since the inspector is keyed by person id) never
+  // steals focus again.
+  const justCreatedPersonIdRef = useRef<string | null>(null);
 
   /*
     Saving, in two halves.
@@ -255,7 +273,8 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   }
   function addPerson() {
     const id = crypto.randomUUID();
-    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: "#aa7866", icon: "user", selfRelationship: emptySelfRelationship() }]);
+    justCreatedPersonIdRef.current = id;
+    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: pickNextColor(current), icon: "user", selfRelationship: emptySelfRelationship() }]);
     setMultiSelection([]);
     setSelection({ kind: "person", id });
   }
@@ -365,7 +384,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
             {(["collapsed", "partial", "expanded"] as SheetState[]).map((state) => <button key={state} type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setSheetState(state)} aria-label={`${state[0].toUpperCase() + state.slice(1)} inspector`} aria-pressed={sheetState === state} className={`h-11 min-w-11 rounded-xl px-2 text-[10px] font-semibold capitalize ${sheetState === state ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600"}`}>{state === "collapsed" ? "Close" : state}</button>)}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto" onFocusCapture={() => setSheetState("expanded")}>
-            {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => { setMultiSelection([]); setLinkFrom(selectedPerson.id); }} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setMultiSelection([]); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
+            {selectedPerson ? <PersonInspectorTabs key={selectedPerson.id} person={selectedPerson} relationships={relationships} people={people} goals={goals} justCreatedPersonIdRef={justCreatedPersonIdRef} onChangePerson={updateSelected} onChangeRelationship={(id, patch) => setRelationships((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item))} onLink={() => { setMultiSelection([]); setLinkFrom(selectedPerson.id); }} onRemoveRelationship={(id) => setRelationships((current) => current.filter((item) => item.id !== id))} onDeletePerson={() => { setPeople((current) => current.filter((p) => p.id !== selectedPerson.id)); setRelationships((current) => current.filter((relationship) => relationship.from !== selectedPerson.id && relationship.to !== selectedPerson.id)); setMultiSelection([]); setSelection(null); }} /> : selectedRelationship ? <RelationshipInspector relationship={selectedRelationship} people={people} goals={goals} onChange={(patch) => setRelationships((current) => current.map((item) => item.id === selectedRelationship.id ? { ...item, ...patch } : item))} onDelete={() => { setRelationships((current) => current.filter((item) => item.id !== selectedRelationship.id)); setSelection(null); }} /> : <div className="flex h-full flex-col items-center justify-center px-8 text-center"><UsersRound className="mb-4 h-8 w-8 text-zinc-300"/><p className="text-sm font-semibold">Select a person or relationship</p><p className="mt-1 text-xs leading-5 text-zinc-400">Choose a bubble or connection line to see its details.</p></div>}
           </div>
         </aside>
       </div>
@@ -373,7 +392,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   );
 }
 
-function PersonInspectorTabs({ person, relationships, people, goals, onChangePerson, onChangeRelationship, onLink, onRemoveRelationship, onDeletePerson }: { person: Person; relationships: Relationship[]; people: Person[]; goals: GoalOption[]; onChangePerson: (patch: Partial<Person>) => void; onChangeRelationship: (id: string, patch: Partial<Relationship>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDeletePerson: () => void }) {
+function PersonInspectorTabs({ person, relationships, people, goals, justCreatedPersonIdRef, onChangePerson, onChangeRelationship, onLink, onRemoveRelationship, onDeletePerson }: { person: Person; relationships: Relationship[]; people: Person[]; goals: GoalOption[]; justCreatedPersonIdRef: RefObject<string | null>; onChangePerson: (patch: Partial<Person>) => void; onChangeRelationship: (id: string, patch: Partial<Relationship>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDeletePerson: () => void }) {
   const related = relationships.filter((relationship) => relationship.from === person.id || relationship.to === person.id);
   const self = people.find(isSelfPerson);
   const preferred = related.find((relationship) => relationship.from === self?.id || relationship.to === self?.id) ?? related[0];
@@ -386,7 +405,7 @@ function PersonInspectorTabs({ person, relationships, people, goals, onChangePer
       <InspectorTab active={tab === "person"} onClick={() => setTab("person")}>Person details</InspectorTab>
       <InspectorTab active={tab === "relationship"} disabled={!viewingSelf && !related.length} onClick={() => setTab("relationship")}>{viewingSelf ? "Relationship with myself" : "Relationship details"}</InspectorTab>
     </div>
-    {tab === "person" ? <PersonInspector person={person} relationships={relationships} people={people} onChange={onChangePerson} onLink={onLink} onRemoveRelationship={onRemoveRelationship} onDelete={onDeletePerson} />
+    {tab === "person" ? <PersonInspector person={person} relationships={relationships} people={people} justCreatedPersonIdRef={justCreatedPersonIdRef} onChange={onChangePerson} onLink={onLink} onRemoveRelationship={onRemoveRelationship} onDelete={onDeletePerson} />
       : viewingSelf ? <SelfRelationshipInspector selfRelationship={person.selfRelationship} onChange={(patch) => onChangePerson({ selfRelationship: { ...person.selfRelationship, ...patch } })} />
       : relationship ? <><RelationshipChoice person={person} relationship={relationship} relationships={related} people={people} onChange={setRelationshipId} /><RelationshipInspector relationship={relationship} people={people} goals={goals} onChange={(patch) => onChangeRelationship(relationship.id, patch)} onDelete={() => { onRemoveRelationship(relationship.id); setTab("person"); }} /></>
       : <div className="px-5 py-10 text-center text-xs text-zinc-400">Connect this person to someone to add relationship details.</div>}
@@ -422,7 +441,7 @@ function RelationshipChoice({ person, relationship, relationships, people, onCha
   return <div className="border-b border-zinc-100 bg-zinc-50 px-5 py-3"><label htmlFor="person-relationship" className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[.12em] text-zinc-400">Relationship with</label><div className="relative"><select id="person-relationship" value={relationship.id} onChange={(event) => onChange(event.target.value)} className={`min-h-11 appearance-none pr-8 ${DENSE_FIELD_CLASS}`}>{relationships.map((item) => { const otherId = item.from === person.id ? item.to : item.from; return <option key={item.id} value={item.id}>{people.find((candidate) => candidate.id === otherId)?.name ?? "Unknown person"}</option>; })}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" /></div></div>;
 }
 
-function PersonInspector({ person, relationships, people, onChange, onLink, onRemoveRelationship, onDelete }: { person: Person; relationships: Relationship[]; people: Person[]; onChange: (patch: Partial<Person>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDelete: () => void }) {
+function PersonInspector({ person, relationships, people, justCreatedPersonIdRef, onChange, onLink, onRemoveRelationship, onDelete }: { person: Person; relationships: Relationship[]; people: Person[]; justCreatedPersonIdRef: RefObject<string | null>; onChange: (patch: Partial<Person>) => void; onLink: () => void; onRemoveRelationship: (id: string) => void; onDelete: () => void }) {
   const { locale } = useFormatPreferences();
   const related = relationships.filter((relationship) => relationship.from === person.id || relationship.to === person.id);
   const Icon = icons[person.icon];
@@ -431,10 +450,25 @@ function PersonInspector({ person, relationships, people, onChange, onLink, onRe
   const viewingSelf = isSelfPerson(person);
   const [addingDate, setAddingDate] = useState(false);
   const changeOwnFacts = (patch: Partial<SelfRelationship>) => onChange({ selfRelationship: { ...person.selfRelationship, ...patch } });
+  const nameInput = useRef<HTMLInputElement>(null);
+  // Fires once, on this inspector's mount, only for the person `addPerson`
+  // just created (this whole inspector is keyed by person id, so a fresh
+  // mount is guaranteed exactly when the selected person changes) -- so
+  // typing a real name is the very next thing to do, instead of a click
+  // into the field before a name can even be typed. Read and cleared here,
+  // inside the effect, rather than during render, which a plain ref read
+  // in JSX is not allowed to do.
+  useEffect(() => {
+    if (justCreatedPersonIdRef.current !== person.id) return;
+    justCreatedPersonIdRef.current = null;
+    nameInput.current?.focus();
+    nameInput.current?.select();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only, by design: see the comment above.
+  }, []);
   return <div>
     <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4"><div><p className="text-sm font-semibold">Person details</p><p className="mt-0.5 text-[11px] text-zinc-400">Make this bubble feel like them</p></div><MoreHorizontal className="h-5 w-5 text-zinc-400" /></div>
     <div className="px-5 py-5">
-      <div className="mb-5 flex items-center gap-3"><div style={{backgroundColor: person.color}} className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-md"><Icon className="h-6 w-6" /></div><div className="min-w-0"><input value={person.name} onChange={(e) => onChange({name:e.target.value})} className="w-full border-0 bg-transparent p-0 text-lg font-semibold outline-none"/><input value={person.detail} onChange={(e) => onChange({detail:e.target.value})} className="w-full border-0 bg-transparent p-0 text-xs text-zinc-400 outline-none"/></div></div>
+      <div className="mb-5 flex items-center gap-3"><div style={{backgroundColor: person.color}} className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-md"><Icon className="h-6 w-6" /></div><div className="min-w-0"><input ref={nameInput} value={person.name} onChange={(e) => onChange({name:e.target.value})} className="w-full border-0 bg-transparent p-0 text-lg font-semibold outline-none"/><input value={person.detail} onChange={(e) => onChange({detail:e.target.value})} className="w-full border-0 bg-transparent p-0 text-xs text-zinc-400 outline-none"/></div></div>
       <InspectorLabel>Icon</InspectorLabel><div className="mb-5 grid grid-cols-6 gap-2">{(Object.keys(icons) as PersonIconName[]).map((name) => { const Choice = icons[name]; return <button key={name} onClick={() => onChange({icon:name})} className={`flex aspect-square items-center justify-center rounded-xl border ${person.icon === name ? "border-zinc-800 bg-zinc-900 text-white" : "border-zinc-200 text-zinc-400 hover:bg-zinc-50"}`}><Choice className="h-4 w-4" /></button>})}</div>
       <InspectorLabel>Bubble colour</InspectorLabel><div className="mb-5 flex flex-wrap gap-2">{colors.map((color) => <button key={color} onClick={() => onChange({color})} style={{backgroundColor:color}} className={`h-7 w-7 rounded-full border-2 border-white shadow-sm ${person.color === color ? "outline outline-2 outline-offset-1 outline-zinc-700" : ""}`} aria-label={`Use ${color}`} />)}</div>
       <div className="mb-5"><div className="mb-2 flex items-center justify-between"><InspectorLabel>Bubble size</InspectorLabel><span className="text-[11px] font-medium text-zinc-400">{person.size}px</span></div><input type="range" min="64" max="148" value={person.size} onChange={(e) => onChange({size:Number(e.target.value)})} className="w-full accent-zinc-800" /></div>
