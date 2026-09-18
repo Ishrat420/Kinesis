@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ArrowRightLeft, CalendarClock, X } from "lucide-react";
+import { ArrowRightLeft, CalendarClock, ChevronDown, X } from "lucide-react";
 import { formatDateInput } from "@/lib/dates";
 import { GOAL_STATUSES } from "@/lib/goals/format";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
@@ -43,9 +43,12 @@ export function GoalOverdueActions({ targetDate, updateTargetDate, updateStatus 
   if (editing === "status") {
     return <form action={statusAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
-        <select name="status" required autoFocus defaultValue="Active" aria-label="New status" className="h-9 rounded-lg border border-zinc-200 px-2 text-xs text-zinc-700 outline-none focus:border-zinc-400">
-          {GOAL_STATUSES.map((option) => <option key={option}>{option}</option>)}
-        </select>
+        <div className="relative">
+          <select name="status" required autoFocus defaultValue="Active" aria-label="New status" className="h-9 appearance-none rounded-lg border-[1.5px] border-zinc-200 bg-white py-1 pl-2.5 pr-7 text-xs font-semibold text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15">
+            {GOAL_STATUSES.map((option) => <option key={option}>{option}</option>)}
+          </select>
+          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+        </div>
         <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
         <button type="button" onClick={() => setEditing(null)} aria-label="Cancel" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
       </div>
@@ -54,7 +57,7 @@ export function GoalOverdueActions({ targetDate, updateTargetDate, updateStatus 
   }
 
   return <div className="flex shrink-0 items-center gap-2" onClick={(event) => event.stopPropagation()}>
-    <button type="button" onClick={() => setEditing("date")} aria-label="Edit due date" title="Edit due date" className={`${ICON_ACTION_CLASS} hover:bg-blue-50 hover:text-blue-600`}><CalendarClock className="h-4 w-4" /></button>
     <button type="button" onClick={() => setEditing("status")} aria-label="Change status" title="Change status" className={`${ICON_ACTION_CLASS} hover:bg-violet-50 hover:text-violet-600`}><ArrowRightLeft className="h-4 w-4" /></button>
+    <button type="button" onClick={() => setEditing("date")} aria-label="Edit due date" title="Edit due date" className={`${ICON_ACTION_CLASS} hover:bg-blue-50 hover:text-blue-600`}><CalendarClock className="h-4 w-4" /></button>
   </div>;
 }
