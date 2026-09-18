@@ -17,6 +17,7 @@ import {
   customItemUpcomingPhase,
   todoUpcomingPhase,
   relationshipUpcomingPhase,
+  goalUpcomingPhase,
   type AttentionRecord,
 } from "./attention-items";
 
@@ -28,7 +29,9 @@ export type UpcomingItem =
   | (BaseUpcomingItem & { kind: "relationship"; dismissKey: string; personObjectId: string; suggestedTodoTitle: string })
   | (BaseUpcomingItem & { kind: "todo"; todoId: string })
   /** A custom module object is shown with its own module's icon and colour. */
-  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string; dismissKey: string });
+  | (BaseUpcomingItem & { kind: "custom"; icon: string; color: string; editHref: string; dismissKey: string })
+  /** No `dismissKey`: a goal is not a `DismissibleKind` (KD-028) -- its two actions are editing the due date and changing status outright, not dismissing. */
+  | (BaseUpcomingItem & { kind: "goal"; goalId: string });
 
 function toUpcomingItem(record: AttentionRecord, today: Date, dismissed: ReadonlySet<string>, leadDays: { milestone: number; relationship: number; customItem: number; todo: number }, remindersEnabled: boolean): UpcomingItem | null {
   switch (record.kind) {
@@ -89,6 +92,12 @@ function toUpcomingItem(record: AttentionRecord, today: Date, dismissed: Readonl
       const dismissKey = dismissalKey("custom", record.id, overdue ? OVERDUE_NOTIFICATION_TYPE.custom : "REMINDER_DUE", dueDate);
       if (dismissed.has(dismissKey)) return null;
       return { id: `custom-${record.id}`, kind: "custom", title: `${record.name} is ${overdue ? "over its due date" : "due soon"}`, date: dueDate.toISOString(), timestamp: dueDate.getTime(), href: `/custom-modules/${record.moduleId}/items/${record.id}`, editHref: `/custom-modules/${record.moduleId}/items/${record.id}`, icon: record.moduleIcon, color: record.moduleColor, dismissKey };
+    }
+    case "goal": {
+      const phase = goalUpcomingPhase(record, today);
+      if (!phase) return null;
+      const targetDate = startOfUtcDay(record.targetDate)!;
+      return { id: `goal-${record.id}`, kind: "goal", title: `${record.name} is over its due date`, date: targetDate.toISOString(), timestamp: targetDate.getTime(), href: `/goals/${record.id}`, goalId: record.id };
     }
   }
 }

@@ -144,6 +144,7 @@ enum NotificationType {
   MILESTONE_DUE
   CUSTOM_ITEM_DUE
   TODO_DUE
+  GOAL_DUE
 }
 
 /**
@@ -225,6 +226,8 @@ model Goal {
   milestones            Milestone[]
   metricHistory         GoalMetricSnapshot[]
   relationshipLinks     RelationshipGoal[]
+  notificationReads     NotificationRead[]
+  notificationFirstSeens NotificationFirstSeen[]
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -675,6 +678,7 @@ model NotificationRead {
   relationshipDateId String?
   customItemId       String?
   todoId             String?
+  goalId             String?
   userId             String
   user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -682,6 +686,7 @@ model NotificationRead {
   relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
   customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
   todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  goal               Goal?                      @relation(fields: [goalId], references: [id], onDelete: Cascade)
   readAt             DateTime                   @default(now())
 
   @@unique([userId, itemKey])
@@ -690,6 +695,7 @@ model NotificationRead {
   @@index([relationshipDateId])
   @@index([customItemId])
   @@index([todoId])
+  @@index([goalId])
 }
 
 /**
@@ -712,6 +718,7 @@ model NotificationFirstSeen {
   relationshipDateId String?
   customItemId       String?
   todoId             String?
+  goalId             String?
   userId             String
   user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -719,6 +726,7 @@ model NotificationFirstSeen {
   relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
   customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
   todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  goal               Goal?                      @relation(fields: [goalId], references: [id], onDelete: Cascade)
   firstSeenAt        DateTime                   @default(now())
 
   @@unique([userId, itemKey])
@@ -727,6 +735,7 @@ model NotificationFirstSeen {
   @@index([relationshipDateId])
   @@index([customItemId])
   @@index([todoId])
+  @@index([goalId])
 }
 
 model AttentionDismissal {

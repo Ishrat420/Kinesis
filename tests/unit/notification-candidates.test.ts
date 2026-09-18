@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // test are pure; the client is stubbed so they run without a database.
 vi.mock("@/lib/data/prisma", () => ({ prisma: {} }));
 
-const { getDocumentNotificationCandidate, getMilestoneNotificationCandidate, getRelationshipDateNotificationCandidate, getCustomItemNotificationCandidate } =
+const { getDocumentNotificationCandidate, getMilestoneNotificationCandidate, getRelationshipDateNotificationCandidate, getCustomItemNotificationCandidate, getGoalNotificationCandidate } =
   await import("@/lib/notifications/engine");
 
 const document = (expiryDate: string | null, prompt = 30) => ({
@@ -370,5 +370,37 @@ describe("getCustomItemNotificationCandidate: alerting on a custom item's due da
     const candidate = getCustomItemNotificationCandidate(customItem("2026-08-01"), at("2026-07-02"), 30, "en-US");
 
     expect(candidate?.message).toBe("Passport renewal is due on Aug 1, 2026");
+  });
+});
+
+const goal = (targetDate: string | null) => ({
+  id: "goal-1",
+  name: "Move house",
+  targetDate: targetDate ? at(targetDate) : null,
+});
+
+describe("getGoalNotificationCandidate: a goal has no advance phase, ever (KD-028)", () => {
+  it("raises nothing for a goal with no target date", () => {
+    expect(getGoalNotificationCandidate(goal(null), at("2026-06-01"))).toBeNull();
+  });
+
+  it("raises nothing on the target date itself -- not yet overdue", () => {
+    expect(getGoalNotificationCandidate(goal("2026-06-01"), at("2026-06-01"))).toBeNull();
+  });
+
+  it("raises nothing at all before the target date, however close -- there is no lead-up phase to enter", () => {
+    expect(getGoalNotificationCandidate(goal("2026-06-02"), at("2026-06-01"))).toBeNull();
+  });
+
+  it("raises GOAL_DUE the day after the target date", () => {
+    const candidate = getGoalNotificationCandidate(goal("2026-06-01"), at("2026-06-02"));
+
+    expect(candidate?.type).toBe("GOAL_DUE");
+    expect(candidate?.message).toBe("Move house is over its due date");
+    expect(candidate).toMatchObject({ actionUrl: "/goals/goal-1", documentName: "Move house", documentType: "Goal" });
+  });
+
+  it("keeps raising it while the goal stays overdue", () => {
+    expect(getGoalNotificationCandidate(goal("2026-06-01"), at("2026-07-01"))?.type).toBe("GOAL_DUE");
   });
 });

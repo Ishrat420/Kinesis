@@ -29,13 +29,22 @@ type MilestoneAttentionRecord = { kind: "milestone"; id: string; name: string; d
 type CustomItemAttentionRecord = { kind: "custom"; id: string; name: string; dueDate: Date; moduleId: string; moduleName: string; moduleIcon: string; moduleColor: string };
 type TodoAttentionRecord = { kind: "todo"; id: string; name: string; dueDate: Date };
 type RelationshipAttentionRecord = { kind: "relationship"; id: string; label: string; date: Date; repeatsYearly: boolean; personName: string; personObjectId: string };
+/**
+ * A goal itself, not one of its milestones (KD-028). No `status` field: like
+ * "archived" for a document or "closed" for a to-do, "not Active" is a
+ * structural exclusion applied once in `getAttentionRecords` (only an
+ * Active goal is ever queried), so a record reaching this type is always
+ * Active by construction -- there is no second, live status to carry.
+ */
+type GoalAttentionRecord = { kind: "goal"; id: string; name: string; targetDate: Date };
 
 export type AttentionRecord =
   | DocumentAttentionRecord
   | MilestoneAttentionRecord
   | CustomItemAttentionRecord
   | TodoAttentionRecord
-  | RelationshipAttentionRecord;
+  | RelationshipAttentionRecord
+  | GoalAttentionRecord;
 
 /**
  * The four kinds Needs Attention can ever show. A relationship date is never
@@ -55,7 +64,7 @@ export type NeedsAttentionEligible = Exclude<AttentionRecord, RelationshipAttent
  * written the other way round.
  */
 export function isOverdueForNeedsAttention(record: NeedsAttentionEligible, today: Date): boolean {
-  const date = record.kind === "document" ? record.expiryDate : record.dueDate;
+  const date = record.kind === "document" ? record.expiryDate : record.kind === "goal" ? record.targetDate : record.dueDate;
   return startOfUtcDay(date)! < today;
 }
 
@@ -136,4 +145,18 @@ export function relationshipUpcomingPhase(record: RelationshipAttentionRecord, t
   const occurrence = getNextOccurrence(record as ImportantDateOccurrenceInput, today);
   if (!occurrence) return null;
   return occurrence.getTime() <= getReminderWindowEnd(today, leadDays).getTime() ? "due-soon" : null;
+}
+
+/**
+ * A goal target date, unlike every other kind here, has no advance phase at
+ * all (KD-028; ADR-010 "Other Exceptions" #3: a goal target is self-imposed,
+ * and the actionable pressure already belongs to its milestones). It only
+ * ever states the fact once it's overdue -- never gated on
+ * `remindersEnabled`, the same reasoning a document's `EXPIRED` and a
+ * to-do's `TODO_DUE` already get, since this is a statement, not a
+ * prediction. `getAttentionRecords` only ever queries a goal that is still
+ * Active, so there is no separate status check to make here either.
+ */
+export function goalUpcomingPhase(record: GoalAttentionRecord, today: Date): "overdue" | null {
+  return startOfUtcDay(record.targetDate)! < today ? "overdue" : null;
 }

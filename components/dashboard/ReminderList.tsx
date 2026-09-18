@@ -1,18 +1,19 @@
 import Link from "next/link";
-import { CalendarDays, FileText, Flag, ListTodo, Pencil } from "lucide-react";
+import { CalendarDays, FileText, Flag, ListTodo, Pencil, Target } from "lucide-react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import type { UpcomingItem } from "@/lib/data/upcoming";
 import { getTodoLinkOptions } from "@/lib/data/todos";
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { formatDate, formatDeadline, formatExpiry, formatFutureDate } from "@/lib/dates";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
-import { toggleMilestoneAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
+import { toggleMilestoneAction, updateMilestoneDueDateAction, updateGoalTargetDateAction, updateGoalStatusAction } from "@/app/(app)/goals/actions";
 import { setTodoStatusAction, updateTodoDueDateAction } from "@/app/(app)/todos/actions";
 import { ResolveActions } from "./ResolveActions";
 import { DismissButton } from "./DismissButton";
 import { CreateTodoFromDateButton } from "./CreateTodoFromDateButton";
+import { GoalOverdueActions } from "./GoalOverdueActions";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
-const icons = { document: FileText, milestone: Flag, relationship: CalendarDays, todo: ListTodo };
+const icons = { document: FileText, milestone: Flag, relationship: CalendarDays, todo: ListTodo, goal: Target };
 const upcomingBadgeClass = "flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50";
 
 /**
@@ -23,7 +24,9 @@ const upcomingBadgeClass = "flex h-11 w-11 items-center justify-center rounded-x
  * Important Date) gets Create To-Do plus Dismiss (KD-047): there is nothing
  * here to mark complete or reschedule -- the date itself isn't a task -- but
  * turning it into one, prefilled, is the useful action Upcoming & Due can
- * offer that the record's own page does not.
+ * offer that the record's own page does not. A goal (KD-028) gets its own
+ * pair -- edit due date or change status -- since neither Complete nor
+ * Dismiss fits a goal the way they fit a milestone or to-do.
  *
  * This renders inside ReminderList, a Server Component, so `complete` and
  * `reschedule` are only ever real server actions with their arguments bound
@@ -62,6 +65,13 @@ function UpcomingActions({ item, todoLinkOptions }: { item: UpcomingItem; todoLi
       <DismissButton itemKey={item.dismissKey} />
     </div>;
   }
+  if (item.kind === "goal") {
+    return <GoalOverdueActions
+      targetDate={item.date}
+      updateTargetDate={updateGoalTargetDateAction.bind(null, item.goalId)}
+      updateStatus={updateGoalStatusAction.bind(null, item.goalId)}
+    />;
+  }
   return null;
 }
 
@@ -96,7 +106,7 @@ export async function ReminderList({ items }: { items: UpcomingItem[] }) {
     </div>
     <div className="min-h-0 flex-1 overflow-y-auto pr-2">
       {items.length ? <div className="space-y-1">{items.map((item) => {
-        const timing = item.kind === "document" ? formatExpiry(item.date, today) : item.kind === "milestone" || item.kind === "todo" || item.kind === "custom" ? formatDeadline(item.date, today) : formatFutureDate(item.date, today);
+        const timing = item.kind === "document" ? formatExpiry(item.date, today) : item.kind === "milestone" || item.kind === "todo" || item.kind === "custom" || item.kind === "goal" ? formatDeadline(item.date, today) : formatFutureDate(item.date, today);
         return <div key={item.id} className="flex items-center gap-4 py-1.5">
           <Link href={item.href} className="grid min-w-0 flex-1 grid-cols-[44px_1fr] items-center gap-4 rounded-xl transition hover:bg-zinc-50">
             <UpcomingIcon item={item} />

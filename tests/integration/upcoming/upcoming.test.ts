@@ -252,6 +252,41 @@ describe.sequential("Upcoming & Due", () => {
     await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
   });
 
+  describe("a goal past its target date, still Active (KD-028)", () => {
+    it("surfaces it as over its due date", async () => {
+      await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+      await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: new Date("2026-06-01"), userId: owner, objectId: "goal-obj" } });
+
+      const items = await getUpcomingAndDue(now);
+
+      expect(items).toEqual([expect.objectContaining({ kind: "goal", goalId: "goal-1", title: "Move house is over its due date" })]);
+    });
+
+    it("does not surface it on its target date -- there is no due-soon phase, and the date itself is not yet overdue", async () => {
+      await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+      await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: now, userId: owner, objectId: "goal-obj" } });
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+    });
+
+    it("does not surface a goal whose status is no longer Active, even past its target date", async () => {
+      await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+      await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Archived", targetDate: new Date("2026-06-01"), userId: owner, objectId: "goal-obj" } });
+
+      await expect(getUpcomingAndDue(now)).resolves.toEqual([]);
+    });
+
+    it("survives reminders being disabled -- it is a statement of fact, not a prediction", async () => {
+      await seedSettings(owner, { remindersEnabled: false });
+      await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+      await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: new Date("2026-06-01"), userId: owner, objectId: "goal-obj" } });
+
+      const items = await getUpcomingAndDue(now);
+
+      expect(items).toEqual([expect.objectContaining({ kind: "goal" })]);
+    });
+  });
+
   describe("dismissing a document or custom item", () => {
     /**
      * Unlike Needs Attention -- which only ever shows a record once it is

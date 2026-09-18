@@ -163,6 +163,43 @@ describe.sequential("notifications are derived, not stored", () => {
     expect(await getRecentNotifications()).toEqual({ enabled: false, notifications: [], unreadCount: 0 });
   });
 
+  /**
+   * KD-028: a goal past its target date, still Active, raises GOAL_DUE in
+   * the bell -- the same reconciled shape as EXPIRED/TODO_DUE, read fresh
+   * every time rather than a stored event.
+   */
+  it("raises GOAL_DUE for a goal past its target date, still Active", async () => {
+    await prisma.object.create({ data: { id: "object-goal-1", type: "GOAL", name: "Move house", userId: owner } });
+    await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: day("2020-05-15"), userId: owner, objectId: "object-goal-1" } });
+
+    const { notifications } = await getRecentNotifications();
+
+    expect(notifications).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "goal:goal-1:GOAL_DUE:2020-05-15", source: "goal", sourceId: "goal-1", message: "Move house is over its due date", documentType: "Goal" }),
+    ]));
+  });
+
+  it("does not raise GOAL_DUE for a goal that is no longer Active, even past its target date", async () => {
+    await prisma.object.create({ data: { id: "object-goal-1", type: "GOAL", name: "Move house", userId: owner } });
+    await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Archived", targetDate: day("2020-05-15"), userId: owner, objectId: "object-goal-1" } });
+
+    const { notifications } = await getRecentNotifications();
+
+    expect(notifications.find(({ source }) => source === "goal")).toBeUndefined();
+  });
+
+  it("marks a goal's overdue notification read, and takes it with the goal when deleted", async () => {
+    await prisma.object.create({ data: { id: "object-goal-1", type: "GOAL", name: "Move house", userId: owner } });
+    await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: day("2020-05-15"), userId: owner, objectId: "object-goal-1" } });
+    const key = "goal:goal-1:GOAL_DUE:2020-05-15";
+
+    await markNotificationRead(key, "goal", "goal-1");
+    await expect(prisma.notificationRead.findMany({ where: { userId: owner, goalId: "goal-1" } })).resolves.toHaveLength(1);
+
+    await prisma.goal.delete({ where: { id: "goal-1" } });
+    await expect(prisma.notificationRead.findMany({ where: { itemKey: key } })).resolves.toEqual([]);
+  });
+
   /** The badge speaks for everything pending; the panel shows only a few. */
   it("counts every unread one past the display limit", async () => {
     for (let index = 0; index < 10; index += 1) {

@@ -1,4 +1,4 @@
-import type { CustomItem, Document, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
+import type { CustomItem, Document, Goal, Milestone, RelationshipImportantDate, Todo, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { getExpiryReminderDate } from "@/lib/documents/expiry";
 import { differenceInCalendarDays, formatDate, formatDeadline, formatFutureDate, formatCalendarDuration, startOfDayIn, startOfUtcDay, DAY_COUNT_DISPLAY_LIMIT_DAYS } from "@/lib/dates";
@@ -209,6 +209,35 @@ export function getTodoNotificationCandidate(
     documentType: "To-do",
     message: `${todo.name} is ${formatDeadline(dueDate, today)}`,
     actionUrl: "/todos",
+  };
+}
+
+/**
+ * A goal past its target date, still Active (KD-028). Unlike every builder
+ * above, there is no advance phase at all -- ADR-010's "Other Exceptions" #3
+ * decided a goal target is self-imposed and never predicts, only ever
+ * states the fact once it's overdue, the same as a document's `EXPIRED` or
+ * a to-do's `TODO_DUE`. `getAttentionRecords` only ever hands this builder a
+ * goal that is still Active, so there is no separate status check here.
+ */
+export function getGoalNotificationCandidate(
+  goal: Pick<Goal, "id" | "name" | "targetDate">,
+  today: Date,
+): NotificationCandidate | null {
+  if (!goal.targetDate) return null;
+  today = startOfUtcDay(today)!;
+  const targetDate = startOfUtcDay(goal.targetDate)!;
+  if (targetDate >= today) return null;
+
+  return {
+    type: "GOAL_DUE",
+    reminderAt: null,
+    timeUntilExpiry: null,
+    expiryDate: targetDate,
+    documentName: goal.name,
+    documentType: "Goal",
+    message: `${goal.name} is over its due date`,
+    actionUrl: `/goals/${goal.id}`,
   };
 }
 

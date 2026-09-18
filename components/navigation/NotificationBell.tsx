@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarClock, CheckCheck, Clock3, FileText, Flag, Heart, ListTodo, TriangleAlert, X } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Clock3, FileText, Flag, Heart, ListTodo, Target, TriangleAlert, X } from "lucide-react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -20,7 +20,7 @@ type NotificationItem = {
   key: string;
   source: NotificationSource;
   sourceId: string;
-  type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE" | "CUSTOM_ITEM_DUE" | "TODO_DUE";
+  type: "REMINDER_DUE" | "EXPIRED" | "MILESTONE_DUE" | "CUSTOM_ITEM_DUE" | "TODO_DUE" | "GOAL_DUE";
   message: string;
   documentName: string;
   documentType: string | null;
@@ -154,7 +154,13 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
               // identifies a document unambiguously -- the pre-expiry case
               // needs the URL too.
               const isDocument = notification.type === "EXPIRED" || notification.actionUrl.startsWith("/documents/");
-              const isMilestone = notification.type === "MILESTONE_DUE" || notification.actionUrl.startsWith("/goals/");
+              // GOAL_DUE is unambiguous on its own -- unlike a milestone, a
+              // goal has no advance REMINDER_DUE phase to share the same
+              // "/goals/" actionUrl with (KD-028) -- so this is checked
+              // before isMilestone, which otherwise can't tell the two apart
+              // by URL alone.
+              const isGoal = notification.type === "GOAL_DUE";
+              const isMilestone = !isGoal && (notification.type === "MILESTONE_DUE" || notification.actionUrl.startsWith("/goals/"));
               const isRelationshipDate = notification.actionUrl === "/relationships";
               const isCustomItem = notification.type === "CUSTOM_ITEM_DUE" || notification.actionUrl.startsWith("/custom-modules/");
               const isTodo = notification.type === "TODO_DUE" || notification.actionUrl === "/todos";
@@ -174,13 +180,14 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
                   // -- there's no notification for a document that isn't
                   // either that or overdue. Expired is red regardless of
                   // module, since "overdue" is the more urgent fact there.
-                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isDocument ? "bg-amber-50 text-amber-700" : isMilestone ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>
-                      {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isDocument ? <FileText className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                  : <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notification.type === "EXPIRED" ? "bg-red-50 text-red-600" : isDocument ? "bg-amber-50 text-amber-700" : isMilestone || isGoal ? "bg-violet-50 text-violet-700" : isRelationshipDate ? "bg-rose-50 text-rose-700" : isCustomItem ? "bg-sky-50 text-sky-700" : isTodo ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"}`}>
+                      {notification.type === "EXPIRED" ? <TriangleAlert className="h-5 w-5" /> : isDocument ? <FileText className="h-5 w-5" /> : isGoal ? <Target className="h-5 w-5" /> : isMilestone ? <Flag className="h-5 w-5" /> : isRelationshipDate ? <Heart className="h-5 w-5" /> : isTodo ? <ListTodo className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                     </span>}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3"><span className="block text-sm font-semibold leading-5 text-zinc-900">{notification.documentName}</span>{!readKeys.has(notification.key) && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />}</span>
                   <span className="mt-0.5 block text-sm leading-5 text-zinc-600">{notification.message}</span>
-                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isMilestone || isCustomItem || isTodo ? "Due" : isRelationshipDate ? "Occurs" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
+                  {/* A goal's date is a target, not a due date or an expiry -- KD-028 calls this out explicitly, since "Expires" on a goal reads as wrong. */}
+                  <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400"><span className="flex items-center gap-1"><Clock3 className="h-3 w-3" />{notification.documentType ?? "Document"}</span>{notification.expiryDate && <span>{isGoal ? "Target" : isMilestone || isCustomItem || isTodo ? "Due" : isRelationshipDate ? "Occurs" : "Expires"} {formatDate(notification.expiryDate, locale)}</span>}</span>
                 </span>
               </Link>
               );

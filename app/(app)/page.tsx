@@ -17,12 +17,18 @@ import { getSettings } from "@/lib/data/settings";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 
 export default async function Home() {
-  const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity, financeItems, settings] = await Promise.all([
-    getUpcomingAndDue(),
+  // getGoalDashboardSummary archives any Active goal past its target date
+  // (archiveLapsedGoals) as a side effect of computing itself. Awaiting it
+  // alongside getUpcomingAndDue/getNeedsAttention in the same Promise.all
+  // would race that write against their own read of the same goals table --
+  // KD-028's "the column lags but every reconcile still races the archive"
+  // problem -- so those two are read first, guaranteeing they see a goal
+  // still Active on the one render that first notices it went overdue.
+  const [upcomingItems, attentionItems] = await Promise.all([getUpcomingAndDue(), getNeedsAttention()]);
+  const [user, milestonesDueSoon, expiringDocuments, goalSummary, activity, financeItems, settings] = await Promise.all([
     getCurrentUser(),
     getMilestonesDueSoon(),
     getExpiringDocuments(),
-    getNeedsAttention(),
     getGoalDashboardSummary(),
     getRecentActivity(),
     getFinanceItems(),

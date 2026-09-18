@@ -138,6 +138,24 @@ Deliberate exceptions, with the reason attached:
 | Calendar due-date pin | **survives** | **survives** | DONE to-do keeps its pin relabelled "Completed to-do". |
 | Needs attention | **survives** | **survives** | blocks |
 
+### Goal (KD-028)
+
+1. A goal never has a `REMINDER_DUE` phase or a lead-days setting -- see "Other Exceptions" #3 above. There is nothing here to enter early.
+
+2. A goal past its target date, still `status: "Active"`, shows up in Needs attention, and in Upcoming & Due, bell/notification, as `GOAL_DUE`.
+
+Deliberate exceptions, with the reason attached:
+- Gated on the raw `status` column being `"Active"`, not `activeGoalWhere`/`effectiveStatus` -- those already treat a goal past its target date as Archived the instant it passes, which is exactly the condition this row exists to catch before `archiveLapsedGoals` gets there. See the known race noted under "Other Exceptions" #3.
+- Never gated on `remindersEnabled`, the same reasoning `EXPIRED`/`TODO_DUE` get: this is a statement of fact once overdue, not a prediction.
+- Not a `DismissibleKind` (`lib/attention/dismissal.ts`): its row carries Edit due date and Change status instead of Dismiss, the same reasoning a milestone or to-do gets Complete/Reschedule rather than Dismiss.
+
+|  | `In-app notification is not ticked` | `reminders is not ticked` | `status` not `"Active"` |
+| --- | --- | --- | --- |
+| Bell — `GOAL_DUE` | blocks | **survives** | blocks |
+| Upcoming & Due — over its due date | **survives** | **survives** | blocks |
+| Needs attention | **survives** | **survives** | blocks |
+| Calendar target pin | **survives** | **survives** | **survives** (calendar's own goal query has no status filter -- see "Other Exceptions" #3) |
+
 
 ## Relationship important date
 
@@ -167,14 +185,13 @@ Justification: That is expected because a Date as a custom field is intended to 
 We will however, show these general dates in the calendar because so user can see and track them from there, they can also see them when they open that particular object. But It should not have reminder mechanism to it.
 
 ------
-3. **Goal target dates are calendar-only.** A goal past its target never reminds, however it's overdue.
+3. **A goal target date has no advance phase, ever (KD-028).** A goal target is self-imposed: nothing external happens when you miss it (no fine, no invalid passport, no locked account), and the actionable pressure already belongs to its milestones, which have their own reminders. So there is no `REMINDER_DUE` for a goal, and no lead-days setting for one -- unlike every other kind in this document.
 
-Justification: Current idea is, a goal target is self-imposed. Assumption is, nothing external happens when you miss it e.g. no fine, no invalid passport, no locked account. Milestones are where the actionable pressure belongs, and they already have it. Most people will create milestones with due date to manage tasks under goal, and so sending another separate reminder for goals might not serve them well.  
-So the idea is to leave it out for now and wait until real users start presenting better use case. 
+But unlike the original decision here, a goal *does* now announce once it is actually overdue: still `status: "Active"` and its target date has passed. It shows in Upcoming & Due ("`{name}` is over its due date"), in Needs Attention, and in the bell as `GOAL_DUE` -- the same reconciled, read-every-time shape as `EXPIRED`/`MILESTONE_DUE`/`CUSTOM_ITEM_DUE`/`TODO_DUE`, not a stored event, so there is no row to protect from a delete pass.
 
-However, the target date already has function, goals get archived when it passes its target date. Downstream, that goal drops out of Goals at risk, its milestones stop appearing in Needs Attention, and their reminder pins vanish from the calendar. So sending a notification when goals are overdued becomes important. 
+Why this needed deciding at all: the target date already had a function before this -- `archiveLapsedGoals` silently flips a lapsed goal to Archived on the next page load that happens to trigger it, which drops it out of Goals at risk and takes its milestones out of Needs Attention, Upcoming & Due and the calendar's reminder pins, with nothing said anywhere. If a date is consequential enough to change the record's state, it's consequential enough to mention. This decision is deliberately narrower than that whole problem: KD-028's own proposed shape additionally wants the goal's own page to explain *why* it lapsed and what stopped (Option 3) and an activity-log entry as the permanent record (Option 2), neither of which is built yet -- the bell/Needs Attention/Upcoming & Due row here is only KD-028's Option 1 extended to also raise the bell, which its author had originally left out specifically to sidestep the race below. It was added anyway because a goal still worth noticing is more useful surfaced in all three places at once than not at all.
 
-The issue is the silent archive. If a date is consequential enough to change the record's state, it's consequential enough to mention. KD-028 is raised to consider a solution for this issue. 
+**The known race.** `archiveLapsedGoals` (called from `getGoalDashboardSummary`, `getGoalsForLinking`, and `syncAndGetGoals`) writes `status: "Archived"` the moment any of those run for a lapsed goal -- often the very same request that is also trying to read `status: "Active"` to decide whether to show the overdue notice (`app/(app)/page.tsx` sequences its own two reads before calling `getGoalDashboardSummary` to reduce this, but the bell, rendered independently by `Topbar`, is not covered by that ordering). A goal can therefore go overdue and be archived away again before anyone visibly sees the notice, on an unlucky render. This is the exact hazard KD-028 raised under "Why this is not simply 'add a notification'"; it is accepted here as a known, narrow gap rather than solved, since closing it fully means moving `archiveLapsedGoals` off every read path (KD-028's Option 4) -- a larger, separate decision.
 
 ------
 4. **Finance dates are invisible.** `FinanceItem.startDate/endDate` appear on no surface at all.

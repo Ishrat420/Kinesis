@@ -52,7 +52,8 @@ async function ownsRecord(userId: string, source: NotificationSource, sourceId: 
     milestone: () => prisma.milestone.count({ where: { id: sourceId, goal: { userId } } }),
     relationship: () => prisma.relationshipImportantDate.count({ where: { id: sourceId, OR: [{ relationship: { userId } }, { selfPerson: { userId } }] } }),
     custom: () => prisma.customItem.count({ where: { id: sourceId, module: { userId } } }),
-    todo: () => prisma.todo.count({ where: { id: sourceId, userId } }) }[source];
+    todo: () => prisma.todo.count({ where: { id: sourceId, userId } }),
+    goal: () => prisma.goal.count({ where: { id: sourceId, userId } }) }[source];
   return (await owned()) > 0;
 }
 

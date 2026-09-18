@@ -6,19 +6,21 @@ import { BellRing, FileText, Flag, ListTodo, Pencil, Target, X } from "lucide-re
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { DismissButton } from "./DismissButton";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
-import { toggleMilestoneAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
+import { toggleMilestoneAction, updateMilestoneDueDateAction, updateGoalTargetDateAction, updateGoalStatusAction } from "@/app/(app)/goals/actions";
 import { setTodoStatusAction, updateTodoDueDateAction } from "@/app/(app)/todos/actions";
 import type { AttentionItem } from "@/lib/data/attention";
 import { formatDate, formatDeadline, formatExpiry } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { Modal } from "@/components/overlay/Modal";
 import { ResolveActions } from "./ResolveActions";
+import { GoalOverdueActions } from "./GoalOverdueActions";
 
 // Documents' and To-Dos' own module icons; a milestone belongs to a Goal, so
 // it borrows Goals' icon rather than To-Dos' -- ListTodo previously did
 // double duty for both, which made an overdue milestone indistinguishable
-// from an overdue to-do at a glance.
-const icons = { document: FileText, milestone: Target, todo: ListTodo };
+// from an overdue to-do at a glance. A goal (KD-028) is itself a Goals
+// module record, so it wears the same Target icon as a milestone.
+const icons = { document: FileText, milestone: Target, todo: ListTodo, goal: Target };
 
 const attentionBadgeClass = "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700";
 
@@ -73,6 +75,12 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
                     onComplete={() => setDismissed((current) => [...current, item.key])}
                     complete={() => setTodoStatusAction(item.todoId, "DONE")}
                     reschedule={updateTodoDueDateAction.bind(null, item.todoId)}
+                  />
+                : item.kind === "goal"
+                ? <GoalOverdueActions
+                    targetDate={item.date}
+                    updateTargetDate={updateGoalTargetDateAction.bind(null, item.goalId)}
+                    updateStatus={updateGoalStatusAction.bind(null, item.goalId)}
                   />
                 : <div className="flex shrink-0 items-center gap-2">
                     <Link href={item.editHref} onClick={() => setOpen(false)} aria-label="Edit" title="Edit" className={`${ICON_ACTION_CLASS} hover:bg-zinc-50 hover:text-zinc-900`}><Pencil className="h-4 w-4" /></Link>

@@ -14,6 +14,7 @@ export {
   customItemUpcomingPhase,
   todoUpcomingPhase,
   relationshipUpcomingPhase,
+  goalUpcomingPhase,
 } from "@/lib/attention/items";
 
 /**
@@ -61,7 +62,7 @@ export async function getAttentionRecords(now = new Date(), scope?: { userId: st
   const userId = scope?.userId ?? (await requireKinesisUser()).id;
   const today = scope?.today ?? await getToday(now);
 
-  const [documents, milestones, customItems, todos, importantDates] = await Promise.all([
+  const [documents, milestones, customItems, todos, importantDates, goals] = await Promise.all([
     prisma.document.findMany({
       where: { userId, archived: false, expiryDate: { not: null } },
       select: { id: true, name: true, type: true, expiryDate: true, prompt: true },
@@ -83,6 +84,16 @@ export async function getAttentionRecords(now = new Date(), scope?: { userId: st
     prisma.relationshipImportantDate.findMany({
       where: { OR: [{ relationship: { userId } }, { selfPerson: { userId } }] },
       include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true },
+    }),
+    // Raw `status: "Active"` on purpose, not `activeGoalWhere` -- that helper
+    // (and `effectiveStatus`) already treats a goal past its target date as
+    // Archived the instant it passes, which is precisely the moment this
+    // query needs to still see it, so the overdue notice has a goal left to
+    // be about (KD-028). `archiveLapsedGoals` writes that same column once a
+    // page happens to trigger it; until it does, this row keeps surfacing.
+    prisma.goal.findMany({
+      where: { userId, status: "Active", targetDate: { not: null } },
+      select: { id: true, name: true, targetDate: true },
     }),
   ]);
 
@@ -108,5 +119,6 @@ export async function getAttentionRecords(now = new Date(), scope?: { userId: st
         personObjectId: person.objectId,
       };
     }),
+    ...goals.map((goal): AttentionRecord => ({ kind: "goal", id: goal.id, name: goal.name, targetDate: goal.targetDate! })),
   ];
 }

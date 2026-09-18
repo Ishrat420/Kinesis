@@ -5,6 +5,7 @@ import {
   getRelationshipDateNotificationCandidate,
   getCustomItemNotificationCandidate,
   getTodoNotificationCandidate,
+  getGoalNotificationCandidate,
   toDerivedNotification,
   byRecency,
   type DerivedNotification,
@@ -94,6 +95,8 @@ export async function collectNotifications(userId: string, now = new Date()): Pr
           // (now redundant, still harmless) isOpenTodoStatus check -- it is
           // never the record's real status, which this function never needed.
           return toDerivedNotification("todo", record.id, getTodoNotificationCandidate({ id: record.id, name: record.name, dueDate: record.dueDate, status: "TODO" }, today, todoLeadDays, remindersEnabled), readAtFor);
+        case "goal":
+          return toDerivedNotification("goal", record.id, getGoalNotificationCandidate({ id: record.id, name: record.name, targetDate: record.targetDate }, today), readAtFor);
       }
     })();
     if (notification) derived.push(notification);

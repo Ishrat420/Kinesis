@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   customItemFindMany: vi.fn(async (): Promise<unknown[]> => []),
   todoFindMany: vi.fn(async (): Promise<unknown[]> => []),
   relationshipImportantDateFindMany: vi.fn(async (): Promise<unknown[]> => []),
+  goalFindMany: vi.fn(async (): Promise<unknown[]> => []),
   dismissalFindMany: vi.fn(async (): Promise<unknown[]> => []),
 }));
 
@@ -24,6 +25,7 @@ vi.mock("@/lib/data/prisma", () => ({
     // Needs Attention never shows them -- see isOverdueForNeedsAttention's
     // NeedsAttentionEligible type, which excludes the kind entirely.
     relationshipImportantDate: { findMany: mocks.relationshipImportantDateFindMany },
+    goal: { findMany: mocks.goalFindMany },
     attentionDismissal: { findMany: mocks.dismissalFindMany },
   },
 }));

@@ -6,6 +6,7 @@ import {
   customItemUpcomingPhase,
   todoUpcomingPhase,
   relationshipUpcomingPhase,
+  goalUpcomingPhase,
 } from "@/lib/attention/items";
 
 /**
@@ -25,6 +26,7 @@ describe("isOverdueForNeedsAttention (ADR-010 line 26: strict < today, no except
     expect(isOverdueForNeedsAttention({ kind: "milestone", id: "m", name: "M", dueDate: today, goalId: "g", goalName: "G" }, today)).toBe(false);
     expect(isOverdueForNeedsAttention({ kind: "custom", id: "c", name: "C", dueDate: today, moduleId: "mod", moduleName: "Mod", moduleIcon: "star", moduleColor: "#000" }, today)).toBe(false);
     expect(isOverdueForNeedsAttention({ kind: "todo", id: "t", name: "T", dueDate: today }, today)).toBe(false);
+    expect(isOverdueForNeedsAttention({ kind: "goal", id: "g", name: "Move house", targetDate: today }, today)).toBe(false);
   });
 
   it("counts the day after as overdue, for any kind", () => {
@@ -33,6 +35,7 @@ describe("isOverdueForNeedsAttention (ADR-010 line 26: strict < today, no except
     expect(isOverdueForNeedsAttention({ kind: "milestone", id: "m", name: "M", dueDate: yesterday, goalId: "g", goalName: "G" }, today)).toBe(true);
     expect(isOverdueForNeedsAttention({ kind: "custom", id: "c", name: "C", dueDate: yesterday, moduleId: "mod", moduleName: "Mod", moduleIcon: "star", moduleColor: "#000" }, today)).toBe(true);
     expect(isOverdueForNeedsAttention({ kind: "todo", id: "t", name: "T", dueDate: yesterday }, today)).toBe(true);
+    expect(isOverdueForNeedsAttention({ kind: "goal", id: "g", name: "Move house", targetDate: yesterday }, today)).toBe(true);
   });
 });
 
@@ -127,5 +130,21 @@ describe("relationshipUpcomingPhase (ADR-010 Other Exceptions #1: never overdue;
     const pastThisYear = importantDate(at("2026-01-01"), true);
     expect(relationshipUpcomingPhase(pastThisYear, today, 30, true)).toBeNull();
     expect(relationshipUpcomingPhase(importantDate(at("2026-07-01"), true), today, 30, true)).toBe("due-soon");
+  });
+});
+
+describe("goalUpcomingPhase (KD-028; ADR-010 Other Exceptions #3: no advance phase, ever)", () => {
+  const goal = (targetDate: Date) => ({ kind: "goal" as const, id: "g", name: "Move house", targetDate });
+
+  it("is not yet overdue on the target date itself", () => {
+    expect(goalUpcomingPhase(goal(today), today)).toBeNull();
+  });
+
+  it("is nothing before the target date, however close -- there is no due-soon phase to enter", () => {
+    expect(goalUpcomingPhase(goal(at("2026-06-16")), today)).toBeNull();
+  });
+
+  it("is overdue the day after the target date", () => {
+    expect(goalUpcomingPhase(goal(at("2026-06-14")), today)).toBe("overdue");
   });
 });

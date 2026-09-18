@@ -7,7 +7,7 @@ import { formatDateInput, type DateInput } from "@/lib/dates";
  * `relationship` is the odd one out: the key points at the important date, not
  * at the person, because a person can carry several and each reminds on its own.
  */
-export const NOTIFICATION_SOURCES = ["document", "milestone", "relationship", "custom", "todo"] as const;
+export const NOTIFICATION_SOURCES = ["document", "milestone", "relationship", "custom", "todo", "goal"] as const;
 export type NotificationSource = (typeof NOTIFICATION_SOURCES)[number];
 
 /** The column that ties a read marker back to its record, so a delete cascades. */
@@ -17,6 +17,7 @@ export const NOTIFICATION_LINK_FIELD = {
   relationship: "relationshipDateId",
   custom: "customItemId",
   todo: "todoId",
+  goal: "goalId",
 } as const satisfies Record<NotificationSource, string>;
 
 /**
@@ -68,4 +69,5 @@ export const OVERDUE_NOTIFICATION_TYPE = {
   document: "EXPIRED",
   custom: "CUSTOM_ITEM_DUE",
   todo: "TODO_DUE",
+  goal: "GOAL_DUE",
 } as const satisfies Partial<Record<NotificationSource, NotificationType>>;

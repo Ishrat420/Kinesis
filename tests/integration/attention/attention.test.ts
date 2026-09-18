@@ -101,6 +101,38 @@ describe.sequential("Needs Attention", () => {
 
       await expect(getNeedsAttention(future)).resolves.toEqual([]);
     });
+
+    describe("a goal past its target date, still Active (KD-028)", () => {
+      it("surfaces it", async () => {
+        await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+        await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: past, userId: owner, objectId: "goal-obj" } });
+
+        const items = await getNeedsAttention(future);
+
+        expect(items).toEqual([expect.objectContaining({ kind: "goal", goalId: "goal-1", title: "Move house", context: "Overdue goal" })]);
+      });
+
+      it("does not surface it once its target date has not yet arrived", async () => {
+        await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+        await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: future, userId: owner, objectId: "goal-obj" } });
+
+        await expect(getNeedsAttention(past)).resolves.toEqual([]);
+      });
+
+      it("does not surface a goal whose status is no longer Active, even past its target date", async () => {
+        await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+        await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Revisit Later", targetDate: past, userId: owner, objectId: "goal-obj" } });
+
+        await expect(getNeedsAttention(future)).resolves.toEqual([]);
+      });
+
+      it("does not surface a goal with no target date at all", async () => {
+        await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Open-ended", userId: owner } });
+        await prisma.goal.create({ data: { id: "goal-1", name: "Open-ended", status: "Active", userId: owner, objectId: "goal-obj" } });
+
+        await expect(getNeedsAttention(future)).resolves.toEqual([]);
+      });
+    });
   });
 
   describe("dismissAttentionItem", () => {
@@ -152,6 +184,18 @@ describe.sequential("Needs Attention", () => {
       await expect(prisma.attentionDismissal.findMany({ where: { userId: owner } })).resolves.toEqual([]);
       const items = await getNeedsAttention(future);
       expect(items.map((item) => item.kind)).toEqual(["todo"]);
+    });
+
+    it("refuses a goal key outright -- a goal gets edit-due-date/change-status instead of Dismiss (KD-028)", async () => {
+      await prisma.object.create({ data: { id: "goal-obj", type: "GOAL", name: "Move house", userId: owner } });
+      await prisma.goal.create({ data: { id: "goal-1", name: "Move house", status: "Active", targetDate: past, userId: owner, objectId: "goal-obj" } });
+      const key = dismissalKey("goal", "goal-1", OVERDUE_NOTIFICATION_TYPE.goal, past);
+
+      await dismissAttentionItem(key);
+
+      await expect(prisma.attentionDismissal.findMany({ where: { userId: owner } })).resolves.toEqual([]);
+      const items = await getNeedsAttention(future);
+      expect(items.map((item) => item.kind)).toEqual(["goal"]);
     });
 
     it("never dismisses another account's item", async () => {
