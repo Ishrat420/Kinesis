@@ -4,13 +4,23 @@
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
-**Revision note:** rewritten after review. Three architectural corrections
-from that review are folded in below: uniqueness is type-aware, not
-pair-aware; Kinesis Link Custom Fields and typed Kinesis Links are treated
-as related but distinct, not a foregone merge; and the Kinesis Link label
-is a presentation-layer decoration, not something `KinesisLinkCard` owns
-intrinsically. Terminology below follows the product vocabulary given in
-review (see **Vocabulary**).
+**Revision note (2):** rewritten after review. Three architectural
+corrections from that review are folded in below: uniqueness is
+type-aware, not pair-aware; Kinesis Link Custom Fields and typed Kinesis
+Links are treated as related but distinct, not a foregone merge; and the
+Kinesis Link label is a presentation-layer decoration, not something
+`KinesisLinkCard` owns intrinsically. Terminology below follows the
+product vocabulary given in review (see **Vocabulary**).
+
+A follow-up clarified a distinction the first revision missed: **ad-hoc**
+custom text (typed once, on one Kinesis Link, at the moment of creating
+it) is in scope for this ticket. What's still deferred is a **template**
+of custom labels — a way to define a new custom label *once* and have it
+persist as a reusable, named option offered again for future Kinesis
+Links, effectively user-extensible DDL. That's a materially bigger
+feature (storage for user-defined types, management UI, migration if one
+is renamed or deleted) and stays out of scope until there's a real need
+for it.
 
 ## Vocabulary
 
@@ -20,7 +30,8 @@ review (see **Vocabulary**).
 | **Kinesis Link label** | The resolved text for a Kinesis Link's meaning from the current Object's side — *Depends on*, *Blocks*, *Supports*, *Related to*, etc. |
 | **Kinesis Link card** | The linked Object's own preview (today's `KinesisLinkCard` — module, name, KD-042 stats). |
 | **Kinesis Links** | The section/list of Kinesis Links shown on an Object's page. |
-| **Kinesis Link Custom/Typed label** | A user-typed free-text label instead of a canonical one — deferred, see below. |
+| **Kinesis Link Custom/Typed label (ad-hoc)** | A user-typed free-text label for one Kinesis Link, entered at the moment of creating it. In scope for this ticket — see §6. |
+| **Custom label template** | A saved, reusable, named custom label that would persist and reappear as a future picker option — user-extensible DDL. Out of scope, deferred until there's a real need. |
 | **Kinesis Link Custom Field** | The existing, separate `ObjectField` (type `KINESIS_LINK`) + `FieldLink` mechanism — "Add field" on Documents/Custom Items/Goals today. Related to Kinesis Links, not assumed equivalent (see Architecture §2). |
 
 ## Problem
@@ -63,7 +74,8 @@ into a Kinesis Links section available from every linkable Object type
 (Document, Goal, Custom Item, Finance Item, Person — KD-023's own list):
 
 * A canonical set of relationship types, each with a real forward/inverse
-  label, unchanged from what Goals already ship.
+  label, unchanged from what Goals already ship — plus an ad-hoc custom
+  label for the one-off case none of them fit (§6).
 * **One row per relationship, per pair, per type** — the inverse is always
   derived from that one row, never a second, independently-editable
   record that can drift. That is the actual meaning of "one canonical
@@ -213,29 +225,37 @@ non-goal-specific home (e.g. `lib/objects/relationship-labels.ts`) since
 the mechanism is no longer Goal-specific; only its location changes, not
 its content.
 
-### 6. The picker: both directions, no Custom yet
+### 6. The picker: both directions, plus ad-hoc Custom
 
 Modeled on `LinkedGoals.tsx`'s existing add form, generalized: pick a
 target, then pick a Kinesis Link label from an **8-item list** — both
 directions of each asymmetric pair spelled out as their own option
 (*Supports*, *Supported by*, *Blocks*, *Blocked by*, *Depends on*,
-*Required for*, *Related to*, *Alongside*). Picking an inverse-facing
-option (e.g. "Supported by") simply flips `source`/`target` and stores the
-canonical type (`SUPPORTS`) — the same derivation that already makes
-Goals' inverse side correct today, just directly selectable from either
-direction instead of only the forward one.
+*Required for*, *Related to*, *Alongside*) — plus a 9th, **Custom…**,
+which reveals a free-text input right there. Picking an inverse-facing
+canonical option (e.g. "Supported by") simply flips `source`/`target` and
+stores the canonical type (`SUPPORTS`) — the same derivation that already
+makes Goals' inverse side correct today, just directly selectable from
+either direction instead of only the forward one.
 
-**No Custom/Typed label option yet.** It's a natural, additive extension
-later (one more enum value + a nullable text column, same shape the
-earlier draft sketched), but there's no real use case for it today —
-don't build it until one shows up.
+Schema: add `CUSTOM` to `ObjectRelationshipType` and a nullable
+`customLabel` column on `ObjectRelationship`, set only when `type =
+CUSTOM`. The text is typed fresh each time and shown on **both** sides for
+now (no separate forward/inverse custom text) — matching how ad-hoc use is
+actually asked for. It is **not** saved anywhere as a reusable option: two
+Kinesis Links each typed as "My weird relationship" are two unrelated
+rows with the same incidental text, not one shared, named type. Offering
+"save this as a reusable label" is exactly the **template** capability
+called out in the revision note above, and stays out of scope.
 
 ## Explicit non-goals for this ticket
 
 * **No mechanics behind any type** — a `DEPENDS_ON` Kinesis Link doesn't
   block, gate, or notify anything. Display only.
-* **No Kinesis Link Custom/Typed label (free text) yet** — ship the 5
-  canonical types first; add free text when a real need appears.
+* **No custom label templates** — ad-hoc free text on one Kinesis Link is
+  in scope (§6); a way to save that text as a new, reusable, named type
+  offered again in future pickers is not. That's user-extensible DDL, a
+  materially bigger feature, and isn't built until there's a real need.
 * **No decision to retire or merge Kinesis Link Custom Fields** — they
   stay exactly as they are. Whether they ever share more infrastructure
   with Kinesis Links is a later, separate investigation (§2), not a
@@ -244,17 +264,18 @@ don't build it until one shows up.
 ## Phases
 
 **Phase 1 — Schema**
-Change `ObjectRelationship`'s uniqueness to `(userId, pairKey, type)`.
-Relocate the (unchanged) label table out of `lib/goals/relationships.ts`
-into a shared, non-goal-specific home.
+Change `ObjectRelationship`'s uniqueness to `(userId, pairKey, type)`. Add
+`CUSTOM` to `ObjectRelationshipType` + a nullable `customLabel` column.
+Relocate the (unchanged) canonical label table out of
+`lib/goals/relationships.ts` into a shared, non-goal-specific home.
 
 **Phase 2 — Generalize the section**
 `LinkedGoals` → a shared **Kinesis Links** section, usable from any Object
-id: one flat list grouped by resolved label, the 8-direction picker (no
-Custom), matching server actions generalized off their goal-specific
-originals. Ship on Documents and Custom Items first (the two with an
-existing Kinesis Link Custom Field precedent to sit alongside), then
-Finance Items and People.
+id: one flat list grouped by resolved label, the 9-option picker (8
+directions + ad-hoc Custom), matching server actions generalized off their
+goal-specific originals. Ship on Documents and Custom Items first (the two
+with an existing Kinesis Link Custom Field precedent to sit alongside),
+then Finance Items and People.
 
 **Phase 3 — Card decoration**
 Add the optional label prop (or wrapper) from §3 to `KinesisLinkCard`;
@@ -266,7 +287,10 @@ section, retiring the goal-specific component and actions in favour of
 the shared ones.
 
 **Deferred, not scheduled**
-* Kinesis Link Custom/Typed label (free text) — add when needed (§6).
+* Custom label **templates** — saving an ad-hoc custom label as a
+  reusable, named type that reappears in future pickers (§6). Ad-hoc
+  custom text itself ships in Phase 1–2; only the "save as a new type"
+  capability is deferred.
 * Investigate whether Kinesis Link Custom Fields and Kinesis Links can
   share infrastructure — research, not a migration plan (§2).
 
@@ -283,7 +307,8 @@ the shared ones.
   loosened to match what it's actually being asked to represent.
 * **Feeds:** KD-048 (Object Event Model) — once built, its
   `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED` events should carry `type`
-  so a Kinesis Link change reads correctly in History.
+  (and `customLabel` when set) so a Kinesis Link change reads correctly in
+  History.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card) — `KinesisLinkCard`
   gains the optional label decoration.
 * Any future convergence with Kinesis Link Custom Fields should get its
