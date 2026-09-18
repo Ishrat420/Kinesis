@@ -142,6 +142,8 @@ Use human-facing labels such as:
 
 ### Kinesis Link fields
 
+**See KD-049** for the typed/bidirectional-labelling half of this — generalizing the relationship types Goal↔Goal already uses (`ObjectRelationship`, `lib/goals/relationships.ts`) into a universal Connections panel. KD-049 keeps `KINESIS_LINK` custom fields coexisting for now rather than resolving the migration below; that migration is still open.
+
 Existing `KINESIS_LINK` custom fields should eventually use the same universal relationship layer rather than maintaining separate semantics.
 
 A Kinesis Link field may still appear as a field in the UI, but its relationship should be represented in the shared graph so backlinks work automatically.

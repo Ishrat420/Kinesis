@@ -179,6 +179,7 @@ KD-045-mobile-add-custom-module-to-dashboard
 
 ## Accepted — Needs Planning
 
+KD-049-typed-kinesis-link-connections
 KD-048-object-event-model
 KD-025-to-do-board
 KD-023-universal-object-connection
