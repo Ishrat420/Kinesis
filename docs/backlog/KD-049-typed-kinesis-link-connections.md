@@ -1,97 +1,203 @@
-# KD-049 — Typed, Bidirectional Kinesis Link Connections
+# KD-049 — Typed Kinesis Links
 
 **Status:** Accepted — Needs Planning
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
+
+**Revision note:** rewritten after review. Three architectural corrections
+from that review are folded in below: uniqueness is type-aware, not
+pair-aware; Kinesis Link Custom Fields and typed Kinesis Links are treated
+as related but distinct, not a foregone merge; and the Kinesis Link label
+is a presentation-layer decoration, not something `KinesisLinkCard` owns
+intrinsically. Terminology below follows the product vocabulary given in
+review (see **Vocabulary**).
+
+## Vocabulary
+
+| Term | Means |
+|---|---|
+| **Kinesis Link** | The link between two Objects — one `ObjectRelationship` row. |
+| **Kinesis Link label** | The resolved text for a Kinesis Link's meaning from the current Object's side — *Depends on*, *Blocks*, *Supports*, *Related to*, etc. |
+| **Kinesis Link card** | The linked Object's own preview (today's `KinesisLinkCard` — module, name, KD-042 stats). |
+| **Kinesis Links** | The section/list of Kinesis Links shown on an Object's page. |
+| **Kinesis Link Custom/Typed label** | A user-typed free-text label instead of a canonical one — deferred, see below. |
+| **Kinesis Link Custom Field** | The existing, separate `ObjectField` (type `KINESIS_LINK`) + `FieldLink` mechanism — "Add field" on Documents/Custom Items/Goals today. Related to Kinesis Links, not assumed equivalent (see Architecture §2). |
 
 ## Problem
 
 Kinesis has two linking mechanisms today, and they aren't equals:
 
 1. **`ObjectRelationship`** — a single canonical row (`sourceObjectId`,
-   `targetObjectId`, `type`), unique per object pair
-   (`@@unique([userId, pairKey])`, `pairKey` = the two ids sorted, so at most
-   one relationship can ever exist between two given objects). The inverse
-   label is *derived*, never stored twice. This already powers two things:
+   `targetObjectId`, `type`), unique per object pair today
+   (`@@unique([userId, pairKey])`, `pairKey` = the two ids sorted — see
+   Architecture §1 for why this is being loosened, not kept). The label is
+   *derived* from the one row, never stored twice. This already powers two
+   things:
    * **Goal ↔ Goal** ("Linked Goals"): a real, typed, direction-aware
-     relationship with 5 canonical types
-     (`lib/goals/relationships.ts`) — `SUPPORTS`/`BLOCKS`/`DEPENDS_ON`/
-     `RELATES_TO`/`ALONGSIDE`, each with a forward/inverse label pair.
+     Kinesis Link with 5 canonical types (`lib/goals/relationships.ts`) —
+     `SUPPORTS`/`BLOCKS`/`DEPENDS_ON`/`RELATES_TO`/`ALONGSIDE`, each with a
+     forward/inverse label pair.
    * **To-Do → anything**: every "linked object" chip on a to-do is *also*
      an `ObjectRelationship` row, but always written with a fixed type
      (`RELATES_TO`, aliased `CONCERNS` in `lib/data/todos.ts`) and never
      shown with a label at all — just a bare chip.
-2. **`ObjectField` (type `KINESIS_LINK`) + `FieldLink`** — a user creates a
-   custom field, types their own free-text label ("Related goal", "See
-   also", anything), and points it at one or more targets (KD-034,
-   multi-value). This is what Documents, Custom Items and Goals use today
-   under "Add field". It has no direction, no derived inverse, and — a grep
-   across the whole codebase turns up nothing — **no backlink UI exists for
-   it anywhere**, despite KD-023 explicitly asking for one. A Document
-   pointing at a Goal never shows up on that Goal's page at all.
+2. **Kinesis Link Custom Fields** (`ObjectField` type `KINESIS_LINK` +
+   `FieldLink`) — a user creates a custom field, types their own free-text
+   label ("Emergency contact", "Insurance provider", "Primary vehicle",
+   anything), and points it at one or more targets (KD-034, multi-value).
+   This is what Documents, Custom Items and Goals use today under "Add
+   field". It has no direction, no derived inverse, and — a grep across
+   the whole codebase turns up nothing — **no backlink UI exists for it
+   anywhere**, despite KD-023 asking for one. A Document pointing at a
+   Goal never shows up on that Goal's page at all.
 
-KD-023 (Universal Object Connections) already named this exact split and
-called for a fix: *"Existing `KINESIS_LINK` custom fields should eventually
-use the same universal relationship layer rather than maintaining separate
-semantics."* That never happened. This ticket is that work — generalizing
-the pattern that already works for Goals into something every object type
-gets, plus the "custom text" escape hatch and card treatment this ask adds
-on top.
+KD-023 (Universal Object Connections) named this split and asked for a
+fix. This ticket generalizes what already works for Goals into a real
+**Kinesis Links** section on every Object type — without assuming that
+means Kinesis Link Custom Fields disappear (see §2).
 
 ## Goal
 
-Generalize the Goal↔Goal relationship pattern — proven, already shipped —
-into a universal **Connections** capability, available from every linkable
-object type (Document, Goal, Custom Item, Finance Item, Person — KD-023's
-own list):
+Generalize the Goal↔Goal Kinesis Link pattern — proven, already shipped —
+into a Kinesis Links section available from every linkable Object type
+(Document, Goal, Custom Item, Finance Item, Person — KD-023's own list):
 
 * A canonical set of relationship types, each with a real forward/inverse
-  label pair, plus one open-ended custom-text type for anything that
-  doesn't fit yet.
-* One relationship stored once. The inverse is always derived from the
-  same row — never a second, independently-editable record that can drift
-  out of sync. (This is already how Goals work today; the requirement is
-  to keep it true everywhere this generalizes to, not to invent it.)
-* The chosen type reads as if it *were* the connected card's own field
-  name, wherever that card appears.
-* Clean, closed storage now, so future "mechanics" (the ask is explicit
-  that behaviour comes later) attach to a real, stable `type` value without
-  another migration.
+  label, unchanged from what Goals already ship.
+* **One row per relationship, per pair, per type** — the inverse is always
+  derived from that one row, never a second, independently-editable
+  record that can drift. That is the actual meaning of "one canonical
+  relationship": one row *represents* a relationship and derives its own
+  inverse. It does **not** mean two Objects may only ever have one
+  relationship of any kind between them (see §1).
+* One label can span **multiple** targets (`Goal A` `SUPPORTS` `Goal B`,
+  `Document C`, and `Custom D` all at once) — already implicitly true of
+  the schema, made explicit here because it must keep working.
+* The Kinesis Link label reads correctly wherever the linked Object's card
+  is shown *in the context of that Kinesis Link* — without permanently
+  changing what the card itself is (see §3).
+* Clean, closed storage now, so future mechanics attach to a real, stable
+  `type` value later without another migration.
 
 **No behaviour beyond display in this ticket.** Architecture and storage
-only, per the ask — no code yet either.
+only — no code yet either.
 
 ## Architecture
 
-### 1. Extend the type vocabulary
+### 1. Uniqueness must be type-aware, not pair-aware
 
-```prisma
-enum ObjectRelationshipType {
-  SUPPORTS
-  BLOCKS
-  DEPENDS_ON
-  RELATES_TO
-  ALONGSIDE
-  CUSTOM   // new
-}
+Today: `@@unique([userId, pairKey])`, `pairKey` = the two Object ids
+sorted. That means at most **one relationship of any kind, ever** between
+two given Objects — which is stricter than "one canonical relationship"
+actually requires, and it is already visibly too strict:
 
-model ObjectRelationship {
-  // ...unchanged...
-  customLabel String?   // new -- set only when type = CUSTOM
-}
+```text
+Goal A SUPPORTS Goal B
+Goal A ALONGSIDE Goal B
 ```
 
-`customLabel` is shown on **both** sides for now, unchanged — matching the
-ask's own "for now it would not matter" about the custom option's inverse.
-A genuinely separate forward/inverse custom pair is a clean, additive
-fast-follow (one more nullable column) if it turns out to matter later; not
-required to ship this.
+...should both be valid, and later:
 
-### 2. The label pairs — one wording, not two
+```text
+Person A SUPPORTS Goal B
+Person A RESPONSIBLE_FOR Goal B
+```
 
-`lib/goals/relationships.ts` already ships this table today:
+It also silently collides with To-Do's own incidental use of the same
+table: a to-do's bare `RELATES_TO` link to an Object already occupies the
+one slot a deliberate Kinesis Link between that same pair would want.
 
-| Type | Forward | Inverse (shipped today) |
+**Fix:** scope uniqueness to `(userId, pairKey, type)` instead of
+`(userId, pairKey)`. Two Objects can then hold one `SUPPORTS` Kinesis Link
+*and* one `ALONGSIDE` Kinesis Link simultaneously, and a to-do's quiet
+`RELATES_TO` edge no longer blocks an unrelated `DEPENDS_ON` Kinesis Link
+between the same two Objects — this resolves the To-Do collision case
+outright rather than needing special-case "upgrade in place" logic. A
+pair can still only hold **one relationship of a given type** — `A
+DEPENDS_ON B` and `B DEPENDS_ON A` remain mutually exclusive, correctly,
+since `pairKey` is direction-agnostic and `type` alone doesn't distinguish
+them; that's the one row whose inverse is derived, exactly as designed.
+
+Multiple targets under one label ("`SUPPORTS`: Goal B, Document C, Custom
+D") falls out of this for free — each is its own `(source, target, type)`
+row; nothing new to store. The **Kinesis Links** section (§4) groups rows
+that resolve to the same label together for display; grouping is a query
+concern, not a schema one.
+
+### 2. Kinesis Link Custom Fields and typed Kinesis Links are related, not equivalent
+
+A Kinesis Link Custom Field answers *"what role does this linked Object
+play as a property of this Object"* — `Emergency contact → Peach`,
+`Insurance provider → AAMI`, `Renewal document → Passport 2026`, `Primary
+vehicle → Corolla`. Those are meaningful, but they're property-shaped, not
+graph semantics.
+
+A typed Kinesis Link answers a different, more structural question —
+`DEPENDS_ON`, `BLOCKS`, `SUPPORTS`, `ALONGSIDE` describe how two Objects
+relate to *each other*, the kind of thing later mechanics (dependency
+gating, blocking, notifications) would hang off.
+
+These can share infrastructure — the same `ObjectRelationship` table, the
+same derived-inverse mechanics, possibly even the same UI shell — without
+being the same concept. **This ticket does not decide to retire or merge
+Kinesis Link Custom Fields.** The right framing for later is: *investigate
+whether they can share underlying infrastructure without necessarily
+collapsing into one thing* — not a migration-and-retire plan. Both can
+keep existing side by side indefinitely; whether they ever converge is a
+separate, later decision with its own ADR, made once there's more real
+usage of each to learn from.
+
+### 3. The Kinesis Link label decorates the card; it doesn't belong to it
+
+`KinesisLinkCard` represents *the target Object* — that's it, and that
+should stay reusable everywhere an Object preview is needed: search
+results, Recent Activity, a Kinesis Link Custom Field's list of targets.
+None of those have (or want) a Kinesis Link label.
+
+```text
+Kinesis Link Custom Field:  Renewal document
+Kinesis Links:              Required for
+Search result:              (no label)
+Recent activity:            (no label)
+```
+
+So the label is layered on top, at the call site that actually has a
+Kinesis Link to describe — a small optional prop on the existing card
+(`<KinesisLinkCard object={target} label="Depends on" />`), not a field
+`KinesisLinkCard` always carries. Every existing caller passes nothing and
+is completely unaffected; only the new Kinesis Links section passes a
+label. (A separate wrapper component — `<KinesisLink label="Depends on">`
+around the card — is an equally valid shape if a future need calls for
+more than one line of decoration; either way, the card's own identity
+stays untouched.)
+
+### 4. One flat list — the derived label already carries perspective
+
+Earlier drafts of this ticket proposed separate "outgoing"/"Referenced by"
+sections. Unnecessary: the derived label already reads correctly from
+whichever side the current Object sits on, so there is nothing left for a
+second section to clarify. One list, grouped by resolved label:
+
+```text
+Depends on
+[ Save $30k ]
+
+Supported by
+[ Mortgage broker ]
+
+Blocks
+[ Submit home loan application ]
+
+Alongside
+[ Improve credit score ]
+```
+
+The viewer never needs to know whether the current Object is stored as
+`source` or `target` — the label already says it.
+
+### 5. The label vocabulary (confirmed — matches what's already shipped)
+
+| Canonical type | Forward Kinesis Link label | Inverse Kinesis Link label |
 |---|---|---|
 | `SUPPORTS` | Supports | Supported by |
 | `BLOCKS` | Blocks | Blocked by |
@@ -99,130 +205,87 @@ required to ship this.
 | `RELATES_TO` | Related to | Related to |
 | `ALONGSIDE` | Alongside | Alongside |
 
-The wording just given for this ticket differs slightly: **"Being
-Supported by"** and **"Being Blocked By"**, and "Depends" rather than
-"Depends on". Once this generalizes past Goals, there must be exactly *one*
-labels table, not two copies that can quietly drift apart. **Decide the
-wording once** (either keep today's shorter Goals wording, or adopt the
-new phrasing and update Goals to match) before Phase 1 ships, and move the
-table out of `lib/goals/relationships.ts` into a home that isn't
-goal-specific (e.g. `lib/objects/relationship-labels.ts`).
+No wording change from what `lib/goals/relationships.ts` ships today —
+the earlier draft's proposed rewording ("Being Supported by" etc.) is
+dropped in favour of the shorter, already-shipped wording, which reads
+better as an actual label. The table itself still moves to a
+non-goal-specific home (e.g. `lib/objects/relationship-labels.ts`) since
+the mechanism is no longer Goal-specific; only its location changes, not
+its content.
 
-### 3. The picker: choose a relationship, not a field label
+### 6. The picker: both directions, no Custom yet
 
-Today, adding a Kinesis Link field means: set a field's type to Kinesis
-Link, type an arbitrary label, then pick targets. That label has nothing
-to do with direction — it's just text.
+Modeled on `LinkedGoals.tsx`'s existing add form, generalized: pick a
+target, then pick a Kinesis Link label from an **8-item list** — both
+directions of each asymmetric pair spelled out as their own option
+(*Supports*, *Supported by*, *Blocks*, *Blocked by*, *Depends on*,
+*Required for*, *Related to*, *Alongside*). Picking an inverse-facing
+option (e.g. "Supported by") simply flips `source`/`target` and stores the
+canonical type (`SUPPORTS`) — the same derivation that already makes
+Goals' inverse side correct today, just directly selectable from either
+direction instead of only the forward one.
 
-New flow, modeled directly on `LinkedGoals.tsx`'s existing add form: pick a
-target, then pick from an **8-item list** — both named directions of each
-asymmetric pair spelled out as separate, directly-selectable options
-(*Supports*, *Being Supported by*, *Blocks*, *Being Blocked By*, *Depends*,
-*Required for*, *Related to*, *Alongside*) — plus a **Custom…** option that
-reveals a free-text input. This differs slightly from how Goals work today
-(which only ever offers the 5 *forward* labels when creating, since you're
-always describing the relationship from the goal you're on): offering both
-directions up front lets someone say "this is Required for that" directly,
-without translating it into "that Depends on this" first.
-
-Picking an inverse-facing option (e.g. "Required for") stores the *current*
-object as `targetObjectId` and the other one as `sourceObjectId`, same
-`type` — the derivation that already makes Goals' own inverse side correct
-today, just entered from either direction instead of only one.
-
-### 4. The card shows the connection, not an external field label
-
-`KinesisLinkCard` today renders only the target's own module, name, and
-KD-042 preview stats — never the relationship itself. The label lives
-*outside* the card, as a custom field's own `<label>`. New requirement:
-render the resolved label — `relationshipLabel(type, inverse)`, or the
-custom text — **on the card itself**, as a small eyebrow, so a card reads
-correctly wherever it's reused (a flat Connections list has no per-field
-header to borrow one from).
-
-### 5. Where this shows up
-
-A generalized `Connections` component — `LinkedGoals.tsx` with "Goal"
-genericized out — on every linkable object's detail page: Documents,
-Goals (replacing today's Linked Goals panel), Custom Items, Finance Items,
-People. Same outgoing-and-incoming shape ("Connections" / "Referenced by")
-KD-023 asked for from the start and never got, for anything but Goals.
+**No Custom/Typed label option yet.** It's a natural, additive extension
+later (one more enum value + a nullable text column, same shape the
+earlier draft sketched), but there's no real use case for it today —
+don't build it until one shows up.
 
 ## Explicit non-goals for this ticket
 
-* **No mechanics behind any type yet** — a `DEPENDS_ON` connection doesn't
-  block, gate, or notify anything. Display only, exactly as asked.
-* **No decision yet to retire the `KINESIS_LINK` custom field type.** It
-  can keep existing untouched, alongside the new Connections panel, while
-  this ships — the same "don't force a destructive migration" principle
-  KD-023 already commits to. Migrating existing field-based links onto
-  Connections and retiring the custom field type is the natural next step,
-  but it touches every module's "Add field" UI and real saved data, and
-  deserves its own ticket once Connections has shipped and proven itself.
-
-## Behaviour / open questions
-
-* `pairKey` is already sorted-pair-only, not type-aware — at most one
-  relationship of *any* kind can exist between two given objects,
-  system-wide. That already delivers "one canonical relationship, not two
-  records" with no schema change needed.
-* That becomes visible in a new way once Connections is universal: a
-  To-Do's own incidental link to an object is a bare `RELATES_TO` edge on
-  the *same* pair a deliberate typed connection between those two objects
-  would want. Today, adding a second relationship to an already-linked
-  pair just errors ("already linked"). **Decide:** keep that error, or let
-  adding a typed Connection to a pair that only ever held a bare
-  `RELATES_TO` edge upgrade it in place. Recommend the latter — a to-do's
-  incidental link silently blocking an intentional one would be
-  surprising.
-* To-Do's own link chips (KD-025's board) are a separate, lighter
-  presentation and don't need to start showing type badges just because
-  the underlying table now carries real types elsewhere — only the new
-  Connections panel needs to render type.
-* `RELATES_TO` stays the quiet default for anything that doesn't ask for a
-  type — To-Do links keep working exactly as they do today.
+* **No mechanics behind any type** — a `DEPENDS_ON` Kinesis Link doesn't
+  block, gate, or notify anything. Display only.
+* **No Kinesis Link Custom/Typed label (free text) yet** — ship the 5
+  canonical types first; add free text when a real need appears.
+* **No decision to retire or merge Kinesis Link Custom Fields** — they
+  stay exactly as they are. Whether they ever share more infrastructure
+  with Kinesis Links is a later, separate investigation (§2), not a
+  planned migration.
 
 ## Phases
 
-**Phase 1 — Schema & shared labels**
-Add `CUSTOM` to `ObjectRelationshipType` + `customLabel` column, migration.
-Settle the wording question above and move the labels table to a
-non-goal-specific home.
+**Phase 1 — Schema**
+Change `ObjectRelationship`'s uniqueness to `(userId, pairKey, type)`.
+Relocate the (unchanged) label table out of `lib/goals/relationships.ts`
+into a shared, non-goal-specific home.
 
-**Phase 2 — Generalize the panel**
-`LinkedGoals` → `Connections`, usable from any object id, with the 8-option
-+ Custom picker and matching server actions. Ship on Documents and Custom
-Items first (the two with an existing `KINESIS_LINK` field precedent to
-sit alongside), then Finance Items and People.
+**Phase 2 — Generalize the section**
+`LinkedGoals` → a shared **Kinesis Links** section, usable from any Object
+id: one flat list grouped by resolved label, the 8-direction picker (no
+Custom), matching server actions generalized off their goal-specific
+originals. Ship on Documents and Custom Items first (the two with an
+existing Kinesis Link Custom Field precedent to sit alongside), then
+Finance Items and People.
 
-**Phase 3 — Card treatment**
-Move the relationship label onto `KinesisLinkCard` itself; drop the
-external field-style label wherever Connections replaces it.
+**Phase 3 — Card decoration**
+Add the optional label prop (or wrapper) from §3 to `KinesisLinkCard`;
+used only by the new Kinesis Links section.
 
 **Phase 4 — Dogfood on Goals**
-Migrate Goals' own Linked Goals panel onto the generalized `Connections`
-component.
+Migrate Goals' own Linked Goals panel onto the generalized Kinesis Links
+section, retiring the goal-specific component and actions in favour of
+the shared ones.
 
-**Phase 5 (separate ticket, not committed here)**
-Decide the `KINESIS_LINK` custom field type's fate — coexist indefinitely,
-or migrate its saved links into Connections and retire it, per KD-023's
-incremental-migration guidance.
+**Deferred, not scheduled**
+* Kinesis Link Custom/Typed label (free text) — add when needed (§6).
+* Investigate whether Kinesis Link Custom Fields and Kinesis Links can
+  share infrastructure — research, not a migration plan (§2).
 
 ## Related
 
-* **Executes on:** KD-023 (Universal Object Connections) — its own deferred
-  "Kinesis Link fields should use the same universal relationship layer"
-  item, scoped down to display-only for now.
+* **Executes on:** KD-023 (Universal Object Connections) — its own
+  deferred backlink/typing item, scoped down to display-only for now, and
+  deliberately not resolving KD-023's "should `KINESIS_LINK` fields use
+  the same layer" question in favour of the Custom Field either.
 * **Builds on:** the existing, working `ObjectRelationship` +
   `lib/goals/relationships.ts` + `LinkedGoals.tsx` (Goal↔Goal) and
   `lib/data/todos.ts` (To-Do→anything) — nothing here is a new mechanism,
-  it's generalizing one that already works.
+  it's generalizing one that already works, with its uniqueness rule
+  loosened to match what it's actually being asked to represent.
 * **Feeds:** KD-048 (Object Event Model) — once built, its
-  `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED` events should carry
-  `type`/`customLabel` so a Connection change reads correctly in History.
+  `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED` events should carry `type`
+  so a Kinesis Link change reads correctly in History.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card) — `KinesisLinkCard`
-  gains the type badge.
-* A fuller convergence with the `KINESIS_LINK` custom field type, if
-  pursued (Phase 5), should get its own ADR alongside KD-023's role —
-  "what a Kinesis Link even is" becomes a real decision at that point, not
-  just a work item.
+  gains the optional label decoration.
+* Any future convergence with Kinesis Link Custom Fields should get its
+  own ADR — "what a Kinesis Link even is" is a decision, not a work item,
+  once it's actually on the table.
