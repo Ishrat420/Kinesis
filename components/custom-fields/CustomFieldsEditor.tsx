@@ -221,20 +221,19 @@ export function CustomFieldsEditor({
           ))}
         </div>
       )}
-      {kinesisLinks.length > 0 && updateKinesisLinkAction && removeKinesisLinkAction && (
-        <div className={fields.length ? "mt-2" : ""}>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-zinc-400">Kinesis Links</p>
-          <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
-        </div>
-      )}
       {addingKinesisLink && (
+        // Rendered right where "Add custom field" was clicked -- i.e. still
+        // inside the fields list, before the existing Kinesis Links below --
+        // rather than after them, so choosing "Kinesis Link" doesn't jump the
+        // open picker away from where every other field type stays put.
+        //
         // Not a nested <form>: this editor already lives inside the record's
         // own outer form, and HTML forms cannot nest. A submit button's own
         // `formAction` targets a different Server Action than the form
         // surrounding it -- the standard way to do that -- while
         // `formNoValidate` keeps this submission from being blocked by an
         // unrelated required field elsewhere in that same outer form.
-        <div className={`${fields.length || kinesisLinks.length ? "mt-2" : ""} grid gap-3 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]`}>
+        <div className={`${fields.length ? "mt-2" : ""} grid gap-3 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]`}>
           <DirectionField className={inputClass} />
           <TargetPicker options={linkOptions} className={inputClass} />
           <div className="flex gap-2">
@@ -253,6 +252,12 @@ export function CustomFieldsEditor({
           </div>
           {pendingLinkWarning && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">Add or remove this Kinesis Link before saving -- it has not been added yet.</p>}
           {kinesisLinkState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{kinesisLinkState.error}</p>}
+        </div>
+      )}
+      {kinesisLinks.length > 0 && updateKinesisLinkAction && removeKinesisLinkAction && (
+        <div className={fields.length || addingKinesisLink ? "mt-2" : ""}>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-zinc-400">Kinesis Links</p>
+          <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
         </div>
       )}
       <button
