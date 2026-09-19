@@ -10,6 +10,8 @@ import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { revalidateShell } from "@/lib/actions/revalidate";
+import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
+import { formatDateInput } from "@/lib/dates";
 
 export type FinanceActionState = { error?: string; saved?: boolean };
 
@@ -62,6 +64,19 @@ function validate(item: FinanceItem): string | null {
   return null;
 }
 
+/** A Finance Item column's value, formatted the same plain way every other stored value in this model is -- a date as `yyyy-mm-dd`, a number as its decimal string, everything else as-is. */
+function financeColumnValue(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) return formatDateInput(value);
+  return String(value);
+}
+
+/** The Finance Item columns a save can change and that are worth their own History line. No status or archival concept exists here to map onto. */
+const FINANCE_NAMED_FIELDS = [
+  ["amount", "Amount"], ["category", "Category"], ["rate", "Rate"], ["monthlyContribution", "Monthly contribution"],
+  ["frequency", "Frequency"], ["startDate", "Start date"], ["endDate", "End date"], ["notes", "Notes"],
+] as const;
+
 export async function saveFinanceItem(item: FinanceItem, updated: boolean): Promise<FinanceActionState> {
   const user = await requireKinesisUser();
   const error = validate(item);
@@ -72,11 +87,27 @@ export async function saveFinanceItem(item: FinanceItem, updated: boolean): Prom
   // owner's current confirmed number by construction (it was either typed
   // fresh or accepted as prefilled from the live projection), so there is
   // no case where "the number didn't change" should mean "don't restart the
-  // accrual clock." See getFinanceProjection in lib/finance.ts.
+  // accrual clock." See getFinanceProjection in lib/finance.ts. `balanceAsOf`
+  // is exactly this kind of internal bookkeeping value -- always touched,
+  // never itself a fact worth a History line -- so it's excluded from the
+  // named-field diff below the same way `updatedAt` is everywhere else.
   const data = { kind: item.kind, name, amount: item.amount, category: item.category?.trim() || null, rate: item.rate ?? null, monthlyContribution: item.monthlyContribution ?? null, balanceAsOf: await getToday(), frequency: item.frequency || null, startDate: date(item.startDate), endDate: date(item.endDate), notes: item.notes?.trim() || null };
-  const existing = await prisma.financeItem.findFirst({ where: { id: item.id, userId: user.id }, select: { id: true } });
-  if (existing) await prisma.financeItem.update({ where: { id: item.id }, data });
-  else await prisma.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.financeItem.findFirst({
+      where: { id: item.id, userId: user.id },
+      select: { objectId: true, amount: true, category: true, rate: true, monthlyContribution: true, frequency: true, startDate: true, endDate: true, notes: true },
+    });
+    if (existing) {
+      await tx.financeItem.update({ where: { id: item.id }, data });
+      const changes: FieldChange[] = FINANCE_NAMED_FIELDS
+        .filter(([key]) => financeColumnValue(existing[key]) !== financeColumnValue(data[key]))
+        .map(([key, label]) => ({ fieldKey: key, fieldLabel: label, oldValue: financeColumnValue(existing[key]), newValue: financeColumnValue(data[key]) }));
+      await recordFieldChanges(tx, user.id, existing.objectId, changes);
+    } else {
+      const created = await tx.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });
+      await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+    }
+  });
   await recordFinanceActivity(item.kind, updated, name);
   revalidatePath("/finance");
   return { saved: true };

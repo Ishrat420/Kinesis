@@ -1,12 +1,13 @@
 import type { Prisma, TodoStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { deleteObjects, objectFor } from "./objects";
-import { recordRelationshipAdded, recordRelationshipRemoved } from "./object-events";
+import { recordEvent, recordFieldChanges, recordRelationshipAdded, recordRelationshipRemoved, recordStatusChanged, type FieldChange } from "./object-events";
 import { requireKinesisUser } from "@/lib/auth";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import { refuse } from "@/lib/actions/refusal";
+import { formatDateInput } from "@/lib/dates";
 
 /**
  * Standalone To-Dos (ADR-009).
@@ -83,9 +84,13 @@ export async function getTodoSummary() {
  */
 export async function captureTodo(name: string) {
   const user = await requireKinesisUser();
-  return prisma.todo.create({
-    data: { id: crypto.randomUUID(), name, user: { connect: { id: user.id } }, object: objectFor.todo(name, user.id) },
-    select: { id: true, name: true },
+  return prisma.$transaction(async (transaction) => {
+    const todo = await transaction.todo.create({
+      data: { id: crypto.randomUUID(), name, user: { connect: { id: user.id } }, object: objectFor.todo(name, user.id) },
+      select: { id: true, name: true, objectId: true },
+    });
+    await recordEvent(transaction, user.id, todo.objectId, "ITEM_CREATED");
+    return { id: todo.id, name: todo.name };
   });
 }
 
@@ -113,6 +118,7 @@ export async function createTodo(name: string, { status = "TODO", dueDate = null
       },
       select: { id: true, name: true, objectId: true },
     });
+    await recordEvent(transaction, user.id, todo.objectId, "ITEM_CREATED");
 
     const targets = [...new Set(linkObjectIds.filter(Boolean))];
     if (targets.length) {
@@ -157,7 +163,7 @@ export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: 
 export async function updateTodoDetails(id: string, { status, dueDate, notes, linkObjectIds }: TodoDetails) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
-    const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, name: true, status: true } });
+    const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, name: true, status: true, dueDate: true, notes: true } });
     if (!todo) refuse("This to-do no longer exists.");
 
     if (status !== undefined || dueDate !== undefined || notes !== undefined) {
@@ -173,6 +179,21 @@ export async function updateTodoDetails(id: string, { status, dueDate, notes, li
           ...(status !== undefined ? { completedAt: isOpenTodoStatus(nextStatus) ? null : new Date() } : {}),
         },
       });
+
+      if (status !== undefined && status !== todo.status) {
+        if (status === "DONE") await recordEvent(transaction, user.id, todo.objectId, "TODO_COMPLETED");
+        else if (todo.status === "DONE") await recordEvent(transaction, user.id, todo.objectId, "TODO_REOPENED");
+        else await recordStatusChanged(transaction, user.id, todo.objectId, todo.status, status);
+      }
+
+      const fieldChanges: FieldChange[] = [];
+      if (dueDate !== undefined && dueDate?.getTime() !== todo.dueDate?.getTime()) {
+        fieldChanges.push({ fieldKey: "dueDate", fieldLabel: "Due date", oldValue: todo.dueDate ? formatDateInput(todo.dueDate) : null, newValue: dueDate ? formatDateInput(dueDate) : null });
+      }
+      if (notes !== undefined && notes !== todo.notes) {
+        fieldChanges.push({ fieldKey: "notes", fieldLabel: "Notes", oldValue: todo.notes, newValue: notes });
+      }
+      await recordFieldChanges(transaction, user.id, todo.objectId, fieldChanges);
     }
 
     if (linkObjectIds !== undefined) {

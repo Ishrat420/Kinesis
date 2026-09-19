@@ -12,6 +12,8 @@ import { deleteObjects, objectFor } from "./objects";
 import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { documentUpcomingPhase } from "@/lib/attention/items";
+import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "./object-events";
+import { formatDateInput } from "@/lib/dates";
 
 export type DocumentInput = {
   name: string;
@@ -173,10 +175,17 @@ export async function getDocument(id: string) {
   if (!document) return null;
   const status = getDocumentState(document, await getToday()).status;
   if (status !== document.status) {
-    return prisma.document.update({
-      where: { id, userId: user.id },
-      data: { status },
-      include: documentFieldsInclude,
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.document.update({
+        where: { id, userId: user.id },
+        data: { status },
+        include: documentFieldsInclude,
+      });
+      // Nobody took an action here -- the status just crossed a boundary
+      // (expiry) between one page view and the next -- so this is SYSTEM,
+      // not USER.
+      await recordStatusChanged(tx, user.id, document.objectId, document.status, status, "SYSTEM");
+      return updated;
     }).then(withCustomFields);
   }
   return withCustomFields(document);
@@ -186,15 +195,32 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
   const user = await getCurrentUser();
   const { customFields = [], ...document } = data;
   const fields = prepareCustomFields(customFields);
-  return prisma.document.create({
-    data: {
-      ...document,
-      id: data.id ?? crypto.randomUUID(),
-      user: { connect: { id: user.id } },
-      object: objectFor.document(document.name, user.id, fields),
-      owner: getUserDisplayName(user),
-    },
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.document.create({
+      data: {
+        ...document,
+        id: data.id ?? crypto.randomUUID(),
+        user: { connect: { id: user.id } },
+        object: objectFor.document(document.name, user.id, fields),
+        owner: getUserDisplayName(user),
+      },
+    });
+    await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+    return created;
   });
+}
+
+/** The Document columns a save can change and that are worth their own History line -- everything `DocumentInput` accepts except `status`/`archived` (each has its own named event below) and the `*Label` fields, which name a field rather than hold a value. */
+const NAMED_FIELDS = [
+  ["expiryDate", "Expiry date"], ["issueDate", "Issue date"], ["documentNumber", "Document number"],
+  ["country", "Country"], ["notes", "Notes"], ["link", "Link"], ["prompt", "Reminder"],
+] as const satisfies readonly (readonly [keyof DocumentInput, string])[];
+
+/** A `DocumentInput` column's value, formatted the same plain way every other stored value in this model is -- a date as `yyyy-mm-dd`, everything else as-is. */
+function columnValue(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) return formatDateInput(value);
+  return String(value);
 }
 
 /**
@@ -209,9 +235,12 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
   const user = await requireKinesisUser();
   const { customFields = [], ...document } = data;
   return prisma.$transaction(async (transaction) => {
-    const owned = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+    const owned = await transaction.document.findFirst({
+      where: { id, userId: user.id },
+      select: { objectId: true, status: true, archived: true, expiryDate: true, issueDate: true, documentNumber: true, country: true, notes: true, link: true, prompt: true },
+    });
     if (!owned) refuse("This document no longer exists.");
-    const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
+    const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true, label: true, value: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) refuse("A custom field's type cannot be changed once it has been saved.");
     // The picker never offers this document as its own link target, but a
@@ -239,10 +268,31 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
     // of the fields being written here. Deleting the old rows was what handed
     // back an already-read reminder every time a document was renamed.
     await transaction.objectField.deleteMany({ where: { objectId: owned.objectId } });
+    const newFields = prepareCustomFields(customFields);
     await transaction.object.update({
       where: { id: owned.objectId },
-      data: { fields: { create: prepareCustomFields(customFields) } },
+      data: { fields: { create: newFields } },
     });
+
+    // `archived` gets its own named event (ITEM_ARCHIVED/RESTORED), not a
+    // generic FIELD_CHANGED line -- it already has one in the enum, shared
+    // with Custom Items, and reads better on its own than "archived changed:
+    // false -> true."
+    if (data.archived !== undefined && data.archived !== owned.archived) {
+      await recordArchivedChanged(transaction, user.id, owned.objectId, data.archived);
+    }
+    // `status` is recomputed by the caller (`getDocumentState`) as a side
+    // effect of whatever else changed on this save (a new expiry date, an
+    // archive toggle) -- still worth its own STATUS_CHANGED line when it
+    // actually moves, independently of whichever field caused it.
+    if (data.status !== owned.status) {
+      await recordStatusChanged(transaction, user.id, owned.objectId, owned.status, data.status);
+    }
+    const namedChanges: FieldChange[] = NAMED_FIELDS
+      .filter(([key]) => columnValue(owned[key]) !== columnValue(document[key]))
+      .map(([key, label]) => ({ fieldKey: key, fieldLabel: label, oldValue: columnValue(owned[key]), newValue: columnValue(document[key]) }));
+    await recordFieldChanges(transaction, user.id, owned.objectId, namedChanges);
+    await recordFieldChanges(transaction, user.id, owned.objectId, diffObjectFields(existingFields, newFields));
 
     return transaction.document.findUniqueOrThrow({ where: { id } });
   });

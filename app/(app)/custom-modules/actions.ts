@@ -13,8 +13,9 @@ import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { promoteExtraFieldToTemplate } from "@/lib/data/custom-modules";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/actions/refusal";
-import { parseDateOnly } from "@/lib/dates";
+import { parseDateOnly, formatDateInput } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
+import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidateShell(); revalidatePath(`/custom-modules/${moduleId}`); };
@@ -94,8 +95,9 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
       // Decision 7 -- later relinking the module never reaches back to this item.
       object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
     } });
+    await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
     if (ownedModule.templateId && templateValues.values.length) {
-      await saveTemplateFieldValues(tx, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
+      await saveTemplateFieldValues(tx, user.id, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
     }
   });
   const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
@@ -127,7 +129,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     updatedAt = await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({
       where: { id: itemId, moduleId, module: { userId: user.id } },
-      select: { objectId: true, object: { select: { templateId: true } } },
+      select: { objectId: true, name: true, dueDate: true, archived: true, object: { select: { templateId: true } } },
     });
     if (!ownedItem) refuse("This item no longer exists.");
     const templateId = ownedItem.object.templateId;
@@ -148,20 +150,21 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     // Extras only -- a template field's type is changed from the template
     // it belongs to (Settings), never from here, and this object's own
     // save form never even offers to.
-    const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId, templateFieldId: null }, select: { id: true, type: true } });
+    const existingFields = await tx.objectField.findMany({ where: { objectId: ownedItem.objectId, templateFieldId: null }, select: { id: true, type: true, label: true, value: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
     // The picker never offers this item as its own link target, but a
     // stale tab or a direct request could still submit one.
     if ([...form.fields, ...templateValues.values].some((field) => field.targetObjectIds?.includes(ownedItem.objectId))) refuse("An item can't be linked to itself.");
 
+    const archived = data.get("archived") === "true";
     // Conditioned on the row still carrying the stamp the caller read
     // (BUG-007), and run before any of the writes below -- a losing save is
     // refused here, before it touches a single field, rather than partway
     // through rewriting them.
     const result = await tx.customItem.updateMany({
       where: { id: itemId, moduleId, updatedAt: expectedUpdatedAt },
-      data: { name, dueDate, archived: data.get("archived") === "true" },
+      data: { name, dueDate, archived },
     });
     if (result.count === 0) {
       const stillExists = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
@@ -169,14 +172,23 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
       refuseConflict("This item was changed elsewhere. Reload to see the latest version before saving again.");
     }
 
+    if (archived !== ownedItem.archived) await recordArchivedChanged(tx, user.id, ownedItem.objectId, archived);
+    const namedChanges: FieldChange[] = [];
+    if (name !== ownedItem.name) namedChanges.push({ fieldKey: "name", fieldLabel: "Name", oldValue: ownedItem.name, newValue: name });
+    const oldDueDate = ownedItem.dueDate ? formatDateInput(ownedItem.dueDate) : null;
+    const newDueDate = dueDate ? formatDateInput(dueDate) : null;
+    if (oldDueDate !== newDueDate) namedChanges.push({ fieldKey: "dueDate", fieldLabel: "Due date", oldValue: oldDueDate, newValue: newDueDate });
+    await recordFieldChanges(tx, user.id, ownedItem.objectId, namedChanges);
+
     await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId, templateFieldId: null } });
     // A field's targets are a nested create -- createMany cannot carry those,
     // so each field (with its own links) is created on its own rather than in
     // one batched statement. The count here is always small.
     for (const field of fields) await tx.objectField.create({ data: { ...field, objectId: ownedItem.objectId } });
+    await recordFieldChanges(tx, user.id, ownedItem.objectId, diffObjectFields(existingFields, fields));
 
     if (templateId && templateValues.values.length) {
-      await saveTemplateFieldValues(tx, ownedItem.objectId, templateId, templateValues.values, dueDateField?.id ?? null);
+      await saveTemplateFieldValues(tx, user.id, ownedItem.objectId, templateId, templateValues.values, dueDateField?.id ?? null);
     }
 
     return (await tx.customItem.findUniqueOrThrow({ where: { id: itemId }, select: { updatedAt: true } })).updatedAt;
@@ -212,24 +224,29 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
  */
 async function saveTemplateFieldValues(
   tx: Prisma.TransactionClient,
+  userId: string,
   objectId: string,
   templateId: string,
   values: { templateFieldId: string; value: string; targetObjectIds: string[] }[],
   dueDateFieldId: string | null,
 ) {
-  const templateFieldTypes = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true } })).map((field) => [field.id, field.type]));
+  const templateFields = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, label: true } })).map((field) => [field.id, field]));
+  const changes: FieldChange[] = [];
   for (const submitted of values) {
     if (submitted.templateFieldId === dueDateFieldId) continue;
     // Ignore a field id that isn't actually part of this item's template --
     // stale, or never legitimate. Nothing to write either way.
-    const type = templateFieldTypes.get(submitted.templateFieldId);
-    if (!type) continue;
+    const templateField = templateFields.get(submitted.templateFieldId);
+    if (!templateField) continue;
 
     const existing = await tx.objectField.findFirst({ where: { objectId, templateFieldId: submitted.templateFieldId } });
     const isEmpty = !submitted.value && !submitted.targetObjectIds.length;
 
     if (isEmpty) {
-      if (existing) await tx.objectField.delete({ where: { id: existing.id } });
+      if (existing) {
+        await tx.objectField.delete({ where: { id: existing.id } });
+        changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: existing.value, newValue: null });
+      }
       continue;
     }
 
@@ -238,10 +255,13 @@ async function saveTemplateFieldValues(
       // `deleteMany` only makes sense against a row that already exists --
       // clears out its old targets before the fresh `create` below.
       await tx.objectField.update({ where: { id: existing.id }, data: { value: submitted.value, links: { deleteMany: {}, create: targets } } });
+      if (existing.value !== submitted.value) changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: existing.value, newValue: submitted.value });
     } else {
-      await tx.objectField.create({ data: { id: crypto.randomUUID(), objectId, templateFieldId: submitted.templateFieldId, label: "", type, value: submitted.value, position: 0, links: { create: targets } } });
+      await tx.objectField.create({ data: { id: crypto.randomUUID(), objectId, templateFieldId: submitted.templateFieldId, label: "", type: templateField.type, value: submitted.value, position: 0, links: { create: targets } } });
+      changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: null, newValue: submitted.value });
     }
   }
+  await recordFieldChanges(tx, userId, objectId, changes);
 }
 
 export async function promoteFieldToTemplateAction(moduleId: string, itemId: string, fieldId: string): Promise<CustomItemState> {
@@ -259,7 +279,12 @@ export async function promoteFieldToTemplateAction(moduleId: string, itemId: str
 
 export async function toggleCustomItemArchivedAction(moduleId: string, itemId: string, archived: boolean) {
   const user = await requireKinesisUser();
-  await prisma.customItem.updateMany({ where: { id: itemId, moduleId, module: { userId: user.id } }, data: { archived } });
+  await prisma.$transaction(async (tx) => {
+    const item = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { objectId: true, archived: true } });
+    if (!item) return;
+    const result = await tx.customItem.updateMany({ where: { id: itemId, moduleId, module: { userId: user.id } }, data: { archived } });
+    if (result.count && archived !== item.archived) await recordArchivedChanged(tx, user.id, item.objectId, archived);
+  });
   refresh(moduleId);
 }
 

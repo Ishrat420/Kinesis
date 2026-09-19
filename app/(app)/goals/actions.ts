@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
-import { formatDate, parseDateOnly } from "@/lib/dates";
+import { formatDate, formatDateInput, parseDateOnly } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
 import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
 import { refuse, refusalOf } from "@/lib/actions/refusal";
@@ -15,6 +15,7 @@ import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
+import { diffObjectFields, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "@/lib/data/object-events";
 
 export type GoalActionState = { error?: string; saved?: boolean };
 
@@ -48,7 +49,11 @@ export async function createGoalAction(_previousState: GoalActionState, data: Fo
   if (!name) return { error: "Enter a goal name." };
   const targetDate = optionalDate(data, "targetDate");
   if (targetDate === undefined) return { error: "Enter a valid target date." };
-  const goal = await prisma.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: objectFor.goal(name, user.id) } });
+  const goal = await prisma.$transaction(async (tx) => {
+    const created = await tx.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: objectFor.goal(name, user.id) } });
+    await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+    return created;
+  });
   await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   // No-op unless quick capture sent the user here to turn a To-Do into this goal.
   await completeCaptureConversion(data, { moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
@@ -61,7 +66,18 @@ export async function updateGoalStatusAction(id: string, _previousState: GoalAct
   const user = await requireKinesisUser();
   const status = value(data, "status");
   if (!GOAL_STATUSES.includes(status as typeof GOAL_STATUSES[number])) return { error: `Choose one of ${GOAL_STATUSES.join(", ")}.` };
-  await prisma.goal.updateMany({ where: { id, userId: user.id }, data: { status } }); refresh(id);
+  await prisma.$transaction(async (tx) => {
+    const goal = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, status: true } });
+    if (!goal) return;
+    const result = await tx.goal.updateMany({ where: { id, userId: user.id }, data: { status } });
+    if (result.count === 0 || goal.status === status) return;
+    // "Finished" is a named moment (GOAL_COMPLETED) worth its own line in
+    // History, not just another status transition -- every other status
+    // change is generic STATUS_CHANGED.
+    if (status === "Finished") await recordEvent(tx, user.id, goal.objectId, "GOAL_COMPLETED");
+    else await recordStatusChanged(tx, user.id, goal.objectId, goal.status, status);
+  });
+  refresh(id);
   return {};
 }
 
@@ -83,7 +99,7 @@ export async function updateGoalTargetDateAction(id: string, _previousState: Goa
 
   const goal = await prisma.goal.findFirst({
     where: { id, userId: user.id },
-    select: { milestones: { where: { dueDate: { not: null } }, orderBy: { dueDate: "desc" }, take: 1, select: { name: true, dueDate: true } } },
+    select: { objectId: true, targetDate: true, milestones: { where: { dueDate: { not: null } }, orderBy: { dueDate: "desc" }, take: 1, select: { name: true, dueDate: true } } },
   });
   if (!goal) return {};
 
@@ -93,7 +109,16 @@ export async function updateGoalTargetDateAction(id: string, _previousState: Goa
     return { error: `Milestone “${latest.name}” is due ${formatDate(latest.dueDate, locale)}. The target date must be after it.` };
   }
 
-  await prisma.goal.update({ where: { id }, data: { targetDate } });
+  await prisma.$transaction(async (tx) => {
+    await tx.goal.update({ where: { id }, data: { targetDate } });
+    if (goal.targetDate?.getTime() !== targetDate?.getTime()) {
+      await recordFieldChanges(tx, user.id, goal.objectId, [{
+        fieldKey: "targetDate", fieldLabel: "Target date",
+        oldValue: goal.targetDate ? formatDateInput(goal.targetDate) : null,
+        newValue: targetDate ? formatDateInput(targetDate) : null,
+      }]);
+    }
+  });
   refresh(id);
   return { saved: true };
 }
@@ -117,11 +142,17 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
   if (!DEFAULT_GOAL_UNITS.some((item) => item.toLowerCase() === unit.toLowerCase())) await prisma.goalUnit.upsert({ where: { userId_name: { userId: user.id, name: unit } }, update: {}, create: { id: crypto.randomUUID(), userId: user.id, name: unit } });
   try {
     await prisma.$transaction(async (tx) => {
-    const previous = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { currentValue: true } });
+    const previous = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, targetValue: true, currentValue: true, unit: true } });
     if (!previous) refuse("This goal no longer exists.");
     await tx.goal.update({ where: { id }, data: { targetValue, currentValue, unit } });
-    if (previous?.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
+    if (previous.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
     await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, completedAt: new Date(), autoCompleted: true } });
+
+    const changes: FieldChange[] = [];
+    if (previous.targetValue !== targetValue) changes.push({ fieldKey: "targetValue", fieldLabel: "Target value", oldValue: previous.targetValue !== null ? String(previous.targetValue) : null, newValue: String(targetValue) });
+    if (previous.currentValue !== currentValue) changes.push({ fieldKey: "currentValue", fieldLabel: "Current value", oldValue: previous.currentValue !== null ? String(previous.currentValue) : null, newValue: String(currentValue) });
+    if (previous.unit !== unit) changes.push({ fieldKey: "unit", fieldLabel: "Unit", oldValue: previous.unit, newValue: unit });
+    await recordFieldChanges(tx, user.id, previous.objectId, changes);
     });
   } catch (failure) {
     const refused = refusalOf(failure);
@@ -243,7 +274,11 @@ export async function toggleMilestoneAction(id: string, milestoneId: string, com
   const user = await requireKinesisUser();
   const owned = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
   if (!owned) return { error: "This milestone no longer exists." };
-  const milestone = await prisma.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true } } } });
+  const milestone = await prisma.$transaction(async (tx) => {
+    const updated = await tx.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true, objectId: true } } } });
+    if (completed) await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_COMPLETED", updated.name);
+    return updated;
+  });
   if (completed) await addActivity({ action: "Completed", moduleName: "Milestone", objectName: `${milestone.name} for ${milestone.goal.name}`, icon: "goals", href: `/goals/${id}` });
   refresh(id);
   return {};
@@ -278,7 +313,7 @@ export async function updateGoalFieldsAction(id: string, _previousState: GoalAct
     await prisma.$transaction(async (tx) => {
       const owned = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
       if (!owned) refuse("This goal no longer exists.");
-      const existingFields = await tx.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true } });
+      const existingFields = await tx.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true, label: true, value: true } });
       const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
       if (fields.some((field) => existingTypes.has(field.id) && existingTypes.get(field.id) !== field.type)) refuse("A custom field's type cannot be changed once it has been saved.");
       // The picker never offers this goal as its own link target, but a
@@ -288,6 +323,9 @@ export async function updateGoalFieldsAction(id: string, _previousState: GoalAct
       // A field's targets are a nested create -- createMany cannot carry
       // those, so each field (with its own links) is created on its own.
       for (const field of fields) await tx.objectField.create({ data: { ...field, objectId: owned.objectId } });
+
+      const changes = diffObjectFields(existingFields, fields);
+      await recordFieldChanges(tx, user.id, owned.objectId, changes);
     });
   } catch (failure) {
     const refused = refusalOf(failure);

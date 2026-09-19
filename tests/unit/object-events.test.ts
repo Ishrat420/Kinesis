@@ -66,8 +66,53 @@ describe("describeObjectEvent: the single line a History entry renders", () => {
     expect(describeObjectEvent(event({ eventType: "ITEM_CREATED" }))).toBe("Created");
   });
 
-  it("falls back to the field label for an event type without its own rendering yet", () => {
-    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", fieldLabel: "Status" }))).toBe("Status changed");
-    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", fieldLabel: null }))).toBe("Updated");
+  it("renders STATUS_CHANGED with the old and new status text", () => {
+    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Revisit Later" }))).toBe("Status: Active → Revisit Later");
+  });
+
+  it("renders ITEM_ARCHIVED and ITEM_RESTORED as plain, fixed lines", () => {
+    expect(describeObjectEvent(event({ eventType: "ITEM_ARCHIVED" }))).toBe("Archived");
+    expect(describeObjectEvent(event({ eventType: "ITEM_RESTORED" }))).toBe("Restored");
+  });
+
+  it("renders GOAL_COMPLETED as a plain, fixed line", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_COMPLETED" }))).toBe("Goal completed");
+  });
+
+  it("renders GOAL_MILESTONE_COMPLETED naming the milestone when its name was recorded, generically otherwise", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved" }))).toBe('Milestone "Deposit saved" completed');
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: null }))).toBe("Milestone completed");
+  });
+
+  it("renders TODO_COMPLETED and TODO_REOPENED as plain, fixed lines", () => {
+    expect(describeObjectEvent(event({ eventType: "TODO_COMPLETED" }))).toBe("Completed");
+    expect(describeObjectEvent(event({ eventType: "TODO_REOPENED" }))).toBe("Reopened");
+  });
+
+  describe("FIELD_CHANGED", () => {
+    it("reads as a plain before/after when the field already had a value", () => {
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Notes", oldValue: "Old note", newValue: "New note" }))).toBe("Notes: Old note → New note");
+    });
+
+    it("reads as \"set to\" when the field had no prior value", () => {
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Country", oldValue: null, newValue: "Australia" }))).toBe("Country set to Australia");
+    });
+
+    it("reads as \"removed\" when the field's value went away", () => {
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Country", oldValue: "Australia", newValue: null }))).toBe("Country removed (was Australia)");
+    });
+
+    it("falls back to a generic label when somehow missing its own fieldLabel", () => {
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: null, oldValue: "1", newValue: "2" }))).toBe("A field: 1 → 2");
+    });
+  });
+
+  it("falls back to a generic line for a type the renderer doesn't otherwise recognise", () => {
+    // Every real ObjectEventType is handled above; this exercises the
+    // defensive default branch itself, in case a future enum value is ever
+    // added to the schema before this renderer is taught about it.
+    const unrecognised = "SOMETHING_NEW" as unknown as ObjectEvent["eventType"];
+    expect(describeObjectEvent(event({ eventType: unrecognised, fieldLabel: "Mystery" }))).toBe("Mystery changed");
+    expect(describeObjectEvent(event({ eventType: unrecognised, fieldLabel: null }))).toBe("Updated");
   });
 });

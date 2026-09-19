@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
     customItem: { create: vi.fn() },
     templateField: { findMany: vi.fn() },
     objectField: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    // KD-048: recordEvent/recordFieldChanges write through the same
+    // transaction client -- these calls are real once createCustomItemAction
+    // runs, even though no test here asserts on them.
+    objectEvent: { create: vi.fn(), createMany: vi.fn() },
   },
   prisma: {
     customModule: { findFirst: vi.fn() },

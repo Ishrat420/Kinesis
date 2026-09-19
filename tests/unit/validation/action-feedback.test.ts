@@ -30,17 +30,29 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 vi.mock("@/lib/data/kinesis-links", () => ({ validateKinesisTargets: mocks.validateKinesisTargets }));
 vi.mock("@/lib/format/server", () => ({ getFormatPreferences: mocks.getFormatPreferences, getToday: mocks.getToday }));
-vi.mock("@/lib/data/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/data/prisma", () => {
+  const client = {
     goal: { findFirst: mocks.goalFindFirst, updateMany: mocks.goalUpdateMany, update: mocks.goalUpdate, create: mocks.goalCreate },
     goalUnit: { upsert: mocks.goalUnitUpsert },
     milestone: { create: mocks.milestoneCreate, updateMany: mocks.milestoneUpdateMany },
     financeItem: { findFirst: mocks.financeFindFirst, create: mocks.financeCreate, update: mocks.financeUpdate },
     customModule: { findFirst: mocks.moduleFindFirst },
     customItem: { create: mocks.itemCreate },
+    // KD-048: every write helper in lib/data/object-events.ts takes a
+    // Prisma client/transaction and writes through it -- these calls are
+    // real once code runs inside $transaction below, so they need a target
+    // even though no test here asserts on them.
+    objectEvent: { create: vi.fn(), createMany: vi.fn() },
     $transaction: mocks.transaction,
-  },
-}));
+  };
+  // `$transaction(async (tx) => ...)` is an interactive transaction in real
+  // Prisma; the mock reproduces that by invoking the callback with this same
+  // client, so a mocked method called via `tx.x.y` resolves to the exact
+  // same vi.fn() a test asserts on via `mocks.x` (`prisma` and `tx` need to
+  // be the same object for that to hold).
+  mocks.transaction.mockImplementation((callback: (tx: typeof client) => unknown) => callback(client));
+  return { prisma: client };
+});
 
 import { addMilestoneAction, addTargetAction, createGoalAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneDueDateAction } from "@/app/(app)/goals/actions";
 import { saveFinanceItem } from "@/app/(app)/finance/actions";
@@ -115,6 +127,8 @@ describe("invalid submissions report an error instead of silently doing nothing"
     });
 
     it("accepts a status inside the allowed set", async () => {
+      mocks.goalFindFirst.mockResolvedValue({ objectId: "goal-object-id", status: "Active" });
+      mocks.goalUpdateMany.mockResolvedValue({ count: 1 });
       await expect(updateGoalStatusAction(GOAL, {}, form({ status: "Finished" }))).resolves.toEqual({});
       expect(mocks.goalUpdateMany).toHaveBeenCalledOnce();
     });
@@ -230,6 +244,7 @@ describe("invalid submissions report an error instead of silently doing nothing"
     });
 
     it("saves a valid item", async () => {
+      mocks.financeCreate.mockResolvedValue({ objectId: "finance-object-id" });
       await expect(saveFinanceItem(financeItem(), false)).resolves.toEqual({ saved: true });
       expect(mocks.financeCreate).toHaveBeenCalledOnce();
     });

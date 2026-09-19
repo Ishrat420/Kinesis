@@ -1,8 +1,8 @@
 # KD-048 — Object Event Model (Universal History & Change Log)
 
-**Status:** In Progress -- Phase 1 shipped (schema, Kinesis Link
-add/retype/remove history, ITEM_DELETED, a generic History section on
-Documents/Goals/Custom Items); Phases 2-6 not started.
+**Status:** In Progress -- Phase 1 shipped in full, including its own
+remainder (every named event type wired across every module's mutations,
+not just Kinesis Links and deletion); Phases 2-6 not started.
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
@@ -28,29 +28,85 @@ no event); and `deleteObjects` (`lib/data/objects.ts`) itself, which is the
 one chokepoint every module's delete already goes through, so `ITEM_DELETED`
 coverage is universal for free rather than needing a per-module change.
 
-**Not wired yet, but no longer deferred -- planned concretely below:**
-`FIELD_CHANGED`/`STATUS_CHANGED`/`ITEM_CREATED`/`DOCUMENT_ARCHIVED`/
-`TODO_COMPLETED`/etc., the broader "audit every `addActivity` call site (and
-beyond) per object type" work the "Emission" section calls for. See "Phase 1
-remainder: wiring every object type" below, written from actually reading
-every module's current mutation code rather than from the enum names alone.
-It touches every module's own action file individually, is materially
-larger than the Kinesis Link/deletion work above, and doesn't share those
-two pieces' common chokepoint. `ObjectHistory` (the new generic History section,
-`components/history/ObjectHistory.tsx`) falls back to a single synthetic
-"Created" line from the record's own `createdAt` in the meantime, so an
-otherwise-empty history doesn't read as broken.
+**Phase 1 remainder status: Shipped.** Every named event type from the "Phase
+1 remainder" plan below is now wired, per object type:
+
+* **Documents** (`lib/data/documents.ts`) -- `ITEM_CREATED` in
+  `createDocument`; `FIELD_CHANGED` in `updateDocument` for the named
+  columns (`expiryDate`, `issueDate`, `documentNumber`, `country`, `notes`,
+  `link`, `prompt`) plus the shared `diffObjectFields` helper for ad-hoc
+  custom fields; `ITEM_ARCHIVED`/`ITEM_RESTORED` when `archived` flips
+  (its own event, not a generic `FIELD_CHANGED` -- see the enum rename
+  below); `STATUS_CHANGED` both as a side effect of a manual save that
+  moves the computed status, and -- found while implementing, not in the
+  original plan -- as a `SYSTEM`-sourced event from `getDocument`'s own
+  lazy status recompute (a document crossing its expiry date between page
+  views), which is the actual most common way a Document's status changes
+  at all and would have gone entirely uncaptured otherwise.
+* **Goals** (`goals/actions.ts`) -- `ITEM_CREATED` in `createGoalAction`;
+  `GOAL_COMPLETED` (moving to `"Finished"`) or generic `STATUS_CHANGED`
+  (any other transition) in `updateGoalStatusAction`; `FIELD_CHANGED` for
+  the target date (`updateGoalTargetDateAction`) and
+  `targetValue`/`currentValue`/`unit` together (`addTargetAction`) plus
+  `diffObjectFields` in `updateGoalFieldsAction`; `GOAL_MILESTONE_COMPLETED`
+  naming the milestone in `toggleMilestoneAction`. **Not done:**
+  `removeTargetAction` (clearing a goal's measure entirely) still doesn't
+  emit `FIELD_CHANGED` -- a real, small, deliberately-left gap; flagged here
+  rather than silently skipped.
+* **To-Dos** (`lib/data/todos.ts`) -- `ITEM_CREATED` in `captureTodo` and
+  `createTodo`; `TODO_COMPLETED`/`TODO_REOPENED` (moving to/from `"DONE"`)
+  or generic `STATUS_CHANGED` (any other transition) plus `FIELD_CHANGED`
+  for `dueDate`/`notes`, all in `updateTodoDetails`, at the exact point it
+  already fetched the old status for its own purposes.
+* **Custom Items** (`custom-modules/actions.ts`) -- `ITEM_CREATED` in
+  `createCustomItemAction`; `FIELD_CHANGED` for `name`/`dueDate` plus
+  `diffObjectFields` for ad-hoc extras in `updateCustomItemAction`; a
+  separate diff inside `saveTemplateFieldValues` (keyed by
+  `templateFieldId`, since that upsert-per-field shape isn't the
+  delete-and-recreate pattern `diffObjectFields` assumes) covering template
+  field values on both create and update; `ITEM_ARCHIVED`/`ITEM_RESTORED`
+  from both `updateCustomItemAction`'s own archived toggle and the
+  dedicated `toggleCustomItemArchivedAction`.
+* **Finance Items** (`finance/actions.ts`) -- `ITEM_CREATED`/`FIELD_CHANGED`
+  in `saveFinanceItem` for `amount`, `category`, `rate`,
+  `monthlyContribution`, `frequency`, `startDate`, `endDate`, `notes`.
+  `balanceAsOf` is deliberately excluded -- it changes on every save by
+  design (KD-044), so it's bookkeeping, not a fact worth a History line, the
+  same way `updatedAt` never gets one anywhere else. No detail page exists
+  yet to show this history on (Phase 2's own job), but the data is captured
+  now regardless.
+* **Quick-capture conversion** (`lib/data/capture.ts`) -- confirmed still
+  not mapped to its own event type, exactly as planned; the new record
+  still gets a plain `ITEM_CREATED`.
+
+**Shared `diffObjectFields` helper** (`lib/data/object-events.ts`), predicted
+by Finding 2 below, shipped as designed: one id-keyed diff, reused by
+Documents, Goals, and Custom Items' own ad-hoc fields, all of which save
+through the identical delete-then-recreate-all pattern.
+
+**Enum rename, resolving the "open question" below:** `DOCUMENT_ARCHIVED`/
+`DOCUMENT_RESTORED` are now `ITEM_ARCHIVED`/`ITEM_RESTORED`
+(`20261010000000_object_event_type_generalize_archived` -- a pure rename,
+since neither value had ever been written by anything), shared by Documents
+and Custom Items rather than needing a second, Custom-Item-specific pair.
 
 **Test coverage:** `tests/unit/object-events.test.ts` (`describeObjectEvent`,
-pure); `tests/integration/kinesis-links/object-relationship-links.test.ts`'s
-new "recording history" block (paired add/retype/remove events, correct
+every event type, pure); `tests/integration/kinesis-links/object-relationship-links.test.ts`'s
+"recording history" block (paired add/retype/remove events, correct
 per-side labels, ordering); `tests/integration/objects/object-factory.test.ts`'s
-new "records ITEM_DELETED" block (survivor-side write, the deleted object's
-own now-cascaded identity getting nothing, and the both-sides-deleted-together
+"records ITEM_DELETED" block (survivor-side write, the deleted object's own
+now-cascaded identity getting nothing, and the both-sides-deleted-together
 skip case); `tests/integration/todos/todo-link-history.test.ts` (the
-diff-not-replace behavior). The existing account-wide sweep tests
-(`delete-all-data`, `export`) were extended to seed and check `ObjectEvent`
-too, per their own "every table" convention.
+diff-not-replace behavior) and the new `todo-lifecycle-history.test.ts`
+(creation, completion/reopening, field diffs); the new
+`tests/integration/goals/goal-history.test.ts`,
+`tests/integration/documents/document-history.test.ts` (including the
+`SYSTEM`-sourced lazy status recompute), `tests/integration/custom-modules/custom-item-history.test.ts`,
+and `tests/integration/finance/finance-history.test.ts`. The existing
+account-wide sweep tests (`delete-all-data`, `export`) were extended to seed
+and check `ObjectEvent` too, per their own "every table" convention. All
+new/changed code passes `tsc --noEmit` and `eslint` cleanly; the full suite
+(unit + integration) is green throughout.
 
 ## Problem
 
@@ -398,7 +454,7 @@ without recording an event?") as a backstop for whatever the manual audit
 still misses — rather than a runtime interceptor that can't distinguish
 signal from noise.
 
-### Phase 1 remainder: wiring every object type
+### Phase 1 remainder: wiring every object type (Shipped)
 
 Written after actually reading `documents.ts`/`documents/actions.ts`,
 `goals/actions.ts`, `todos.ts`/`todos/actions.ts`,
@@ -517,14 +573,14 @@ separate piece of diff logic left for Phase 3 to still call its own.
   revisit only if "came from a quick capture" is ever asked for in History
   specifically.
 
-**Open question to resolve before implementing:** `DOCUMENT_ARCHIVED`/
-`DOCUMENT_RESTORED` are named for Documents specifically, but Custom Items
-have the exact same boolean `archived` flag and toggle
-(`toggleCustomItemArchivedAction`). Generalizing the enum values now, before
-either is wired (e.g. `ITEM_ARCHIVED`/`ITEM_RESTORED`), avoids either
-building a second Custom-Item-specific pair or leaving Custom Items'
-archival as a generic, less-legible `FIELD_CHANGED`. Recommend the rename;
-nothing depends on the Document-specific names yet since neither is wired.
+**Open question, resolved:** `DOCUMENT_ARCHIVED`/`DOCUMENT_RESTORED` were
+named for Documents specifically, but Custom Items have the exact same
+boolean `archived` flag and toggle (`toggleCustomItemArchivedAction`).
+Renamed to `ITEM_ARCHIVED`/`ITEM_RESTORED`
+(`20261010000000_object_event_type_generalize_archived`) before either was
+wired, so both modules share one pair instead of Custom Items getting a
+second, near-duplicate one or falling back to a generic, less-legible
+`FIELD_CHANGED`.
 
 **Suggested order** (cheapest/lowest-risk first, and each step unlocking
 more of the next): To-Do (diff point already exists) -> Goal's
@@ -585,31 +641,32 @@ later refinement, not required to ship Phase 1.
 
 ## Phases
 
-**Phase 1 — Foundation (Shipped, partially)**
+**Phase 1 — Foundation (Shipped, in full)**
 Schema + migration for `ObjectEvent`/`ObjectEventType`/`ObjectEventSource`
-shipped as designed, including the review fixes. `lib/data/object-events.ts`
+shipped as designed, including the review fixes, plus the later
+`ITEM_ARCHIVED`/`ITEM_RESTORED` generalization. `lib/data/object-events.ts`
 (write side) and `lib/data/object-event-history.ts` (`getObjectEvents`,
-split out to keep the write side free of `@/lib/auth`) shipped. **Not
-shipped this phase:** wiring emission into the existing `addActivity` call
-sites so each becomes *both* an `ActivityEvent` (unchanged) *and* an
-`ObjectEvent` (new), audited outward from there per object type rather than
-treated as the finished set (per "Emission" above) — this is real,
-larger, still-open scope, tracked as this phase's own remaining item rather
-than folded into Phase 2. What *did* ship this phase: paired
+split out to keep the write side free of `@/lib/auth`) shipped. Paired
 `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED`/`RELATIONSHIP_CHANGED` from
 `addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
 and the to-do linking call site in `lib/data/todos.ts`, per "Kinesis Links:
 what a link event actually records" above (paired per-endpoint rows, raw
-type + `inverse`, resolved at render time), and `ITEM_DELETED` wherever an
+type + `inverse`, resolved at render time); `ITEM_DELETED` wherever an
 object with live relationships is deleted, per "Deletion" above (paired
-rows onto survivors, written before the delete commits). Every paired
-write and its underlying mutation goes in one transaction (Behaviour/
-constraints). Ship one visible consumer: a generic "History" section on
-object detail pages, starting with Documents, Goals and Custom Items
-(Documents already has a bespoke one to replace) — a Kinesis Link
-add/remove/retype should be visible in this section on both linked
-objects' pages, not only the one where the action happened. No
-significance scoring yet — newest first, unfiltered.
+rows onto survivors, written before the delete commits); and, per "Phase 1
+remainder" above, `FIELD_CHANGED`/`STATUS_CHANGED`/`ITEM_CREATED`/
+`ITEM_ARCHIVED`/`ITEM_RESTORED`/`GOAL_COMPLETED`/`GOAL_MILESTONE_COMPLETED`/
+`TODO_COMPLETED`/`TODO_REOPENED` wired into every module's own mutations
+(Documents, Goals, To-Dos, Custom Items, Finance Items), via the shared
+`diffObjectFields` helper wherever a delete-and-recreate custom-fields save
+already existed. Every paired write and its underlying mutation goes in one
+transaction (Behaviour/constraints). Shipped the one visible consumer the
+phase called for: a generic "History" section on object detail pages,
+starting with Documents, Goals and Custom Items (Documents already had a
+bespoke one, replaced) — a Kinesis Link add/remove/retype, and now every
+other event type above, is visible in this section on both linked objects'
+pages where relevant, not only the one where the action happened. No
+significance scoring yet — newest first, unfiltered (Phase 4).
 
 **Phase 2 — Replace `ActivityEvent`**
 Move the dashboard "Recent activity" widget onto `ObjectEvent`. Move

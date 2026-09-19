@@ -26,7 +26,10 @@ async function makeGoal(id: string, name: string) {
   return objectId;
 }
 
-const eventsOn = (objectId: string) => prisma.objectEvent.findMany({ where: { objectId }, orderBy: { occurredAt: "asc" } });
+// Excludes ITEM_CREATED: every to-do created below also gets one of those
+// (KD-048's own creation coverage, exercised elsewhere), which is real and
+// correct but not what these tests are about -- a to-do's *link* history.
+const eventsOn = (objectId: string) => prisma.objectEvent.findMany({ where: { objectId, eventType: { not: "ITEM_CREATED" } }, orderBy: { occurredAt: "asc" } });
 
 describe.sequential("a To-Do's own links record history (KD-048)", () => {
   beforeEach(async () => {

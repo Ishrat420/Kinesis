@@ -385,8 +385,8 @@ enum ObjectEventType {
   RELATIONSHIP_ADDED
   RELATIONSHIP_REMOVED
   RELATIONSHIP_CHANGED    // KD-050's "Change relationship" -- retyping an existing Kinesis Link in place, not add+remove
-  DOCUMENT_ARCHIVED
-  DOCUMENT_RESTORED
+  ITEM_ARCHIVED           // Documents and Custom Items share this boolean flag -- not Document-specific
+  ITEM_RESTORED
   TODO_COMPLETED
   TODO_REOPENED
   GOAL_MILESTONE_COMPLETED

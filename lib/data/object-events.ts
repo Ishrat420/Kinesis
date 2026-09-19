@@ -1,4 +1,4 @@
-import type { ObjectEvent, ObjectRelationshipType, Prisma } from "@prisma/client";
+import type { ObjectEvent, ObjectEventType, ObjectRelationshipType, Prisma } from "@prisma/client";
 import type { prisma } from "./prisma";
 import { kinesisLinkLabel } from "@/lib/objects/relationship-labels";
 
@@ -133,6 +133,84 @@ export async function recordItemDeletedEvents(client: Client, objectIds: string[
   if (rows.length) await client.objectEvent.createMany({ data: rows });
 }
 
+/** One changed field, ready to write -- see `diffObjectFields` below. */
+export type FieldChange = { fieldKey: string; fieldLabel: string; oldValue: string | null; newValue: string | null };
+
+/** Snapshot of one `ObjectField` row, enough to diff a before/after set by id. */
+export type ObjectFieldSnapshot = { id: string; label: string; value: string };
+
+/**
+ * Diffs two `ObjectField` snapshots by id -- shared by Documents, Goals, and
+ * Custom Items' own ad-hoc fields, which all save through the same
+ * delete-then-recreate-all pattern (KD-048 Phase 1 remainder, Finding 2).
+ * That round trip is safe to diff by id because `prepareCustomFields` reuses
+ * each submitted field's own id when the client sent one, so an existing
+ * field's id survives even though its row is technically dropped and
+ * reinserted. A field present in `before` but missing from `after` is a
+ * removal, not "renamed to nothing" -- its old value is still worth a
+ * history line. A pure rename with no value change is not treated as a
+ * change; only the value is compared.
+ */
+export function diffObjectFields(before: ObjectFieldSnapshot[], after: ObjectFieldSnapshot[]): FieldChange[] {
+  const beforeById = new Map(before.map((field) => [field.id, field]));
+  const afterById = new Map(after.map((field) => [field.id, field]));
+  const changes: FieldChange[] = [];
+  for (const [id, previous] of beforeById) {
+    const next = afterById.get(id);
+    if (!next) changes.push({ fieldKey: id, fieldLabel: previous.label, oldValue: previous.value, newValue: null });
+    else if (next.value !== previous.value) changes.push({ fieldKey: id, fieldLabel: next.label, oldValue: previous.value, newValue: next.value });
+  }
+  for (const [id, next] of afterById) {
+    if (!beforeById.has(id)) changes.push({ fieldKey: id, fieldLabel: next.label, oldValue: null, newValue: next.value });
+  }
+  return changes;
+}
+
+/** One or more fields changed -- `FIELD_CHANGED`, one row per changed field, whether from `diffObjectFields` or a hand-diffed named column. */
+export async function recordFieldChanges(client: Client, userId: string, objectId: string, changes: FieldChange[]) {
+  if (!changes.length) return;
+  await client.objectEvent.createMany({
+    data: changes.map((change) => ({
+      id: crypto.randomUUID(), userId, objectId, eventType: "FIELD_CHANGED" as const,
+      fieldKey: change.fieldKey, fieldLabel: change.fieldLabel, oldValue: change.oldValue, newValue: change.newValue, source: "USER" as const,
+    })),
+  });
+}
+
+/**
+ * A status-shaped field changed -- `STATUS_CHANGED`, its own type since
+ * every consumer cares about status specifically. `source` defaults to
+ * `USER` (a person chose the new status directly); a status that recomputes
+ * itself automatically -- a Document crossing its own expiry date, read
+ * lazily on the next page view -- passes `SYSTEM` instead, since no one
+ * took an action here at all.
+ */
+export async function recordStatusChanged(client: Client, userId: string, objectId: string, oldValue: string, newValue: string, source: "USER" | "SYSTEM" = "USER") {
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: "STATUS_CHANGED", fieldKey: "status", fieldLabel: "Status", oldValue, newValue, source } });
+}
+
+/** A record's `archived` flag flipped -- `ITEM_ARCHIVED`/`ITEM_RESTORED`, shared by Documents and Custom Items rather than a Document-specific pair. */
+export async function recordArchivedChanged(client: Client, userId: string, objectId: string, archived: boolean) {
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: archived ? "ITEM_ARCHIVED" : "ITEM_RESTORED", source: "USER" } });
+}
+
+/**
+ * A plain, dataless moment with no field to diff -- `ITEM_CREATED`,
+ * `GOAL_COMPLETED`, `GOAL_MILESTONE_COMPLETED`, `TODO_COMPLETED`,
+ * `TODO_REOPENED`. `label` names the specific thing for a type that needs
+ * one (a milestone's own name for `GOAL_MILESTONE_COMPLETED`); omitted, the
+ * line reads generically.
+ */
+export async function recordEvent(
+  client: Client,
+  userId: string,
+  objectId: string,
+  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "TODO_COMPLETED" | "TODO_REOPENED">,
+  label?: string,
+) {
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType, fieldLabel: label ?? null, source: "USER" } });
+}
+
 /** Resolves a canonical/`CUSTOM` type + snapshot into the label it reads as from this row's own side, falling back gracefully for a row somehow missing the type its own event type requires. */
 function resolveLabel(type: ObjectRelationshipType | null, value: string | null, inverse: boolean | null) {
   if (!type) return "Related to";
@@ -157,7 +235,31 @@ export function describeObjectEvent(event: ObjectEvent): string {
       return `${relatedName} was deleted`;
     case "ITEM_CREATED":
       return "Created";
+    case "ITEM_ARCHIVED":
+      return "Archived";
+    case "ITEM_RESTORED":
+      return "Restored";
+    case "STATUS_CHANGED":
+      return `Status: ${event.oldValue} → ${event.newValue}`;
+    case "GOAL_COMPLETED":
+      return "Goal completed";
+    case "GOAL_MILESTONE_COMPLETED":
+      return event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed";
+    case "TODO_COMPLETED":
+      return "Completed";
+    case "TODO_REOPENED":
+      return "Reopened";
+    case "FIELD_CHANGED":
+      return describeFieldChange(event);
     default:
       return event.fieldLabel ? `${event.fieldLabel} changed` : "Updated";
   }
+}
+
+/** `FIELD_CHANGED` reads differently depending on whether the field was added, removed, or simply changed value. */
+function describeFieldChange(event: ObjectEvent): string {
+  const label = event.fieldLabel ?? "A field";
+  if (event.oldValue === null) return `${label} set to ${event.newValue}`;
+  if (event.newValue === null) return `${label} removed (was ${event.oldValue})`;
+  return `${label}: ${event.oldValue} → ${event.newValue}`;
 }
