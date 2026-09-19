@@ -285,6 +285,20 @@ model Object {
 /// at once, each its own row. The uniqueness key is `(userId, pairKey, type)`, not
 /// `(userId, pairKey)` -- what stays singular per pair is one row per *type*, whose
 /// inverse is always derived from that row rather than stored a second time.
+/// Uniqueness (KD-050): a plain `@@unique([userId, pairKey, type])` can't
+/// express that CUSTOM should be unique per *text*, not per pair+type alone
+/// (two different Custom labels between the same pair -- e.g. "Backup
+/// contact" and "Emergency contact" to the same Person -- must both be
+/// allowed). Postgres also can't enforce that as one ordinary unique index:
+/// NULL never equals NULL, so including the nullable `customLabel` column
+/// in a single index would silently stop enforcing uniqueness for every
+/// non-CUSTOM row (whose customLabel is always NULL). The real constraint
+/// instead lives in the DB only, as two partial unique indexes created by
+/// migration SQL (see 20261007000000_kinesis_link_custom_uniqueness):
+/// `(userId, pairKey, type) WHERE type != 'CUSTOM'` and
+/// `(userId, pairKey, customLabel) WHERE type = 'CUSTOM'`. Prisma's schema
+/// DSL has no way to express a partial index, so nothing here declares it --
+/// this comment is the only place it's written down on the Prisma side.
 model ObjectRelationship {
   id             String                 @id @default(uuid())
   sourceObjectId String
@@ -301,7 +315,7 @@ model ObjectRelationship {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
-  @@unique([userId, pairKey, type])
+  @@index([userId, pairKey, type])
   @@index([userId, sourceObjectId])
   @@index([userId, targetObjectId])
 }

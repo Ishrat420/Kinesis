@@ -161,6 +161,26 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
       await expect(add(docObjectId, goalObjectId, "CUSTOM", "")).resolves.toEqual({ error: "Type a label for this Kinesis Link." });
       await expect(prisma.objectRelationship.count()).resolves.toBe(0);
     });
+
+    /**
+     * KD-050: CUSTOM's uniqueness is per (pairKey, customLabel), not per
+     * (pairKey, type) like every other type -- two different ad-hoc texts
+     * between the same pair must both be allowed, since Custom's whole
+     * point is arbitrary text, not a single canonical slot.
+     */
+    it("allows two differently-worded Custom Kinesis Links between the same pair", async () => {
+      await expect(add(docObjectId, goalObjectId, "CUSTOM", "Renewal document")).resolves.toEqual({});
+      await expect(add(docObjectId, goalObjectId, "CUSTOM", "Backup reference")).resolves.toEqual({});
+
+      const links = await getKinesisLinks(docObjectId);
+      expect(links.map((link) => link.label).sort()).toEqual(["Backup reference", "Renewal document"]);
+    });
+
+    it("still rejects an exact duplicate Custom label between the same pair", async () => {
+      await expect(add(docObjectId, goalObjectId, "CUSTOM", "Renewal document")).resolves.toEqual({});
+      await expect(add(docObjectId, goalObjectId, "CUSTOM", "Renewal document")).resolves.toEqual({ error: "These are already linked this way." });
+      await expect(prisma.objectRelationship.count()).resolves.toBe(1);
+    });
   });
 
   describe("editing links", () => {
