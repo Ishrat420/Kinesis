@@ -1,13 +1,13 @@
 import { formatDate } from "@/lib/dates";
 
 /**
- * One rendered History line -- the server has already resolved
- * `ObjectEvent.description` (see `describeObjectEvent`) and serialised
+ * One rendered History entry -- the server has already resolved the
+ * `title`/`detail` pair (see `describeObjectEvent`) and serialised
  * `occurredAt` to an ISO string, since a `Date` crossing into a Client
  * Component needs to travel as a string the same way every other date prop
  * in this app already does.
  */
-export type ObjectHistoryEntry = { id: string; description: string; occurredAt: string };
+export type ObjectHistoryEntry = { id: string; title: string; detail: string | null; occurredAt: string };
 
 /**
  * An Object's own history (KD-048 Phase 1) -- the generalized form of
@@ -23,7 +23,7 @@ export type ObjectHistoryEntry = { id: string; description: string; occurredAt: 
  * empty section.
  */
 export function ObjectHistory({ entries, fallbackCreatedAt, locale }: { entries: ObjectHistoryEntry[]; fallbackCreatedAt?: string; locale: string }) {
-  const rows = entries.length > 0 ? entries : fallbackCreatedAt ? [{ id: "created", description: "Created", occurredAt: fallbackCreatedAt }] : [];
+  const rows = entries.length > 0 ? entries : fallbackCreatedAt ? [{ id: "created", title: "Created", detail: null, occurredAt: fallbackCreatedAt }] : [];
   if (!rows.length) return null;
 
   return (
@@ -34,7 +34,8 @@ export function ObjectHistory({ entries, fallbackCreatedAt, locale }: { entries:
           <div key={entry.id} className="flex items-start gap-3">
             <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-zinc-300" />
             <div>
-              <p className="text-sm font-medium text-zinc-700">{entry.description}</p>
+              <p className="text-sm font-medium text-zinc-700">{entry.title}</p>
+              {entry.detail && <p className="mt-0.5 text-sm text-zinc-500">{entry.detail}</p>}
               <p className="mt-0.5 text-xs text-zinc-400">{formatDate(entry.occurredAt, locale)}</p>
             </div>
           </div>

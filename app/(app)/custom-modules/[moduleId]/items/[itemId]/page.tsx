@@ -43,7 +43,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
     />
     <p className="mt-4 text-sm text-zinc-400">Created {formatDate(item.createdAt, locale)} · Updated {formatDate(item.updatedAt, locale)}</p>
     <div className="mt-6">
-      <ObjectHistory entries={history.map((event) => ({ id: event.id, description: event.description, occurredAt: event.occurredAt.toISOString() }))} fallbackCreatedAt={item.createdAt.toISOString()} locale={locale} />
+      <ObjectHistory entries={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))} fallbackCreatedAt={item.createdAt.toISOString()} locale={locale} />
     </div>
   </ModuleContent>;
 }

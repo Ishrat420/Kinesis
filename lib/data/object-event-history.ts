@@ -11,10 +11,11 @@ import { describeObjectEvent } from "./object-events";
  * belongs here, self-authenticating like every other `lib/data/*` reader.
  */
 
-/** One History entry, already rendered to a single display line -- see `describeObjectEvent`. */
+/** One History entry, already rendered to its title/detail pair -- see `describeObjectEvent`. */
 export type ObjectEventEntry = {
   id: string;
-  description: string;
+  title: string;
+  detail: string | null;
   occurredAt: Date;
 };
 
@@ -28,5 +29,5 @@ export async function getObjectEvents(objectId: string): Promise<ObjectEventEntr
     where: { objectId, userId: user.id },
     orderBy: { occurredAt: "desc" },
   });
-  return events.map((event) => ({ id: event.id, description: describeObjectEvent(event), occurredAt: event.occurredAt }));
+  return events.map((event) => ({ id: event.id, ...describeObjectEvent(event), occurredAt: event.occurredAt }));
 }

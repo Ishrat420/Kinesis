@@ -218,48 +218,56 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
 }
 
 /**
- * Renders one `ObjectEvent` to the single line its History entry shows. Pure
- * and exported on its own (rather than folded into `getObjectEvents`) so it
- * can be unit-tested without a database.
+ * One rendered History entry -- a short `title` naming what happened, and an
+ * optional `detail` line spelling out the before/after (or the two sides of
+ * a Kinesis Link) beneath it. `detail` is `null` for a dataless moment like
+ * `ITEM_CREATED` that has nothing to show a second line for.
  */
-export function describeObjectEvent(event: ObjectEvent): string {
+export type ObjectEventDescription = { title: string; detail: string | null };
+
+/**
+ * Renders one `ObjectEvent` to the title/detail pair its History entry
+ * shows. Pure and exported on its own (rather than folded into
+ * `getObjectEvents`) so it can be unit-tested without a database.
+ */
+export function describeObjectEvent(event: ObjectEvent): ObjectEventDescription {
   const relatedName = event.relatedObjectName ?? "a deleted record";
   switch (event.eventType) {
     case "RELATIONSHIP_ADDED":
-      return `${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} ▶ ${relatedName}`;
+      return { title: "Linked", detail: `${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} · ${relatedName}` };
     case "RELATIONSHIP_REMOVED":
-      return `No longer linked: ${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} ▶ ${relatedName}`;
+      return { title: "No longer linked", detail: `${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} · ${relatedName}` };
     case "RELATIONSHIP_CHANGED":
-      return `${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} ▶ ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})`;
+      return { title: "Relationship changed", detail: `From ${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} · To ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})` };
     case "ITEM_DELETED":
-      return `${relatedName} was deleted`;
+      return { title: `${relatedName} was deleted`, detail: null };
     case "ITEM_CREATED":
-      return "Created";
+      return { title: "Created", detail: null };
     case "ITEM_ARCHIVED":
-      return "Archived";
+      return { title: "Archived", detail: null };
     case "ITEM_RESTORED":
-      return "Restored";
+      return { title: "Restored", detail: null };
     case "STATUS_CHANGED":
-      return `Status: ${event.oldValue} ▶ ${event.newValue}`;
+      return { title: "Status changed", detail: `From ${event.oldValue} · To ${event.newValue}` };
     case "GOAL_COMPLETED":
-      return "Goal completed";
+      return { title: "Goal completed", detail: null };
     case "GOAL_MILESTONE_COMPLETED":
-      return event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed";
+      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed", detail: null };
     case "TODO_COMPLETED":
-      return "Completed";
+      return { title: "Completed", detail: null };
     case "TODO_REOPENED":
-      return "Reopened";
+      return { title: "Reopened", detail: null };
     case "FIELD_CHANGED":
       return describeFieldChange(event);
     default:
-      return event.fieldLabel ? `${event.fieldLabel} changed` : "Updated";
+      return { title: event.fieldLabel ? `${event.fieldLabel} changed` : "Updated", detail: null };
   }
 }
 
 /** `FIELD_CHANGED` reads differently depending on whether the field was added, removed, or simply changed value. */
-function describeFieldChange(event: ObjectEvent): string {
+function describeFieldChange(event: ObjectEvent): ObjectEventDescription {
   const label = event.fieldLabel ?? "A field";
-  if (event.oldValue === null) return `${label} set to ${event.newValue}`;
-  if (event.newValue === null) return `${label} removed (was ${event.oldValue})`;
-  return `${label}: ${event.oldValue} ▶ ${event.newValue}`;
+  if (event.oldValue === null) return { title: `${label} set`, detail: `To ${event.newValue}` };
+  if (event.newValue === null) return { title: `${label} removed`, detail: `Was ${event.oldValue}` };
+  return { title: `${label} changed`, detail: `From ${event.oldValue} · To ${event.newValue}` };
 }

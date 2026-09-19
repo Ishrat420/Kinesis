@@ -262,8 +262,8 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
 
       const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
 
-      expect(onDoc).toMatchObject([{ description: "Depends on ▶ Buy a house" }]);
-      expect(onGoal).toMatchObject([{ description: "Required for ▶ Mortgage pre-approval" }]);
+      expect(onDoc).toMatchObject([{ title: "Linked", detail: "Depends on · Buy a house" }]);
+      expect(onGoal).toMatchObject([{ title: "Linked", detail: "Required for · Mortgage pre-approval" }]);
     });
 
     it("snapshots the literal text on both sides for a Custom Kinesis Link", async () => {
@@ -271,8 +271,8 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
 
       const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
 
-      expect(onDoc).toMatchObject([{ description: "Renewal document ▶ Buy a house" }]);
-      expect(onGoal).toMatchObject([{ description: "Renewal document ▶ Mortgage pre-approval" }]);
+      expect(onDoc).toMatchObject([{ title: "Linked", detail: "Renewal document · Buy a house" }]);
+      expect(onGoal).toMatchObject([{ title: "Linked", detail: "Renewal document · Mortgage pre-approval" }]);
     });
 
     it("writes a RELATIONSHIP_CHANGED event on both sides when a link is retyped, not a remove-then-add pair", async () => {
@@ -285,8 +285,14 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
       // Two events each, newest first -- the original add is a real fact
       // that stays in history; the retype appends a second fact describing
       // the same underlying link, rather than erasing the first.
-      expect(onDoc).toMatchObject([{ description: "Supports ▶ Blocks (Buy a house)" }, { description: "Supports ▶ Buy a house" }]);
-      expect(onGoal).toMatchObject([{ description: "Supported by ▶ Blocked by (Mortgage pre-approval)" }, { description: "Supported by ▶ Mortgage pre-approval" }]);
+      expect(onDoc).toMatchObject([
+        { title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)" },
+        { title: "Linked", detail: "Supports · Buy a house" },
+      ]);
+      expect(onGoal).toMatchObject([
+        { title: "Relationship changed", detail: "From Supported by · To Blocked by (Mortgage pre-approval)" },
+        { title: "Linked", detail: "Supported by · Mortgage pre-approval" },
+      ]);
     });
 
     it("writes a RELATIONSHIP_REMOVED event on both sides when a link is removed, alongside the original add", async () => {
@@ -296,8 +302,14 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
       await removeKinesisLinkAction(docObjectId, id);
 
       const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
-      expect(onDoc).toMatchObject([{ description: "No longer linked: Depends on ▶ Buy a house" }, { description: "Depends on ▶ Buy a house" }]);
-      expect(onGoal).toMatchObject([{ description: "No longer linked: Required for ▶ Mortgage pre-approval" }, { description: "Required for ▶ Mortgage pre-approval" }]);
+      expect(onDoc).toMatchObject([
+        { title: "No longer linked", detail: "Depends on · Buy a house" },
+        { title: "Linked", detail: "Depends on · Buy a house" },
+      ]);
+      expect(onGoal).toMatchObject([
+        { title: "No longer linked", detail: "Required for · Mortgage pre-approval" },
+        { title: "Linked", detail: "Required for · Mortgage pre-approval" },
+      ]);
     });
 
     it("records nothing on either side when the add itself is refused", async () => {
@@ -313,7 +325,10 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
 
       const onDoc = await getObjectEvents(docObjectId);
 
-      expect(onDoc.map((event) => event.description)).toEqual(["Supports ▶ Blocks (Buy a house)", "Supports ▶ Buy a house"]);
+      expect(onDoc.map((event) => ({ title: event.title, detail: event.detail }))).toEqual([
+        { title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)" },
+        { title: "Linked", detail: "Supports · Buy a house" },
+      ]);
       expect(onDoc[0].occurredAt.getTime()).toBeGreaterThanOrEqual(onDoc[1].occurredAt.getTime());
     });
   });
