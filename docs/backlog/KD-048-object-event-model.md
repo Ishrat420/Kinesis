@@ -2,7 +2,35 @@
 
 **Status:** In Progress -- Phase 1 shipped in full, including its own
 remainder (every named event type wired across every module's mutations,
-not just Kinesis Links and deletion); Phases 2-6 not started.
+not just Kinesis Links and deletion). Phase 2's one visible piece --
+extending the History section to every remaining object detail page -- is
+now partly done out of sequence: Finance Items and To-Dos each got a real
+detail page/window with History wired in (see below), ahead of the
+`ActivityEvent`-retirement work Phase 2 was otherwise about. People/
+Relationships still has no detail page to hang History off. Phases 3-6 not
+started.
+
+**Finance Items and To-Dos detail pages (shipped, ahead of Phase 2):**
+Both modules previously had no per-item route at all -- editing was
+entirely inline/modal, with no read view to hang a History section off.
+Each now has a real page (`/finance/[itemId]`, `/todos/[todoId]`), reached
+directly, by refresh, or by a shared link, plus an intercepted "big window"
+version of the same page (Next.js intercepting + parallel routes, a new
+`app/(app)/@modal` slot on the shared layout) opened when clicking into an
+item from its dashboard/board without leaving it. Both reuse their
+existing edit forms (`FinanceForm`/`TodoDetailsForm`, each extracted into
+its own shared file) for the inline edit toggle, and render `ObjectHistory`
+via `getFinanceItem`/`getTodo` -- new single-item getters, since only bulk
+`getFinanceItems`/`getTodos` existed before. Two deliberate scope calls documented in the To-Dos commit: no
+generic Kinesis Links management card (the existing bespoke "concerns"
+picker stays the only way to edit a To-Do's links, to avoid two UIs
+writing the same `ObjectRelationship` rows), and no delete confirmation
+(matching the board's existing behaviour). Not done: `lib/objects/
+locations.ts`'s `locateObject` still points Kinesis Link cards at the list
+page for both modules (`/finance`, `/todos#todo-<id>`) rather than the new
+per-item routes -- left unchanged deliberately, matching how Finance's own
+dashboard rows got a direct `<Link>` without touching that shared
+function.
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
