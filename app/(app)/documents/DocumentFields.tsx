@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
 
 export type CustomField = CustomFieldValue;
@@ -27,6 +28,9 @@ export function DocumentFields({
   previews,
   afterDates,
   addKinesisLinkAction,
+  kinesisLinks,
+  updateKinesisLinkAction,
+  removeKinesisLinkAction,
 }: {
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
@@ -38,6 +42,9 @@ export function DocumentFields({
   afterDates?: ReactNode;
   /** KD-050: threaded through to `CustomFieldsEditor` unchanged -- absent when creating a brand-new document, where there is no object yet to link from. */
   addKinesisLinkAction?: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
+  kinesisLinks?: KinesisLink[];
+  updateKinesisLinkAction?: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction?: (linkId: string) => Promise<void>;
 }) {
   return (
     <div className="space-y-5">
@@ -58,7 +65,7 @@ export function DocumentFields({
         <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
         <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
-        <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} />
+        <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
       </div>
     </div>
   );

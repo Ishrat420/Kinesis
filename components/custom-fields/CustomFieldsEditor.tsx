@@ -16,7 +16,8 @@ import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { useFormResetKey } from "@/lib/hooks/form-reset-key";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
-import { DirectionField, TargetPicker } from "@/components/kinesis-links/KinesisLinks";
+import { DirectionField, KinesisLinks, TargetPicker } from "@/components/kinesis-links/KinesisLinks";
+import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
@@ -55,6 +56,9 @@ export function CustomFieldsEditor({
   linkOptions,
   previews = {},
   addKinesisLinkAction,
+  kinesisLinks = [],
+  updateKinesisLinkAction,
+  removeKinesisLinkAction,
 }: {
   initialFields?: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
@@ -68,6 +72,15 @@ export function CustomFieldsEditor({
    * applies unchanged.
    */
   addKinesisLinkAction?: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
+  /**
+   * The record's own existing Kinesis Links, shown (with retype/remove)
+   * right here while editing -- without this, someone editing other
+   * fields has no way to see what's already linked before deciding to add
+   * more. Paired with `addKinesisLinkAction`; omitted for the same reason.
+   */
+  kinesisLinks?: KinesisLink[];
+  updateKinesisLinkAction?: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction?: (linkId: string) => Promise<void>;
 }) {
   const [fields, setFields] = useState<EditorField[]>(() => buildFields(initialFields));
 
@@ -167,6 +180,12 @@ export function CustomFieldsEditor({
           ))}
         </div>
       )}
+      {kinesisLinks.length > 0 && updateKinesisLinkAction && removeKinesisLinkAction && (
+        <div className={fields.length ? "mt-2" : ""}>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-zinc-400">Kinesis Links</p>
+          <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+        </div>
+      )}
       {addingKinesisLink && (
         // Not a nested <form>: this editor already lives inside the record's
         // own outer form, and HTML forms cannot nest. A submit button's own
@@ -174,12 +193,12 @@ export function CustomFieldsEditor({
         // surrounding it -- the standard way to do that -- while
         // `formNoValidate` keeps this submission from being blocked by an
         // unrelated required field elsewhere in that same outer form.
-        <div className={`${fields.length ? "mt-2" : ""} grid gap-3 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]`}>
-          <DirectionField />
-          <TargetPicker options={linkOptions} />
+        <div className={`${fields.length || kinesisLinks.length ? "mt-2" : ""} grid gap-3 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]`}>
+          <DirectionField className={inputClass} />
+          <TargetPicker options={linkOptions} className={inputClass} />
           <div className="flex gap-2">
-            <button type="submit" formAction={submitKinesisLink} formNoValidate className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Add link</button>
-            <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-200"><X className="h-4 w-4" /></button>
+            <button type="submit" formAction={submitKinesisLink} formNoValidate className="flex h-[50px] items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Add link</button>
+            <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-200"><X className="h-4 w-4" /></button>
           </div>
           {kinesisLinkState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{kinesisLinkState.error}</p>}
         </div>
@@ -187,7 +206,7 @@ export function CustomFieldsEditor({
       <button
         type="button"
         onClick={addField}
-        className={`${fields.length || addingKinesisLink ? "mt-3" : ""} inline-flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300`}
+        className={`${fields.length || kinesisLinks.length || addingKinesisLink ? "mt-3" : ""} inline-flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300`}
       >
         <Plus className="h-4 w-4" /> Add custom field
       </button>

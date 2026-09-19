@@ -47,7 +47,7 @@ export function GoalSupportingInfo({ fields, linkOptions, previews, action, addK
       </div>
       <div className="mt-5">
         {editing ? (
-          <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} addKinesisLinkAction={addKinesisLinkAction} onDone={() => setEditing(false)} />
+          <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onDone={() => setEditing(false)} />
         ) : (
           <ReadFields fields={fields} previews={previews} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
         )}
@@ -125,12 +125,15 @@ function FieldGroup({ title, icon, children }: { title: string; icon: React.Reac
   );
 }
 
-function EditFields({ fields, linkOptions, previews, action, addKinesisLinkAction, onDone }: {
+function EditFields({ fields, linkOptions, previews, action, addKinesisLinkAction, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction, onDone }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
   previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
+  kinesisLinks: KinesisLink[];
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -138,7 +141,7 @@ function EditFields({ fields, linkOptions, previews, action, addKinesisLinkActio
 
   return (
     <form action={formAction} className="space-y-5">
-      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} />
+      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
       <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5">
         <button type="button" onClick={onDone} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">

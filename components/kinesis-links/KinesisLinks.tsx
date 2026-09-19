@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, KINESIS_LINK_DIRECTION_OPTIONS, kinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
 import type { LinkableObject } from "@/lib/objects/locations";
@@ -66,35 +66,48 @@ export function KinesisLinks({ links, previews, updateAction, removeAction }: {
   </div>;
 }
 
+/** A `<select>` with the app's own custom-chevron treatment (matching `CustomFieldsEditor`'s own type picker, `DocumentTypeSelect`, etc.) instead of the browser's native dropdown arrow. */
+function ChevronSelect({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { className: string }) {
+  return (
+    <div className="relative min-w-0">
+      <select {...props} className={`${className} appearance-none pr-10`}>{children}</select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+    </div>
+  );
+}
+
 /**
  * The 8-direction + Custom picker, revealing a free-text input the moment
  * Custom is chosen (KD-049 §6). Exported so the "Add custom field ->
  * Kinesis Link" flow (KD-050) can reuse the exact same picker rather than
- * a second, drifting implementation.
+ * a second, drifting implementation. `className` lets a caller in a
+ * different visual context (e.g. `CustomFieldsEditor`'s taller, bordered
+ * fields) match its own surroundings rather than inheriting this
+ * component's own compact default.
  */
-export function DirectionField({ defaultValue, defaultCustomLabel }: { defaultValue?: string; defaultCustomLabel?: string }) {
+export function DirectionField({ defaultValue, defaultCustomLabel, className = SELECT_CLASS }: { defaultValue?: string; defaultCustomLabel?: string; className?: string }) {
   const [value, setValue] = useState(defaultValue ?? KINESIS_LINK_DIRECTION_OPTIONS[0].value);
   const isCustom = value === CUSTOM_KINESIS_LINK_OPTION_VALUE;
   return <>
-    <select name="direction" aria-label="Relationship" value={value} onChange={(event) => setValue(event.target.value)} className={`${SELECT_CLASS} min-w-44`}>
+    <ChevronSelect name="direction" aria-label="Relationship" value={value} onChange={(event) => setValue(event.target.value)} className={`${className} min-w-44`}>
       {KINESIS_LINK_DIRECTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       <option value={CUSTOM_KINESIS_LINK_OPTION_VALUE}>Custom…</option>
-    </select>
-    {isCustom && <input name="customLabel" required defaultValue={defaultCustomLabel} placeholder="Type a label" aria-label="Custom Kinesis Link label" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500" />}
+    </ChevronSelect>
+    {isCustom && <input name="customLabel" required defaultValue={defaultCustomLabel} placeholder="Type a label" aria-label="Custom Kinesis Link label" className={`${className} min-w-0 flex-1`} />}
   </>;
 }
 
-/** Grouped by module, matching the order `getKinesisLinkOptions` already returns. Exported for the same reason as `DirectionField` above. */
-export function TargetPicker({ options }: { options: LinkableObject[] }) {
+/** Grouped by module, matching the order `getKinesisLinkOptions` already returns. Exported for the same reason as `DirectionField` above; `className` serves the same purpose. */
+export function TargetPicker({ options, className = SELECT_CLASS }: { options: LinkableObject[]; className?: string }) {
   const modules = [...new Set(options.map((option) => option.module))];
   return (
-    <select name="targetObjectId" required aria-label="Object to link" defaultValue="" className={`${SELECT_CLASS} min-w-0`}>
+    <ChevronSelect name="targetObjectId" required aria-label="Object to link" defaultValue="" className={`${className} min-w-0`}>
       <option value="" disabled>Select something to link</option>
       {modules.map((module) => (
         <optgroup key={module} label={module}>
           {options.filter((option) => option.module === module).map((option) => <option key={option.objectId} value={option.objectId}>{option.name}</option>)}
         </optgroup>
       ))}
-    </select>
+    </ChevronSelect>
   );
 }
