@@ -6,6 +6,7 @@ import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, KINESIS_LINK_DIRECTION_OPTIONS, kinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
 import type { LinkableObject } from "@/lib/objects/locations";
 import type { KinesisLink } from "@/lib/data/object-relationships";
+import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { KinesisLinkActionState } from "@/app/actions";
 
 type KinesisLinkGroup = { label: string; links: KinesisLink[] };
@@ -25,9 +26,11 @@ const SELECT_CLASS = "h-11 rounded-xl border border-zinc-300 bg-white px-3 text-
  * reads correctly from whichever side this Object sits on, so there is no
  * separate "outgoing"/"Referenced by" split to maintain.
  */
-export function KinesisLinks({ groups, options, addAction, updateAction, removeAction }: {
+export function KinesisLinks({ groups, options, previews, addAction, updateAction, removeAction }: {
   groups: KinesisLinkGroup[];
   options: LinkableObject[];
+  /** The same KD-042 rich-preview data every other Kinesis Link card on this page already shows -- keyed by objectId, so a linked target reads with exactly as much detail here as it does anywhere else. */
+  previews: Record<string, KinesisLinkPreviewStat[]>;
   addAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateAction: (linkId: string, data: FormData) => Promise<void>;
   removeAction: (linkId: string) => Promise<void>;
@@ -72,7 +75,7 @@ export function KinesisLinks({ groups, options, addAction, updateAction, removeA
               </form>
             ) : (
               <div key={link.id} className="flex items-center gap-2">
-                <KinesisLinkCard option={link.target} className="flex-1" />
+                <KinesisLinkCard option={link.target} className="flex-1" stats={previews[link.target.objectId] ?? []} />
                 <details className="relative shrink-0">
                   <summary aria-label={`Actions for the Kinesis Link to ${link.target.name}`} className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-5 w-5" /></summary>
                   <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg">

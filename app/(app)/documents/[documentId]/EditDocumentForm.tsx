@@ -153,7 +153,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
 
       {(kinesisLinkGroups.length > 0 || linkOptions.length > 0) && (
         <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
-          <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+          <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
         </section>
       )}
 

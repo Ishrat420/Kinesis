@@ -80,7 +80,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     </section>
     {!editing && (kinesisLinkGroups.length > 0 || linkOptions.length > 0) && (
       <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+        <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
       </section>
     )}
   </>;
