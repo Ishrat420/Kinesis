@@ -226,11 +226,11 @@ export function describeObjectEvent(event: ObjectEvent): string {
   const relatedName = event.relatedObjectName ?? "a deleted record";
   switch (event.eventType) {
     case "RELATIONSHIP_ADDED":
-      return `${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} → ${relatedName}`;
+      return `${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} ▶ ${relatedName}`;
     case "RELATIONSHIP_REMOVED":
-      return `No longer linked: ${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} → ${relatedName}`;
+      return `No longer linked: ${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} ▶ ${relatedName}`;
     case "RELATIONSHIP_CHANGED":
-      return `${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} → ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})`;
+      return `${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} ▶ ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})`;
     case "ITEM_DELETED":
       return `${relatedName} was deleted`;
     case "ITEM_CREATED":
@@ -240,7 +240,7 @@ export function describeObjectEvent(event: ObjectEvent): string {
     case "ITEM_RESTORED":
       return "Restored";
     case "STATUS_CHANGED":
-      return `Status: ${event.oldValue} → ${event.newValue}`;
+      return `Status: ${event.oldValue} ▶ ${event.newValue}`;
     case "GOAL_COMPLETED":
       return "Goal completed";
     case "GOAL_MILESTONE_COMPLETED":
@@ -261,5 +261,5 @@ function describeFieldChange(event: ObjectEvent): string {
   const label = event.fieldLabel ?? "A field";
   if (event.oldValue === null) return `${label} set to ${event.newValue}`;
   if (event.newValue === null) return `${label} removed (was ${event.oldValue})`;
-  return `${label}: ${event.oldValue} → ${event.newValue}`;
+  return `${label}: ${event.oldValue} ▶ ${event.newValue}`;
 }

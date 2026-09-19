@@ -27,31 +27,31 @@ function event(overrides: Partial<ObjectEvent>): ObjectEvent {
 describe("describeObjectEvent: the single line a History entry renders", () => {
   it("renders RELATIONSHIP_ADDED with the forward label from the source side", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: false, relatedObjectName: "Save $30k" }));
-    expect(line).toBe("Depends on → Save $30k");
+    expect(line).toBe("Depends on ▶ Save $30k");
   });
 
   it("renders the same RELATIONSHIP_ADDED with the inverse label from the target side", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: true, relatedObjectName: "Mortgage pre-approval" }));
-    expect(line).toBe("Required for → Mortgage pre-approval");
+    expect(line).toBe("Required for ▶ Mortgage pre-approval");
   });
 
   it("renders a CUSTOM RELATIONSHIP_ADDED with its literal text, identically regardless of inverse", () => {
     const forward = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "CUSTOM", newValue: "Renewal document", inverse: false, relatedObjectName: "Passport" }));
     const inverse = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "CUSTOM", newValue: "Renewal document", inverse: true, relatedObjectName: "Passport" }));
-    expect(forward).toBe("Renewal document → Passport");
-    expect(inverse).toBe("Renewal document → Passport");
+    expect(forward).toBe("Renewal document ▶ Passport");
+    expect(inverse).toBe("Renewal document ▶ Passport");
   });
 
   it("renders RELATIONSHIP_REMOVED with the old label, prefixed to distinguish it from an active link", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_REMOVED", oldRelationshipType: "BLOCKS", inverse: false, relatedObjectName: "Submit application" }));
-    expect(line).toBe("No longer linked: Blocks → Submit application");
+    expect(line).toBe("No longer linked: Blocks ▶ Submit application");
   });
 
   it("renders RELATIONSHIP_CHANGED with old and new labels, each resolved from this row's own side", () => {
     const onSource = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: false, relatedObjectName: "Buy a house" }));
     const onTarget = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: true, relatedObjectName: "Mortgage pre-approval" }));
-    expect(onSource).toBe("Supports → Blocks (Buy a house)");
-    expect(onTarget).toBe("Supported by → Blocked by (Mortgage pre-approval)");
+    expect(onSource).toBe("Supports ▶ Blocks (Buy a house)");
+    expect(onTarget).toBe("Supported by ▶ Blocked by (Mortgage pre-approval)");
   });
 
   it("renders ITEM_DELETED naming the deleted record", () => {
@@ -67,7 +67,7 @@ describe("describeObjectEvent: the single line a History entry renders", () => {
   });
 
   it("renders STATUS_CHANGED with the old and new status text", () => {
-    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Revisit Later" }))).toBe("Status: Active → Revisit Later");
+    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Revisit Later" }))).toBe("Status: Active ▶ Revisit Later");
   });
 
   it("renders ITEM_ARCHIVED and ITEM_RESTORED as plain, fixed lines", () => {
@@ -91,7 +91,7 @@ describe("describeObjectEvent: the single line a History entry renders", () => {
 
   describe("FIELD_CHANGED", () => {
     it("reads as a plain before/after when the field already had a value", () => {
-      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Notes", oldValue: "Old note", newValue: "New note" }))).toBe("Notes: Old note → New note");
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Notes", oldValue: "Old note", newValue: "New note" }))).toBe("Notes: Old note ▶ New note");
     });
 
     it("reads as \"set to\" when the field had no prior value", () => {
@@ -103,7 +103,7 @@ describe("describeObjectEvent: the single line a History entry renders", () => {
     });
 
     it("falls back to a generic label when somehow missing its own fieldLabel", () => {
-      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: null, oldValue: "1", newValue: "2" }))).toBe("A field: 1 → 2");
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: null, oldValue: "1", newValue: "2" }))).toBe("A field: 1 ▶ 2");
     });
   });
 
