@@ -1,6 +1,6 @@
 # KD-049 — Typed Kinesis Links
 
-**Status:** In Progress (Phase 1 shipped)
+**Status:** In Progress (Phases 1–2 shipped)
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
@@ -17,9 +17,35 @@ non-goal-specific home and names), with `LinkedGoals.tsx`,
 `type` to the 5 canonical values before handing it to `LinkedGoals` — a
 Goal↔Goal link can't be `CUSTOM` yet (nothing on this page can create one),
 so this keeps that true at the type level rather than widening the
-component for a case Phase 2 hasn't built a picker for. Phases 2–4 (the
-generalized Kinesis Links section, card decoration, dogfooding Goals onto
-it) are still ahead.
+component for a case Phase 2 hasn't built a picker for.
+
+**Phase 2 status:** Shipped, on Documents and Custom Items (Finance Items
+and People still ahead). New: `lib/objects/relationship-labels.ts` gained
+`kinesisLinkLabel` (resolves `CUSTOM` too, unlike the Goals-only
+`relationshipLabel`), `KINESIS_LINK_DIRECTION_OPTIONS` (the 8 canonical
+direction choices), `CUSTOM_KINESIS_LINK_OPTION_VALUE`, and the
+`parseKinesisLinkDirectionValue`/`kinesisLinkDirectionValue` pair that
+encode/decode a picker choice. `lib/objects/kinesis-link-groups.ts`
+(`groupKinesisLinksByLabel`) buckets a flat link list by resolved label,
+one flat list per §4, no separate outgoing/"Referenced by" split.
+`lib/data/object-relationships.ts` (`getKinesisLinks`) reads every Kinesis
+Link touching an Object from its own side, reusing `locateObject` (already
+built for the Kinesis Link Custom Field mechanism) to resolve the other
+end. Three new cross-module actions in `app/actions.ts`
+(`addKinesisLinkAction`, `updateKinesisLinkAction`,
+`removeKinesisLinkAction`) generalize `addGoalRelationshipAction` and
+friends to work from any `objectId` rather than only a Goal's.
+`components/kinesis-links/KinesisLinks.tsx` is the generalized
+`LinkedGoals`, reusing the existing `KinesisLinkCard` for each target
+(no label on the card yet — that's Phase 3) with the resolved label as a
+group heading instead; the target picker reuses `getKinesisLinkOptions`
+unchanged, since it already covers every linkable type. Wired into the
+Documents and Custom Item detail pages, right before/after their existing
+content. A deliberate consequence of Phase 1's per-type uniqueness: the
+picker's options list no longer drops an already-linked object, since a
+second, differently-typed Kinesis Link to the same target is now a normal
+thing to add, not a duplicate to prevent. Phases 3–4 (card decoration,
+dogfooding Goals onto the shared component) are still ahead.
 
 **Revision note (2):** rewritten after review. Three architectural
 corrections from that review are folded in below: uniqueness is

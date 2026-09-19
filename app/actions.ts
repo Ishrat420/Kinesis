@@ -7,6 +7,9 @@ import { notificationKey } from "@/lib/notifications/identity";
 import { formatDateInput } from "@/lib/dates";
 import { getToday } from "@/lib/format/server";
 import { getNextOccurrence } from "@/lib/relationships/occurrence";
+import { locateObjects, objectLocationSelect } from "@/lib/objects/locations";
+import { objectPairKey } from "@/lib/objects/relationships";
+import { CUSTOM_KINESIS_LINK_OPTION_VALUE, parseKinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
 
 /** The column that links a dismissal, and its notifications, back to the record. */
 const LINK_FIELD = {
@@ -90,4 +93,105 @@ export async function dismissAttentionItem(itemKey: string) {
     }),
   ]);
   revalidatePath("/");
+}
+
+export type KinesisLinkActionState = { error?: string };
+
+/**
+ * Every page an Object could be showing its own Kinesis Links on, revalidated
+ * together -- a link's two ends are rarely both open at once, but the one
+ * that isn't should still be fresh on the next visit rather than lagging
+ * behind until something else happens to revalidate it.
+ */
+async function revalidateKinesisLinkEndpoints(objectIds: string[], userId: string) {
+  const objects = await prisma.object.findMany({ where: { id: { in: objectIds }, userId }, select: objectLocationSelect });
+  for (const location of locateObjects(objects)) revalidatePath(location.href);
+}
+
+/**
+ * Reads the picker's submitted value into a type/direction, `CUSTOM`
+ * included -- shared by add and update so the two can't quietly drift on how
+ * a choice is parsed.
+ */
+function readKinesisLinkChoice(formData: FormData) {
+  const directionValue = String(formData.get("direction") ?? "");
+  const isCustom = directionValue === CUSTOM_KINESIS_LINK_OPTION_VALUE;
+  const direction = isCustom ? { type: "CUSTOM" as const, inverse: false } : parseKinesisLinkDirectionValue(directionValue);
+  if (!direction) return null;
+  const customLabel = String(formData.get("customLabel") ?? "").trim();
+  if (isCustom && !customLabel) return null;
+  return { type: direction.type, inverse: direction.inverse, customLabel: isCustom ? customLabel : null };
+}
+
+/**
+ * Adds a Kinesis Link from `objectId` to whatever the form's picker chose
+ * (KD-049 Phase 2) -- the generalized form of `addGoalRelationshipAction`,
+ * usable from any Object's own page rather than only a Goal's.
+ */
+export async function addKinesisLinkAction(objectId: string, _previousState: KinesisLinkActionState, formData: FormData): Promise<KinesisLinkActionState> {
+  const user = await requireKinesisUser();
+  const targetObjectId = String(formData.get("targetObjectId") ?? "").trim();
+  if (!targetObjectId) return { error: "Choose something to link." };
+  if (targetObjectId === objectId) return { error: "An object cannot be linked to itself." };
+
+  const choice = readKinesisLinkChoice(formData);
+  if (!choice) return { error: formData.get("direction") === CUSTOM_KINESIS_LINK_OPTION_VALUE ? "Type a label for this Kinesis Link." : "Choose a valid relationship." };
+
+  const owned = await prisma.object.count({ where: { id: { in: [objectId, targetObjectId] }, userId: user.id } });
+  if (owned !== 2) return { error: "One or both of these no longer exist." };
+
+  const sourceObjectId = choice.inverse ? targetObjectId : objectId;
+  const finalTargetObjectId = choice.inverse ? objectId : targetObjectId;
+
+  try {
+    await prisma.objectRelationship.create({
+      data: {
+        userId: user.id,
+        sourceObjectId,
+        targetObjectId: finalTargetObjectId,
+        type: choice.type,
+        customLabel: choice.customLabel,
+        pairKey: objectPairKey(sourceObjectId, finalTargetObjectId),
+      },
+    });
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "P2002") return { error: "These are already linked this way." };
+    throw error;
+  }
+  await revalidateKinesisLinkEndpoints([objectId, targetObjectId], user.id);
+  return {};
+}
+
+/** Changes an existing Kinesis Link's type or custom label, keeping which two Objects it connects. */
+export async function updateKinesisLinkAction(objectId: string, relationshipId: string, formData: FormData): Promise<void> {
+  const user = await requireKinesisUser();
+  const relationship = await prisma.objectRelationship.findFirst({
+    where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+  });
+  if (!relationship) return;
+
+  const choice = readKinesisLinkChoice(formData);
+  if (!choice) return;
+
+  const otherObjectId = relationship.sourceObjectId === objectId ? relationship.targetObjectId : relationship.sourceObjectId;
+  const sourceObjectId = choice.inverse ? otherObjectId : objectId;
+  const targetObjectId = choice.inverse ? objectId : otherObjectId;
+
+  await prisma.objectRelationship.update({
+    where: { id: relationshipId },
+    data: { sourceObjectId, targetObjectId, type: choice.type, customLabel: choice.customLabel, pairKey: objectPairKey(sourceObjectId, targetObjectId) },
+  });
+  await revalidateKinesisLinkEndpoints([objectId, otherObjectId], user.id);
+}
+
+/** Removes a Kinesis Link -- deleting the row itself, never either Object it connected. */
+export async function removeKinesisLinkAction(objectId: string, relationshipId: string): Promise<void> {
+  const user = await requireKinesisUser();
+  const relationship = await prisma.objectRelationship.findFirst({
+    where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+  });
+  if (!relationship) return;
+  const otherObjectId = relationship.sourceObjectId === objectId ? relationship.targetObjectId : relationship.sourceObjectId;
+  await prisma.objectRelationship.delete({ where: { id: relationshipId } });
+  await revalidateKinesisLinkEndpoints([objectId, otherObjectId], user.id);
 }

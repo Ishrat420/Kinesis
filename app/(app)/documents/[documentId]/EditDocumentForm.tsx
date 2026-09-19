@@ -13,6 +13,9 @@ import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
+import type { KinesisLink } from "@/lib/data/object-relationships";
+import type { KinesisLinkActionState } from "@/app/actions";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { freshestStamp } from "@/lib/actions/concurrency";
 import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
@@ -46,7 +49,13 @@ export type EditableDocument = {
   updatedAt: string;
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false }: { document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[]; initialEditing?: boolean }) {
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false, kinesisLinkGroups, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[]; initialEditing?: boolean;
+  kinesisLinkGroups: { label: string; links: KinesisLink[] }[];
+  addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
+}) {
   const [editing, setEditing] = useState(initialEditing);
   // `document` is a server-fed prop, refreshed only once `router.refresh()`
   // lands after a save -- and `onSaved` below closes the form synchronously,
@@ -77,13 +86,21 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} previews={previews} history={history} />
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} previews={previews} history={history}
+          kinesisLinkGroups={kinesisLinkGroups} addKinesisLinkAction={addKinesisLinkAction} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
+        />
       )}
     </>
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, previews, history }: { document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[] }) {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, previews, history, kinesisLinkGroups, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[];
+  kinesisLinkGroups: { label: string; links: KinesisLink[] }[];
+  addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
+}) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   // A field keeps its row here even once every target it pointed at is gone
   // -- the field itself survives that (see FieldLink's cascade), and hiding it
@@ -133,6 +150,12 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           <p className={`mt-4 whitespace-pre-wrap text-sm leading-6 ${document.notes ? "text-zinc-700" : "text-zinc-400"}`}>{document.notes || "No notes added yet."}</p>
         </section>
       </div>
+
+      {(kinesisLinkGroups.length > 0 || linkOptions.length > 0) && (
+        <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
+          <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+        </section>
+      )}
 
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
         <h2 className="text-lg font-semibold">History</h2>

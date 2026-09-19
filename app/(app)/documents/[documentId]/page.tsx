@@ -5,6 +5,9 @@ import { ModuleContent } from "@/components/layout/ModuleContent";
 import { DocumentDetailRecord } from "./EditDocumentForm";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
+import { getKinesisLinks } from "@/lib/data/object-relationships";
+import { groupKinesisLinksByLabel } from "@/lib/objects/kinesis-link-groups";
+import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDateInput } from "@/lib/dates";
 
 export default async function DocumentDetailPage({ params, searchParams }: { params: Promise<{ documentId: string }>; searchParams: Promise<{ edit?: string }> }) {
@@ -17,7 +20,11 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
 
   // Excludes this document's own object -- linking it to itself is never
   // meaningful, so the picker never offers the choice at all.
-  const [linkOptions, history] = await Promise.all([getKinesisLinkOptions(document.objectId), getActivityForHref(`/documents/${document.id}`)]);
+  const [linkOptions, history, kinesisLinks] = await Promise.all([
+    getKinesisLinkOptions(document.objectId),
+    getActivityForHref(`/documents/${document.id}`),
+    getKinesisLinks(document.objectId),
+  ]);
   // Every object the picker could show, not just ones already linked --
   // choosing a new one in the picker, before saving, should show exactly
   // the card it'll actually render as (KD-042), not the compact fallback
@@ -31,7 +38,12 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     expiryDateLabel: document.expiryDateLabel, issueDateLabel: document.issueDateLabel, documentNumberLabel: document.documentNumberLabel,
     countryLabel: document.countryLabel, notesLabel: document.notesLabel, linkLabel: document.linkLabel, customFields: document.customFields,
     updatedAt: document.updatedAt.toISOString(),
-  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString() }))} initialEditing={edit === "1"} /></ModuleContent>;
+  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString() }))} initialEditing={edit === "1"}
+    kinesisLinkGroups={groupKinesisLinksByLabel(kinesisLinks)}
+    addKinesisLinkAction={addKinesisLinkAction.bind(null, document.objectId)}
+    updateKinesisLinkAction={updateKinesisLinkAction.bind(null, document.objectId)}
+    removeKinesisLinkAction={removeKinesisLinkAction.bind(null, document.objectId)}
+  /></ModuleContent>;
 }
 
 function toDateInput(date: Date | null) { return date ? formatDateInput(date) : ""; }
