@@ -176,9 +176,6 @@ KD-045-mobile-add-custom-module-to-dashboard
 
 ## 🚧 In Progress
 
-KD-049-typed-kinesis-link-connections
-KD-050-converge-kinesis-link-custom-fields
-
 ## Accepted — Needs Planning
 
 KD-048-object-event-model
@@ -191,6 +188,8 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-049-typed-kinesis-link-connections
+KD-050-converge-kinesis-link-custom-fields
 KD-047-important-dates-row-actions
 KD-046-order-milestones-by-due-date
 KD-027-todo-reminder-window

@@ -1,15 +1,15 @@
 # KD-050 — Converge Kinesis Link Custom Fields into Typed Kinesis Links
 
-**Status:** Shipped, pending real-data migration on next deploy. All five
-phases below are implemented, typechecked, linted, and covered by the
-integration suite; the data migration itself
-(`20261008000000_migrate_kinesis_link_custom_fields`) has been syntax- and
-logic-verified against synthetic data locally (dedup case included) but
-has not yet run against any real user data, since this environment's own
-database is a separate, empty local instance from what the deployed app
-uses. It runs automatically, without further action, the next time this
-branch is deployed (`prisma migrate deploy`, already wired into
-`scripts/deploy-database.mjs`).
+**Status:** Done. All five phases shipped, including the real-data
+migration (`20261008000000_migrate_kinesis_link_custom_fields`), which has
+since run against production on deploy — confirmed by live testing showing
+ad-hoc Kinesis Link Custom Fields converted into typed Kinesis Links.
+Several rounds of real-browser QA against the deployed app surfaced UI bugs
+in the converged flow (existing links not showing in edit mode, stale
+picker styling, nested-form breakage on retype/remove, unclear save
+feedback, silent data loss on an unconfirmed pending link, a jarring
+layout jump, and lost search on the target picker); all were fixed and are
+part of this ticket's own scope, not follow-up work.
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 **Supersedes:** KD-049 §2's explicit deferral ("this ticket does not decide to
@@ -150,17 +150,17 @@ For every ad-hoc `ObjectField` where `type = 'KINESIS_LINK'` and
    Prisma DSL change beyond dropping the old `@@unique`). Covered by two
    new integration tests: different Custom labels between the same pair
    now coexist; an exact duplicate is still rejected.
-2. **Data migration (Shipped, not yet run on real data).** A pure-SQL
-   migration, `20261008000000_migrate_kinesis_link_custom_fields`, folded
-   into the normal deploy pipeline rather than a standalone script (per
-   how this repo already ships data migrations, e.g. the starter-template
-   dedup) — no separate script, no credentials handled by hand.
+2. **Data migration (Shipped, ran on real data).** A pure-SQL migration,
+   `20261008000000_migrate_kinesis_link_custom_fields`, folded into the
+   normal deploy pipeline rather than a standalone script (per how this
+   repo already ships data migrations, e.g. the starter-template dedup) —
+   no separate script, no credentials handled by hand.
    `INSERT ... ON CONFLICT ... DO NOTHING` relies on Phase 1's partial
    index for the dedup case; verified against synthetic pre-migration data
    locally (two ad-hoc fields sharing a label and target collapsed into
    one Kinesis Link; a differently-labeled one converted on its own; the
-   source `ObjectField`/`FieldLink` rows removed). Runs automatically on
-   the next `prisma migrate deploy`.
+   source `ObjectField`/`FieldLink` rows removed) before running
+   automatically on deploy against production via `prisma migrate deploy`.
 3. **`CustomFieldsEditor.tsx` (Shipped).** Choosing "Kinesis Link" from
    "Add custom field" is unchanged as a menu item, but no longer adds a
    row to the batch: it opens the same target + DDL/Custom picker

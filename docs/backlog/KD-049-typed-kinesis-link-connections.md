@@ -1,6 +1,14 @@
 # KD-049 — Typed Kinesis Links
 
-**Status:** In Progress (Phases 1–4 shipped; Finance Items/People UI still ahead)
+**Status:** Done. Phases 1–4 shipped (Documents, Custom Items, Goals). Finance
+Items and People never got their own Kinesis Links UI — closing this ticket
+rather than leaving it open indefinitely for that; extending Kinesis Links to
+those two modules will get its own ticket once there's been more design
+consideration of what a Kinesis Link means for a Finance Item or a Person
+(neither has any custom-field UI today either, ad-hoc or otherwise — this
+isn't just "add the same picker", it needs its own thought). Custom label
+**templates** (§6's deferred "save an ad-hoc label as a reusable named type")
+remains deferred for the same reason: a real need for it hasn't shown up yet.
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
@@ -348,13 +356,18 @@ Change `ObjectRelationship`'s uniqueness to `(userId, pairKey, type)`. Add
 Relocate the (unchanged) canonical label table out of
 `lib/goals/relationships.ts` into a shared, non-goal-specific home.
 
-**Phase 2 — Generalize the section**
+**Phase 2 — Generalize the section (Shipped on Documents and Custom Items;
+Finance Items/People deferred)**
 `LinkedGoals` → a shared **Kinesis Links** section, usable from any Object
 id: one flat list grouped by resolved label, the 9-option picker (8
 directions + ad-hoc Custom), matching server actions generalized off their
-goal-specific originals. Ship on Documents and Custom Items first (the two
-with an existing Kinesis Link Custom Field precedent to sit alongside),
-then Finance Items and People.
+goal-specific originals. Shipped on Documents and Custom Items (the two
+with an existing Kinesis Link Custom Field precedent to sit alongside).
+Finance Items and People were the original next step, but neither has any
+custom-field UI at all today, ad-hoc or otherwise — giving them a Kinesis
+Links section isn't just wiring up the same picker, it needs its own design
+pass first. Closing this ticket without them rather than leaving it open
+indefinitely; see the ticket-level note above.
 
 **Phase 3 — Card decoration (Shipped)**
 Added the optional `label` prop from §3 to `KinesisLinkCard`, rendered as
@@ -382,6 +395,12 @@ other Kinesis Link, just now read and written through the shared path.
 distinct, `ObjectField`-based mechanism) is untouched by this migration.
 
 **Deferred, not scheduled**
+* **Finance Items and People UI** — Phase 2 was never extended to these two
+  modules. Both remain valid Kinesis Link *targets* today, just not pages
+  with their own Kinesis Links section or picker. Left for a future ticket
+  once there's been more design consideration of what a Kinesis Link means
+  for a Finance Item or a Person, rather than assuming it's the same section
+  dropped in unchanged.
 * Custom label **templates** — saving an ad-hoc custom label as a
   reusable, named type that reappears in future pickers (§6). Ad-hoc
   custom text itself ships in Phase 1–2; only the "save as a new type"
