@@ -28,13 +28,15 @@ no event); and `deleteObjects` (`lib/data/objects.ts`) itself, which is the
 one chokepoint every module's delete already goes through, so `ITEM_DELETED`
 coverage is universal for free rather than needing a per-module change.
 
-**Not wired this phase:** `FIELD_CHANGED`/`STATUS_CHANGED`/`ITEM_CREATED`/
-`DOCUMENT_ARCHIVED`/`TODO_COMPLETED`/etc. -- the broader "audit every
-`addActivity` call site (and beyond) per object type" work the "Emission"
-section calls for. Deliberately deferred as its own follow-up: it touches
-every module's own action file individually, is materially larger than the
-Kinesis Link/deletion work above, and doesn't share those two pieces'
-common chokepoint. `ObjectHistory` (the new generic History section,
+**Not wired yet, but no longer deferred -- planned concretely below:**
+`FIELD_CHANGED`/`STATUS_CHANGED`/`ITEM_CREATED`/`DOCUMENT_ARCHIVED`/
+`TODO_COMPLETED`/etc., the broader "audit every `addActivity` call site (and
+beyond) per object type" work the "Emission" section calls for. See "Phase 1
+remainder: wiring every object type" below, written from actually reading
+every module's current mutation code rather than from the enum names alone.
+It touches every module's own action file individually, is materially
+larger than the Kinesis Link/deletion work above, and doesn't share those
+two pieces' common chokepoint. `ObjectHistory` (the new generic History section,
 `components/history/ObjectHistory.tsx`) falls back to a single synthetic
 "Created" line from the record's own `createdAt` in the meantime, so an
 otherwise-empty history doesn't read as broken.
@@ -395,6 +397,147 @@ level check ("does this action file touch a model with an Object identity
 without recording an event?") as a backstop for whatever the manual audit
 still misses — rather than a runtime interceptor that can't distinguish
 signal from noise.
+
+### Phase 1 remainder: wiring every object type
+
+Written after actually reading `documents.ts`/`documents/actions.ts`,
+`goals/actions.ts`, `todos.ts`/`todos/actions.ts`,
+`custom-modules/actions.ts`, `finance/actions.ts`, and `capture.ts` -- not
+guessed from the enum names. Two findings changed the plan from what the
+"Emission" section above implies before this was worked out concretely.
+
+**Finding 1 — emission belongs wherever the "before" value is already
+read, which is not uniformly the action file.** The recommendation above
+("explicit emission at the same chokepoints `addActivity` already lives
+at") reads as if every module's `app/(app)/{module}/actions.ts` is that
+chokepoint. It isn't, uniformly:
+
+* **Documents** and **Custom Items** have real data-layer writers
+  (`lib/data/documents.ts`'s `updateDocument`, and inline transaction
+  blocks in `custom-modules/actions.ts`) that only fetch a minimal
+  `{ objectId: true }` before writing -- broadening that select to also
+  read the old field values is the actual change needed, and it happens in
+  the writer, not the action.
+* **Goals** and **Finance Items** have no separate data-layer writer at
+  all -- `goals/actions.ts` and `finance/actions.ts` run their own Prisma
+  calls directly. Emission there genuinely does belong in the action file,
+  because that *is* where the mutation happens.
+* **To-Dos** already read the "before" value for their own purposes:
+  `updateTodoDetails` computes `const nextStatus = status ?? todo.status`
+  after fetching `todo.status` -- the diff point already exists, unused.
+  This is the cheapest of the five to wire, and the clearest proof that
+  "wherever before/after naturally coexist" is the right rule, not "the
+  action file" as a blanket location.
+
+**Finding 2 — the hard part of Phase 3 ("Custom module coverage") isn't
+Custom-Item-specific, and doing it once now covers three record types at
+once.** Phase 3 frames a generic `ObjectField` value-diff, keyed by
+`ObjectField.id`, as work specific to Custom Items, because their fields
+are fully dynamic. But Documents and Goals *also* store their own ad-hoc
+custom fields (TEXT/NUMBER/DATE/LINK -- KD-003/033) in the exact same
+`ObjectField` table, saved through the exact same delete-all-then-recreate-
+all pattern (`objectField.deleteMany` then one `create` per submitted
+field) as Custom Items' own extras. Confirmed this actually diffs cleanly
+across that delete-and-recreate: `prepareCustomFields` reuses each
+submitted field's own `id` when the client sent one (`id ?? crypto.
+randomUUID()`), and the client-side editor always resubmits an existing
+field's real id -- so a field's id survives the round trip even though
+every row is technically dropped and reinserted, and matching old-by-id to
+new-by-id is a real diff, not a guess. **One shared helper -- e.g.
+`diffObjectFields(before, after): { fieldKey, fieldLabel, oldValue,
+newValue }[]`, comparing two `{id, label, value}[]` snapshots by id** --
+covers Documents', Goals', and Custom Items' ad-hoc fields all at once,
+built once. Custom Items' further wrinkle, *template* field values
+(`saveTemplateFieldValues`'s upsert-per-field pattern, keyed by
+`templateFieldId` rather than delete-and-recreate), is the one genuinely
+separate piece of diff logic left for Phase 3 to still call its own.
+
+**Per object type:**
+
+* **Document** (`lib/data/documents.ts`) --
+  `ITEM_CREATED` in `createDocument`.
+  `FIELD_CHANGED` in `updateDocument`, from a named-column diff (`status`,
+  `expiryDate`, `issueDate`, `documentNumber`, `country`, `notes`, `link`,
+  `prompt`) plus the shared `diffObjectFields` helper for its custom
+  fields -- both need `updateDocument`'s current `{ objectId: true }`
+  select broadened to the old column values.
+  `DOCUMENT_ARCHIVED`/`DOCUMENT_RESTORED` specifically when `archived`
+  flips, rather than folding it into the generic `FIELD_CHANGED` -- it's
+  already its own named type in the enum and reads better on its own line
+  in History than "archived changed: false -> true."
+
+* **Goal** (`goals/actions.ts`, no separate data-layer writer) --
+  `ITEM_CREATED` in `createGoalAction`.
+  `STATUS_CHANGED` in `updateGoalStatusAction`, which needs to fetch the
+  old `status` first (today it's a blind `updateMany`); when the new
+  status is `"Finished"`, emit `GOAL_COMPLETED` instead of the generic
+  type, matching the enum's own "add a named type when a moment earns
+  one."
+  `FIELD_CHANGED` in `updateGoalTargetDateAction` (target date) and
+  `addTargetAction` (`targetValue`/`currentValue`/`unit` -- `addTargetAction`
+  already fetches `previous.currentValue` for its own snapshot logic, so
+  most of the "before" work is already done) plus the shared
+  `diffObjectFields` helper in `updateGoalFieldsAction`.
+  `GOAL_MILESTONE_COMPLETED` in `toggleMilestoneAction`, replacing its
+  existing `addActivity({ action: "Completed", ... })` call -- this one
+  already reads the milestone and its goal in one query, so nothing new
+  needs fetching.
+
+* **To-Do** (`lib/data/todos.ts`) --
+  `ITEM_CREATED` in `captureTodo` and `createTodo`.
+  `TODO_COMPLETED`/`TODO_REOPENED` in `updateTodoDetails`, right where it
+  already computes `nextStatus` against the `todo.status` it already
+  fetched -- `TODO_COMPLETED` when moving to `"DONE"`, `TODO_REOPENED` when
+  moving away from it, `FIELD_CHANGED` for any other status transition.
+  `FIELD_CHANGED` for `dueDate`/`notes` in the same function.
+
+* **Custom Item** (`custom-modules/actions.ts`) --
+  `ITEM_CREATED` in `createCustomItemAction`.
+  `FIELD_CHANGED` in `updateCustomItemAction`: named-column diff for
+  `name`/`dueDate` (needs the transaction's existing `ownedItem` select
+  broadened), the shared `diffObjectFields` helper for its ad-hoc extras,
+  and a separate small diff inside `saveTemplateFieldValues` for template
+  field values (its own upsert-per-field shape, per Finding 2 above).
+  Archival, per the open question below.
+
+* **Finance Item** (`finance/actions.ts`) --
+  `ITEM_CREATED`/`FIELD_CHANGED` in `saveFinanceItem`, which needs its
+  `existing` lookup broadened from `{ id: true }` to the old column
+  values (`amount`, `category`, `rate`, `monthlyContribution`, `frequency`,
+  `startDate`, `endDate`, `notes`) to diff against. No status or archival
+  concept exists here to map onto `STATUS_CHANGED`.
+
+* **Quick-capture conversion** (`lib/data/capture.ts`'s
+  `completeCaptureConversion`) -- deliberately **not** mapped to a new
+  event type this round. The `"Converted"` `ActivityEvent` action names
+  both the retiring To-Do and the record it became, but there's no
+  `ObjectRelationship` between them for an event to hang a `relatedObjectId`
+  off -- inventing one just to carry provenance is new scope beyond what
+  this remainder is for. The new record still gets a plain `ITEM_CREATED`;
+  revisit only if "came from a quick capture" is ever asked for in History
+  specifically.
+
+**Open question to resolve before implementing:** `DOCUMENT_ARCHIVED`/
+`DOCUMENT_RESTORED` are named for Documents specifically, but Custom Items
+have the exact same boolean `archived` flag and toggle
+(`toggleCustomItemArchivedAction`). Generalizing the enum values now, before
+either is wired (e.g. `ITEM_ARCHIVED`/`ITEM_RESTORED`), avoids either
+building a second Custom-Item-specific pair or leaving Custom Items'
+archival as a generic, less-legible `FIELD_CHANGED`. Recommend the rename;
+nothing depends on the Document-specific names yet since neither is wired.
+
+**Suggested order** (cheapest/lowest-risk first, and each step unlocking
+more of the next): To-Do (diff point already exists) -> Goal's
+`STATUS_CHANGED`/`GOAL_COMPLETED`/`GOAL_MILESTONE_COMPLETED` (also cheap,
+"before" already fetched or trivial to add) -> the shared
+`diffObjectFields` helper, unit-tested on its own -> Document (named-column
+diff + `diffObjectFields` + archived/restored) -> Custom Item (named-column
+diff + `diffObjectFields` + template-field diff + archived/restored) ->
+Finance Item. Each module's own integration test file
+(`tests/integration/{documents,goals,todos,custom-modules,finance}/...`)
+gets new cases alongside the existing ones, matching this session's
+Kinesis Link/deletion coverage rather than a new, separate test file per
+event type.
 
 ### Significance — "is this worth surfacing elsewhere"
 
