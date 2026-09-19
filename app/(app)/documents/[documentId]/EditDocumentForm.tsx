@@ -49,9 +49,9 @@ export type EditableDocument = {
   updatedAt: string;
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false, kinesisLinkGroups, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
   document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[]; initialEditing?: boolean;
-  kinesisLinkGroups: { label: string; links: KinesisLink[] }[];
+  kinesisLinks: KinesisLink[];
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -87,16 +87,16 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
         <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
         <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} previews={previews} history={history}
-          kinesisLinkGroups={kinesisLinkGroups} addKinesisLinkAction={addKinesisLinkAction} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
+          kinesisLinks={kinesisLinks} addKinesisLinkAction={addKinesisLinkAction} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
         />
       )}
     </>
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, previews, history, kinesisLinkGroups, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, previews, history, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
   document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[];
-  kinesisLinkGroups: { label: string; links: KinesisLink[] }[];
+  kinesisLinks: KinesisLink[];
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -151,9 +151,9 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
         </section>
       </div>
 
-      {(kinesisLinkGroups.length > 0 || linkOptions.length > 0) && (
+      {(kinesisLinks.length > 0 || linkOptions.length > 0) && (
         <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
-          <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+          <KinesisLinks links={kinesisLinks} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
         </section>
       )}
 

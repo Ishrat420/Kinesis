@@ -6,7 +6,6 @@ import { CustomItemDetailRecord } from "./EditCustomItemForm";
 import { DeleteItemButton } from "./DeleteItemButton";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
-import { groupKinesisLinksByLabel } from "@/lib/objects/kinesis-link-groups";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
@@ -35,7 +34,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       locale={locale}
       currency={currency}
       deleteAction={<DeleteItemButton action={deleteCustomItemAction.bind(null, moduleId, item.id)} />}
-      kinesisLinkGroups={groupKinesisLinksByLabel(kinesisLinks)}
+      kinesisLinks={kinesisLinks}
       addKinesisLinkAction={addKinesisLinkAction.bind(null, item.objectId)}
       updateKinesisLinkAction={updateKinesisLinkAction.bind(null, item.objectId)}
       removeKinesisLinkAction={removeKinesisLinkAction.bind(null, item.objectId)}

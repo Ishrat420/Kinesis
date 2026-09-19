@@ -36,7 +36,7 @@ type EditableItem = {
  * the form being the only way this page ever looked, editable the moment you
  * opened it.
  */
-export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, locale, currency, deleteAction, kinesisLinkGroups, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, locale, currency, deleteAction, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
   moduleId: string;
   item: EditableItem;
   moduleName: string;
@@ -47,7 +47,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
   locale: string;
   currency: string;
   deleteAction: React.ReactNode;
-  kinesisLinkGroups: { label: string; links: KinesisLink[] }[];
+  kinesisLinks: KinesisLink[];
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -78,9 +78,9 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
         ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
         : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} />}
     </section>
-    {!editing && (kinesisLinkGroups.length > 0 || linkOptions.length > 0) && (
+    {!editing && (kinesisLinks.length > 0 || linkOptions.length > 0) && (
       <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <KinesisLinks groups={kinesisLinkGroups} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+        <KinesisLinks links={kinesisLinks} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
       </section>
     )}
   </>;

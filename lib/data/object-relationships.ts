@@ -19,10 +19,10 @@ export type KinesisLink = {
 
 /**
  * Every Kinesis Link touching this Object, read from its own point of view --
- * grouping by `label` (see `groupKinesisLinksByLabel`) is a presentation
- * concern for the caller, not this function's job. A row whose other side has
- * no locatable record left (deleted, or a type `locateObject` doesn't know)
- * is skipped rather than shown as a broken card.
+ * returned in one flat list (KD-049 §4); each link's `label` decorates its
+ * own card (§3) rather than driving a grouped/heading presentation. A row
+ * whose other side has no locatable record left (deleted, or a type
+ * `locateObject` doesn't know) is skipped rather than shown as a broken card.
  */
 export async function getKinesisLinks(objectId: string): Promise<KinesisLink[]> {
   const user = await requireKinesisUser();

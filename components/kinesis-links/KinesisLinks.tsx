@@ -9,8 +9,6 @@ import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { KinesisLinkActionState } from "@/app/actions";
 
-type KinesisLinkGroup = { label: string; links: KinesisLink[] };
-
 const SELECT_CLASS = "h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-medium outline-none focus:border-zinc-500";
 
 /**
@@ -22,12 +20,15 @@ const SELECT_CLASS = "h-11 rounded-xl border border-zinc-300 bg-white px-3 text-
  * second, differently-typed link to the same target is a normal thing to
  * add, not a duplicate to prevent.
  *
- * One flat list, grouped by resolved label (KD-049 §4): the label already
- * reads correctly from whichever side this Object sits on, so there is no
- * separate "outgoing"/"Referenced by" split to maintain.
+ * One flat list (KD-049 §4): the label already reads correctly from
+ * whichever side this Object sits on, so there is no separate "outgoing"/
+ * "Referenced by" split to maintain. Each link carries its own label as a
+ * decoration on its card (KD-049 §3, Phase 3) rather than a shared group
+ * heading -- a card reads correctly on its own, without depending on which
+ * heading it happens to sit under.
  */
-export function KinesisLinks({ groups, options, previews, addAction, updateAction, removeAction }: {
-  groups: KinesisLinkGroup[];
+export function KinesisLinks({ links, options, previews, addAction, updateAction, removeAction }: {
+  links: KinesisLink[];
   options: LinkableObject[];
   /** The same KD-042 rich-preview data every other Kinesis Link card on this page already shows -- keyed by objectId, so a linked target reads with exactly as much detail here as it does anywhere else. */
   previews: Record<string, KinesisLinkPreviewStat[]>;
@@ -38,7 +39,7 @@ export function KinesisLinks({ groups, options, previews, addAction, updateActio
   const [state, formAction] = useActionState(addAction, {});
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const totalLinks = groups.reduce((total, group) => total + group.links.length, 0);
+  const totalLinks = links.length;
 
   const saveLink = async (linkId: string, data: FormData) => {
     await updateAction(linkId, data);
@@ -62,30 +63,23 @@ export function KinesisLinks({ groups, options, previews, addAction, updateActio
       </form>
     )}
 
-    {totalLinks > 0 && <div className="mt-5 space-y-6">
-      {groups.map((group) => (
-        <div key={group.label}>
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">{group.label}</h3>
-          <div className="space-y-2">
-            {group.links.map((link) => editingId === link.id ? (
-              <form key={link.id} action={(data) => saveLink(link.id, data)} className="flex w-full flex-col gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-3 sm:flex-row sm:items-center">
-                <DirectionField defaultValue={link.type === "CUSTOM" ? CUSTOM_KINESIS_LINK_OPTION_VALUE : kinesisLinkDirectionValue(link.type, link.inverse)} defaultCustomLabel={link.customLabel ?? ""} />
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-700">{link.target.name}</span>
-                <div className="flex gap-2"><button className="h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button><button type="button" onClick={() => setEditingId(null)} className="flex h-10 items-center justify-center gap-1 rounded-xl px-3 text-sm font-medium text-zinc-500 hover:bg-zinc-100"><X className="h-4 w-4" /> Cancel</button></div>
-              </form>
-            ) : (
-              <div key={link.id} className="flex items-center gap-2">
-                <KinesisLinkCard option={link.target} className="flex-1" stats={previews[link.target.objectId] ?? []} />
-                <details className="relative shrink-0">
-                  <summary aria-label={`Actions for the Kinesis Link to ${link.target.name}`} className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-5 w-5" /></summary>
-                  <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg">
-                    <button type="button" onClick={() => setEditingId(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Pencil className="h-4 w-4" /> Change relationship</button>
-                    <form action={removeAction.bind(null, link.id)}><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Remove link</button></form>
-                  </div>
-                </details>
-              </div>
-            ))}
-          </div>
+    {totalLinks > 0 && <div className="mt-5 space-y-2">
+      {links.map((link) => editingId === link.id ? (
+        <form key={link.id} action={(data) => saveLink(link.id, data)} className="flex w-full flex-col gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-3 sm:flex-row sm:items-center">
+          <DirectionField defaultValue={link.type === "CUSTOM" ? CUSTOM_KINESIS_LINK_OPTION_VALUE : kinesisLinkDirectionValue(link.type, link.inverse)} defaultCustomLabel={link.customLabel ?? ""} />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-700">{link.target.name}</span>
+          <div className="flex gap-2"><button className="h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button><button type="button" onClick={() => setEditingId(null)} className="flex h-10 items-center justify-center gap-1 rounded-xl px-3 text-sm font-medium text-zinc-500 hover:bg-zinc-100"><X className="h-4 w-4" /> Cancel</button></div>
+        </form>
+      ) : (
+        <div key={link.id} className="flex items-center gap-2">
+          <KinesisLinkCard option={link.target} label={link.label} className="flex-1" stats={previews[link.target.objectId] ?? []} />
+          <details className="relative shrink-0">
+            <summary aria-label={`Actions for the Kinesis Link to ${link.target.name}`} className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-5 w-5" /></summary>
+            <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg">
+              <button type="button" onClick={() => setEditingId(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Pencil className="h-4 w-4" /> Change relationship</button>
+              <form action={removeAction.bind(null, link.id)}><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Remove link</button></form>
+            </div>
+          </details>
         </div>
       ))}
     </div>}

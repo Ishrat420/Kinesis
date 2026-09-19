@@ -1,6 +1,6 @@
 # KD-049 — Typed Kinesis Links
 
-**Status:** In Progress (Phases 1–2 shipped)
+**Status:** In Progress (Phases 1–3 shipped)
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
@@ -25,27 +25,43 @@ and People still ahead). New: `lib/objects/relationship-labels.ts` gained
 `relationshipLabel`), `KINESIS_LINK_DIRECTION_OPTIONS` (the 8 canonical
 direction choices), `CUSTOM_KINESIS_LINK_OPTION_VALUE`, and the
 `parseKinesisLinkDirectionValue`/`kinesisLinkDirectionValue` pair that
-encode/decode a picker choice. `lib/objects/kinesis-link-groups.ts`
-(`groupKinesisLinksByLabel`) buckets a flat link list by resolved label,
-one flat list per §4, no separate outgoing/"Referenced by" split.
+encode/decode a picker choice.
 `lib/data/object-relationships.ts` (`getKinesisLinks`) reads every Kinesis
 Link touching an Object from its own side, reusing `locateObject` (already
 built for the Kinesis Link Custom Field mechanism) to resolve the other
-end. Three new cross-module actions in `app/actions.ts`
-(`addKinesisLinkAction`, `updateKinesisLinkAction`,
-`removeKinesisLinkAction`) generalize `addGoalRelationshipAction` and
-friends to work from any `objectId` rather than only a Goal's.
-`components/kinesis-links/KinesisLinks.tsx` is the generalized
-`LinkedGoals`, reusing the existing `KinesisLinkCard` for each target
-(no label on the card yet — that's Phase 3) with the resolved label as a
-group heading instead; the target picker reuses `getKinesisLinkOptions`
-unchanged, since it already covers every linkable type. Wired into the
-Documents and Custom Item detail pages, right before/after their existing
-content. A deliberate consequence of Phase 1's per-type uniqueness: the
-picker's options list no longer drops an already-linked object, since a
-second, differently-typed Kinesis Link to the same target is now a normal
-thing to add, not a duplicate to prevent. Phases 3–4 (card decoration,
-dogfooding Goals onto the shared component) are still ahead.
+end, and returns it as one flat list (§4) rather than grouped. Three new
+cross-module actions in `app/actions.ts` (`addKinesisLinkAction`,
+`updateKinesisLinkAction`, `removeKinesisLinkAction`) generalize
+`addGoalRelationshipAction` and friends to work from any `objectId` rather
+than only a Goal's. `components/kinesis-links/KinesisLinks.tsx` is the
+generalized `LinkedGoals`, reusing the existing `KinesisLinkCard` for each
+target; the target picker reuses `getKinesisLinkOptions` unchanged, since
+it already covers every linkable type. Wired into the Documents and
+Custom Item detail pages, right before/after their existing content. A
+deliberate consequence of Phase 1's per-type uniqueness: the picker's
+options list no longer drops an already-linked object, since a second,
+differently-typed Kinesis Link to the same target is now a normal thing
+to add, not a duplicate to prevent. Phase 2 initially rendered the
+resolved label as a group heading over each cluster of same-label cards;
+Phase 3 (below) replaced that with a label on the card itself, so Phase 2's
+grouping utility (`lib/objects/kinesis-link-groups.ts`,
+`groupKinesisLinksByLabel`) no longer has a caller and was removed rather
+than kept unused. Phase 4 (dogfooding Goals onto the shared component) is
+still ahead.
+
+**Phase 3 status:** Shipped. Explored as four placement options in a
+design-canvas artifact (eyebrow line, inline-with-module pill, corner
+badge, tag-under-name) before writing any code; eyebrow-as-pill was
+picked. `KinesisLinkCard` gained an optional `label` prop (§3): a fixed,
+neutral pill (white fill, `zinc-200` border, `zinc-700` bold sentence-case
+text — never tinted to the target's module color, so it reads as "this is
+the relationship" rather than another property of the target) rendered
+above the icon row, `self-start` so it hugs its own text rather than
+stretching to the card's width. Every existing `KinesisLinkCard` caller
+still passes nothing and is unaffected; only `KinesisLinks.tsx` passes
+`label={link.label}`. That component's per-label group headings (Phase 2)
+are gone — one flat list, ordered as `getKinesisLinks` returns it, each
+card carrying its own label.
 
 **Revision note (2):** rewritten after review. Three architectural
 corrections from that review are folded in below: uniqueness is
@@ -231,24 +247,28 @@ stays untouched.)
 Earlier drafts of this ticket proposed separate "outgoing"/"Referenced by"
 sections. Unnecessary: the derived label already reads correctly from
 whichever side the current Object sits on, so there is nothing left for a
-second section to clarify. One list, grouped by resolved label:
+second section to clarify. An even earlier version of this section grouped
+cards under a shared label heading; shipped Phase 3 (§3) instead puts the
+label directly on each card, so the list is fully flat — no heading, no
+grouping, just cards in the order they were added:
 
 ```text
-Depends on
-[ Save $30k ]
+[ Depends on         ]
+[ Save $30k           ]
 
-Supported by
-[ Mortgage broker ]
+[ Supported by       ]
+[ Mortgage broker     ]
 
-Blocks
+[ Blocks             ]
 [ Submit home loan application ]
 
-Alongside
+[ Alongside          ]
 [ Improve credit score ]
 ```
 
 The viewer never needs to know whether the current Object is stored as
-`source` or `target` — the label already says it.
+`source` or `target` — the label already says it, right on the card it
+describes.
 
 ### 5. The label vocabulary (confirmed — matches what's already shipped)
 
@@ -320,9 +340,10 @@ goal-specific originals. Ship on Documents and Custom Items first (the two
 with an existing Kinesis Link Custom Field precedent to sit alongside),
 then Finance Items and People.
 
-**Phase 3 — Card decoration**
-Add the optional label prop (or wrapper) from §3 to `KinesisLinkCard`;
-used only by the new Kinesis Links section.
+**Phase 3 — Card decoration (Shipped)**
+Added the optional `label` prop from §3 to `KinesisLinkCard`, rendered as
+a fixed neutral pill above the icon row; used only by the Kinesis Links
+section, which dropped its Phase 2 group headings in favor of it.
 
 **Phase 4 — Dogfood on Goals**
 Migrate Goals' own Linked Goals panel onto the generalized Kinesis Links
@@ -353,7 +374,8 @@ the shared ones.
   (and `customLabel` when set) so a Kinesis Link change reads correctly in
   History.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card) — `KinesisLinkCard`
-  gains the optional label decoration.
+  gained the optional label decoration; its `stats` row still renders
+  underneath, unaffected.
 * Any future convergence with Kinesis Link Custom Fields should get its
   own ADR — "what a Kinesis Link even is" is a decision, not a work item,
   once it's actually on the table.

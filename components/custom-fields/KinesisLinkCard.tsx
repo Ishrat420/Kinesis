@@ -17,8 +17,15 @@ const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, F
  * for this particular record, and the card renders exactly as it always
  * has. There is no separate "compact" component: the compact card is just
  * this one with an empty `stats` array.
+ *
+ * `label` is a presentation-layer decoration (KD-049 §3), not something the
+ * card owns intrinsically -- omitted everywhere except the Kinesis Links
+ * section, which is the only caller that actually has a Kinesis Link label
+ * to show. It renders as a fixed, neutral pill (never tinted to the
+ * target's own module color) so it reads as "this is the relationship",
+ * not as another property of the target itself.
  */
-export function KinesisLinkCard({ option, stats = [], className = "" }: { option: LinkableObject; stats?: KinesisLinkPreviewStat[]; className?: string }) {
+export function KinesisLinkCard({ option, stats = [], label, className = "" }: { option: LinkableObject; stats?: KinesisLinkPreviewStat[]; label?: string; className?: string }) {
   const color = option.color ?? "#52525b";
   const BuiltIn = BUILT_IN_ICONS[option.type as keyof typeof BUILT_IN_ICONS];
   const icon = BuiltIn ? <BuiltIn className="h-5 w-5" /> : <CustomModuleIcon name={option.icon ?? "package"} className="h-5 w-5" />;
@@ -30,6 +37,11 @@ export function KinesisLinkCard({ option, stats = [], className = "" }: { option
       style={{ "--kl-accent": color } as React.CSSProperties}
       className={`group flex min-h-20 min-w-0 flex-col justify-center rounded-[20px] border bg-white p-4 shadow-sm transition duration-200 ease-out border-[color-mix(in_srgb,var(--kl-accent)_28%,#e4e4e7)] hover:-translate-y-0.5 hover:scale-[1.01] hover:border-[color-mix(in_srgb,var(--kl-accent)_55%,#e4e4e7)] hover:shadow-lg active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${className}`}
     >
+      {label && (
+        <span className="mb-2.5 inline-flex w-fit shrink-0 items-center self-start rounded-full border border-zinc-200 bg-white px-3.5 py-1 text-[13px] font-bold text-zinc-700">
+          {label}
+        </span>
+      )}
       <div className="flex min-w-0 items-center gap-3">
         <span
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"

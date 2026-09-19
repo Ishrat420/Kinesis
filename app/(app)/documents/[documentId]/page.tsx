@@ -6,7 +6,6 @@ import { DocumentDetailRecord } from "./EditDocumentForm";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
-import { groupKinesisLinksByLabel } from "@/lib/objects/kinesis-link-groups";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDateInput } from "@/lib/dates";
 
@@ -39,7 +38,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     countryLabel: document.countryLabel, notesLabel: document.notesLabel, linkLabel: document.linkLabel, customFields: document.customFields,
     updatedAt: document.updatedAt.toISOString(),
   }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString() }))} initialEditing={edit === "1"}
-    kinesisLinkGroups={groupKinesisLinksByLabel(kinesisLinks)}
+    kinesisLinks={kinesisLinks}
     addKinesisLinkAction={addKinesisLinkAction.bind(null, document.objectId)}
     updateKinesisLinkAction={updateKinesisLinkAction.bind(null, document.objectId)}
     removeKinesisLinkAction={removeKinesisLinkAction.bind(null, document.objectId)}

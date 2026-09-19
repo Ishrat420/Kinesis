@@ -13,7 +13,6 @@ vi.mock("@/lib/relationships/occurrence", () => ({ getNextOccurrence: vi.fn() })
 
 import { prisma } from "@/lib/data/prisma";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
-import { groupKinesisLinksByLabel } from "@/lib/objects/kinesis-link-groups";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 
 /**
@@ -233,19 +232,6 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
       await removeKinesisLinkAction(docObjectId, id);
 
       await expect(prisma.objectRelationship.count()).resolves.toBe(1);
-    });
-  });
-
-  describe("groupKinesisLinksByLabel over real, resolved links", () => {
-    it("groups links that resolve to the same label from this Object's side", async () => {
-      await add(docObjectId, goalObjectId, "SUPPORTS|forward");
-      const extraGoal = await makeGoal(owner, "goal-b", "Save $30k");
-      await add(docObjectId, extraGoal, "SUPPORTS|forward");
-
-      const groups = groupKinesisLinksByLabel(await getKinesisLinks(docObjectId));
-
-      expect(groups).toEqual([{ label: "Supports", links: expect.arrayContaining([expect.objectContaining({ target: expect.objectContaining({ objectId: goalObjectId }) }), expect.objectContaining({ target: expect.objectContaining({ objectId: extraGoal }) })]) }]);
-      expect(groups[0].links).toHaveLength(2);
     });
   });
 });
