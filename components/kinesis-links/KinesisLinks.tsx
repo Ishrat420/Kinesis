@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, KINESIS_LINK_DIRECTION_OPTIONS, kinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
@@ -36,8 +36,23 @@ export function KinesisLinks({ links, previews, updateAction, removeAction }: {
   removeAction: (linkId: string) => Promise<void>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Only one row is ever in edit mode at a time, so one shared ref is
+  // enough to read back whichever row currently holds it.
+  const editRowRef = useRef<HTMLDivElement>(null);
 
-  const saveLink = async (linkId: string, data: FormData) => {
+  /**
+   * Not a real `<form>`: this component renders both standalone (the read
+   * view) and inside `CustomFieldsEditor`, which already lives inside the
+   * record's own outer form -- and HTML forms cannot nest. Reading the row's
+   * named fields straight off the DOM (rather than from a `FormData`-from-
+   * `<form>` a submit event would give for free) works identically in
+   * either context.
+   */
+  const saveLink = async (linkId: string) => {
+    const row = editRowRef.current;
+    if (!row) return;
+    const data = new FormData();
+    row.querySelectorAll<HTMLSelectElement | HTMLInputElement>("[name]").forEach((field) => data.append(field.name, field.value));
     await updateAction(linkId, data);
     setEditingId(null);
   };
@@ -46,11 +61,11 @@ export function KinesisLinks({ links, previews, updateAction, removeAction }: {
 
   return <div className="space-y-2">
     {links.map((link) => editingId === link.id ? (
-      <form key={link.id} action={(data) => saveLink(link.id, data)} className="flex w-full flex-col gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-3 sm:flex-row sm:items-center">
+      <div key={link.id} ref={editRowRef} className="flex w-full flex-col gap-2 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-3 sm:flex-row sm:items-center">
         <DirectionField defaultValue={link.type === "CUSTOM" ? CUSTOM_KINESIS_LINK_OPTION_VALUE : kinesisLinkDirectionValue(link.type, link.inverse)} defaultCustomLabel={link.customLabel ?? ""} />
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-700">{link.target.name}</span>
-        <div className="flex gap-2"><button className="h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button><button type="button" onClick={() => setEditingId(null)} className="flex h-10 items-center justify-center gap-1 rounded-xl px-3 text-sm font-medium text-zinc-500 hover:bg-zinc-100"><X className="h-4 w-4" /> Cancel</button></div>
-      </form>
+        <div className="flex gap-2"><button type="button" onClick={() => saveLink(link.id)} className="h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white">Save</button><button type="button" onClick={() => setEditingId(null)} className="flex h-10 items-center justify-center gap-1 rounded-xl px-3 text-sm font-medium text-zinc-500 hover:bg-zinc-100"><X className="h-4 w-4" /> Cancel</button></div>
+      </div>
     ) : (
       <div key={link.id} className="flex items-center gap-2">
         <KinesisLinkCard option={link.target} label={link.label} className="flex-1" stats={previews[link.target.objectId] ?? []} />
@@ -58,7 +73,7 @@ export function KinesisLinks({ links, previews, updateAction, removeAction }: {
           <summary aria-label={`Actions for the Kinesis Link to ${link.target.name}`} className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-5 w-5" /></summary>
           <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg">
             <button type="button" onClick={() => setEditingId(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Pencil className="h-4 w-4" /> Change relationship</button>
-            <form action={removeAction.bind(null, link.id)}><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Remove link</button></form>
+            <button type="button" onClick={() => removeAction(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Remove link</button>
           </div>
         </details>
       </div>
