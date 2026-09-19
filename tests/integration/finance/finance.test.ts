@@ -10,7 +10,7 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 
 import { prisma } from "@/lib/data/prisma";
-import { getFinanceItems } from "@/lib/data/finance";
+import { getFinanceItem, getFinanceItems } from "@/lib/data/finance";
 import { deleteFinanceItemAction, saveFinanceItemAction } from "@/app/(app)/finance/actions";
 import { formatDateInput } from "@/lib/dates";
 
@@ -125,5 +125,35 @@ describe.sequential("the finance data layer", () => {
     await expect(prisma.financeItem.findUnique({ where: { id: strangerItem.id } })).resolves.not.toBeNull();
 
     await prisma.user.deleteMany({ where: { id: stranger } });
+  });
+
+  describe("getFinanceItem (KD-048's own detail page)", () => {
+    it("returns one item with its Object identity and creation date, for every kind", async () => {
+      await saveFinanceItemAction("liability", null, {}, form({ name: "Car loan", amount: "12000", category: "Car Loan", rate: "6", monthlyContribution: "300" }));
+      const [existing] = await prisma.financeItem.findMany({ where: { userId: owner } });
+
+      const item = await getFinanceItem(existing.id);
+
+      expect(item).toMatchObject({ id: existing.id, kind: "liability", name: "Car loan", category: "Car Loan", rate: 6, monthlyContribution: 300, objectId: existing.objectId });
+      expect(item?.createdAt).toBe(existing.createdAt.toISOString());
+    });
+
+    it("returns null for an id that doesn't exist", async () => {
+      await expect(getFinanceItem("not-a-real-id")).resolves.toBeNull();
+    });
+
+    it("never returns another account's item", async () => {
+      const stranger = "finance-stranger-detail";
+      await prisma.user.deleteMany({ where: { id: stranger } });
+      await prisma.user.create({ data: { id: stranger, firstName: "S", lastName: "T", email: "finance-stranger-detail@example.test" } });
+      mocks.requireKinesisUser.mockResolvedValue({ id: stranger });
+      await saveFinanceItemAction("asset", null, {}, form({ name: "Not yours", amount: "1" }));
+      const [strangerItem] = await prisma.financeItem.findMany({ where: { userId: stranger } });
+      mocks.requireKinesisUser.mockResolvedValue({ id: owner });
+
+      await expect(getFinanceItem(strangerItem.id)).resolves.toBeNull();
+
+      await prisma.user.deleteMany({ where: { id: stranger } });
+    });
   });
 });

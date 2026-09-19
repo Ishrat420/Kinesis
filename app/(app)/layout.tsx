@@ -15,7 +15,7 @@ import { PAGE_PADDING } from "@/lib/layout/responsive";
  * Regional preferences resolve here so Client Components format dates and
  * amounts exactly as Server Components do and hydration stays stable.
  */
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const formatPreferences = await getFormatPreferences();
 
   return (
@@ -28,6 +28,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
           <section className={`min-w-0 flex-1 py-8 ${PAGE_PADDING}`}>{children}</section>
         </div>
+
+        {modal}
       </FormatProvider>
     </main>
   );

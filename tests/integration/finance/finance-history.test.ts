@@ -10,6 +10,7 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 
 import { prisma } from "@/lib/data/prisma";
+import { getFinanceItem } from "@/lib/data/finance";
 import { saveFinanceItemAction } from "@/app/(app)/finance/actions";
 
 /** KD-048 Phase 1 remainder: a Finance Item's own field changes enter the ObjectEvent history. */
@@ -76,5 +77,18 @@ describe.sequential("a Finance Item's own history (KD-048)", () => {
 
     const events = await eventsOn(item.objectId);
     expect(events.at(-1)).toMatchObject({ eventType: "FIELD_CHANGED", fieldKey: "frequency", oldValue: "Monthly", newValue: "Fortnightly" });
+  });
+
+  it("reaches the same objectId through getFinanceItem, the getter the item's own detail page reads from", async () => {
+    await saveFinanceItemAction("asset", null, {}, form({ name: "Savings", amount: "1000" }));
+    const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner, name: "Savings" } });
+    await saveFinanceItemAction("asset", item.id, {}, form({ name: "Savings", amount: "1500" }));
+
+    const detail = await getFinanceItem(item.id);
+
+    await expect(eventsOn(detail!.objectId)).resolves.toMatchObject([
+      { eventType: "ITEM_CREATED" },
+      { eventType: "FIELD_CHANGED", fieldKey: "amount", oldValue: "1000", newValue: "1500" },
+    ]);
   });
 });
