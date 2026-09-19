@@ -6,6 +6,8 @@ import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalUnits } from "@/lib/data/goals";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
+import { getObjectEvents } from "@/lib/data/object-event-history";
+import { ObjectHistory } from "@/components/history/ObjectHistory";
 import { displayNumber, isGoalOverdue } from "@/lib/goals/format";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
@@ -25,7 +27,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   if (!goal) notFound();
   // Excludes this goal's own object -- linking it to itself is never
   // meaningful, so the picker never offers the choice at all.
-  const [linkOptions, kinesisLinks] = await Promise.all([getKinesisLinkOptions(goal.objectId), getKinesisLinks(goal.objectId)]);
+  const [linkOptions, kinesisLinks, history] = await Promise.all([getKinesisLinkOptions(goal.objectId), getKinesisLinks(goal.objectId), getObjectEvents(goal.objectId)]);
   const completed = goal.milestones.filter((item) => item.completed).length;
   const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
   const targetPercent = goal.targetValue ? Math.min(100, Math.max(0, Math.round((goal.currentValue ?? 0) / goal.targetValue * 100))) : 0;
@@ -67,6 +69,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
         <div className="flex items-start gap-4"><div className="rounded-2xl bg-white/80 p-3"><Activity className={`h-5 w-5 ${hasMilestoneRisk || health?.tone === "risk" ? "text-amber-600" : health?.tone === "good" ? "text-emerald-600" : "text-violet-600"}`}/></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-600">Goal health</p><h2 className="mt-2 text-xl font-bold">{hasMilestoneRisk ? "AT RISK" : health?.status}</h2>{health && <p className="mt-2 leading-6 text-zinc-700">{health.message}</p>}{overdueMilestones.map((milestone) => <p key={milestone.id} className="mt-2 font-medium leading-6 text-amber-800">Milestone “{milestone.name}” is past its due date.</p>)}{health?.actualPace === null && <p className="mt-3 text-xs text-zinc-500">Update your current value over time and Kinesis will average your pace automatically.</p>}</div></div>
       </section>}
+      <ObjectHistory entries={history.map((event) => ({ id: event.id, description: event.description, occurredAt: event.occurredAt.toISOString() }))} locale={locale} />
     </div>
 
     <aside><section className="sticky top-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-semibold">Progress</h2><p className="mt-1 text-sm text-zinc-500">Use one or both views.</p><div className="mt-6 space-y-7">

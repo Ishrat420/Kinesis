@@ -18,11 +18,10 @@ import type { KinesisLinkActionState } from "@/app/actions";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { freshestStamp } from "@/lib/actions/concurrency";
 import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
+import { ObjectHistory, type ObjectHistoryEntry } from "@/components/history/ObjectHistory";
 
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
-
-export type DocumentHistoryEntry = { id: string; action: string; createdAt: string };
 
 export type EditableDocument = {
   id: string;
@@ -49,7 +48,7 @@ export type EditableDocument = {
 };
 
 export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[]; initialEditing?: boolean;
+  document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: ObjectHistoryEntry[]; initialEditing?: boolean;
   kinesisLinks: KinesisLink[];
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
@@ -94,7 +93,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
 }
 
 function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, history, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[];
+  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; history: ObjectHistoryEntry[];
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -138,20 +137,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, pre
         </section>
       </div>
 
-      <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
-        <h2 className="text-lg font-semibold">History</h2>
-        <div className="mt-4 space-y-4">
-          {(history.length > 0 ? history : [{ id: "created", action: "Added", createdAt: document.createdAt }]).map((entry) => (
-            <div key={entry.id} className="flex items-start gap-3">
-              <span className="mt-1.5 h-2 w-2 rounded-full bg-zinc-300" />
-              <div>
-                <p className="text-sm font-medium text-zinc-700">{historyLabel(entry.action)}</p>
-                <p className="mt-0.5 text-xs text-zinc-400">{formatDate(entry.createdAt, locale)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <ObjectHistory entries={history} fallbackCreatedAt={document.createdAt} locale={locale} />
     </div>
   );
 }
@@ -201,7 +187,6 @@ function displayFieldValue(field: { type?: string; value: string }, locale: stri
   const date = parseDatedFieldValue(field.value);
   return date ? formatDate(date, locale) : field.value;
 }
-function historyLabel(action: string) { return action === "Added" ? "Document added" : action === "Updated" ? "Document updated" : `Document ${action.toLowerCase()}`; }
 function PromotedField({ label, value, detail, detailTone }: { label: string; value: string; detail: string; detailTone?: ExpiryUrgency }) {
   const detailClass = detailTone ? {
     neutral: "bg-zinc-100 text-zinc-600",

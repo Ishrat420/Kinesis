@@ -10,6 +10,7 @@ import { getNextOccurrence } from "@/lib/relationships/occurrence";
 import { locateObjects, objectLocationSelect } from "@/lib/objects/locations";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, parseKinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
+import { recordRelationshipAdded, recordRelationshipChanged, recordRelationshipRemoved } from "@/lib/data/object-events";
 
 /** The column that links a dismissal, and its notifications, back to the record. */
 const LINK_FIELD = {
@@ -138,22 +139,32 @@ export async function addKinesisLinkAction(objectId: string, _previousState: Kin
   const choice = readKinesisLinkChoice(formData);
   if (!choice) return { error: formData.get("direction") === CUSTOM_KINESIS_LINK_OPTION_VALUE ? "Type a label for this Kinesis Link." : "Choose a valid relationship." };
 
-  const owned = await prisma.object.count({ where: { id: { in: [objectId, targetObjectId] }, userId: user.id } });
-  if (owned !== 2) return { error: "One or both of these no longer exist." };
+  const objects = await prisma.object.findMany({ where: { id: { in: [objectId, targetObjectId] }, userId: user.id }, select: { id: true, name: true } });
+  if (objects.length !== 2) return { error: "One or both of these no longer exist." };
+  const nameOf = (id: string) => objects.find((object) => object.id === id)!.name;
 
   const sourceObjectId = choice.inverse ? targetObjectId : objectId;
   const finalTargetObjectId = choice.inverse ? objectId : targetObjectId;
 
   try {
-    await prisma.objectRelationship.create({
-      data: {
+    await prisma.$transaction(async (tx) => {
+      await tx.objectRelationship.create({
+        data: {
+          userId: user.id,
+          sourceObjectId,
+          targetObjectId: finalTargetObjectId,
+          type: choice.type,
+          customLabel: choice.customLabel,
+          pairKey: objectPairKey(sourceObjectId, finalTargetObjectId),
+        },
+      });
+      await recordRelationshipAdded(tx, {
         userId: user.id,
-        sourceObjectId,
-        targetObjectId: finalTargetObjectId,
+        source: { objectId: sourceObjectId, name: nameOf(sourceObjectId) },
+        target: { objectId: finalTargetObjectId, name: nameOf(finalTargetObjectId) },
         type: choice.type,
         customLabel: choice.customLabel,
-        pairKey: objectPairKey(sourceObjectId, finalTargetObjectId),
-      },
+      });
     });
   } catch (error) {
     if (typeof error === "object" && error && "code" in error && error.code === "P2002") return { error: "These are already linked this way." };
@@ -168,6 +179,7 @@ export async function updateKinesisLinkAction(objectId: string, relationshipId: 
   const user = await requireKinesisUser();
   const relationship = await prisma.objectRelationship.findFirst({
     where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+    include: { sourceObject: { select: { name: true } }, targetObject: { select: { name: true } } },
   });
   if (!relationship) return;
 
@@ -175,12 +187,24 @@ export async function updateKinesisLinkAction(objectId: string, relationshipId: 
   if (!choice) return;
 
   const otherObjectId = relationship.sourceObjectId === objectId ? relationship.targetObjectId : relationship.sourceObjectId;
+  const nameOf = (id: string) => (id === relationship.sourceObjectId ? relationship.sourceObject.name : relationship.targetObject.name);
   const sourceObjectId = choice.inverse ? otherObjectId : objectId;
   const targetObjectId = choice.inverse ? objectId : otherObjectId;
 
-  await prisma.objectRelationship.update({
-    where: { id: relationshipId },
-    data: { sourceObjectId, targetObjectId, type: choice.type, customLabel: choice.customLabel, pairKey: objectPairKey(sourceObjectId, targetObjectId) },
+  await prisma.$transaction(async (tx) => {
+    await tx.objectRelationship.update({
+      where: { id: relationshipId },
+      data: { sourceObjectId, targetObjectId, type: choice.type, customLabel: choice.customLabel, pairKey: objectPairKey(sourceObjectId, targetObjectId) },
+    });
+    await recordRelationshipChanged(tx, {
+      userId: user.id,
+      source: { objectId: sourceObjectId, name: nameOf(sourceObjectId) },
+      target: { objectId: targetObjectId, name: nameOf(targetObjectId) },
+      oldType: relationship.type,
+      oldCustomLabel: relationship.customLabel,
+      newType: choice.type,
+      newCustomLabel: choice.customLabel,
+    });
   });
   await revalidateKinesisLinkEndpoints([objectId, otherObjectId], user.id);
 }
@@ -190,9 +214,19 @@ export async function removeKinesisLinkAction(objectId: string, relationshipId: 
   const user = await requireKinesisUser();
   const relationship = await prisma.objectRelationship.findFirst({
     where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+    include: { sourceObject: { select: { name: true } }, targetObject: { select: { name: true } } },
   });
   if (!relationship) return;
   const otherObjectId = relationship.sourceObjectId === objectId ? relationship.targetObjectId : relationship.sourceObjectId;
-  await prisma.objectRelationship.delete({ where: { id: relationshipId } });
+  await prisma.$transaction(async (tx) => {
+    await tx.objectRelationship.delete({ where: { id: relationshipId } });
+    await recordRelationshipRemoved(tx, {
+      userId: user.id,
+      source: { objectId: relationship.sourceObjectId, name: relationship.sourceObject.name },
+      target: { objectId: relationship.targetObjectId, name: relationship.targetObject.name },
+      type: relationship.type,
+      customLabel: relationship.customLabel,
+    });
+  });
   await revalidateKinesisLinkEndpoints([objectId, otherObjectId], user.id);
 }

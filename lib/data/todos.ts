@@ -1,6 +1,7 @@
 import type { Prisma, TodoStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { deleteObjects, objectFor } from "./objects";
+import { recordRelationshipAdded, recordRelationshipRemoved } from "./object-events";
 import { requireKinesisUser } from "@/lib/auth";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
@@ -115,16 +116,27 @@ export async function createTodo(name: string, { status = "TODO", dueDate = null
 
     const targets = [...new Set(linkObjectIds.filter(Boolean))];
     if (targets.length) {
-      // One count, not one lookup per id: either every target is the user's
-      // or the whole create is refused.
-      const owned = await transaction.object.count({ where: { id: { in: targets }, userId: user.id } });
-      if (owned !== targets.length) refuse("One of the linked items no longer exists.");
+      // A lookup with names, not just a count: either every target is the
+      // user's or the whole create is refused, and the names are what the
+      // paired RELATIONSHIP_ADDED events below snapshot as relatedObjectName.
+      const owned = await transaction.object.findMany({ where: { id: { in: targets }, userId: user.id }, select: { id: true, name: true } });
+      if (owned.length !== targets.length) refuse("One of the linked items no longer exists.");
       await transaction.objectRelationship.createMany({
         data: targets.map((targetObjectId) => ({
           userId: user.id, sourceObjectId: todo.objectId, targetObjectId,
           pairKey: objectPairKey(todo.objectId, targetObjectId), type: CONCERNS,
         })),
       });
+      const nameOf = (id: string) => owned.find((object) => object.id === id)!.name;
+      for (const targetObjectId of targets) {
+        await recordRelationshipAdded(transaction, {
+          userId: user.id,
+          source: { objectId: todo.objectId, name: todo.name },
+          target: { objectId: targetObjectId, name: nameOf(targetObjectId) },
+          type: CONCERNS,
+          customLabel: null,
+        });
+      }
     }
 
     return { id: todo.id, name: todo.name };
@@ -145,7 +157,7 @@ export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: 
 export async function updateTodoDetails(id: string, { status, dueDate, notes, linkObjectIds }: TodoDetails) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
-    const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, status: true } });
+    const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, name: true, status: true } });
     if (!todo) refuse("This to-do no longer exists.");
 
     if (status !== undefined || dueDate !== undefined || notes !== undefined) {
@@ -164,22 +176,54 @@ export async function updateTodoDetails(id: string, { status, dueDate, notes, li
     }
 
     if (linkObjectIds !== undefined) {
-      // Replace rather than reconcile: the caller submits the whole set, and a
-      // To-Do concerns few enough things that working out the difference would
-      // cost more than rewriting them.
-      await transaction.objectRelationship.deleteMany({ where: { userId: user.id, sourceObjectId: todo.objectId } });
+      // The *rows* are replaced rather than reconciled -- a To-Do concerns few
+      // enough things that working out the difference would cost more than
+      // rewriting them -- but the *history* still needs a real diff: naively
+      // recording every recreated row as a fresh RELATIONSHIP_ADDED would show
+      // a link that was never touched as removed and re-added at the same
+      // instant, which is exactly the noise this model exists to avoid.
+      const existing = await transaction.objectRelationship.findMany({
+        where: { userId: user.id, sourceObjectId: todo.objectId },
+        select: { targetObjectId: true, targetObject: { select: { name: true } } },
+      });
       const targets = [...new Set(linkObjectIds.filter(Boolean))];
+      const nextIds = new Set(targets);
+      const existingIds = new Set(existing.map((relationship) => relationship.targetObjectId));
+      const removed = existing.filter((relationship) => !nextIds.has(relationship.targetObjectId));
+      const addedIds = targets.filter((targetId) => !existingIds.has(targetId));
+
+      await transaction.objectRelationship.deleteMany({ where: { userId: user.id, sourceObjectId: todo.objectId } });
+      for (const relationship of removed) {
+        await recordRelationshipRemoved(transaction, {
+          userId: user.id,
+          source: { objectId: todo.objectId, name: todo.name },
+          target: { objectId: relationship.targetObjectId, name: relationship.targetObject.name },
+          type: CONCERNS,
+          customLabel: null,
+        });
+      }
       if (targets.length) {
-        // One count, not one lookup per id: either every target is the user's
-        // or the whole save is refused.
-        const owned = await transaction.object.count({ where: { id: { in: targets }, userId: user.id } });
-        if (owned !== targets.length) refuse("One of the linked items no longer exists.");
+        // A lookup with names, not just a count: either every target is the
+        // user's or the whole save is refused, and the names are what the
+        // paired RELATIONSHIP_ADDED events below snapshot as relatedObjectName.
+        const owned = await transaction.object.findMany({ where: { id: { in: targets }, userId: user.id }, select: { id: true, name: true } });
+        if (owned.length !== targets.length) refuse("One of the linked items no longer exists.");
         await transaction.objectRelationship.createMany({
           data: targets.map((targetObjectId) => ({
             userId: user.id, sourceObjectId: todo.objectId, targetObjectId,
             pairKey: objectPairKey(todo.objectId, targetObjectId), type: CONCERNS,
           })),
         });
+        const nameOf = (targetId: string) => owned.find((object) => object.id === targetId)!.name;
+        for (const targetObjectId of addedIds) {
+          await recordRelationshipAdded(transaction, {
+            userId: user.id,
+            source: { objectId: todo.objectId, name: todo.name },
+            target: { objectId: targetObjectId, name: nameOf(targetObjectId) },
+            type: CONCERNS,
+            customLabel: null,
+          });
+        }
       }
     }
 

@@ -13,6 +13,7 @@ vi.mock("@/lib/relationships/occurrence", () => ({ getNextOccurrence: vi.fn() })
 
 import { prisma } from "@/lib/data/prisma";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
+import { getObjectEvents } from "@/lib/data/object-event-history";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 
 /**
@@ -252,6 +253,68 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
       await removeKinesisLinkAction(docObjectId, id);
 
       await expect(prisma.objectRelationship.count()).resolves.toBe(1);
+    });
+  });
+
+  describe("recording history (KD-048)", () => {
+    it("writes a RELATIONSHIP_ADDED event on both linked objects, each reading its own side's label", async () => {
+      await add(docObjectId, goalObjectId, "DEPENDS_ON|forward");
+
+      const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
+
+      expect(onDoc).toMatchObject([{ description: "Depends on → Buy a house" }]);
+      expect(onGoal).toMatchObject([{ description: "Required for → Mortgage pre-approval" }]);
+    });
+
+    it("snapshots the literal text on both sides for a Custom Kinesis Link", async () => {
+      await add(docObjectId, goalObjectId, "CUSTOM", "Renewal document");
+
+      const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
+
+      expect(onDoc).toMatchObject([{ description: "Renewal document → Buy a house" }]);
+      expect(onGoal).toMatchObject([{ description: "Renewal document → Mortgage pre-approval" }]);
+    });
+
+    it("writes a RELATIONSHIP_CHANGED event on both sides when a link is retyped, not a remove-then-add pair", async () => {
+      await add(docObjectId, goalObjectId, "SUPPORTS|forward");
+      const { id } = await onlyRelationship();
+
+      await retype(docObjectId, id, "BLOCKS|forward");
+
+      const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
+      // Two events each, newest first -- the original add is a real fact
+      // that stays in history; the retype appends a second fact describing
+      // the same underlying link, rather than erasing the first.
+      expect(onDoc).toMatchObject([{ description: "Supports → Blocks (Buy a house)" }, { description: "Supports → Buy a house" }]);
+      expect(onGoal).toMatchObject([{ description: "Supported by → Blocked by (Mortgage pre-approval)" }, { description: "Supported by → Mortgage pre-approval" }]);
+    });
+
+    it("writes a RELATIONSHIP_REMOVED event on both sides when a link is removed, alongside the original add", async () => {
+      await add(docObjectId, goalObjectId, "DEPENDS_ON|forward");
+      const { id } = await onlyRelationship();
+
+      await removeKinesisLinkAction(docObjectId, id);
+
+      const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
+      expect(onDoc).toMatchObject([{ description: "No longer linked: Depends on → Buy a house" }, { description: "Depends on → Buy a house" }]);
+      expect(onGoal).toMatchObject([{ description: "No longer linked: Required for → Mortgage pre-approval" }, { description: "Required for → Mortgage pre-approval" }]);
+    });
+
+    it("records nothing on either side when the add itself is refused", async () => {
+      await add(docObjectId, docObjectId, "SUPPORTS|forward");
+
+      await expect(getObjectEvents(docObjectId)).resolves.toEqual([]);
+    });
+
+    it("orders an object's own history newest first", async () => {
+      await add(docObjectId, goalObjectId, "SUPPORTS|forward");
+      const { id } = await onlyRelationship();
+      await retype(docObjectId, id, "BLOCKS|forward");
+
+      const onDoc = await getObjectEvents(docObjectId);
+
+      expect(onDoc.map((event) => event.description)).toEqual(["Supports → Blocks (Buy a house)", "Supports → Buy a house"]);
+      expect(onDoc[0].occurredAt.getTime()).toBeGreaterThanOrEqual(onDoc[1].occurredAt.getTime());
     });
   });
 });

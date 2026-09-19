@@ -36,6 +36,7 @@ const EXPECTED_KEYS: Record<string, string[]> = {
   ObjectField: ["objectFields"],
   FieldLink: ["fieldLinks"],
   ObjectRelationship: ["objectRelationships"],
+  ObjectEvent: ["objectEvents"],
   Document: ["documents"],
   DocumentType: ["documentTypes"],
   Goal: ["goals"],

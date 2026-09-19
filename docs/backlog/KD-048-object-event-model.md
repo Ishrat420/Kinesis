@@ -1,8 +1,54 @@
 # KD-048 — Object Event Model (Universal History & Change Log)
 
-**Status:** Accepted — Needs Planning
+**Status:** In Progress -- Phase 1 shipped (schema, Kinesis Link
+add/retype/remove history, ITEM_DELETED, a generic History section on
+Documents/Goals/Custom Items); Phases 2-6 not started.
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
+
+**Phase 1 status:** Shipped. `ObjectEvent`/`ObjectEventType`/`ObjectEventSource`
+added (`20261009000000_object_event_model`), exactly as designed above,
+including the three review fixes (raw `oldRelationshipType`/
+`newRelationshipType`/`inverse` rather than a resolved-label snapshot;
+`ITEM_DELETED` written onto survivors, never the deleted object itself;
+paired writes wrapped in the same transaction as the mutation they describe).
+`lib/data/object-events.ts` holds the write side
+(`recordRelationshipAdded`/`Removed`/`Changed`, `recordItemDeletedEvents`,
+`describeObjectEvent`) and takes `userId` explicitly rather than
+self-authenticating, so it stays free of `@/lib/auth`'s `server-only` import
+and can be pulled into `lib/data/objects.ts` without dragging that into a
+plain unit test; the one self-authenticating reader, `getObjectEvents`,
+lives in its own `lib/data/object-event-history.ts` for exactly that reason.
+
+Wired into: `addKinesisLinkAction`/`updateKinesisLinkAction`/
+`removeKinesisLinkAction` (`app/actions.ts`); the to-do linking paths in
+`lib/data/todos.ts` (`createTodo`, and `updateTodoDetails`'s replace-all
+save, which now diffs against the existing set so an untouched link records
+no event); and `deleteObjects` (`lib/data/objects.ts`) itself, which is the
+one chokepoint every module's delete already goes through, so `ITEM_DELETED`
+coverage is universal for free rather than needing a per-module change.
+
+**Not wired this phase:** `FIELD_CHANGED`/`STATUS_CHANGED`/`ITEM_CREATED`/
+`DOCUMENT_ARCHIVED`/`TODO_COMPLETED`/etc. -- the broader "audit every
+`addActivity` call site (and beyond) per object type" work the "Emission"
+section calls for. Deliberately deferred as its own follow-up: it touches
+every module's own action file individually, is materially larger than the
+Kinesis Link/deletion work above, and doesn't share those two pieces'
+common chokepoint. `ObjectHistory` (the new generic History section,
+`components/history/ObjectHistory.tsx`) falls back to a single synthetic
+"Created" line from the record's own `createdAt` in the meantime, so an
+otherwise-empty history doesn't read as broken.
+
+**Test coverage:** `tests/unit/object-events.test.ts` (`describeObjectEvent`,
+pure); `tests/integration/kinesis-links/object-relationship-links.test.ts`'s
+new "recording history" block (paired add/retype/remove events, correct
+per-side labels, ordering); `tests/integration/objects/object-factory.test.ts`'s
+new "records ITEM_DELETED" block (survivor-side write, the deleted object's
+own now-cascaded identity getting nothing, and the both-sides-deleted-together
+skip case); `tests/integration/todos/todo-link-history.test.ts` (the
+diff-not-replace behavior). The existing account-wide sweep tests
+(`delete-all-data`, `export`) were extended to seed and check `ObjectEvent`
+too, per their own "every table" convention.
 
 ## Problem
 
@@ -396,14 +442,17 @@ later refinement, not required to ship Phase 1.
 
 ## Phases
 
-**Phase 1 — Foundation**
-Schema + migration for `ObjectEvent`/`ObjectEventType`/`ObjectEventSource`.
-`lib/data/object-events.ts`: `recordObjectEvent(...)` and
-`getObjectEvents(objectId)`. Wire emission into the existing
-`addActivity` call sites — each one becomes *both* an `ActivityEvent`
-(unchanged, so nothing regresses) *and* an `ObjectEvent` (new), audited
-outward from there per object type rather than treated as the finished set
-(per "Emission" above) — plus
+**Phase 1 — Foundation (Shipped, partially)**
+Schema + migration for `ObjectEvent`/`ObjectEventType`/`ObjectEventSource`
+shipped as designed, including the review fixes. `lib/data/object-events.ts`
+(write side) and `lib/data/object-event-history.ts` (`getObjectEvents`,
+split out to keep the write side free of `@/lib/auth`) shipped. **Not
+shipped this phase:** wiring emission into the existing `addActivity` call
+sites so each becomes *both* an `ActivityEvent` (unchanged) *and* an
+`ObjectEvent` (new), audited outward from there per object type rather than
+treated as the finished set (per "Emission" above) — this is real,
+larger, still-open scope, tracked as this phase's own remaining item rather
+than folded into Phase 2. What *did* ship this phase: paired
 `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED`/`RELATIONSHIP_CHANGED` from
 `addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
 and the to-do linking call site in `lib/data/todos.ts`, per "Kinesis Links:

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getDocument, getDocumentTypes } from "@/lib/data/documents";
-import { getActivityForHref } from "@/lib/data/activity";
+import { getObjectEvents } from "@/lib/data/object-event-history";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { DocumentDetailRecord } from "./EditDocumentForm";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
@@ -21,7 +21,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   // meaningful, so the picker never offers the choice at all.
   const [linkOptions, history, kinesisLinks] = await Promise.all([
     getKinesisLinkOptions(document.objectId),
-    getActivityForHref(`/documents/${document.id}`),
+    getObjectEvents(document.objectId),
     getKinesisLinks(document.objectId),
   ]);
   // Every object the picker could show, not just ones already linked --
@@ -37,7 +37,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     expiryDateLabel: document.expiryDateLabel, issueDateLabel: document.issueDateLabel, documentNumberLabel: document.documentNumberLabel,
     countryLabel: document.countryLabel, notesLabel: document.notesLabel, linkLabel: document.linkLabel, customFields: document.customFields,
     updatedAt: document.updatedAt.toISOString(),
-  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, action: event.action, createdAt: event.createdAt.toISOString() }))} initialEditing={edit === "1"}
+  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, description: event.description, occurredAt: event.occurredAt.toISOString() }))} initialEditing={edit === "1"}
     kinesisLinks={kinesisLinks}
     addKinesisLinkAction={addKinesisLinkAction.bind(null, document.objectId)}
     updateKinesisLinkAction={updateKinesisLinkAction.bind(null, document.objectId)}

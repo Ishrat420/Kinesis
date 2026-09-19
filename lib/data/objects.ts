@@ -1,5 +1,6 @@
 import type { KinesisObjectType, Prisma } from "@prisma/client";
 import type { prisma } from "./prisma";
+import { recordItemDeletedEvents } from "./object-events";
 
 type Client = Prisma.TransactionClient | typeof prisma;
 
@@ -45,6 +46,22 @@ export const objectFor = {
  * Deleting the identity deletes the typed record with it, and takes every shared
  * capability hanging off the object — relationships, inbound links — with it too.
  * Ownership stays in the statement so a delete can never widen past its owner.
+ *
+ * Every object type is deleted through this one function (KD-023/024), which
+ * is exactly why it's also the one place `ITEM_DELETED` (KD-048) needs
+ * wiring in, rather than at each module's own delete action: one FK gives
+ * every current module -- and every future custom module -- deletion history
+ * for free. `recordItemDeletedEvents` must run *before* the delete, so the
+ * relationships it reads to find survivors still exist; when `client` is the
+ * top-level Prisma client (not already inside someone else's transaction),
+ * both steps are wrapped in one so a crash between them can't leave a
+ * "this was deleted" event pointing at an object that's still very much
+ * alive.
  */
-export const deleteObjects = (client: Client, objectIds: string[], userId: string) =>
-  client.object.deleteMany({ where: { id: { in: objectIds }, userId } });
+export const deleteObjects = async (client: Client, objectIds: string[], userId: string) => {
+  const run = async (tx: Client) => {
+    await recordItemDeletedEvents(tx, objectIds, userId);
+    return tx.object.deleteMany({ where: { id: { in: objectIds }, userId } });
+  };
+  return "$transaction" in client ? client.$transaction((tx) => run(tx)) : run(client);
+};

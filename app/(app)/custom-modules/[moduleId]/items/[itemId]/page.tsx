@@ -6,6 +6,8 @@ import { CustomItemDetailRecord } from "./EditCustomItemForm";
 import { DeleteItemButton } from "./DeleteItemButton";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
+import { getObjectEvents } from "@/lib/data/object-event-history";
+import { ObjectHistory } from "@/components/history/ObjectHistory";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDate } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
@@ -16,7 +18,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
   if (!item) notFound();
   // Excludes this item's own object -- linking it to itself is never
   // meaningful, so the picker never offers the choice at all.
-  const [linkOptions, kinesisLinks] = await Promise.all([getKinesisLinkOptions(item.objectId), getKinesisLinks(item.objectId)]);
+  const [linkOptions, kinesisLinks, history] = await Promise.all([getKinesisLinkOptions(item.objectId), getKinesisLinks(item.objectId), getObjectEvents(item.objectId)]);
   // Every object the picker could show, not just ones already linked --
   // choosing a new one in the picker, before saving, should show exactly
   // the card it'll actually render as (KD-042), not the compact fallback
@@ -40,5 +42,8 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       removeKinesisLinkAction={removeKinesisLinkAction.bind(null, item.objectId)}
     />
     <p className="mt-4 text-sm text-zinc-400">Created {formatDate(item.createdAt, locale)} · Updated {formatDate(item.updatedAt, locale)}</p>
+    <div className="mt-6">
+      <ObjectHistory entries={history.map((event) => ({ id: event.id, description: event.description, occurredAt: event.occurredAt.toISOString() }))} fallbackCreatedAt={item.createdAt.toISOString()} locale={locale} />
+    </div>
   </ModuleContent>;
 }

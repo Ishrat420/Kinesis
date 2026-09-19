@@ -74,6 +74,16 @@ export async function seedEverything(userId: string, tag: string) {
       pairKey: `${tag}-object-goal:${tag}-object-goal2`,
     },
   });
+  // The paired-per-endpoint row (KD-048) recording that same relationship on
+  // the goal2 side -- covers ObjectEvent, and its own optional relatedObject
+  // FK, in one seed rather than a separate one.
+  await prisma.objectEvent.create({
+    data: {
+      id: `${tag}-objevent`, userId, objectId: `${tag}-object-goal2`,
+      eventType: "RELATIONSHIP_ADDED", newRelationshipType: "SUPPORTS", inverse: true,
+      relatedObjectId: `${tag}-object-goal`, relatedObjectName: "Goal one", source: "USER",
+    },
+  });
 
   // Two read markers, on two different target columns -- every real one names
   // exactly one (KD-032's exactly-one-parent CHECK constraint refuses a row

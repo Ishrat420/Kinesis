@@ -109,4 +109,57 @@ describe.sequential("the Object identity factory", () => {
 
     await expect(prisma.object.findMany({ where: { id: { in: [goal.objectId, person.objectId] } } })).resolves.toEqual([]);
   });
+
+  /**
+   * KD-048: `ITEM_DELETED` can never be recorded on the object being deleted
+   * -- it would cascade away with everything else that object owns -- so it
+   * belongs on whichever other object still holds a live relationship to it.
+   */
+  describe("deleteObjects records ITEM_DELETED (KD-048)", () => {
+    async function linkedGoals(aId: string, bId: string, aName: string, bName: string) {
+      await prisma.goal.create({ data: { id: aId, name: aName, user: { connect: { id: owner } }, object: objectFor.goal(aName, owner) } });
+      await prisma.goal.create({ data: { id: bId, name: bName, user: { connect: { id: owner } }, object: objectFor.goal(bName, owner) } });
+      const [a, b] = await Promise.all([
+        prisma.goal.findUniqueOrThrow({ where: { id: aId } }),
+        prisma.goal.findUniqueOrThrow({ where: { id: bId } }),
+      ]);
+      await prisma.objectRelationship.create({
+        data: { id: `${aId}-${bId}-rel`, userId: owner, type: "SUPPORTS", sourceObjectId: a.objectId, targetObjectId: b.objectId, pairKey: [a.objectId, b.objectId].sort().join(":") },
+      });
+      return { a, b };
+    }
+
+    it("writes ITEM_DELETED onto the surviving side of a relationship, before the delete removes the row it read", async () => {
+      const { a, b } = await linkedGoals("goal-5", "goal-6", "Deleted goal", "Surviving goal");
+
+      await deleteObjects(prisma, [a.objectId], owner);
+
+      const events = await prisma.objectEvent.findMany({ where: { objectId: b.objectId } });
+      // relatedObjectId is already null by the time this reads back: the
+      // event references the very object the same call just deleted, so
+      // onDelete: SetNull fires within the same transaction. relatedObjectName
+      // is the durable part -- a plain string snapshot, unaffected by the cascade.
+      expect(events).toMatchObject([{ eventType: "ITEM_DELETED", relatedObjectId: null, relatedObjectName: "Deleted goal" }]);
+    });
+
+    it("writes nothing on the deleted object's own now-gone identity", async () => {
+      const { a, b } = await linkedGoals("goal-7", "goal-8", "Deleted goal", "Surviving goal");
+
+      await deleteObjects(prisma, [a.objectId], owner);
+
+      await expect(prisma.objectEvent.findMany({ where: { objectId: a.objectId } })).resolves.toEqual([]);
+      // Confirms the survivor's own event above wasn't just an artifact of an
+      // unfiltered query -- exactly one relationship existed, and exactly one
+      // event resulted.
+      await expect(prisma.objectEvent.count({ where: { objectId: b.objectId } })).resolves.toBe(1);
+    });
+
+    it("writes nothing for a relationship between two objects deleted together in the same call", async () => {
+      const { a, b } = await linkedGoals("goal-9", "goal-10", "First", "Second");
+
+      await deleteObjects(prisma, [a.objectId, b.objectId], owner);
+
+      await expect(prisma.objectEvent.count()).resolves.toBe(0);
+    });
+  });
 });

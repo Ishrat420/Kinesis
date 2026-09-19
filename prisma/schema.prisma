@@ -31,6 +31,7 @@ model User {
   securityEvents      SecurityEvent[]
   objects             Object[]
   objectRelationships ObjectRelationship[]
+  objectEvents        ObjectEvent[]
   todos               Todo[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -262,6 +263,8 @@ model Object {
   todo                  Todo?
   outgoingRelationships ObjectRelationship[] @relation("RelationshipSource")
   incomingRelationships ObjectRelationship[] @relation("RelationshipTarget")
+  events                ObjectEvent[]
+  relatedInEvents       ObjectEvent[]        @relation("ObjectEventRelated")
   fields                ObjectField[]
   linkedFromFieldLinks  FieldLink[]          @relation("FieldLinkTarget")
   // The template this object was created under, if any (KD-035 Phase 2) --
@@ -318,6 +321,83 @@ model ObjectRelationship {
   @@index([userId, pairKey, type])
   @@index([userId, sourceObjectId])
   @@index([userId, targetObjectId])
+}
+
+/// What happened to an Object (KD-048 Phase 1) -- a typed, append-only event
+/// stream every module record's history reads from, replacing (eventually)
+/// ActivityEvent's flat, un-typed sentences. See KD-048 for the full design
+/// discussion; the notes below cover only what isn't obvious from the shape.
+model ObjectEvent {
+  id       String @id @default(uuid())
+  objectId String
+  object   Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  eventType ObjectEventType
+
+  /// Set for a field-level change. `fieldKey` is a stable identifier -- a
+  /// fixed name ("status", "balance") for a core column, or the ObjectField's
+  /// own id for a custom field. `fieldLabel` is a snapshot of the human label
+  /// at write time: a custom field can be renamed or deleted later, and the
+  /// event should keep reading sensibly when that happens.
+  ///
+  /// Also doubles for a RELATIONSHIP_CHANGED event's literal text on
+  /// whichever side (old/new) is a CUSTOM Kinesis Link -- that text *is* the
+  /// value, the same way any other free-text field's value lives here. Null
+  /// on a canonical-type side, since that side needs no text snapshot at all
+  /// (see `oldRelationshipType`/`newRelationshipType` below).
+  fieldKey   String?
+  fieldLabel String?
+  oldValue   String?
+  newValue   String?
+
+  /// Set only for RELATIONSHIP_* events -- the canonical type on each side of
+  /// the change, so a later query ("every DEPENDS_ON that ever appeared")
+  /// filters on this instead of parsing rendered text. RELATIONSHIP_ADDED
+  /// sets only `newRelationshipType`; RELATIONSHIP_REMOVED sets only
+  /// `oldRelationshipType`; RELATIONSHIP_CHANGED sets both. `inverse` records
+  /// which side of that type *this* row is being recorded from -- needed to
+  /// re-derive "Depends on" vs "Required for" through `kinesisLinkLabel`
+  /// rather than storing the resolved text a second time; unset for CUSTOM,
+  /// which reads identically on both sides.
+  oldRelationshipType ObjectRelationshipType?
+  newRelationshipType ObjectRelationshipType?
+  inverse             Boolean?
+
+  /// Set only for relationship/link-shaped events -- the *other* object.
+  /// relatedObjectId goes null if that object is later deleted; relatedObjectName
+  /// is a snapshot so the line still reads ("Depends on -> Save $30k") even then.
+  relatedObjectId   String?
+  relatedObject     Object? @relation("ObjectEventRelated", fields: [relatedObjectId], references: [id], onDelete: SetNull)
+  relatedObjectName String?
+
+  source     ObjectEventSource
+  occurredAt DateTime @default(now())
+
+  @@index([objectId, occurredAt])
+  @@index([userId, occurredAt])
+}
+
+enum ObjectEventType {
+  FIELD_CHANGED           // the general-purpose fallback: any field without its own named event yet
+  STATUS_CHANGED          // worth its own type -- every consumer cares about status specifically
+  RELATIONSHIP_ADDED
+  RELATIONSHIP_REMOVED
+  RELATIONSHIP_CHANGED    // KD-050's "Change relationship" -- retyping an existing Kinesis Link in place, not add+remove
+  DOCUMENT_ARCHIVED
+  DOCUMENT_RESTORED
+  TODO_COMPLETED
+  TODO_REOPENED
+  GOAL_MILESTONE_COMPLETED
+  GOAL_COMPLETED
+  ITEM_CREATED
+  ITEM_DELETED
+}
+
+enum ObjectEventSource {
+  USER
+  SYSTEM
 }
 
 model Person {

@@ -6,7 +6,7 @@ export async function GET() {
   if (verification !== true) return verification;
   const kinesisUser = await requireKinesisUser();
   const userId = kinesisUser.id;
-  const [user, settings, objects, objectFields, fieldLinks, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, activityEvents, notificationReads, notificationFirstSeens, securityEvents] = await Promise.all([
+  const [user, settings, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, activityEvents, notificationReads, notificationFirstSeens, securityEvents] = await Promise.all([
     prisma.user.findMany({ where: { id: userId }, omit: { clerkUserId: true } }),
     prisma.userSettings.findMany({ where: { userId } }),
     prisma.object.findMany({ where: { userId } }),
@@ -20,6 +20,10 @@ export async function GET() {
     // above -- reached the same way, through the field's own object.
     prisma.fieldLink.findMany({ where: { field: { object: { userId } } } }),
     prisma.objectRelationship.findMany({ where: { userId } }),
+    // Same ownerless-row shape as objectRelationships: a Kinesis Link event
+    // pair (KD-048) belongs to whichever object it's recorded against, not
+    // to a Document/Goal/etc. directly, so it's exported flat here too.
+    prisma.objectEvent.findMany({ where: { userId } }),
     prisma.document.findMany({ where: { userId } }),
     prisma.documentType.findMany({ where: { userId } }),
     prisma.goal.findMany({ where: { userId }, include: { milestones: true, metricHistory: true } }),
@@ -40,7 +44,7 @@ export async function GET() {
   ]);
   await prisma.securityEvent.create({ data: { event: "DATA_EXPORT_COMPLETED", userId } });
   const exportedAt = new Date().toISOString();
-  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectFields, fieldLinks, objectRelationships, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, activityEvents, notificationReads, notificationFirstSeens, securityEvents }, null, 2), {
+  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, activityEvents, notificationReads, notificationFirstSeens, securityEvents }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="kinesis-export-${exportedAt.slice(0, 10)}.json"`, "Cache-Control": "no-store" },
   });
 }
