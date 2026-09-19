@@ -102,6 +102,7 @@ enum ObjectEventType {
   STATUS_CHANGED          // worth its own type -- every consumer in the list above cares about status specifically
   RELATIONSHIP_ADDED
   RELATIONSHIP_REMOVED
+  RELATIONSHIP_CHANGED    // KD-050's "Change relationship" -- retyping an existing Kinesis Link in place, not add+remove
   DOCUMENT_ARCHIVED
   DOCUMENT_RESTORED
   TODO_COMPLETED
@@ -145,6 +146,91 @@ Notes on the choices, since the sketch in the ask leaves some of this open:
   renamed or deleted out from under the event.** This isn't new —
   `ActivityEvent.objectName` already does exactly this today. Same
   reasoning, applied consistently.
+
+### Kinesis Links: what a link event actually records
+
+This ticket's original sketch already reserved `RELATIONSHIP_ADDED` /
+`RELATIONSHIP_REMOVED` and the `relatedObjectId`/`relatedObjectName` pair for
+exactly this, but it predates KD-049/KD-050 actually shipping, so it never
+worked out three things a real Kinesis Link needs: which *label* to show,
+whose history the event belongs to, and what happens when someone *retypes*
+a link rather than adding or removing one. All three matter directly to
+"Blocked by" / "Depends on" reading correctly, so worth settling now rather
+than leaving them for whoever implements Phase 1 to guess at.
+
+**1. The label is a snapshot in `fieldLabel`, not a new column.** A Kinesis
+Link's label (KD-049 §3/§5) is already resolved at *read* time from
+`(type, inverse-or-not, customLabel)` — `kinesisLinkLabel` — everywhere else
+it's shown, and `ObjectEvent` shouldn't invent a second way to store the same
+information. Reuse `fieldLabel` for the already-resolved text ("Depends on",
+"Blocked by", or the literal Custom text) at the moment the event is
+recorded. Canonical labels never change, but a Custom label's text can be
+edited later via retype, so this is a genuine snapshot in the same spirit as
+`ActivityEvent.objectName` and `fieldLabel` elsewhere — the event should
+still read "Depends on -> Save $30k" correctly even if that link is later
+retyped to something else entirely, or the label vocabulary itself is ever
+revised. `relatedObjectId`/`relatedObjectName` are exactly what they already
+are: the other end of the link.
+
+**2. One relationship change writes two `ObjectEvent` rows, one per
+endpoint — a deliberate exception to "one row, derived perspective."**
+Everywhere else in Kinesis (`ObjectRelationship` itself, `KinesisLinks.tsx`),
+a link is one canonical row and each side's *label* is derived at query time
+from which end you're looking from — that's the whole point of not storing
+the inverse twice. `ObjectEvent` can't reuse that trick: its read model is
+strictly single-object-scoped (`getObjectEvents(objectId)`, indexed on
+`[objectId, occurredAt]`), not a graph query that can resolve perspective on
+demand. Since a Kinesis Link is meant to show up in *both* linked objects'
+own pages (KD-049 §4 — a flat list read from each object's own side), it has
+to show up in both objects' *history* too, or a link only shows a record on
+one side while looking added-from-nowhere on the other. Concretely, adding
+"Goal A `DEPENDS_ON` Goal B" writes:
+
+```text
+Event on A: RELATIONSHIP_ADDED, fieldLabel="Depends on",   relatedObjectId=B
+Event on B: RELATIONSHIP_ADDED, fieldLabel="Required for", relatedObjectId=A
+```
+
+Both rows describe the same real-world change from each object's own side —
+they are two independent facts, not correlated by a shared id, and nothing
+today needs to merge them back into "one edit" across two histories. Custom
+labels are the simple case here: since KD-049 §6 shows identical text on
+both sides (no forward/inverse split), both rows just get the same
+`fieldLabel`. Remove follows the same pairing with `RELATIONSHIP_REMOVED`.
+
+**3. Retyping an existing link (KD-050's "Change relationship") is
+`RELATIONSHIP_CHANGED`, not a remove-then-add.** Before KD-050, a Kinesis
+Link's type was fixed once created; KD-050 added an in-place "Change
+relationship" control to `KinesisLinks.tsx` that updates the same
+`ObjectRelationship` row's `type`/`customLabel` via `updateKinesisLinkAction`.
+Modeling that as delete-then-recreate would read as "the link to Save $30k
+was removed, then a different link to Save $30k was added a moment later" —
+technically true of the rows, false to what actually happened. A dedicated
+type keeps it one event, shaped like `FIELD_CHANGED`: `oldValue`/`newValue`
+hold the old/new resolved label text (again per-endpoint, so both sides read
+their own before/after correctly — "Depends on -> Alongside" on A's history,
+"Required for -> Alongside" on B's), `relatedObjectId`/`relatedObjectName`
+stay pointed at the same other end throughout, since retyping never changes
+*what's* linked, only *how*.
+
+**4. Emission lives in the three actions every Kinesis Link already goes
+through.** This supersedes Phase 1's original, vaguer "wherever
+`ObjectRelationship` rows are created/deleted" — post-KD-049/050 there's a
+single, already-generalized chokepoint per action:
+`addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
+(`app/actions.ts`). Each already has both endpoints' ids and the
+type/customLabel in hand (it just wrote or is about to write the
+`ObjectRelationship` row itself), so resolving both perspectives' labels and
+writing the paired rows costs one small helper, not a new data-fetch. A
+to-do's own incidental link (the bare `RELATES_TO`/`CONCERNS` row
+`lib/data/todos.ts` creates when something is linked to a to-do — KD-049's
+Problem §1) goes through `ObjectRelationship` too, so it emits the same
+paired `RELATIONSHIP_ADDED` for consistency, but with no meaningful label to
+snapshot (today it renders as "just a bare chip," per KD-049) — leave
+`fieldLabel` unset there rather than inventing one, and let
+`classifyEventSignificance` (Phase 4) key on its absence to keep these "low"
+rather than mistaking an incidental to-do link for a deliberate Kinesis
+Link.
 
 ### Emission: where events get written
 
@@ -223,11 +309,16 @@ Schema + migration for `ObjectEvent`/`ObjectEventType`/`ObjectEventSource`.
 `getObjectEvents(objectId)`. Wire emission into the existing
 `addActivity` call sites — each one becomes *both* an `ActivityEvent`
 (unchanged, so nothing regresses) *and* an `ObjectEvent` (new) — plus
-`RELATIONSHIP_ADDED`/`REMOVED` wherever `ObjectRelationship` rows are
-created/deleted. Ship one visible consumer: a generic "History" section on
-object detail pages, starting with Documents, Goals and Custom Items
-(Documents already has a bespoke one to replace). No significance scoring
-yet — newest first, unfiltered.
+`RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED`/`RELATIONSHIP_CHANGED` from
+`addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
+and the to-do linking call site in `lib/data/todos.ts`, per "Kinesis Links:
+what a link event actually records" above (paired per-endpoint rows,
+snapshotted label in `fieldLabel`). Ship one visible consumer: a generic
+"History" section on object detail pages, starting with Documents, Goals
+and Custom Items (Documents already has a bespoke one to replace) — a
+Kinesis Link add/remove/retype should be visible in this section on both
+linked objects' pages, not only the one where the action happened. No
+significance scoring yet — newest first, unfiltered.
 
 **Phase 2 — Replace `ActivityEvent`**
 Move the dashboard "Recent activity" widget onto `ObjectEvent`. Move
@@ -289,6 +380,13 @@ trending the wrong way). AI-narrated summaries over the same stream.
 
 * **Builds on:** KD-023 (Universal Object Connections), KD-024 (Universal
   Object Capability Layer) — the `Object` identity layer this hangs off.
+* **Builds on:** KD-049 (Typed Kinesis Links), KD-050 (Converge Kinesis Link
+  Custom Fields) — both shipped since this ticket's schema was first
+  sketched, and directly shaped the relationship-event design above:
+  `kinesisLinkLabel`'s forward/inverse/custom resolution is what
+  `RELATIONSHIP_ADDED`/`REMOVED`'s `fieldLabel` snapshots, and KD-050's
+  in-place "Change relationship" control is why `RELATIONSHIP_CHANGED`
+  exists as its own type rather than a remove-then-add pair.
 * **Feeds:** KD-015 (Kinesis Year in Review / Timeline) — very likely
   blocked on exactly this.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card) — future

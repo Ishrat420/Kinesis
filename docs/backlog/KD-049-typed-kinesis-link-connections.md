@@ -424,10 +424,12 @@ distinct, `ObjectField`-based mechanism) is untouched by this migration.
   Links) — makes the merge call this ticket's §2 deliberately deferred, once
   real usage showed people reaching for "Add custom field → Kinesis Link"
   as their way of creating one.
-* **Feeds:** KD-048 (Object Event Model) — once built, its
-  `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED` events should carry `type`
-  (and `customLabel` when set) so a Kinesis Link change reads correctly in
-  History.
+* **Feeds:** KD-048 (Object Event Model) — its
+  `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED`/`RELATIONSHIP_CHANGED` events
+  snapshot the already-resolved `kinesisLinkLabel` text (forward, inverse, or
+  literal Custom text) at write time, per KD-048's own "Kinesis Links: what
+  a link event actually records" design, so a Kinesis Link change reads
+  correctly in History from either linked object's side.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card) — `KinesisLinkCard`
   gained the optional label decoration; its `stats` row still renders
   underneath, unaffected.
