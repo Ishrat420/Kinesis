@@ -213,7 +213,7 @@ export function CustomFieldsEditor({
           <DirectionField className={inputClass} />
           <TargetPicker options={linkOptions} className={inputClass} />
           <div className="flex gap-2">
-            <button type="submit" formAction={submitKinesisLink} formNoValidate className="flex h-[50px] items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Add link</button>
+            <button type="submit" formAction={submitKinesisLink} formNoValidate aria-label="Add link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl bg-zinc-950 text-white"><Plus className="h-4 w-4" /></button>
             <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"><Minus className="h-4 w-4" /></button>
           </div>
           {kinesisLinkState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{kinesisLinkState.error}</p>}
