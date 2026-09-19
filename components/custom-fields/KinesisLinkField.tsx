@@ -112,7 +112,14 @@ export function KinesisLinkList({
  * Filtering an in-memory array on each keystroke is cheap enough, even at a
  * few hundred rows, that no debounce or server round trip is needed.
  */
-function LinkCombobox({
+/**
+ * Exported so a single-target picker (`TargetPicker`, KD-050) can reuse the
+ * same search rather than a second, plain `<select>` -- the multi-select
+ * (`KinesisLinkList` above) and a single typed Kinesis Link's target are the
+ * same question about the same objects, and losing search on one just
+ * because it only ever picks one is not a reason to rebuild it.
+ */
+export function LinkCombobox({
   options, onChange, ariaLabel, placeholder,
 }: {
   options: LinkableObject[];

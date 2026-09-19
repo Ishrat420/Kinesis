@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ChevronDown, MoreHorizontal, Pencil, Trash2, X } from "lucide-react";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
+import { LinkCombobox } from "@/components/custom-fields/KinesisLinkField";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, KINESIS_LINK_DIRECTION_OPTIONS, kinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
 import type { LinkableObject } from "@/lib/objects/locations";
 import type { KinesisLink } from "@/lib/data/object-relationships";
@@ -112,17 +113,35 @@ export function DirectionField({ defaultValue, defaultCustomLabel, className = S
   </>;
 }
 
-/** Grouped by module, matching the order `getKinesisLinkOptions` already returns. Exported for the same reason as `DirectionField` above; `className` serves the same purpose. */
+/**
+ * The same searchable `LinkCombobox` every other object picker in the app
+ * uses (KD-050), not a plain `<select>` -- an account with even a couple
+ * dozen linkable records makes scrolling an `<optgroup>` list impractical,
+ * and this is now the only way to add a typed Kinesis Link.
+ *
+ * `targetObjectId` submits through a hidden input rather than the combobox
+ * itself, since `LinkCombobox` has no form-native output of its own. Native
+ * `required` validation does nothing on a hidden input per the HTML5 spec,
+ * so `addKinesisLinkAction` is the real backstop ("Choose something to
+ * link.").
+ */
 export function TargetPicker({ options, className = SELECT_CLASS }: { options: LinkableObject[]; className?: string }) {
-  const modules = [...new Set(options.map((option) => option.module))];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = options.find((option) => option.objectId === selectedId) ?? null;
+
   return (
-    <ChevronSelect name="targetObjectId" required aria-label="Object to link" defaultValue="" className={`${className} min-w-0`}>
-      <option value="" disabled>Select something to link</option>
-      {modules.map((module) => (
-        <optgroup key={module} label={module}>
-          {options.filter((option) => option.module === module).map((option) => <option key={option.objectId} value={option.objectId}>{option.name}</option>)}
-        </optgroup>
-      ))}
-    </ChevronSelect>
+    <div className="min-w-0">
+      <input type="hidden" name="targetObjectId" value={selectedId ?? ""} />
+      {selected ? (
+        <div className={`${className} flex items-center justify-between gap-2`}>
+          <span className="min-w-0 truncate text-sm font-medium text-zinc-900">{selected.name}</span>
+          <button type="button" onClick={() => setSelectedId(null)} aria-label="Change target" className="shrink-0 text-zinc-400 transition hover:text-zinc-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <LinkCombobox options={options} ariaLabel="Object to link" placeholder="Select something to link" onChange={setSelectedId} />
+      )}
+    </div>
   );
 }
