@@ -47,12 +47,11 @@ coverage is universal for free rather than needing a per-module change.
   `GOAL_COMPLETED` (moving to `"Finished"`) or generic `STATUS_CHANGED`
   (any other transition) in `updateGoalStatusAction`; `FIELD_CHANGED` for
   the target date (`updateGoalTargetDateAction`) and
-  `targetValue`/`currentValue`/`unit` together (`addTargetAction`) plus
+  `targetValue`/`currentValue`/`unit` together, on both setting them
+  (`addTargetAction`) and clearing them entirely (`removeTargetAction`,
+  closed after initially being flagged as a gap here) plus
   `diffObjectFields` in `updateGoalFieldsAction`; `GOAL_MILESTONE_COMPLETED`
-  naming the milestone in `toggleMilestoneAction`. **Not done:**
-  `removeTargetAction` (clearing a goal's measure entirely) still doesn't
-  emit `FIELD_CHANGED` -- a real, small, deliberately-left gap; flagged here
-  rather than silently skipped.
+  naming the milestone in `toggleMilestoneAction`.
 * **To-Dos** (`lib/data/todos.ts`) -- `ITEM_CREATED` in `captureTodo` and
   `createTodo`; `TODO_COMPLETED`/`TODO_REOPENED` (moving to/from `"DONE"`)
   or generic `STATUS_CHANGED` (any other transition) plus `FIELD_CHANGED`

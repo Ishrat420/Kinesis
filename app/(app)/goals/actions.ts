@@ -183,14 +183,23 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
  */
 export async function removeTargetAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { milestones: { where: { value: { not: null } }, select: { id: true }, take: 1 } } });
+  const goal = await prisma.goal.findFirst({
+    where: { id, userId: user.id },
+    select: { objectId: true, targetValue: true, currentValue: true, unit: true, milestones: { where: { value: { not: null } }, select: { id: true }, take: 1 } },
+  });
   if (!goal) return {};
   if (goal.milestones.length && value(data, "confirmed") !== "true") return { error: MEASURE_REMOVAL_CONFIRMATION };
-  await prisma.$transaction([
-    prisma.goal.updateMany({ where: { id, userId: user.id }, data: { targetValue: null, currentValue: null, unit: null } }),
-    prisma.goalMetricSnapshot.deleteMany({ where: { goalId: id, goal: { userId: user.id } } }),
-    prisma.milestone.updateMany({ where: { goalId: id, goal: { userId: user.id } }, data: { value: null, autoCompleted: false } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.goal.updateMany({ where: { id, userId: user.id }, data: { targetValue: null, currentValue: null, unit: null } });
+    await tx.goalMetricSnapshot.deleteMany({ where: { goalId: id, goal: { userId: user.id } } });
+    await tx.milestone.updateMany({ where: { goalId: id, goal: { userId: user.id } }, data: { value: null, autoCompleted: false } });
+
+    const changes: FieldChange[] = [];
+    if (goal.targetValue !== null) changes.push({ fieldKey: "targetValue", fieldLabel: "Target value", oldValue: String(goal.targetValue), newValue: null });
+    if (goal.currentValue !== null) changes.push({ fieldKey: "currentValue", fieldLabel: "Current value", oldValue: String(goal.currentValue), newValue: null });
+    if (goal.unit !== null) changes.push({ fieldKey: "unit", fieldLabel: "Unit", oldValue: goal.unit, newValue: null });
+    await recordFieldChanges(tx, user.id, goal.objectId, changes);
+  });
   refresh(id);
   return { saved: true };
 }

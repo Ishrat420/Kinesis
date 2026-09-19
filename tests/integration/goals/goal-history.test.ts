@@ -9,7 +9,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
-import { addTargetAction, createGoalAction, toggleMilestoneAction, updateGoalFieldsAction, updateGoalStatusAction, updateGoalTargetDateAction } from "@/app/(app)/goals/actions";
+import { addTargetAction, createGoalAction, removeTargetAction, toggleMilestoneAction, updateGoalFieldsAction, updateGoalStatusAction, updateGoalTargetDateAction } from "@/app/(app)/goals/actions";
 import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
 
 /** KD-048 Phase 1 remainder: Goals' own lifecycle and field changes enter the ObjectEvent history. */
@@ -103,6 +103,29 @@ describe.sequential("a Goal's own history (KD-048)", () => {
     const secondSave = events.filter((event) => event.eventType === "FIELD_CHANGED" && event.fieldKey === "currentValue");
     expect(secondSave).toHaveLength(2); // one from each save
     expect(events.filter((event) => event.eventType === "FIELD_CHANGED" && event.fieldKey === "targetValue")).toHaveLength(1); // only the first save touched it
+  });
+
+  it("removeTargetAction records FIELD_CHANGED clearing targetValue, currentValue, and unit", async () => {
+    const objectId = await makeGoal("goal-remove-measure");
+    await addTargetAction("goal-remove-measure", {}, form({ targetValue: "50000", currentValue: "1000", unit: "$AUD" }));
+
+    await removeTargetAction("goal-remove-measure", {}, new FormData());
+
+    const events = await eventsOn(objectId);
+    const cleared = events.filter((event) => event.eventType === "FIELD_CHANGED" && event.newValue === null);
+    expect(cleared).toMatchObject([
+      { fieldKey: "targetValue", oldValue: "50000", newValue: null },
+      { fieldKey: "currentValue", oldValue: "1000", newValue: null },
+      { fieldKey: "unit", oldValue: "$AUD", newValue: null },
+    ]);
+  });
+
+  it("removeTargetAction records nothing when there was no measure to clear", async () => {
+    const objectId = await makeGoal("goal-no-measure");
+
+    await removeTargetAction("goal-no-measure", {}, new FormData());
+
+    await expect(eventsOn(objectId)).resolves.toEqual([]);
   });
 
   it("toggleMilestoneAction records GOAL_MILESTONE_COMPLETED naming the milestone, only when completing", async () => {
