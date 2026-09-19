@@ -181,6 +181,7 @@ KD-049-typed-kinesis-link-connections
 ## Accepted — Needs Planning
 
 KD-048-object-event-model
+KD-050-converge-kinesis-link-custom-fields
 KD-025-to-do-board
 KD-023-universal-object-connection
 KD-011-unified-todo-view

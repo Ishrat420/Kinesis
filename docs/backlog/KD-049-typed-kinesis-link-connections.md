@@ -386,8 +386,9 @@ distinct, `ObjectField`-based mechanism) is untouched by this migration.
   reusable, named type that reappears in future pickers (§6). Ad-hoc
   custom text itself ships in Phase 1–2; only the "save as a new type"
   capability is deferred.
-* Investigate whether Kinesis Link Custom Fields and Kinesis Links can
-  share infrastructure — research, not a migration plan (§2).
+* ~~Investigate whether Kinesis Link Custom Fields and Kinesis Links can
+  share infrastructure — research, not a migration plan (§2).~~ Decided:
+  see KD-050, which converges them (superseding this non-goal and §2).
 
 ## Related
 
@@ -400,6 +401,10 @@ distinct, `ObjectField`-based mechanism) is untouched by this migration.
   `lib/data/todos.ts` (To-Do→anything) — nothing here is a new mechanism,
   it's generalizing one that already works, with its uniqueness rule
   loosened to match what it's actually being asked to represent.
+* **Feeds:** KD-050 (Converge Kinesis Link Custom Fields into Typed Kinesis
+  Links) — makes the merge call this ticket's §2 deliberately deferred, once
+  real usage showed people reaching for "Add custom field → Kinesis Link"
+  as their way of creating one.
 * **Feeds:** KD-048 (Object Event Model) — once built, its
   `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED` events should carry `type`
   (and `customLabel` when set) so a Kinesis Link change reads correctly in
