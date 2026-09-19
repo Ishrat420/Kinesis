@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Minus, Plus, X } from "lucide-react";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { CalendarDays, Check, ChevronDown, Minus, Plus } from "lucide-react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CUSTOM_FIELD_TYPES,
   CUSTOM_FIELDS_FORM_KEY,
@@ -115,7 +116,22 @@ export function CustomFieldsEditor({
   };
 
   const [addingKinesisLink, setAddingKinesisLink] = useState(false);
-  const [kinesisLinkState, submitKinesisLink] = useActionState(addKinesisLinkAction ?? noopKinesisLinkAction, {});
+  const [kinesisLinkState, submitKinesisLink, kinesisLinkPending] = useActionState(addKinesisLinkAction ?? noopKinesisLinkAction, {});
+  const router = useRouter();
+  // Adding a Kinesis Link saves immediately, separately from this form's own
+  // batched Save -- but with nothing to show for it until the record's own
+  // save later refreshes the page, it read as though "Add link" had done
+  // nothing at all. Closing the panel and refreshing as soon as a submission
+  // completes without an error puts the new link straight into the list
+  // above, so the immediate save is felt immediately too.
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !kinesisLinkPending && !kinesisLinkState.error) {
+      setAddingKinesisLink(false);
+      router.refresh();
+    }
+    wasPending.current = kinesisLinkPending;
+  }, [kinesisLinkPending, kinesisLinkState, router]);
 
   const chooseType = (key: string, type: CustomFieldType) => {
     // KD-050: Kinesis Link no longer becomes a row in this batch when there's
@@ -198,7 +214,7 @@ export function CustomFieldsEditor({
           <TargetPicker options={linkOptions} className={inputClass} />
           <div className="flex gap-2">
             <button type="submit" formAction={submitKinesisLink} formNoValidate className="flex h-[50px] items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Add link</button>
-            <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-200"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"><Minus className="h-4 w-4" /></button>
           </div>
           {kinesisLinkState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{kinesisLinkState.error}</p>}
         </div>
