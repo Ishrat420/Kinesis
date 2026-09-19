@@ -10,18 +10,6 @@ import { milestoneDueSoonWindow } from "@/lib/goals/milestone-window";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { activeGoalWhere } from "@/lib/goals/active";
 import { getToday } from "@/lib/format/server";
-import { OBJECT_RELATIONSHIP_TYPES, type ObjectRelationshipTypeValue } from "@/lib/objects/relationship-labels";
-
-/**
- * A Goal <-> Goal link can only ever be created as one of the 5 canonical
- * types (see `addGoalRelationshipAction`'s own validation) -- `CUSTOM`
- * (KD-049) has no Goals UI to produce it yet. This narrows the type read back
- * from the shared `ObjectRelationship` table to what `LinkedGoals` actually
- * knows how to render, rather than widening that component for a case that
- * can't happen through this page.
- */
-const isCanonicalRelationshipType = (type: string): type is ObjectRelationshipTypeValue =>
-  (OBJECT_RELATIONSHIP_TYPES as readonly string[]).includes(type);
 
 /** Every goal this user owns. No archive-on-read (KD-028): a goal's status is only ever what was last set, by hand. */
 export async function getGoals() {
@@ -49,42 +37,6 @@ export async function getGoal(id: string) {
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, include });
   if (!goal) return null;
   return withCustomFields(goal);
-}
-
-export async function getGoalRelationships(goalId: string) {
-  const user = await requireKinesisUser();
-  // Every goal this user owns, including the one being viewed. The list already
-  // had to be fetched to offer the picker, so letting it carry objectId makes it
-  // the Object -> Goal lookup too, and the far end of a link resolves from data
-  // in hand instead of a nested relation on every relationship row.
-  const goals = await prisma.goal.findMany({
-    where: { userId: user.id },
-    select: { id: true, name: true, status: true, objectId: true },
-    orderBy: { name: "asc" },
-  });
-  const objectId = goals.find((goal) => goal.id === goalId)?.objectId;
-  if (!objectId) return { linked: [], availableGoals: [] };
-
-  // Addressed by object id: that is what the shared capability stores, and what
-  // @@index([userId, sourceObjectId]) and ([userId, targetObjectId]) cover.
-  const relationships = await prisma.objectRelationship.findMany({
-    where: { userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
-    orderBy: { createdAt: "asc" },
-  });
-
-  // Keyed by identity and without the goal being viewed, so it answers both
-  // "which goal is the other end" and "which goals may still be linked".
-  const goalByObjectId = new Map(goals.flatMap(({ objectId: linkedObjectId, ...goal }) =>
-    goal.id === goalId ? [] : [[linkedObjectId, goal] as const]));
-  const linked = relationships.flatMap((relationship) => {
-    const { type } = relationship;
-    if (!isCanonicalRelationshipType(type)) return [];
-    const inverse = relationship.targetObjectId === objectId;
-    const goal = goalByObjectId.get(inverse ? relationship.sourceObjectId : relationship.targetObjectId);
-    return goal ? [{ ...relationship, type, inverse, goal }] : [];
-  });
-  const linkedIds = new Set(linked.map(({ goal }) => goal.id));
-  return { linked, availableGoals: [...goalByObjectId.values()].filter(({ id }) => !linkedIds.has(id)) };
 }
 
 export async function getGoalUnits() {

@@ -125,8 +125,9 @@ function readKinesisLinkChoice(formData: FormData) {
 
 /**
  * Adds a Kinesis Link from `objectId` to whatever the form's picker chose
- * (KD-049 Phase 2) -- the generalized form of `addGoalRelationshipAction`,
- * usable from any Object's own page rather than only a Goal's.
+ * (KD-049 Phase 2) -- the generalized form of the Goal-only
+ * `addGoalRelationshipAction` (retired in Phase 4), usable from any Object's
+ * own page rather than only a Goal's.
  */
 export async function addKinesisLinkAction(objectId: string, _previousState: KinesisLinkActionState, formData: FormData): Promise<KinesisLinkActionState> {
   const user = await requireKinesisUser();

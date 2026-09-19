@@ -12,7 +12,8 @@ import type { KinesisLinkActionState } from "@/app/actions";
 const SELECT_CLASS = "h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-medium outline-none focus:border-zinc-500";
 
 /**
- * The generalized form of `LinkedGoals` (KD-049 Phase 2): the same one
+ * The generalized form of the Goal-only `LinkedGoals` (KD-049 Phase 2,
+ * retired in Phase 4 once Goals moved onto this component): the same one
  * canonical row, derived-label pattern, now usable from any Object's page
  * rather than only a Goal's. Multiple Kinesis Links to the same target are
  * expected (Phase 1's uniqueness is per-type, not per-pair), so unlike the

@@ -3,16 +3,18 @@ import { Activity, Flag, Target, Trash2 } from "lucide-react";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
-import { getGoal, getGoalRelationships, getGoalUnits } from "@/lib/data/goals";
+import { getGoal, getGoalUnits } from "@/lib/data/goals";
 import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
+import { getKinesisLinks } from "@/lib/data/object-relationships";
 import { displayNumber, isGoalOverdue } from "@/lib/goals/format";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
-import { addGoalRelationshipAction, addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeGoalRelationshipAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalFieldsAction, updateGoalRelationshipAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneAction } from "../actions";
+import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
+import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneAction, duplicateMilestoneAction, removeTargetAction, toggleMilestoneAction, toggleProgressAction, updateGoalFieldsAction, updateGoalStatusAction, updateGoalTargetDateAction, updateMilestoneAction } from "../actions";
 import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
 import { MilestoneRow } from "./MilestoneRow";
 import { calculateGoalHealth } from "@/lib/goals/health";
-import { LinkedGoals } from "./LinkedGoals";
+import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import { GoalSupportingInfo } from "./GoalSupportingInfo";
 import { GoalTargetDate } from "./GoalTargetDate";
 import { earliestTargetDate } from "@/lib/goals/target-date";
@@ -20,11 +22,11 @@ import { milestonesUsingMeasure } from "@/lib/goals/measure";
 
 export default async function GoalPage({ params }: { params: Promise<{ goalId: string }> }) {
   const { goalId } = await params;
-  const [goal, units, { locale }, goalRelationships, today] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getGoalRelationships(goalId), getToday()]);
+  const [goal, units, { locale }, today] = await Promise.all([getGoal(goalId), getGoalUnits(), getFormatPreferences(), getToday()]);
   if (!goal) notFound();
   // Excludes this goal's own object -- linking it to itself is never
   // meaningful, so the picker never offers the choice at all.
-  const linkOptions = await getKinesisLinkOptions(goal.objectId);
+  const [linkOptions, kinesisLinks] = await Promise.all([getKinesisLinkOptions(goal.objectId), getKinesisLinks(goal.objectId)]);
   const completed = goal.milestones.filter((item) => item.completed).length;
   const milestonePercent = goal.milestones.length ? Math.round(completed / goal.milestones.length * 100) : 0;
   const targetPercent = goal.targetValue ? Math.min(100, Math.max(0, Math.round((goal.currentValue ?? 0) / goal.targetValue * 100))) : 0;
@@ -60,7 +62,11 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
       </section>
 
       <MeasurableTargetForm action={targetAction} removeAction={removeTarget} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} measuredMilestones={measuredMilestones} />
-      <LinkedGoals linked={goalRelationships.linked} availableGoals={goalRelationships.availableGoals} addAction={addGoalRelationshipAction.bind(null, goal.id)} updateAction={updateGoalRelationshipAction.bind(null, goal.id)} removeAction={removeGoalRelationshipAction.bind(null, goal.id)} />
+      {(kinesisLinks.length > 0 || linkOptions.length > 0) && (
+        <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <KinesisLinks links={kinesisLinks} options={linkOptions} previews={previews} addAction={addKinesisLinkAction.bind(null, goal.objectId)} updateAction={updateKinesisLinkAction.bind(null, goal.objectId)} removeAction={removeKinesisLinkAction.bind(null, goal.objectId)} />
+        </section>
+      )}
       <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} previews={previews} action={updateGoalFieldsAction.bind(null, goal.id)} />
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
         <div className="flex items-start gap-4"><div className="rounded-2xl bg-white/80 p-3"><Activity className={`h-5 w-5 ${hasMilestoneRisk || health?.tone === "risk" ? "text-amber-600" : health?.tone === "good" ? "text-emerald-600" : "text-violet-600"}`}/></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-600">Goal health</p><h2 className="mt-2 text-xl font-bold">{hasMilestoneRisk ? "AT RISK" : health?.status}</h2>{health && <p className="mt-2 leading-6 text-zinc-700">{health.message}</p>}{overdueMilestones.map((milestone) => <p key={milestone.id} className="mt-2 font-medium leading-6 text-amber-800">Milestone “{milestone.name}” is past its due date.</p>)}{health?.actualPace === null && <p className="mt-3 text-xs text-zinc-500">Update your current value over time and Kinesis will average your pace automatically.</p>}</div></div>

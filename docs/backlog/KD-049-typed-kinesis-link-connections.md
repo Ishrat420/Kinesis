@@ -1,6 +1,6 @@
 # KD-049 — Typed Kinesis Links
 
-**Status:** In Progress (Phases 1–3 shipped)
+**Status:** In Progress (Phases 1–4 shipped; Finance Items/People UI still ahead)
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 
@@ -46,8 +46,7 @@ resolved label as a group heading over each cluster of same-label cards;
 Phase 3 (below) replaced that with a label on the card itself, so Phase 2's
 grouping utility (`lib/objects/kinesis-link-groups.ts`,
 `groupKinesisLinksByLabel`) no longer has a caller and was removed rather
-than kept unused. Phase 4 (dogfooding Goals onto the shared component) is
-still ahead.
+than kept unused.
 
 **Phase 3 status:** Shipped. Explored as four placement options in a
 design-canvas artifact (eyebrow line, inline-with-module pill, corner
@@ -62,6 +61,23 @@ still passes nothing and is unaffected; only `KinesisLinks.tsx` passes
 `label={link.label}`. That component's per-label group headings (Phase 2)
 are gone — one flat list, ordered as `getKinesisLinks` returns it, each
 card carrying its own label.
+
+**Phase 4 status:** Shipped. `app/(app)/goals/[goalId]/page.tsx` renders
+the shared `KinesisLinks` section in place of `LinkedGoals`; `LinkedGoals.tsx`,
+`getGoalRelationships`, and `addGoalRelationshipAction`/
+`updateGoalRelationshipAction`/`removeGoalRelationshipAction` are deleted
+rather than kept alongside their generalized replacements. A Goal's
+Kinesis Links can now target any linkable Object, not only other Goals,
+and the target picker stopped hiding already-linked Objects — both are
+the same behavior every other Kinesis Links page already had, arriving on
+Goals for the first time by using the shared mechanism instead of a
+parallel one. `tests/unit/goal-relationships.test.ts` and
+`tests/integration/goals/goal-relationships.test.ts` are removed with the
+code they tested; the still-relevant coverage of `relationshipLabel`,
+`OBJECT_RELATIONSHIP_TYPES` and `objectPairKey` moved to
+`tests/unit/relationship-labels.test.ts`, and Goal↔Goal behavior through
+the shared path is exercised the same way Document↔Goal already is, in
+`tests/integration/kinesis-links/object-relationship-links.test.ts`.
 
 **Revision note (2):** rewritten after review. Three architectural
 corrections from that review are folded in below: uniqueness is
@@ -345,10 +361,25 @@ Added the optional `label` prop from §3 to `KinesisLinkCard`, rendered as
 a fixed neutral pill above the icon row; used only by the Kinesis Links
 section, which dropped its Phase 2 group headings in favor of it.
 
-**Phase 4 — Dogfood on Goals**
-Migrate Goals' own Linked Goals panel onto the generalized Kinesis Links
-section, retiring the goal-specific component and actions in favour of
-the shared ones.
+**Phase 4 — Dogfood on Goals (Shipped)**
+`app/(app)/goals/[goalId]/page.tsx` now renders the shared `KinesisLinks`
+section instead of `LinkedGoals`, backed by `getKinesisLinks`/
+`addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
+rather than `getGoalRelationships`/`addGoalRelationshipAction`/
+`updateGoalRelationshipAction`/`removeGoalRelationshipAction`, all of
+which are removed along with `LinkedGoals.tsx` itself. Two real behavior
+changes fall out of using the shared mechanism rather than a goal-specific
+one: a Goal's Kinesis Links section can now target *any* linkable Object
+(Documents, Custom Items, Finance Items, People, To-Dos), not only other
+Goals, exercising the "context aware Kinesis Links" idea this ticket
+started from; and the target picker no longer drops an already-linked
+Object from its options (matching Phase 2's other pages), since a second,
+differently-typed Kinesis Link to the same target is a normal thing to
+add, not a duplicate to prevent. Goal↔Goal links created before this
+migration are unaffected -- they are `ObjectRelationship` rows like any
+other Kinesis Link, just now read and written through the shared path.
+`GoalSupportingInfo`'s Kinesis Link *Custom Field* section (§2's
+distinct, `ObjectField`-based mechanism) is untouched by this migration.
 
 **Deferred, not scheduled**
 * Custom label **templates** — saving an ad-hoc custom label as a
