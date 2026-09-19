@@ -118,6 +118,9 @@ export function CustomFieldsEditor({
   const [addingKinesisLink, setAddingKinesisLink] = useState(false);
   const [kinesisLinkState, submitKinesisLink, kinesisLinkPending] = useActionState(addKinesisLinkAction ?? noopKinesisLinkAction, {});
   const router = useRouter();
+  const addLinkButtonRef = useRef<HTMLButtonElement>(null);
+  const [pendingLinkWarning, setPendingLinkWarning] = useState(false);
+
   // Adding a Kinesis Link saves immediately, separately from this form's own
   // batched Save -- but with nothing to show for it until the record's own
   // save later refreshes the page, it read as though "Add link" had done
@@ -128,10 +131,32 @@ export function CustomFieldsEditor({
   useEffect(() => {
     if (wasPending.current && !kinesisLinkPending && !kinesisLinkState.error) {
       setAddingKinesisLink(false);
+      setPendingLinkWarning(false);
       router.refresh();
     }
     wasPending.current = kinesisLinkPending;
   }, [kinesisLinkPending, kinesisLinkState, router]);
+
+  // Whatever's chosen in the open "Add Kinesis Link" panel is only real once
+  // "+" is pressed; the record's own Save has no idea it exists otherwise,
+  // and would carry on saving everything else while quietly leaving that
+  // choice behind -- exactly the silent-loss this guards against. This
+  // editor doesn't own the outer <form> (the record's own EditForm does),
+  // so it finds it the same way `useFormResetKey` above does and refuses any
+  // submit that isn't the "+" button itself while a link is pending.
+  useEffect(() => {
+    if (!addingKinesisLink) return;
+    const form = fieldsetRef.current?.closest("form");
+    if (!form) return;
+    const guardSubmit = (event: SubmitEvent) => {
+      if (event.submitter === addLinkButtonRef.current) return;
+      event.preventDefault();
+      setPendingLinkWarning(true);
+      addLinkButtonRef.current?.focus();
+    };
+    form.addEventListener("submit", guardSubmit);
+    return () => form.removeEventListener("submit", guardSubmit);
+  }, [addingKinesisLink, fieldsetRef]);
 
   const chooseType = (key: string, type: CustomFieldType) => {
     // KD-050: Kinesis Link no longer becomes a row in this batch when there's
@@ -213,9 +238,20 @@ export function CustomFieldsEditor({
           <DirectionField className={inputClass} />
           <TargetPicker options={linkOptions} className={inputClass} />
           <div className="flex gap-2">
-            <button type="submit" formAction={submitKinesisLink} formNoValidate aria-label="Add link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl bg-zinc-950 text-white"><Plus className="h-4 w-4" /></button>
-            <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"><Minus className="h-4 w-4" /></button>
+            <button
+              ref={addLinkButtonRef}
+              type="submit"
+              formAction={submitKinesisLink}
+              formNoValidate
+              aria-label="Add link"
+              className={`flex h-[50px] w-[50px] items-center justify-center rounded-xl bg-zinc-950 text-white outline-none transition ${pendingLinkWarning ? "ring-2 ring-red-500 ring-offset-2" : ""}`}
+              onClick={() => setPendingLinkWarning(false)}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => { setAddingKinesisLink(false); setPendingLinkWarning(false); }} aria-label="Cancel adding Kinesis Link" className="flex h-[50px] w-[50px] items-center justify-center rounded-xl text-zinc-400 outline-none transition hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-zinc-300"><Minus className="h-4 w-4" /></button>
           </div>
+          {pendingLinkWarning && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">Add or remove this Kinesis Link before saving -- it has not been added yet.</p>}
           {kinesisLinkState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{kinesisLinkState.error}</p>}
         </div>
       )}
