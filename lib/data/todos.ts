@@ -31,10 +31,12 @@ export type TodoRecord = {
   createdAt: Date;
   /** The objects this To-Do concerns, resolved to where each one lives. */
   links: ObjectLocation[];
+  /** This To-Do's own Object identity -- for its detail page's History section (KD-048). */
+  objectId: string;
 };
 
 const todoSelect = {
-  id: true, name: true, status: true, dueDate: true, completedAt: true, notes: true, createdAt: true,
+  id: true, name: true, status: true, dueDate: true, completedAt: true, notes: true, createdAt: true, objectId: true,
   object: {
     select: {
       outgoingRelationships: { select: { targetObject: { select: objectLocationSelect } }, orderBy: { createdAt: "asc" } },
@@ -65,6 +67,13 @@ export async function getTodos(): Promise<TodoRecord[]> {
   const user = await requireKinesisUser();
   const rows = await prisma.todo.findMany({ where: { userId: user.id }, select: todoSelect });
   return rows.map(toRecord).sort(byUrgency);
+}
+
+/** One To-Do's full detail, for its own detail page (KD-048's History section, opened as a "big window" over the board). */
+export async function getTodo(id: string): Promise<TodoRecord | null> {
+  const user = await requireKinesisUser();
+  const row = await prisma.todo.findFirst({ where: { id, userId: user.id }, select: todoSelect });
+  return row ? toRecord(row) : null;
 }
 
 /** Counts for the To-Do page's summary, taken from the statuses themselves. */

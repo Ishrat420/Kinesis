@@ -151,7 +151,12 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       ><Check className={`h-4 w-4 ${!open && hasToggled ? "checkbox-pop" : ""}`} aria-hidden="true" /></button>
 
       <div className="min-w-0 flex-1">
-        <p className={`break-words font-medium ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</p>
+        {/*
+          Only the title links to the to-do's own detail page (KD-048) -- the
+          metadata line below has its own Kinesis Link pills, and nesting an
+          <a> inside another <a> is invalid HTML (and breaks hydration).
+        */}
+        <Link href={`/todos/${todo.id}`} className={`break-words font-medium hover:underline ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</Link>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
           <span className="inline-flex items-center">
             <span aria-hidden="true" className={`mr-1.5 h-1.5 w-1.5 rounded-full ${todoStatusDotClass(todo.status)}`} />
