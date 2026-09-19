@@ -78,10 +78,30 @@ model ObjectEvent {
   // at write time, same reasoning as ActivityEvent.objectName today: a
   // custom field can be renamed or deleted later, and the event should keep
   // reading sensibly when that happens.
+  //
+  // Also doubles for a RELATIONSHIP_CHANGED event's literal text on
+  // whichever side (old/new) is a CUSTOM Kinesis Link -- that text *is* the
+  // value, the same way any other free-text field's value lives here. Null
+  // on a canonical-type side, since that side needs no text snapshot at all
+  // (see `oldRelationshipType`/`newRelationshipType` below).
   fieldKey   String?
   fieldLabel String?
   oldValue   String?
   newValue   String?
+
+  // Set only for RELATIONSHIP_* events -- the canonical type on each side of
+  // the change, so a later query ("every DEPENDS_ON that ever appeared")
+  // filters on this instead of parsing rendered text. RELATIONSHIP_ADDED
+  // sets only `newRelationshipType`; RELATIONSHIP_REMOVED sets only
+  // `oldRelationshipType`; RELATIONSHIP_CHANGED (KD-050's "Change
+  // relationship" retype) sets both. `inverse` records which side of that
+  // type *this* row is being recorded from -- needed to re-derive "Depends
+  // on" vs "Required for" through the same `kinesisLinkLabel` every other
+  // surface already calls, rather than storing the resolved text a second
+  // time; unset for CUSTOM, which reads identically on both sides.
+  oldRelationshipType ObjectRelationshipType?
+  newRelationshipType ObjectRelationshipType?
+  inverse             Boolean?
 
   // Set only for relationship/link-shaped events -- the *other* object.
   // relatedObjectId goes null if that object is later deleted; relatedObjectName
@@ -158,19 +178,32 @@ a link rather than adding or removing one. All three matter directly to
 "Blocked by" / "Depends on" reading correctly, so worth settling now rather
 than leaving them for whoever implements Phase 1 to guess at.
 
-**1. The label is a snapshot in `fieldLabel`, not a new column.** A Kinesis
-Link's label (KD-049 §3/§5) is already resolved at *read* time from
-`(type, inverse-or-not, customLabel)` — `kinesisLinkLabel` — everywhere else
-it's shown, and `ObjectEvent` shouldn't invent a second way to store the same
-information. Reuse `fieldLabel` for the already-resolved text ("Depends on",
-"Blocked by", or the literal Custom text) at the moment the event is
-recorded. Canonical labels never change, but a Custom label's text can be
-edited later via retype, so this is a genuine snapshot in the same spirit as
-`ActivityEvent.objectName` and `fieldLabel` elsewhere — the event should
-still read "Depends on -> Save $30k" correctly even if that link is later
-retyped to something else entirely, or the label vocabulary itself is ever
-revised. `relatedObjectId`/`relatedObjectName` are exactly what they already
-are: the other end of the link.
+**1. Store the canonical type; derive the label at render time — don't
+snapshot resolved text for canonical types.** An earlier draft of this
+section proposed snapshotting the already-resolved text ("Depends on") into
+`fieldLabel`, reasoned from the same "renamed or deleted out from under the
+event" logic that justifies snapshotting a *custom field's* label elsewhere
+in this model. That reasoning doesn't actually transfer: a custom field's
+label is arbitrary text someone can rename, but a canonical Kinesis Link
+label (`Depends on` / `Blocked by` / …) is a fixed vocabulary in code
+(`lib/objects/relationship-labels.ts`) — there's no drift for a snapshot to
+protect against, and storing it anyway just duplicates something
+`kinesisLinkLabel` can always re-derive correctly, the exact thing KD-049 §3
+already decided ("the label decorates the card, it doesn't belong to it")
+and this model should keep applying consistently. So: store
+`newRelationshipType` (on add) / `oldRelationshipType` (on remove) — the raw
+`ObjectRelationshipType` — plus `inverse` (which side of that type this row
+represents), and resolve the display text at read time via the same
+`kinesisLinkLabel(type, inverse, customLabel)` every other Kinesis Link
+surface already calls. This also makes the type itself queryable
+directly ("every `DEPENDS_ON` that ever appeared") without parsing rendered
+text — reading the type back out of a resolved string is fragile the moment
+wording ever changes. `CUSTOM` is the one case with real text to snapshot,
+since the user's typed wording *is* the value (not derived from anything) —
+that goes in `newValue`/`oldValue` (see below), matching how any other
+free-text value is already stored in this model, not in `fieldLabel`.
+`relatedObjectId`/`relatedObjectName` are exactly what they already are: the
+other end of the link.
 
 **2. One relationship change writes two `ObjectEvent` rows, one per
 endpoint — a deliberate exception to "one row, derived perspective."**
@@ -187,16 +220,23 @@ one side while looking added-from-nowhere on the other. Concretely, adding
 "Goal A `DEPENDS_ON` Goal B" writes:
 
 ```text
-Event on A: RELATIONSHIP_ADDED, fieldLabel="Depends on",   relatedObjectId=B
-Event on B: RELATIONSHIP_ADDED, fieldLabel="Required for", relatedObjectId=A
+Event on A: RELATIONSHIP_ADDED, newRelationshipType=DEPENDS_ON, inverse=false, relatedObjectId=B
+  -> renders "Depends on -> [B]"
+Event on B: RELATIONSHIP_ADDED, newRelationshipType=DEPENDS_ON, inverse=true,  relatedObjectId=A
+  -> renders "Required for -> [A]"
 ```
 
 Both rows describe the same real-world change from each object's own side —
 they are two independent facts, not correlated by a shared id, and nothing
-today needs to merge them back into "one edit" across two histories. Custom
-labels are the simple case here: since KD-049 §6 shows identical text on
-both sides (no forward/inverse split), both rows just get the same
-`fieldLabel`. Remove follows the same pairing with `RELATIONSHIP_REMOVED`.
+today needs to merge them back into "one edit" across two histories. `CUSTOM`
+is the simple case: since KD-049 §6 shows identical text on both sides (no
+forward/inverse split), both rows get `newRelationshipType=CUSTOM` and the
+same literal text in `newValue`; `inverse` is irrelevant there since there's
+nothing to resolve. Remove follows the same pairing with
+`RELATIONSHIP_REMOVED`/`oldRelationshipType`. **These paired writes, plus the
+underlying `ObjectRelationship` mutation, must commit as one transaction**
+(see Behaviour/constraints) — otherwise a dropped second write leaves a link
+that only one of the two objects ever knows happened.
 
 **3. Retyping an existing link (KD-050's "Change relationship") is
 `RELATIONSHIP_CHANGED`, not a remove-then-add.** Before KD-050, a Kinesis
@@ -206,12 +246,22 @@ relationship" control to `KinesisLinks.tsx` that updates the same
 Modeling that as delete-then-recreate would read as "the link to Save $30k
 was removed, then a different link to Save $30k was added a moment later" —
 technically true of the rows, false to what actually happened. A dedicated
-type keeps it one event, shaped like `FIELD_CHANGED`: `oldValue`/`newValue`
-hold the old/new resolved label text (again per-endpoint, so both sides read
-their own before/after correctly — "Depends on -> Alongside" on A's history,
-"Required for -> Alongside" on B's), `relatedObjectId`/`relatedObjectName`
-stay pointed at the same other end throughout, since retyping never changes
-*what's* linked, only *how*.
+type keeps it one event: `oldRelationshipType`/`newRelationshipType` (plus
+`oldValue`/`newValue` when either side is `CUSTOM`) carry the raw
+before/after type, same `inverse` throughout since retyping never changes
+which side of the pair this row represents. The same raw pair renders
+differently per endpoint, exactly as it should — retyping Goal A's link to
+Goal B from `DEPENDS_ON` to `BLOCKS` writes:
+
+```text
+Event on A: oldRelationshipType=DEPENDS_ON, newRelationshipType=BLOCKS, inverse=false
+  -> renders "Depends on -> Blocks"
+Event on B: oldRelationshipType=DEPENDS_ON, newRelationshipType=BLOCKS, inverse=true
+  -> renders "Required for -> Blocked by"
+```
+
+`relatedObjectId`/`relatedObjectName` stay pointed at the same other end
+throughout, since retyping never changes *what's* linked, only *how*.
 
 **4. Emission lives in the three actions every Kinesis Link already goes
 through.** This supersedes Phase 1's original, vaguer "wherever
@@ -220,17 +270,45 @@ single, already-generalized chokepoint per action:
 `addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
 (`app/actions.ts`). Each already has both endpoints' ids and the
 type/customLabel in hand (it just wrote or is about to write the
-`ObjectRelationship` row itself), so resolving both perspectives' labels and
-writing the paired rows costs one small helper, not a new data-fetch. A
-to-do's own incidental link (the bare `RELATES_TO`/`CONCERNS` row
-`lib/data/todos.ts` creates when something is linked to a to-do — KD-049's
-Problem §1) goes through `ObjectRelationship` too, so it emits the same
-paired `RELATIONSHIP_ADDED` for consistency, but with no meaningful label to
-snapshot (today it renders as "just a bare chip," per KD-049) — leave
-`fieldLabel` unset there rather than inventing one, and let
-`classifyEventSignificance` (Phase 4) key on its absence to keep these "low"
-rather than mistaking an incidental to-do link for a deliberate Kinesis
-Link.
+`ObjectRelationship` row itself), so writing the paired rows in the same
+transaction costs one small helper, not a new data-fetch. A to-do's own
+incidental link (the bare `RELATES_TO`/`CONCERNS` row `lib/data/todos.ts`
+creates when something is linked to a to-do — KD-049's Problem §1) goes
+through `ObjectRelationship` too, so it emits the same paired
+`RELATIONSHIP_ADDED` for consistency, but with no `CUSTOM` text to snapshot
+(today it renders as "just a bare chip," per KD-049) — `newValue` stays
+unset there, and `classifyEventSignificance` (Phase 4) can key on the type
+being the bare `RELATES_TO` used for to-do links to keep these "low" rather
+than mistaking an incidental to-do link for a deliberate Kinesis Link.
+
+### Deletion: `ITEM_DELETED` records onto survivors, not the deleted object
+
+The schema cascades an object's own events when the object itself is deleted
+(`onDelete: Cascade` on `objectId`) — that's the right default for "don't
+leave orphaned rows lying around." But `ITEM_DELETED` was listed as a
+recordable event type without ever saying *whose* `objectId` it belongs to,
+and the obvious reading — record it on the object being deleted, so its
+history's last line says "Deleted" — is self-defeating: that row would be
+inserted and then cascaded away the instant the delete it's describing
+commits, since it shares the same `objectId` the cascade is keyed on. It
+could never actually be read back.
+
+Resolution: **`ITEM_DELETED` is never recorded on the object being
+deleted.** There's no real loss here — once an object is gone there's no
+page left to view its own history on anyway. Instead, at the moment of
+deletion, write `ITEM_DELETED` onto every *other* object that currently
+holds a live `ObjectRelationship` to it (`objectId` = the surviving object,
+`relatedObjectId` = the object being deleted, `relatedObjectName`
+snapshotted) — the same enumeration a Kinesis Link add/remove already needs
+(§2 above), and the same reason `relatedObjectName` exists at all: so
+Goal B's history can still say "Depends on -> Save $30k (deleted)" after
+Goal A is gone, rather than the link simply vanishing from B's history with
+no trace it ever existed. This has to happen *before* the delete itself
+commits — the relationship rows (and the ids needed to enumerate "who's
+linked to this") disappear along with the object once it's actually
+deleted — so it's naturally one transaction: look up every live relationship
+to the object, write the paired `ITEM_DELETED` events on the other side of
+each, then delete the object.
 
 ### Emission: where events get written
 
@@ -242,30 +320,45 @@ Two options, and a recommendation:
    bookkeeping one (`updatedAt`, internal template plumbing), and would
    happily log everything — which is precisely the "prettier audit log"
    outcome this ticket is trying to avoid, just automated instead of manual.
-2. **Explicit emission at the same chokepoints `addActivity` already lives
-   at today** (`app/(app)/{documents,goals,todos,finance,custom-modules}/actions.ts`,
-   `lib/data/capture.ts`) — these are exactly the moments someone already
-   decided were activity-worthy. Extending them to also record a typed,
-   diffed `ObjectEvent` — rather than only a rendered sentence — is a small,
+2. **Explicit emission, starting at the same chokepoints `addActivity`
+   already lives at today** (`app/(app)/{documents,goals,todos,finance,custom-modules}/actions.ts`,
+   `lib/data/capture.ts`) — these are moments someone already decided were
+   activity-worthy, so extending them to also record a typed, diffed
+   `ObjectEvent` — rather than only a rendered sentence — is a small,
    deliberate change per call site, and it naturally excludes noise because
    nothing is emitted unless a human decided the moment deserved it.
 
-**Recommendation: (2).** The code at each of those call sites already has
-the "before" value in hand (it fetched the row for an ownership check, or
-holds the previous value locally), so capturing `oldValue`/`newValue` there
-costs little extra. Add one small write helper
-(`lib/data/object-events.ts` → `recordObjectEvent(...)`) so adding emission
-to a new call site is a one-line addition, and revisit with a lint or test
+**Recommendation: (2), but treat `addActivity`'s existing call sites as a
+starting floor, not the finished coverage boundary.** They inherit exactly
+the gap the Problem section already calls out — "most edits across the app
+emit nothing at all" — since anywhere `ActivityEvent` was never wired up,
+this wouldn't be either, by construction. A passport's expiry date moving
+from 2031 to 2029 may never have been dashboard-feed-worthy, but it
+absolutely belongs in that Document's history; `ObjectEvent` is answering a
+different, broader question ("what happened to this object") than
+`ActivityEvent` ever tried to. So: per object type, inventory the
+user-facing mutation paths that change something worth remembering and make
+sure each one emits, rather than assuming the existing `addActivity` sites
+already are that set — start with them since the "before" value is often
+already in hand there (cheap `oldValue`/`newValue` capture), but audit
+outward from there per type as its own explicit step, not a "gaps will
+surface in practice, deal with them then" afterthought. Add one small write
+helper (`lib/data/object-events.ts` → `recordObjectEvent(...)`) so adding
+emission to a new call site is a one-line addition, and keep the lint/test
 level check ("does this action file touch a model with an Object identity
-without recording an event?") once coverage gaps show up in practice —
-rather than a runtime interceptor that can't distinguish signal from noise.
+without recording an event?") as a backstop for whatever the manual audit
+still misses — rather than a runtime interceptor that can't distinguish
+signal from noise.
 
 ### Significance — "is this worth surfacing elsewhere"
 
 Don't store a score. Add a small, pure, read-time classifier —
 `classifyEventSignificance(event): "low" | "normal" | "high"` — driven by
-`eventType` + `fieldKey`, the same way `isGoalOverdue` is a pure function
-over stored facts rather than a persisted flag (ADR-010's own precedent).
+`eventType` + `fieldKey` (or, for `RELATIONSHIP_*` events,
+`newRelationshipType`/`oldRelationshipType` — e.g. the bare `RELATES_TO` a
+to-do's own linking uses stays "low", while a deliberately-chosen type like
+`BLOCKS` does not), the same way `isGoalOverdue` is a pure function over
+stored facts rather than a persisted flag (ADR-010's own precedent).
 Keeps the policy centralized and changeable without a migration. Starting
 point: `GOAL_COMPLETED` / `DOCUMENT_ARCHIVED` / `STATUS_CHANGED` = high; a
 `FIELD_CHANGED` on a notes/description-shaped field = low. Percentage-based
@@ -308,16 +401,22 @@ Schema + migration for `ObjectEvent`/`ObjectEventType`/`ObjectEventSource`.
 `lib/data/object-events.ts`: `recordObjectEvent(...)` and
 `getObjectEvents(objectId)`. Wire emission into the existing
 `addActivity` call sites — each one becomes *both* an `ActivityEvent`
-(unchanged, so nothing regresses) *and* an `ObjectEvent` (new) — plus
+(unchanged, so nothing regresses) *and* an `ObjectEvent` (new), audited
+outward from there per object type rather than treated as the finished set
+(per "Emission" above) — plus
 `RELATIONSHIP_ADDED`/`RELATIONSHIP_REMOVED`/`RELATIONSHIP_CHANGED` from
 `addKinesisLinkAction`/`updateKinesisLinkAction`/`removeKinesisLinkAction`
 and the to-do linking call site in `lib/data/todos.ts`, per "Kinesis Links:
-what a link event actually records" above (paired per-endpoint rows,
-snapshotted label in `fieldLabel`). Ship one visible consumer: a generic
-"History" section on object detail pages, starting with Documents, Goals
-and Custom Items (Documents already has a bespoke one to replace) — a
-Kinesis Link add/remove/retype should be visible in this section on both
-linked objects' pages, not only the one where the action happened. No
+what a link event actually records" above (paired per-endpoint rows, raw
+type + `inverse`, resolved at render time), and `ITEM_DELETED` wherever an
+object with live relationships is deleted, per "Deletion" above (paired
+rows onto survivors, written before the delete commits). Every paired
+write and its underlying mutation goes in one transaction (Behaviour/
+constraints). Ship one visible consumer: a generic "History" section on
+object detail pages, starting with Documents, Goals and Custom Items
+(Documents already has a bespoke one to replace) — a Kinesis Link
+add/remove/retype should be visible in this section on both linked
+objects' pages, not only the one where the action happened. No
 significance scoring yet — newest first, unfiltered.
 
 **Phase 2 — Replace `ActivityEvent`**
@@ -351,13 +450,29 @@ trending the wrong way). AI-narrated summaries over the same stream.
 
 ## Behaviour / constraints
 
-* Recording an event must never fail the action that caused it — a write
-  failure here should be logged and swallowed, not surfaced as a
-  user-facing error on, say, marking a to-do done.
+* **Where an Object mutation and its Object Event(s) represent one logical
+  user action, write them atomically in the same transaction — this is the
+  default, not an aspiration.** The original "log and swallow" rule made
+  sense for `ActivityEvent`'s decorative dashboard feed, but this ticket
+  explicitly elevates `ObjectEvent` to a durable source of truth several
+  future features build on, and a swallowed failure there is silent data
+  loss, not a cosmetic miss. It's a real risk specifically for the paired
+  Kinesis Link rows above: if A's `RELATIONSHIP_ADDED` commits and B's
+  silently fails, A's history shows a link B's history never learned about
+  — exactly the kind of drift the rest of this design goes out of its way to
+  avoid. Wrapping the `ObjectRelationship` write and its paired event
+  write(s) in one `prisma.$transaction` (already this repo's pattern
+  elsewhere) removes the failure mode rather than logging it after the
+  fact. An explicit, narrow exception — event recording genuinely optional,
+  swallow-and-log — is fine for a specific, called-out low-stakes case; it
+  is not the default posture for every call site.
 * Deleting an object cascades its own events (`onDelete: Cascade` on
-  `objectId`). An event where that object was only the *related* side (X
-  depends on Y, Y gets deleted) survives on X, falling back to the
-  snapshotted `relatedObjectName` once `relatedObjectId` goes null.
+  `objectId`) — this is fine precisely because `ITEM_DELETED` is never
+  recorded on the object being deleted (see "Deletion" above); nothing of
+  value is lost in the cascade. An event where that object was only the
+  *related* side (X depends on Y, Y gets deleted) survives on X, falling
+  back to the snapshotted `relatedObjectName` once `relatedObjectId` goes
+  null — the same mechanism `ITEM_DELETED` itself now relies on.
 * No new size limit invented here — `ObjectEvent.oldValue`/`newValue`
   should simply follow whatever cap **KD-043 (Field Length Limits)**
   settles on for values generally, rather than a bespoke one.
@@ -384,7 +499,8 @@ trending the wrong way). AI-narrated summaries over the same stream.
   Custom Fields) — both shipped since this ticket's schema was first
   sketched, and directly shaped the relationship-event design above:
   `kinesisLinkLabel`'s forward/inverse/custom resolution is what
-  `RELATIONSHIP_ADDED`/`REMOVED`'s `fieldLabel` snapshots, and KD-050's
+  `RELATIONSHIP_ADDED`/`REMOVED`/`CHANGED` re-derive at render time from the
+  stored `oldRelationshipType`/`newRelationshipType`/`inverse`, and KD-050's
   in-place "Change relationship" control is why `RELATIONSHIP_CHANGED`
   exists as its own type rather than a remove-then-add pair.
 * **Feeds:** KD-015 (Kinesis Year in Review / Timeline) — very likely
