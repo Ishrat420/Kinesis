@@ -1,15 +1,16 @@
 import {
-  Accessibility, Activity, AlarmClock, Apple, Baby, BadgeDollarSign, Beer,
+  Accessibility, Activity, AlarmClock, Apple, Baby, BadgeDollarSign, Ban, Beer,
   BicepsFlexed, Bike, Binary, Bird, Bone, BookOpen, Bot, Box, Braces,
-  BriefcaseBusiness, Building2, Cake, Calculator, Camera, Cat, Church,
+  BriefcaseBusiness, Building2, Cake, Calculator, Camera, Cat, ChartNoAxesCombined,
+  CheckCheck, Church,
   CloudSun, Code2, CodeXml, Coffee, Compass, Contact, CookingPot, Cpu, Crown,
   Database, Dog, Drama, Drill, Dumbbell, Factory, Film, Fish, FlaskConical,
-  Flower2, Footprints,
+  Flower2, Footprints, Gavel,
   FolderHeart, Gamepad2, Gem, Gift, Globe2, GraduationCap, Guitar, Hammer,
   Headphones, HeartPulse, Hospital, House, KeyRound, Leaf, Library,
-  GitBranch, Keyboard, Laptop, Lightbulb, Map, Mars, Medal, Microscope,
+  GitBranch, Keyboard, Laptop, Lightbulb, Map, Mars, Medal, MessageSquare, Microscope,
   Monitor, Mountain, Mouse, Music2, NotebookTabs, Package, Palette,
-  PartyPopper, PawPrint, PersonStanding, Pill, Pizza, Plane, Rocket, Scissors,
+  PartyPopper, PawPrint, PersonStanding, Pill, Pin, Pizza, Plane, Rocket, Scale, Scissors,
   Shield, Shirt, ShoppingBag, Smartphone, Sofa, Sparkles, Star, Stethoscope,
   Tablet, Telescope, TentTree, Terminal, Ticket, TrainFront, TreePine, Trophy,
   Tv, Umbrella, User, UserPlus, UserRound, UsersRound, Utensils, Venus,
@@ -46,6 +47,8 @@ export const CUSTOM_MODULE_ICONS = {
   keyboard: Keyboard, mouse: Mouse, television: Tv, processor: Cpu,
   terminal: Terminal, code: CodeXml, braces: Braces, binary: Binary,
   database: Database, development: GitBranch,
+  gavel: Gavel, scale: Scale, analytics: ChartNoAxesCombined, done: CheckCheck,
+  blocked: Ban, chat: MessageSquare, pinned: Pin,
 } as const;
 
 export type CustomModuleIconName = keyof typeof CUSTOM_MODULE_ICONS;
