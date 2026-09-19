@@ -1,7 +1,7 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Minus, Plus } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { CalendarDays, Check, ChevronDown, Minus, Plus, X } from "lucide-react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import {
   CUSTOM_FIELD_TYPES,
   CUSTOM_FIELDS_FORM_KEY,
@@ -16,6 +16,8 @@ import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { useFormResetKey } from "@/lib/hooks/form-reset-key";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import { DirectionField, TargetPicker } from "@/components/kinesis-links/KinesisLinks";
+import type { KinesisLinkActionState } from "@/app/actions";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
@@ -25,6 +27,11 @@ const inputClass = FIELD_INPUT_CLASS;
 function toDateInputValue(value: string) {
   const date = parseDatedFieldValue(value);
   return date ? date.toISOString().slice(0, 10) : "";
+}
+
+/** `useActionState` can't be called conditionally; stands in when `addKinesisLinkAction` is absent, where the form it would run is never rendered. */
+async function noopKinesisLinkAction(state: KinesisLinkActionState): Promise<KinesisLinkActionState> {
+  return state;
 }
 
 function buildFields(source: CustomFieldValue[]): EditorField[] {
@@ -47,10 +54,20 @@ export function CustomFieldsEditor({
   initialFields = [],
   linkOptions,
   previews = {},
+  addKinesisLinkAction,
 }: {
   initialFields?: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
   previews?: Record<string, KinesisLinkPreviewStat[]>;
+  /**
+   * KD-050: when present, choosing "Kinesis Link" from "Add custom field"
+   * creates a typed Kinesis Link (a live save, via this action) instead of
+   * an ad-hoc Kinesis Link Custom Field batched with the rest of this form.
+   * Omitted only where there is no object yet to link from -- creating a
+   * brand-new record -- where the older, batched behavior below still
+   * applies unchanged.
+   */
+  addKinesisLinkAction?: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
 }) {
   const [fields, setFields] = useState<EditorField[]>(() => buildFields(initialFields));
 
@@ -84,7 +101,19 @@ export function CustomFieldsEditor({
     ]);
   };
 
+  const [addingKinesisLink, setAddingKinesisLink] = useState(false);
+  const [kinesisLinkState, submitKinesisLink] = useActionState(addKinesisLinkAction ?? noopKinesisLinkAction, {});
+
   const chooseType = (key: string, type: CustomFieldType) => {
+    // KD-050: Kinesis Link no longer becomes a row in this batch when there's
+    // somewhere for it to save immediately instead -- the placeholder row
+    // this choice would otherwise have occupied is dropped, and the inline
+    // typed-link form below opens in its place.
+    if (type === "KINESIS_LINK" && addKinesisLinkAction) {
+      setFields((current) => current.filter((field) => field.key !== key));
+      setAddingKinesisLink(true);
+      return;
+    }
     update(key, { type, phase: "confirming" });
     window.setTimeout(() => update(key, { phase: "ready", editingName: true }), 400);
   };
@@ -138,10 +167,27 @@ export function CustomFieldsEditor({
           ))}
         </div>
       )}
+      {addingKinesisLink && (
+        // Not a nested <form>: this editor already lives inside the record's
+        // own outer form, and HTML forms cannot nest. A submit button's own
+        // `formAction` targets a different Server Action than the form
+        // surrounding it -- the standard way to do that -- while
+        // `formNoValidate` keeps this submission from being blocked by an
+        // unrelated required field elsewhere in that same outer form.
+        <div className={`${fields.length ? "mt-2" : ""} grid gap-3 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]`}>
+          <DirectionField />
+          <TargetPicker options={linkOptions} />
+          <div className="flex gap-2">
+            <button type="submit" formAction={submitKinesisLink} formNoValidate className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Add link</button>
+            <button type="button" onClick={() => setAddingKinesisLink(false)} aria-label="Cancel adding Kinesis Link" className="flex h-11 w-11 items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-200"><X className="h-4 w-4" /></button>
+          </div>
+          {kinesisLinkState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{kinesisLinkState.error}</p>}
+        </div>
+      )}
       <button
         type="button"
         onClick={addField}
-        className={`${fields.length ? "mt-3" : ""} inline-flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300`}
+        className={`${fields.length || addingKinesisLink ? "mt-3" : ""} inline-flex h-[50px] items-center gap-2 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-600 outline-none transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-zinc-300`}
       >
         <Plus className="h-4 w-4" /> Add custom field
       </button>

@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLinkActionState } from "@/app/actions";
 
 export type CustomField = CustomFieldValue;
 
@@ -25,6 +26,7 @@ export function DocumentFields({
   linkOptions,
   previews,
   afterDates,
+  addKinesisLinkAction,
 }: {
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
@@ -34,6 +36,8 @@ export function DocumentFields({
   previews?: Record<string, KinesisLinkPreviewStat[]>;
   /** Rendered right after the Expiry/Issue pair, in the same visual group -- lets a caller (the create dialog's Reminder field) sit beside the dates it reminds against instead of stranded in its own section. */
   afterDates?: ReactNode;
+  /** KD-050: threaded through to `CustomFieldsEditor` unchanged -- absent when creating a brand-new document, where there is no object yet to link from. */
+  addKinesisLinkAction?: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
 }) {
   return (
     <div className="space-y-5">
@@ -54,7 +58,7 @@ export function DocumentFields({
         <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
         <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
 
-        <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} />
+        <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} />
       </div>
     </div>
   );

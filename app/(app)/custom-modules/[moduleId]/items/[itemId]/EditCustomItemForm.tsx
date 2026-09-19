@@ -75,14 +75,9 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     />
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
-        ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
-        : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} />}
+        ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
+        : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
     </section>
-    {!editing && (kinesisLinks.length > 0 || linkOptions.length > 0) && (
-      <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <KinesisLinks links={kinesisLinks} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
-      </section>
-    )}
   </>;
 }
 
@@ -102,23 +97,32 @@ function displayValue(field: DisplayField, locale: string, currency: string) {
   return field.value;
 }
 
-function ReadView({ item, linkOptions, previews, locale, currency }: { item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; locale: string; currency: string }) {
+function ReadView({ item, linkOptions, previews, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; locale: string; currency: string;
+  kinesisLinks: KinesisLink[];
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
+}) {
   const fields: DisplayField[] = [
     ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline, numberFormat: field.numberFormat })),
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
   ];
   const metadataFields = fields.filter((field) => field.type !== "KINESIS_LINK");
-  // A field keeps its row here even once every target it pointed at is gone
-  // -- the field itself survives that (see FieldLink's cascade), and hiding it
-  // left the person with no way to know it was still there, blocking an
-  // unrelated save the moment they opened Edit.
-  const linkedFields = fields.flatMap((field) => {
+  // KD-050: a Kinesis Link *Custom Field* only survives here as a template
+  // field's value now -- "Add custom field" no longer creates an ad-hoc one
+  // (see CustomFieldsEditor), so item.fields never carries type
+  // KINESIS_LINK going forward. A field keeps its row here even once every
+  // target it pointed at is gone -- the field itself survives that (see
+  // FieldLink's cascade), and hiding it left the person with no way to know
+  // it was still there, blocking an unrelated save the moment they opened
+  // Edit.
+  const linkedFields = item.templateFields.flatMap((field) => {
     if (field.type !== "KINESIS_LINK") return [];
     const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find((option) => option.objectId === id) ?? []);
-    return [{ field, options }];
+    return [{ key: `t:${field.templateFieldId}`, label: field.label, options }];
   });
 
-  if (!fields.length) return <p className="text-sm text-zinc-400">No details added yet.</p>;
+  if (!fields.length && !kinesisLinks.length) return <p className="text-sm text-zinc-400">No details added yet.</p>;
 
   return <div className="space-y-6">
     {metadataFields.length > 0 && <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -132,15 +136,20 @@ function ReadView({ item, linkOptions, previews, locale, currency }: { item: Edi
       </div>)}
     </dl>}
     {linkedFields.length > 0 && <div className={`grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))] ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
-      {linkedFields.map(({ field, options }) => <div key={field.key} className="min-w-0 space-y-2">
-        <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
+      {linkedFields.map(({ key, label, options }) => <div key={key} className="min-w-0 space-y-2">
+        <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{label}</h3>
         {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
       </div>)}
     </div>}
+    {kinesisLinks.length > 0 && (
+      <div className={`${metadataFields.length > 0 || linkedFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
+        <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+      </div>
+    )}
   </div>;
 }
 
-function EditForm({ moduleId, item, updatedAt, linkOptions, previews, onCancel, onSaved }: { moduleId: string; item: EditableItem; updatedAt: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {
+function EditForm({ moduleId, item, updatedAt, linkOptions, previews, addKinesisLinkAction, onCancel, onSaved }: { moduleId: string; item: EditableItem; updatedAt: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {
   const [archived, setArchived] = useState(item.archived);
   const router = useRouter();
   // The action reports both halves of the outcome -- `pending` while it runs,
@@ -155,7 +164,7 @@ function EditForm({ moduleId, item, updatedAt, linkOptions, previews, onCancel, 
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
     {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} previews={previews} /></div>}
     <div className="border-t border-zinc-100 pt-5">
-      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} previews={previews} />
+      <CustomFieldsEditor initialFields={item.fields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} />
       {item.templateId && item.fields.length > 0 && <PromoteFields moduleId={moduleId} itemId={item.id} fields={item.fields} />}
     </div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not Archived"}</button><input type="hidden" name="archived" value={String(archived)}/></div>

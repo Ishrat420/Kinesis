@@ -3,10 +3,12 @@
 import { ExternalLink, Link2, Pencil, Save, StickyNote, X } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
-import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
+import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { GoalActionState } from "../actions";
+import type { KinesisLinkActionState } from "@/app/actions";
 
 const initialState: GoalActionState = {};
 
@@ -19,11 +21,15 @@ const initialState: GoalActionState = {};
  * Unobtrusive when empty, per the ticket's own direction: an empty state
  * reads as an invitation rather than three empty headings.
  */
-export function GoalSupportingInfo({ fields, linkOptions, previews, action }: {
+export function GoalSupportingInfo({ fields, linkOptions, previews, action, addKinesisLinkAction, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
   previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
+  addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
+  kinesisLinks: KinesisLink[];
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
 
@@ -41,29 +47,26 @@ export function GoalSupportingInfo({ fields, linkOptions, previews, action }: {
       </div>
       <div className="mt-5">
         {editing ? (
-          <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} onDone={() => setEditing(false)} />
+          <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} addKinesisLinkAction={addKinesisLinkAction} onDone={() => setEditing(false)} />
         ) : (
-          <ReadFields fields={fields} linkOptions={linkOptions} previews={previews} />
+          <ReadFields fields={fields} previews={previews} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
         )}
       </div>
     </section>
   );
 }
 
-function ReadFields({ fields, linkOptions, previews }: { fields: CustomFieldValue[]; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
-  if (!fields.length) return <p className="text-sm text-zinc-400">Nothing added yet -- notes, a link to a guide, a related document or account.</p>;
+function ReadFields({ fields, previews, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  fields: CustomFieldValue[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
+  kinesisLinks: KinesisLink[];
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
+}) {
+  if (!fields.length && !kinesisLinks.length) return <p className="text-sm text-zinc-400">Nothing added yet -- notes, a link to a guide, a related document or account.</p>;
 
   const notes = fields.filter((field) => (field.type ?? "TEXT") === "TEXT");
   const links = fields.filter((field) => field.type === "LINK");
-  // A field keeps its row here even once every target it pointed at is gone
-  // -- the field itself survives that (see FieldLink's cascade), and hiding it
-  // left the person with no way to know it was still there, blocking an
-  // unrelated save the moment they opened Edit.
-  const kinesisLinks = fields.flatMap((field) => {
-    if (field.type !== "KINESIS_LINK") return [];
-    const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find(({ objectId }) => objectId === id) ?? []);
-    return [{ field, options }];
-  });
   // A field type this section does not have its own group for -- Number,
   // Date, Checkbox -- still saved and shown, plainly, rather than dropped.
   const other = fields.filter((field) => field.type === "NUMBER" || field.type === "DATE" || field.type === "CHECKBOX");
@@ -93,14 +96,7 @@ function ReadFields({ fields, linkOptions, previews }: { fields: CustomFieldValu
 
       {kinesisLinks.length > 0 && (
         <FieldGroup title="Kinesis Links" icon={<ExternalLink className="h-4 w-4" />}>
-          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
-            {kinesisLinks.map(({ field, options }) => (
-              <div key={field.id ?? field.label} className="min-w-0 space-y-2">
-                <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-                {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
-              </div>
-            ))}
-          </div>
+          <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
         </FieldGroup>
       )}
 
@@ -129,11 +125,12 @@ function FieldGroup({ title, icon, children }: { title: string; icon: React.Reac
   );
 }
 
-function EditFields({ fields, linkOptions, previews, action, onDone }: {
+function EditFields({ fields, linkOptions, previews, action, addKinesisLinkAction, onDone }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
   previews: Record<string, KinesisLinkPreviewStat[]>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
+  addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -141,7 +138,7 @@ function EditFields({ fields, linkOptions, previews, action, onDone }: {
 
   return (
     <form action={formAction} className="space-y-5">
-      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} />
+      <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} />
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
       <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5">
         <button type="button" onClick={onDone} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">

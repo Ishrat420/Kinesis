@@ -11,7 +11,6 @@ import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSele
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
-import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { KinesisLink } from "@/lib/data/object-relationships";
@@ -84,33 +83,23 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       />
 
       {editing ? (
-        <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
+        <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} linkOptions={linkOptions} previews={previews} history={history}
-          kinesisLinks={kinesisLinks} addKinesisLinkAction={addKinesisLinkAction} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} history={history}
+          kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
         />
       )}
     </>
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, linkOptions, previews, history, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[];
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, history, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; history: DocumentHistoryEntry[];
   kinesisLinks: KinesisLink[];
-  addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
 }) {
   const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
-  // A field keeps its row here even once every target it pointed at is gone
-  // -- the field itself survives that (see FieldLink's cascade), and hiding it
-  // left the person with no way to know it was still there, blocking an
-  // unrelated save the moment they opened Edit.
-  const linkedFields = document.customFields.flatMap((field) => {
-    if (field.type !== "KINESIS_LINK") return [];
-    const options = (field.targetObjectIds ?? []).flatMap((id) => linkOptions.find(({ objectId }) => objectId === id) ?? []);
-    return [{ field, options }];
-  });
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
@@ -128,13 +117,11 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           <Metadata label={document.linkLabel} value={document.link} link />
           {document.customFields.filter((field) => field.type !== "KINESIS_LINK").map((field) => <Metadata key={field.id ?? field.label} label={field.label} value={displayFieldValue(field, locale)} />)}
         </dl>
-        {linkedFields.length > 0 && <div className="mt-6 grid gap-4 border-t border-zinc-100 pt-6 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
-          {linkedFields.map(({ field, options }) => <div key={field.id ?? field.label} className="min-w-0 space-y-2">
-            <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{field.label}</h3>
-            {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+        {kinesisLinks.length > 0 && (
+          <div className="mt-6 border-t border-zinc-100 pt-6">
+            <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
           </div>
-          )}
-        </div>}
+        )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -150,12 +137,6 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
           <p className={`mt-4 whitespace-pre-wrap text-sm leading-6 ${document.notes ? "text-zinc-700" : "text-zinc-400"}`}>{document.notes || "No notes added yet."}</p>
         </section>
       </div>
-
-      {(kinesisLinks.length > 0 || linkOptions.length > 0) && (
-        <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
-          <KinesisLinks links={kinesisLinks} options={linkOptions} previews={previews} addAction={addKinesisLinkAction} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
-        </section>
-      )}
 
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
         <h2 className="text-lg font-semibold">History</h2>
@@ -175,7 +156,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, lin
   );
 }
 
-function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, previews, onCancel, onSaved }: { document: EditableDocument; updatedAt: string; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {
+function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, previews, addKinesisLinkAction, onCancel, onSaved }: { document: EditableDocument; updatedAt: string; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {
   const action = updateDocumentAction.bind(null, document.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [expiryDate, setExpiryDate] = useState(document.expiryDate);
@@ -203,7 +184,7 @@ function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, 
         <div role="status" className={`flex h-[50px] items-center gap-2 rounded-xl px-3.5 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div>
       </div>
     </div>
-    <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} /></div>
+    <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} /></div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not archived"}</button><input type="hidden" name="archived" value={String(archived)} /></div>
     {state.error && (state.conflict ? <SaveConflictNotice message={state.error} /> : <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>)}
     <div className="flex flex-col gap-4 border-t border-zinc-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-zinc-500">Owner: <span className="font-medium text-zinc-700">{ownerName}</span></p><div className="flex gap-2"><button type="button" onClick={onCancel} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><X className="h-4 w-4" />Cancel</button><button disabled={pending} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"><Save className="h-4 w-4" />{pending ? "Saving…" : "Save changes"}</button></div></div>

@@ -14,7 +14,6 @@ import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
 import { MilestoneRow } from "./MilestoneRow";
 import { calculateGoalHealth } from "@/lib/goals/health";
-import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import { GoalSupportingInfo } from "./GoalSupportingInfo";
 import { GoalTargetDate } from "./GoalTargetDate";
 import { earliestTargetDate } from "@/lib/goals/target-date";
@@ -62,12 +61,9 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
       </section>
 
       <MeasurableTargetForm action={targetAction} removeAction={removeTarget} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} measuredMilestones={measuredMilestones} />
-      {(kinesisLinks.length > 0 || linkOptions.length > 0) && (
-        <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <KinesisLinks links={kinesisLinks} options={linkOptions} previews={previews} addAction={addKinesisLinkAction.bind(null, goal.objectId)} updateAction={updateKinesisLinkAction.bind(null, goal.objectId)} removeAction={removeKinesisLinkAction.bind(null, goal.objectId)} />
-        </section>
-      )}
-      <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} previews={previews} action={updateGoalFieldsAction.bind(null, goal.id)} />
+      <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} previews={previews} action={updateGoalFieldsAction.bind(null, goal.id)}
+        kinesisLinks={kinesisLinks} addKinesisLinkAction={addKinesisLinkAction.bind(null, goal.objectId)} updateKinesisLinkAction={updateKinesisLinkAction.bind(null, goal.objectId)} removeKinesisLinkAction={removeKinesisLinkAction.bind(null, goal.objectId)}
+      />
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>
         <div className="flex items-start gap-4"><div className="rounded-2xl bg-white/80 p-3"><Activity className={`h-5 w-5 ${hasMilestoneRisk || health?.tone === "risk" ? "text-amber-600" : health?.tone === "good" ? "text-emerald-600" : "text-violet-600"}`}/></div><div><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-600">Goal health</p><h2 className="mt-2 text-xl font-bold">{hasMilestoneRisk ? "AT RISK" : health?.status}</h2>{health && <p className="mt-2 leading-6 text-zinc-700">{health.message}</p>}{overdueMilestones.map((milestone) => <p key={milestone.id} className="mt-2 font-medium leading-6 text-amber-800">Milestone “{milestone.name}” is past its due date.</p>)}{health?.actualPace === null && <p className="mt-3 text-xs text-zinc-500">Update your current value over time and Kinesis will average your pace automatically.</p>}</div></div>
       </section>}

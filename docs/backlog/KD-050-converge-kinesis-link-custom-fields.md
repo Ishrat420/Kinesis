@@ -1,6 +1,15 @@
 # KD-050 — Converge Kinesis Link Custom Fields into Typed Kinesis Links
 
-**Status:** Proposed — needs go-ahead before schema/data migration
+**Status:** Shipped, pending real-data migration on next deploy. All five
+phases below are implemented, typechecked, linted, and covered by the
+integration suite; the data migration itself
+(`20261008000000_migrate_kinesis_link_custom_fields`) has been syntax- and
+logic-verified against synthetic data locally (dedup case included) but
+has not yet run against any real user data, since this environment's own
+database is a separate, empty local instance from what the deployed app
+uses. It runs automatically, without further action, the next time this
+branch is deployed (`prisma migrate deploy`, already wired into
+`scripts/deploy-database.mjs`).
 **Priority:** High
 **Tags:** Architecture, Data Model, UX / UI
 **Supersedes:** KD-049 §2's explicit deferral ("this ticket does not decide to
@@ -136,17 +145,49 @@ For every ad-hoc `ObjectField` where `type = 'KINESIS_LINK'` and
 
 ## Phases
 
-1. Schema: the two partial unique indexes above (migration SQL only, no
-   Prisma DSL change beyond dropping the old `@@unique`).
-2. Data migration script + a dry-run report before it's run for real.
-3. `CustomFieldsEditor.tsx`: redirect "Kinesis Link" to the typed-link
-   add-form; remove it from the ad-hoc type list.
-4. Read views: drop the ad-hoc `linkedFields` grid; relocate the Kinesis
-   Links list (no header/button) into its place; remove the standalone
-   section and its add-button on all three pages.
-5. Tests: migration script coverage (including the duplicate-collision
-   case), updated integration coverage for the three read views, updated
-   `CustomFieldsEditor` behavior.
+1. **Schema (Shipped).** The two partial unique indexes above, in
+   `20261007000000_kinesis_link_custom_uniqueness` (migration SQL only, no
+   Prisma DSL change beyond dropping the old `@@unique`). Covered by two
+   new integration tests: different Custom labels between the same pair
+   now coexist; an exact duplicate is still rejected.
+2. **Data migration (Shipped, not yet run on real data).** A pure-SQL
+   migration, `20261008000000_migrate_kinesis_link_custom_fields`, folded
+   into the normal deploy pipeline rather than a standalone script (per
+   how this repo already ships data migrations, e.g. the starter-template
+   dedup) — no separate script, no credentials handled by hand.
+   `INSERT ... ON CONFLICT ... DO NOTHING` relies on Phase 1's partial
+   index for the dedup case; verified against synthetic pre-migration data
+   locally (two ad-hoc fields sharing a label and target collapsed into
+   one Kinesis Link; a differently-labeled one converted on its own; the
+   source `ObjectField`/`FieldLink` rows removed). Runs automatically on
+   the next `prisma migrate deploy`.
+3. **`CustomFieldsEditor.tsx` (Shipped).** Choosing "Kinesis Link" from
+   "Add custom field" is unchanged as a menu item, but no longer adds a
+   row to the batch: it opens the same target + DDL/Custom picker
+   `KinesisLinks.tsx` used to own (`DirectionField`/`TargetPicker`,
+   exported for reuse) and submits immediately via `addKinesisLinkAction`,
+   as a `formAction` on its own button rather than a nested `<form>`
+   (this editor already lives inside the record's own form). The
+   parameter is optional and omitted on every creation-time caller
+   (`NewItemButton.tsx`, `ManualDocumentButton.tsx`), which keeps the old
+   batched, multi-target behavior unchanged there, since there is no
+   object yet to link from before the record itself is created.
+4. **Read views (Shipped).** `KinesisLinks.tsx` itself dropped its header,
+   count badge, "Add Kinesis Link" button and inline create-form — its
+   `options`/`addAction` props are gone, since adding happens through
+   Custom Fields now; it is display, retype and remove only. The old
+   ad-hoc `linkedFields` grid is gone from Documents, Custom Items and
+   Goals; the typed Kinesis Links list renders in its place (Custom
+   Items' template-defined Kinesis Link fields, via `TemplateFieldValues`,
+   are untouched and keep rendering exactly as before, since they are a
+   different producer entirely — see "What's explicitly not in scope").
+5. **Tests (Shipped).** The new Phase 1 coverage above; the migration's
+   own logic (conversion + dedup) verified functionally against synthetic
+   data rather than as a checked-in test, matching this repo's existing
+   convention of not unit-testing a migration's raw SQL directly (no
+   `CustomFieldsEditor`-level interaction tests, or read-view layout
+   tests, exist for the same reason no other component in this codebase
+   has them).
 
 ## Related
 
