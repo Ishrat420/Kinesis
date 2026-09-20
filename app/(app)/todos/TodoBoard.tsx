@@ -148,10 +148,13 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         card opens the to-do's detail page, not just its title. Positioned
         first so every other row control -- each given its own `relative`
         below -- paints above it (positioned siblings stack by DOM order;
-        static ones don't). `aria-hidden`/`tabIndex={-1}` keep it out of the
-        accessibility tree entirely, since the title's own Link below is
-        already the real, announced destination -- without this a screen
-        reader or Tab press would hit the same link twice.
+        static ones don't); the two blocks of plain, non-interactive text
+        below (status/due/notes) additionally go `pointer-events-none` so
+        they don't sit as inert, click-swallowing content on top of this --
+        see the comment further down. `aria-hidden`/`tabIndex={-1}` keep this
+        overlay out of the accessibility tree entirely, since the title's own
+        Link below is already the real, announced destination -- without
+        this a screen reader or Tab press would hit the same link twice.
       */}
       <Link href={`/todos/${todo.id}`} aria-hidden="true" tabIndex={-1} className="absolute inset-0" />
 
@@ -162,15 +165,22 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
         className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-70 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
       ><Check className={`h-4 w-4 ${!open && hasToggled ? "checkbox-pop" : ""}`} aria-hidden="true" /></button>
 
-      <div className="relative min-w-0 flex-1">
+      <div className="pointer-events-none min-w-0 flex-1">
         {/*
-          The title carries its own real Link (the one a screen reader/Tab
-          press reaches) -- the metadata line below has its own Kinesis Link
-          pills, and nesting an <a> inside another <a> is invalid HTML (and
-          breaks hydration), so the whole-row click above is a separate,
-          hidden overlay rather than one link wrapping everything.
+          `pointer-events-none` here, not another `relative` -- giving this
+          whole block `relative` (an earlier attempt) made it paint above the
+          overlay as one solid unit, so its plain, non-interactive text
+          (status, due badge, notes) silently swallowed clicks instead of
+          reaching the overlay underneath, and only the title -- the one
+          thing in here with its own click handling -- ever responded.
+          `pointer-events-none` makes the inert text transparent to clicks
+          instead, so they fall through to the overlay; the title and each
+          Kinesis Link pill explicitly opt back in with `pointer-events-auto`
+          (plus `relative`, so they still win the stacking tie against the
+          overlay at the exact pixels they cover) since those must keep going
+          to their own destination, not the row's.
         */}
-        <Link href={`/todos/${todo.id}`} className={`relative break-words font-medium hover:underline ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</Link>
+        <Link href={`/todos/${todo.id}`} className={`relative pointer-events-auto break-words font-medium hover:underline ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</Link>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
           <span className="inline-flex items-center">
             <span aria-hidden="true" className={`mr-1.5 h-1.5 w-1.5 rounded-full ${todoStatusDotClass(todo.status)}`} />
@@ -183,7 +193,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
             </span>
           )}
           {todo.links.map((link) => (
-            <Link key={link.objectId} href={link.href} className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200">
+            <Link key={link.objectId} href={link.href} className="relative pointer-events-auto inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200">
               <Link2 className="h-3 w-3" aria-hidden="true" />{link.name}
             </Link>
           ))}
@@ -194,15 +204,15 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       {rescheduling ? (
         <TodoRescheduleForm todoId={todo.id} dueDate={todo.dueDate} onDone={() => setRescheduling(false)} />
       ) : (
-      <div className="relative flex shrink-0 items-center gap-1">
+      <div className="pointer-events-none flex shrink-0 items-center gap-1">
         {open && (
           <button
             type="button" onClick={() => setRescheduling(true)}
             aria-label={`Reschedule ${todo.name}`} title="Reschedule"
-            className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"
+            className="pointer-events-auto relative rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"
           ><CalendarClock className="h-4 w-4" /></button>
         )}
-      <details className="relative">
+      <details className="pointer-events-auto relative">
         <summary aria-label={`${todo.name} actions`} className="list-none rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><Ellipsis className="h-5 w-5" /></summary>
         <div className="absolute right-0 z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-lg">
           <button type="button" onClick={onEdit} className="w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50">Edit</button>
