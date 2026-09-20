@@ -24,6 +24,33 @@ body {
   color: var(--foreground);
 }
 
+/* A single thin, unobtrusive scrollbar everywhere in the app -- Firefox via
+   `scrollbar-width`/`scrollbar-color`, every other browser via the
+   `::-webkit-scrollbar` pseudo-elements -- rather than each scrollable
+   panel (Recent activity, Upcoming & due, modals, ...) styling its own. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #d4d4d8;
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #a1a1aa;
+}
+
 @keyframes checkbox-pop {
   0% { transform: scale(0.55); }
   60% { transform: scale(1.15); }
