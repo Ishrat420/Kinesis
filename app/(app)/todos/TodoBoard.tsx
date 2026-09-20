@@ -142,21 +142,35 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
   }
 
   return (
-    <li id={`todo-${todo.id}`} className="flex flex-wrap items-center gap-3 py-4 scroll-mt-24">
+    <li id={`todo-${todo.id}`} className="relative flex flex-wrap items-center gap-3 py-4 scroll-mt-24">
+      {/*
+        A stretched link: covers the whole row so clicking anywhere on the
+        card opens the to-do's detail page, not just its title. Positioned
+        first so every other row control -- each given its own `relative`
+        below -- paints above it (positioned siblings stack by DOM order;
+        static ones don't). `aria-hidden`/`tabIndex={-1}` keep it out of the
+        accessibility tree entirely, since the title's own Link below is
+        already the real, announced destination -- without this a screen
+        reader or Tab press would hit the same link twice.
+      */}
+      <Link href={`/todos/${todo.id}`} aria-hidden="true" tabIndex={-1} className="absolute inset-0" />
+
       <button
         type="button" disabled={pending} aria-pressed={!open}
         aria-label={open ? `Mark ${todo.name} done` : `Reopen ${todo.name}`}
         onClick={toggleDone}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-70 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
+        className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-70 ${open ? "border-zinc-300 text-transparent hover:border-zinc-500 hover:text-zinc-400" : "border-emerald-600 bg-emerald-600 text-white"}`}
       ><Check className={`h-4 w-4 ${!open && hasToggled ? "checkbox-pop" : ""}`} aria-hidden="true" /></button>
 
-      <div className="min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1">
         {/*
-          Only the title links to the to-do's own detail page (KD-048) -- the
-          metadata line below has its own Kinesis Link pills, and nesting an
-          <a> inside another <a> is invalid HTML (and breaks hydration).
+          The title carries its own real Link (the one a screen reader/Tab
+          press reaches) -- the metadata line below has its own Kinesis Link
+          pills, and nesting an <a> inside another <a> is invalid HTML (and
+          breaks hydration), so the whole-row click above is a separate,
+          hidden overlay rather than one link wrapping everything.
         */}
-        <Link href={`/todos/${todo.id}`} className={`break-words font-medium hover:underline ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</Link>
+        <Link href={`/todos/${todo.id}`} className={`relative break-words font-medium hover:underline ${open ? "text-zinc-900" : "text-zinc-400 line-through"}`}>{todo.name}</Link>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-500">
           <span className="inline-flex items-center">
             <span aria-hidden="true" className={`mr-1.5 h-1.5 w-1.5 rounded-full ${todoStatusDotClass(todo.status)}`} />
@@ -180,7 +194,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       {rescheduling ? (
         <TodoRescheduleForm todoId={todo.id} dueDate={todo.dueDate} onDone={() => setRescheduling(false)} />
       ) : (
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="relative flex shrink-0 items-center gap-1">
         {open && (
           <button
             type="button" onClick={() => setRescheduling(true)}
@@ -202,7 +216,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       </div>
       )}
 
-      {error && <p role="alert" className="w-full text-sm font-medium text-red-600">{error}</p>}
+      {error && <p role="alert" className="relative w-full text-sm font-medium text-red-600">{error}</p>}
     </li>
   );
 }
@@ -220,7 +234,7 @@ function TodoRescheduleForm({ todoId, dueDate, onDone }: { todoId: string; dueDa
   useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
 
   return (
-    <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
+    <form action={formAction} onClick={(event) => event.stopPropagation()} className="relative flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <InlineDatePicker name="dueDate" defaultValue={dueDate ? formatDateInput(dueDate) : ""} ariaLabel="New due date" />
         <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
