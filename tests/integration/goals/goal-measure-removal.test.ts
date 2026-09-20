@@ -9,7 +9,6 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 vi.mock("@/lib/format/server", () => ({ getFormatPreferences: mocks.getFormatPreferences }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { addMilestoneAction, addTargetAction, removeTargetAction, updateMilestoneAction } from "@/app/(app)/goals/actions";

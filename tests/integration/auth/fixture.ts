@@ -123,6 +123,6 @@ export async function ownerState(owner: FixtureOwner) {
     financeItems: true, customModules: { include: { items: { include: { object: { select: { fields: true } } } } } },
     people: { include: { selfPractices: true, selfReflections: true, selfImportantDates: true } },
     relationships: { include: { practices: true, reflections: true, importantDates: true, linkedGoals: true } },
-    goalUnits: true, notificationReads: true, activityEvents: true,
+    goalUnits: true, notificationReads: true,
   } });
 }

@@ -91,10 +91,10 @@ describe.sequential("cross-user authorization contract", () => {
   });
 
   it("prevents foreign finance updates, deletes, and ID reuse", async () => {
-    await saveFinanceItem({ id: ids.financeA, kind: "asset", name: "owner-a-updated-finance", amount: 101 }, true);
+    await saveFinanceItem({ id: ids.financeA, kind: "asset", name: "owner-a-updated-finance", amount: 101 });
     await expect(prisma.financeItem.findUniqueOrThrow({ where: { id: ids.financeA } })).resolves.toMatchObject({ amount: 101 });
     const before = await ownerState("ownerB");
-    await expect(saveFinanceItem({ id: ids.financeB, kind: "asset", name: "intrusion", amount: 999 }, false)).rejects.toThrow();
+    await expect(saveFinanceItem({ id: ids.financeB, kind: "asset", name: "intrusion", amount: 999 })).rejects.toThrow();
     await deleteFinanceItem(ids.financeB);
     expect(await ownerState("ownerB")).toEqual(before);
   });

@@ -27,7 +27,6 @@ model User {
   customModules       CustomModule[]
   templates           Template[]
   dismissals          AttentionDismissal[]
-  activityEvents      ActivityEvent[]
   securityEvents      SecurityEvent[]
   objects             Object[]
   objectRelationships ObjectRelationship[]
@@ -323,10 +322,11 @@ model ObjectRelationship {
   @@index([userId, targetObjectId])
 }
 
-/// What happened to an Object (KD-048 Phase 1) -- a typed, append-only event
-/// stream every module record's history reads from, replacing (eventually)
-/// ActivityEvent's flat, un-typed sentences. See KD-048 for the full design
-/// discussion; the notes below cover only what isn't obvious from the shape.
+/// What happened to an Object (KD-048) -- a typed, append-only event stream
+/// every module record's history reads from, replacing the old ActivityEvent
+/// table's flat, un-typed sentences (retired). See KD-048 for the full
+/// design discussion; the notes below cover only what isn't obvious from
+/// the shape.
 model ObjectEvent {
   id       String @id @default(uuid())
   objectId String
@@ -872,19 +872,6 @@ model AttentionDismissal {
   @@index([relationshipDateId])
 }
 
-model ActivityEvent {
-  id         String   @id
-  action     String
-  moduleName String
-  objectName String
-  icon       String
-  href       String?
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-
-  @@index([userId, createdAt])
-}
 
 model SecurityEvent {
   id        String   @id @default(uuid())

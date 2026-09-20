@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import type { TodoStatus } from "@prisma/client";
 import { captureTodo, createTodo, deleteTodo, getTodoLinkOptions, updateTodoDetails } from "@/lib/data/todos";
 import type { ObjectLocation } from "@/lib/objects/locations";
-import { addActivity } from "@/lib/data/activity";
 import { isTodoStatus } from "@/lib/todos/status";
 import { parseDateOnly } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
@@ -42,7 +41,6 @@ export async function captureTodoAction(rawName: string): Promise<CaptureState> 
   if (name.length > MAX_TITLE_LENGTH) return { error: `Keep it under ${MAX_TITLE_LENGTH} characters — you can add the detail afterwards.` };
 
   const todo = await captureTodo(name);
-  await addActivity({ action: "Added", moduleName: "To-Do", objectName: todo.name, icon: "todos", href: "/todos" });
   refresh();
   return { captured: todo };
 }
@@ -80,9 +78,8 @@ export async function createTodoAction(_previousState: CreateTodoState, formData
   const linkObjectIds = formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean);
   const notes = text(formData, "notes");
 
-  let todo;
   try {
-    todo = await createTodo(name, {
+    await createTodo(name, {
       status: statusValue ? (statusValue as TodoStatus) : undefined,
       dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
       notes: notes || null,
@@ -94,7 +91,6 @@ export async function createTodoAction(_previousState: CreateTodoState, formData
     return { error: refused };
   }
 
-  await addActivity({ action: "Added", moduleName: "To-Do", objectName: todo.name, icon: "todos", href: "/todos" });
   refresh();
   return { created: true };
 }
@@ -162,8 +158,7 @@ export async function captureLinkOptionsAction(): Promise<ObjectLocation[]> {
 export async function setTodoStatusAction(id: string, status: string): Promise<TodoActionState> {
   if (!isTodoStatus(status)) return { error: "That is not a status a to-do can have." };
   try {
-    const todo = await updateTodoDetails(id, { status });
-    if (status === "DONE") await addActivity({ action: "Completed", moduleName: "To-Do", objectName: todo.name, icon: "todos", href: "/todos" });
+    await updateTodoDetails(id, { status });
   } catch (failure) {
     const refused = refusalOf(failure);
     if (refused === null) throw failure;

@@ -4,7 +4,6 @@ import { prisma } from "@/lib/data/prisma";
 import { DEFAULT_GOAL_UNITS, GOAL_STATUSES } from "@/lib/goals/format";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { formatDate, formatDateInput, parseDateOnly } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
@@ -54,9 +53,8 @@ export async function createGoalAction(_previousState: GoalActionState, data: Fo
     await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
     return created;
   });
-  await addActivity({ action: "Added", moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
   // No-op unless quick capture sent the user here to turn a To-Do into this goal.
-  await completeCaptureConversion(data, { moduleName: "Goals", objectName: goal.name, icon: "goals", href: `/goals/${goal.id}` });
+  await completeCaptureConversion(data);
   revalidateShell();
   revalidatePath("/goals");
   redirect(`/goals/${goal.id}`);
@@ -283,12 +281,10 @@ export async function toggleMilestoneAction(id: string, milestoneId: string, com
   const user = await requireKinesisUser();
   const owned = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
   if (!owned) return { error: "This milestone no longer exists." };
-  const milestone = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const updated = await tx.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true, objectId: true } } } });
     if (completed) await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_COMPLETED", updated.name);
-    return updated;
   });
-  if (completed) await addActivity({ action: "Completed", moduleName: "Milestone", objectName: `${milestone.name} for ${milestone.goal.name}`, icon: "goals", href: `/goals/${id}` });
   refresh(id);
   return {};
 }

@@ -21,7 +21,7 @@ vi.mock("@/lib/data/prisma", () => ({
     person: { deleteMany: mocks.deleteMany }, goal: { deleteMany: mocks.deleteMany },
     goalUnit: { deleteMany: mocks.deleteMany }, customModule: { deleteMany: mocks.deleteMany }, template: { deleteMany: mocks.deleteMany },
     financeItem: { deleteMany: mocks.deleteMany }, userSettings: { deleteMany: mocks.deleteMany, upsert: mocks.settingsUpsert },
-    activityEvent: { deleteMany: mocks.deleteMany }, securityEvent: { create: mocks.securityCreate },
+    securityEvent: { create: mocks.securityCreate },
     $transaction: mocks.transaction,
   },
 }));

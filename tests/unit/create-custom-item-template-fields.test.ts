@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireKinesisUser: vi.fn(),
   validateKinesisTargets: vi.fn(),
-  addActivity: vi.fn(),
   revalidatePath: vi.fn(),
   tx: {
     customItem: { create: vi.fn() },
@@ -24,7 +23,6 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 vi.mock("@/lib/data/kinesis-links", () => ({ validateKinesisTargets: mocks.validateKinesisTargets }));
 vi.mock("@/lib/data/prisma", () => ({
   prisma: {

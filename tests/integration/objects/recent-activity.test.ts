@@ -8,7 +8,6 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { getRecentActivity } from "@/lib/data/object-event-history";

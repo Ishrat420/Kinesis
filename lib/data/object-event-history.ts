@@ -45,7 +45,6 @@ export type RecentActivityItem = {
   href: string;
   /** Set only for a custom module's own item -- see `ObjectLocation`. */
   icon?: string;
-  color: string;
 };
 
 /**
@@ -76,7 +75,7 @@ export async function getRecentActivity(limit = 8): Promise<RecentActivityItem[]
     return [{
       id: event.id, ...describeObjectEvent(event), occurredAt: event.occurredAt,
       objectName: location.name, objectType: location.type, module: location.module,
-      href: location.href, icon: location.icon, color: location.color,
+      href: location.href, icon: location.icon,
     }];
   });
 }

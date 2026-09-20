@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   requireKinesisUser: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn(),
-  addActivity: vi.fn(),
   goalFindFirst: vi.fn(),
   goalUpdateMany: vi.fn(),
   goalUpdate: vi.fn(),
@@ -27,7 +26,6 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 vi.mock("@/lib/data/kinesis-links", () => ({ validateKinesisTargets: mocks.validateKinesisTargets }));
 vi.mock("@/lib/format/server", () => ({ getFormatPreferences: mocks.getFormatPreferences, getToday: mocks.getToday }));
 vi.mock("@/lib/data/prisma", () => {
@@ -238,14 +236,13 @@ describe("invalid submissions report an error instead of silently doing nothing"
       ["a malformed start date", financeItem({ kind: "income", frequency: "Monthly", startDate: "01/01/2030" }), "Enter a valid start date."],
       ["an end date before the start date", financeItem({ kind: "income", frequency: "Monthly", startDate: "2030-02-01", endDate: "2030-01-01" }), "The end date must be on or after the start date."],
     ])("rejects %s", async (_name, item, error) => {
-      await expect(saveFinanceItem(item, false)).resolves.toEqual({ error });
+      await expect(saveFinanceItem(item)).resolves.toEqual({ error });
       noWrites();
-      expect(mocks.addActivity).not.toHaveBeenCalled();
     });
 
     it("saves a valid item", async () => {
       mocks.financeCreate.mockResolvedValue({ objectId: "finance-object-id" });
-      await expect(saveFinanceItem(financeItem(), false)).resolves.toEqual({ saved: true });
+      await expect(saveFinanceItem(financeItem())).resolves.toEqual({ saved: true });
       expect(mocks.financeCreate).toHaveBeenCalledOnce();
     });
   });

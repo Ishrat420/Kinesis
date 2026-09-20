@@ -44,9 +44,6 @@ export async function seedEverything(userId: string, tag: string) {
   await prisma.userSettings.create({ data: { userId } });
   await prisma.documentType.create({ data: { id: `${tag}-doctype`, name: "Passport", userId } });
   await prisma.goalUnit.create({ data: { id: `${tag}-unit`, name: "kg", userId } });
-  await prisma.activityEvent.create({
-    data: { id: `${tag}-activity`, action: "Added", moduleName: "Goals", objectName: "x", icon: "goals", userId },
-  });
   await prisma.securityEvent.create({ data: { id: `${tag}-security`, event: "SIGNED_IN", userId } });
 
   await object("doc", "DOCUMENT", "Doc", [{ id: `${tag}-docfield`, label: "L", value: "V" }]);

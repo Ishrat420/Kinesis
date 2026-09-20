@@ -4,7 +4,6 @@ import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDo
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
-import { addActivity } from "@/lib/data/activity";
 import { parseDateOnly } from "@/lib/dates";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
@@ -102,10 +101,9 @@ export async function createDocumentAction(
   const unowned = await validateKinesisTargets(data.customFields ?? []);
   if (unowned) return { error: unowned };
   const document = await createDocument(data);
-  await addActivity({ action: "Added", moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
   // No-op unless quick capture sent the user here to turn a To-Do into this
   // document, in which case the To-Do retires now that the richer record exists.
-  await completeCaptureConversion(formData, { moduleName: "Documents", objectName: document.name, icon: "documents", href: `/documents/${document.id}` });
+  await completeCaptureConversion(formData);
   revalidateShell();
   redirect(`/documents/${document.id}`);
 }
@@ -139,7 +137,6 @@ export async function updateDocumentAction(
     if (refused === null) throw failure;
     return { error: refused, conflict: isConflictRefusal(failure) };
   }
-  await addActivity({ action: "Updated", moduleName: "Documents", objectName: data.name, icon: "documents", href: `/documents/${documentId}` });
   revalidateShell();
   return { success: true, updatedAt: saved.updatedAt.toISOString() };
 }

@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/data/prisma";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
-import { addActivity } from "@/lib/data/activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { parseTemplateFieldValues } from "@/lib/templates/parse";
@@ -100,8 +99,6 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
       await saveTemplateFieldValues(tx, user.id, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
     }
   });
-  const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
-  if (customModule) await addActivity({ action: "Added", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
   return {};
 }
@@ -201,8 +198,6 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     if (refused === null) throw failure;
     return { error: refused, conflict: isConflictRefusal(failure) };
   }
-  const customModule = await prisma.customModule.findFirst({ where: { id: moduleId, userId: user.id }, select: { name: true, icon: true } });
-  if (customModule) await addActivity({ action: "Updated", moduleName: customModule.name, objectName: name, icon: `custom:${customModule.icon}`, href: `/custom-modules/${moduleId}` });
   refresh(moduleId);
   revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
   return { saved: true, updatedAt: updatedAt.toISOString() };

@@ -56,7 +56,6 @@ const EXPECTED_KEYS: Record<string, string[]> = {
   TemplateField: ["templates"],
   Todo: ["todos"],
   AttentionDismissal: ["attentionDismissals"],
-  ActivityEvent: ["activityEvents"],
   NotificationRead: ["notificationReads"],
   NotificationFirstSeen: ["notificationFirstSeens"],
   SecurityEvent: ["securityEvents"],

@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn(), revalidatePath: v
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { setTodoStatusAction, deleteTodoAction } from "@/app/(app)/todos/actions";

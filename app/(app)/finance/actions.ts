@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addActivity } from "@/lib/data/activity";
 import { isCalendarDate, isFinanceFrequency, isFinanceKind } from "@/lib/finance";
 import type { FinanceFrequency, FinanceItem, FinanceKind } from "@/lib/finance";
 import { parseDateOnly } from "@/lib/dates";
@@ -17,24 +16,6 @@ export type FinanceActionState = { error?: string; saved?: boolean };
 
 const SAVE_FAILED = "Something went wrong saving this item. Please try again.";
 const DELETE_FAILED = "Something went wrong deleting this item. Please try again.";
-
-const labels: Record<FinanceKind, string> = {
-  asset: "Asset",
-  liability: "Liability",
-  income: "Monthly income",
-  expense: "Monthly expenses",
-};
-
-export async function recordFinanceActivity(kind: FinanceKind, updated: boolean, name: string) {
-  await addActivity({
-    action: updated ? "Updated" : "Added",
-    moduleName: "Finance",
-    objectName: kind === "income" || kind === "expense" ? labels[kind] : name,
-    icon: "finance",
-    href: "/finance",
-  });
-  revalidateShell();
-}
 
 // `validate` below has already confirmed `isCalendarDate` for any value
 // reaching here, so `parseDateOnly` -- the one shared "yyyy-mm-dd -> UTC
@@ -77,7 +58,7 @@ const FINANCE_NAMED_FIELDS = [
   ["frequency", "Frequency"], ["startDate", "Start date"], ["endDate", "End date"], ["notes", "Notes"],
 ] as const;
 
-export async function saveFinanceItem(item: FinanceItem, updated: boolean): Promise<FinanceActionState> {
+export async function saveFinanceItem(item: FinanceItem): Promise<FinanceActionState> {
   const user = await requireKinesisUser();
   const error = validate(item);
   if (error) return { error };
@@ -108,7 +89,7 @@ export async function saveFinanceItem(item: FinanceItem, updated: boolean): Prom
       await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
     }
   });
-  await recordFinanceActivity(item.kind, updated, name);
+  revalidateShell();
   revalidatePath("/finance");
   return { saved: true };
 }
@@ -163,7 +144,7 @@ function financeItemFrom(kind: FinanceKind, existingId: string | null, formData:
 export async function saveFinanceItemAction(kind: FinanceKind, existingId: string | null, _previousState: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   if (!isFinanceKind(kind)) return { error: "Choose a valid item type." };
   try {
-    return await saveFinanceItem(financeItemFrom(kind, existingId, formData), existingId !== null);
+    return await saveFinanceItem(financeItemFrom(kind, existingId, formData));
   } catch {
     return { error: SAVE_FAILED };
   }

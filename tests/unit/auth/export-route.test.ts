@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => {
       person: { findMany: findMany() }, relationship: { findMany: findMany() },
       financeItem: { findMany: findMany() }, customModule: { findMany: findMany() }, template: { findMany: findMany() },
       todo: { findMany: findMany() }, attentionDismissal: { findMany: findMany() },
-      activityEvent: { findMany: findMany() }, notificationRead: { findMany: findMany() }, notificationFirstSeen: { findMany: findMany() },
+      notificationRead: { findMany: findMany() }, notificationFirstSeen: { findMany: findMany() },
       securityEvent: { findMany: findMany(), create: vi.fn().mockResolvedValue({}) },
     },
   };

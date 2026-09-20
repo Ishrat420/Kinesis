@@ -1,5 +1,4 @@
 import { prisma } from "./prisma";
-import { addActivity } from "./activity";
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects } from "./objects";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
@@ -28,31 +27,26 @@ export const captureSourceId = (formData: FormData) => {
 };
 
 /**
- * Retires the To-Do a conversion started at, and records that it happened.
+ * Retires the To-Do a conversion started at.
  *
- * The ActivityEvent is the conversion history: it names both ends and links to
- * the record the To-Do became, so the trail survives the To-Do itself. An
- * unknown or already-deleted source is not an error -- the richer record was
- * still created, and failing the whole action over a missing To-Do would lose
- * the user's work to tidy up a row.
+ * An unknown or already-deleted source is not an error -- the richer record
+ * was still created, and failing the whole action over a missing To-Do
+ * would lose the user's work to tidy up a row.
+ *
+ * The new record's own creation already gets a plain `ITEM_CREATED`
+ * `ObjectEvent` (KD-048); the conversion itself -- "this came from a
+ * To-Do" -- has no `ObjectEvent` narrative of its own (there is no
+ * `ObjectRelationship` between the retiring To-Do and the new record for
+ * an event to hang off), a deliberate KD-048 Phase 1 exclusion, revisit
+ * only if that provenance is ever asked for in History specifically.
  */
-export async function completeCaptureConversion(
-  formData: FormData,
-  created: { moduleName: string; objectName: string; icon: string; href: string },
-) {
+export async function completeCaptureConversion(formData: FormData) {
   const todoId = captureSourceId(formData);
   if (!todoId) return;
 
   const user = await requireKinesisUser();
-  const todo = await prisma.todo.findFirst({ where: { id: todoId, userId: user.id }, select: { name: true, objectId: true } });
+  const todo = await prisma.todo.findFirst({ where: { id: todoId, userId: user.id }, select: { objectId: true } });
   if (!todo) return;
 
   await deleteObjects(prisma, [todo.objectId], user.id);
-  await addActivity({
-    action: "Converted",
-    moduleName: created.moduleName,
-    objectName: `${todo.name} → ${created.objectName}`,
-    icon: created.icon,
-    href: created.href,
-  });
 }

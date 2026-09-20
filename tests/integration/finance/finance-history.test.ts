@@ -1,13 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn(), revalidatePath: vi.fn(), addActivity: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn(), revalidatePath: vi.fn() }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/server", () => ({ connection: vi.fn() }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 
 import { prisma } from "@/lib/data/prisma";
 import { getFinanceItem } from "@/lib/data/finance";

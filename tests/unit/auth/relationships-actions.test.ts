@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     relationshipReflection: { findMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn(), createMany: vi.fn() },
     relationshipImportantDate: { findMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn(), createMany: vi.fn() },
     relationshipGoal: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
-    activityEvent: { createMany: vi.fn() },
+    objectEvent: { create: vi.fn(), createMany: vi.fn() },
   },
   prisma: { $transaction: vi.fn(), person: { updateMany: vi.fn() } },
 }));

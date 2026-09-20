@@ -2,12 +2,14 @@
 
 **Status:** In Progress -- Phase 1 shipped in full, including its own
 remainder (every named event type wired across every module's mutations,
-not just Kinesis Links and deletion). Phase 2 is now partly done, out of
+not just Kinesis Links and deletion). Phase 2 is now mostly done, out of
 its own stated order: the dashboard's "Recent activity" widget reads from
 `ObjectEvent` now (see below); Finance Items and To-Dos each got a real
-detail page/window with History wired in (see below); `ActivityEvent`
-itself is not yet retired (see below). People/Relationships still has no
-detail page to hang History off. Phases 3-6 not started.
+detail page/window with History wired in (see below); `ActivityEvent` is
+now fully retired, including new History coverage for Person/Relationships
+that it turned out to be the only thing tracking (see below). People/
+Relationships still has no detail page to hang a History *section* off,
+even though it now records events. Phases 3-6 not started.
 
 **Dashboard "Recent activity" widget (shipped, Phase 2's other piece):**
 `getRecentActivity` moved from `lib/data/activity.ts` (`ActivityEvent`,
@@ -18,33 +20,51 @@ alone (the first reader of this shape -- every other `ObjectEvent` query in
 the repo is scoped to one `objectId`) and resolving each row's object via
 the existing `locateObject`/`objectLocationSelect` (`lib/objects/
 locations.ts`) for its module name, href, and (for a custom module's own
-item) icon/color. `components/dashboard/ActivityFeed.tsx` renders each
-row's real `describeObjectEvent` title/detail -- "Amount changed -- From
-$10,500.00 to $9,000.00" instead of "Updated Credit cards under Finance" --
-with a colored icon chip per module (built-in types get a small new
-icon map; custom items keep using their own module's icon/color the way
-`CustomModuleBadge` does elsewhere). Unfiltered and unscored, same as
-`getObjectEvents` -- no significance ranking yet (Phase 4), and the
-documented "Converted" gap (quick-capture conversion has no `ObjectEvent`
-narrative of its own, just a plain `ITEM_CREATED` on the new record) is
-unchanged from Phase 1's remainder -- a converted record now reads as
-"Created" in the feed rather than "Converted from To-Do X", matching what
-its own History section already shows.
+item) icon. `components/dashboard/ActivityFeed.tsx` renders each row's
+real `describeObjectEvent` title/detail -- "Amount changed: From
+$10,500.00 to $9,000.00" instead of "Updated Credit cards under Finance",
+using a colon rather than an em dash to join title and detail throughout --
+with a deliberately monochrome icon badge (matching `ReminderList`'s
+"Upcoming & due" badge convention exactly: a plain zinc chip, not a
+per-module color, since several modules' items now sit side by side in one
+feed and per-module tinting made this one card louder than everything
+around it; a custom module's own item still shows its own icon via
+`CustomModuleIcon`, just not its module's color). Unfiltered and
+unscored, same as `getObjectEvents` -- no significance ranking yet (Phase
+4), and the documented "Converted" gap (quick-capture conversion has no
+`ObjectEvent` narrative of its own, just a plain `ITEM_CREATED` on the new
+record) is unchanged from Phase 1's remainder -- a converted record now
+reads as "Created" in the feed rather than "Converted from To-Do X",
+matching what its own History section already shows.
 
-**`ActivityEvent` retirement: deliberately NOT done in this pass.** Per
-Phase 2's own text ("Retire `ActivityEvent` / `lib/data/activity.ts` once
-nothing reads it"), swapping the dashboard's read means the table's other
-reader, `getRecentActivity` in `lib/data/activity.ts`, now has zero
-callers -- removed as dead code. `addActivity` itself, the `ActivityEvent`
-Prisma model, and its ~12 call sites (`documents`/`goals`/`todos`/
-`finance`/`custom-modules` actions, `lib/data/capture.ts`'s
-`completeCaptureConversion`) are all left in place: they still write, just
-to a table nothing reads anymore. Retiring those -- a schema migration
-dropping the table, removing every `addActivity` call, and updating the
-~10 test files that mock `@/lib/data/activity` plus the account-export
-endpoint's raw table dump -- is real, separate scope this pass didn't take
-on; flagged here as the next concrete step toward closing Phase 2 rather
-than left implicit.
+**`ActivityEvent` retirement: shipped.** Per Phase 2's own text ("Retire
+`ActivityEvent` / `lib/data/activity.ts` once nothing reads it"), once the
+dashboard swapped its read, `getRecentActivity` in `lib/data/activity.ts`
+had zero callers and was deleted along with the rest of that file.
+`addActivity`'s ~12 call sites (`documents`/`goals`/`todos`/`finance`/
+`custom-modules` actions, `lib/data/capture.ts`'s
+`completeCaptureConversion`) were all removed, the `ActivityEvent` Prisma
+model dropped via a hand-written migration
+(`20261011000000_retire_activity_event`, applied with `prisma db execute`
++ `migrate resolve --applied` rather than `migrate dev`/`migrate reset` --
+this sandbox's Postgres user can't create the shadow database `migrate
+dev` needs, and `migrate reset` is refused outright by Prisma's own
+AI-agent safety guard without explicit human consent, which was never
+sought), and its raw dump removed from both the account-export endpoint
+and the delete-all-data transaction. ~20 test files that mocked or
+asserted against `ActivityEvent`/`addActivity` were updated to match.
+One real gap surfaced during the removal rather than being assumed away:
+Relationships' `saveRelationshipMap` was the *only* place that wrote
+`ActivityEvent` with no `ObjectEvent` equivalent already covering the same
+ground, so simply deleting that write would have silently dropped Person
+add/edit out of History and the Recent Activity feed. Fixed by porting the
+same fields the old tracking covered (name/category/icon/color) onto
+`recordEvent`/`recordFieldChanges`, excluding the owner's own self bubble
+exactly as the old code did -- covered by the new
+`tests/integration/relationships/person-history.test.ts`. People/
+Relationships otherwise still has no detail page (see Status above), so
+this coverage currently only feeds the dashboard feed, not a History
+section of its own.
 
 **Finance Items and To-Dos detail pages (shipped, ahead of Phase 2):**
 Both modules previously had no per-item route at all -- editing was

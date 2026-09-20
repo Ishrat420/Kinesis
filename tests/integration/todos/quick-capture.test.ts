@@ -204,18 +204,12 @@ describe.sequential("quick capture", () => {
     expect(mocks.redirect).toHaveBeenCalledWith(`/goals?capture=Save+a+deposit&from=${captured!.id}&due=2026-12-01`);
   });
 
-  it("retires the To-Do and records the conversion once the richer record exists", async () => {
+  it("retires the To-Do once the richer record exists", async () => {
     const { captured } = await captureTodoAction("Update new passport details");
 
-    await completeCaptureConversion(form({ from: captured!.id }), {
-      moduleName: "Documents", objectName: "Passport Somalia", icon: "documents", href: "/documents/capture-passport",
-    });
+    await completeCaptureConversion(form({ from: captured!.id }));
 
     expect(await prisma.todo.count({ where: { id: captured!.id } })).toBe(0);
-    expect(await prisma.activityEvent.findFirst({ where: { userId: owner, action: "Converted" } })).toMatchObject({
-      objectName: "Update new passport details → Passport Somalia",
-      href: "/documents/capture-passport",
-    });
   });
 
   it("leaves another account's To-Do alone when a conversion names it", async () => {
@@ -223,9 +217,7 @@ describe.sequential("quick capture", () => {
     const { captured } = await captureTodoAction("Not yours");
     authenticateAs(owner);
 
-    await completeCaptureConversion(form({ from: captured!.id }), {
-      moduleName: "Documents", objectName: "Passport Somalia", icon: "documents", href: "/documents/capture-passport",
-    });
+    await completeCaptureConversion(form({ from: captured!.id }));
 
     expect(await prisma.todo.count({ where: { id: captured!.id } })).toBe(1);
   });

@@ -16,6 +16,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { parseDateOnly } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
+import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 
 export type RelationshipMapState = { error?: string; savedAt?: number };
 
@@ -147,11 +148,12 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
       if (removed.length) await deleteObjects(tx, removed, user.id);
 
       const peopleById = new Map(existingPeople.map((person) => [person.id, person]));
-      // Recorded as the loop goes, so "Added"/"Updated" is decided against the
-      // row as it was before this save rather than guessed at afterwards. A
-      // resize no longer counts as a change worth logging: bubble size is
-      // geometry now, and it saves silently as the owner drags.
-      const activity: Prisma.ActivityEventCreateManyInput[] = [];
+      // Decided against the row as it was before this save rather than
+      // guessed at afterwards. A resize no longer counts as a change worth
+      // recording: bubble size is geometry now, and it saves silently as the
+      // owner drags. The owner's own "self" bubble is excluded throughout --
+      // it isn't a record the owner thinks of as a thing they're editing the
+      // way another person's bubble is.
       for (const person of data.people) {
         const self = isSelfPerson(person);
         const category = self ? null : person.detail;
@@ -159,11 +161,8 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
         const existing = peopleById.get(person.id);
         const edited = existing && (existing.name !== person.name || (existing.category || "Relationship") !== person.detail
           || existing.icon !== person.icon || existing.color !== person.color);
-        if (!self && (!existing || edited)) {
-          activity.push({ id: crypto.randomUUID(), userId: user.id, action: existing ? "Updated" : "Added", moduleName: "Relationships", objectName: person.name, icon: "relationships", href: "/relationships" });
-        }
         if (!existing) {
-          await tx.person.create({ data: {
+          const created = await tx.person.create({ data: {
             id: person.id, user: { connect: { id: user.id } }, name: person.name, category, isSelf: self,
             icon: person.icon, color: person.color, selfNotes: notes,
             // A person the browser has only just invented has no row for
@@ -173,11 +172,19 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
             positionX: person.x, positionY: person.y, bubbleSize: person.size,
             object: objectFor.person(person.name, user.id),
           } });
+          if (!self) await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
         } else if (edited || existing.isSelf !== self || (existing.selfNotes ?? "") !== person.selfRelationship.notes) {
           await tx.person.update({ where: { id: person.id }, data: { name: person.name, category, isSelf: self, icon: person.icon, color: person.color, selfNotes: notes } });
+          if (!self && edited) {
+            const changes: FieldChange[] = [];
+            if (existing.name !== person.name) changes.push({ fieldKey: "name", fieldLabel: "Name", oldValue: existing.name, newValue: person.name });
+            if ((existing.category || "Relationship") !== person.detail) changes.push({ fieldKey: "category", fieldLabel: "Category", oldValue: existing.category, newValue: category });
+            if (existing.icon !== person.icon) changes.push({ fieldKey: "icon", fieldLabel: "Icon", oldValue: existing.icon, newValue: person.icon });
+            if (existing.color !== person.color) changes.push({ fieldKey: "color", fieldLabel: "Color", oldValue: existing.color, newValue: person.color });
+            await recordFieldChanges(tx, user.id, existing.objectId, changes);
+          }
         }
       }
-      if (activity.length) await tx.activityEvent.createMany({ data: activity });
 
       // --- Connections --------------------------------------------------
       // Read after the deletions above: a connection belonging to a person who

@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   createDocument: vi.fn(),
   updateDocument: vi.fn(),
   validateKinesisTargets: vi.fn(),
-  addActivity: vi.fn(),
   completeCaptureConversion: vi.fn(),
   updateTodoDetails: vi.fn(),
   prisma: {
@@ -23,7 +22,6 @@ vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect, notFound: vi.fn() }));
 vi.mock("@/lib/data/prisma", () => ({ prisma: mocks.prisma }));
-vi.mock("@/lib/data/activity", () => ({ addActivity: mocks.addActivity }));
 vi.mock("@/lib/data/capture", () => ({ completeCaptureConversion: mocks.completeCaptureConversion }));
 vi.mock("@/lib/data/kinesis-links", () => ({ validateKinesisTargets: mocks.validateKinesisTargets }));
 vi.mock("@/lib/data/documents", () => ({
