@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { describeObjectEvent } from "./object-events";
+import { locateObject, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 
 /**
  * Split from `object-events.ts` deliberately: that file's write helpers take
@@ -30,4 +31,52 @@ export async function getObjectEvents(objectId: string): Promise<ObjectEventEntr
     orderBy: { occurredAt: "desc" },
   });
   return events.map((event) => ({ id: event.id, ...describeObjectEvent(event), occurredAt: event.occurredAt }));
+}
+
+/** One `getRecentActivity` row -- an `ObjectEvent`'s own title/detail, plus where it happened. */
+export type RecentActivityItem = {
+  id: string;
+  title: string;
+  detail: string | null;
+  occurredAt: Date;
+  objectName: string;
+  objectType: ObjectLocation["type"];
+  module: string;
+  href: string;
+  /** Set only for a custom module's own item -- see `ObjectLocation`. */
+  icon?: string;
+  color: string;
+};
+
+/**
+ * The account's most recent changes across every object, newest first --
+ * the dashboard's "Recent activity" widget (KD-048 Phase 2's first piece).
+ * This replaces the old flat `ActivityEvent` log's `Added`/`Updated`/
+ * `Completed`/`Converted` vocabulary with the same real per-field facts an
+ * object's own History section already shows (`describeObjectEvent`), so
+ * "Updated Credit cards under Finance" becomes "Amount changed -- From
+ * $10,500.00 to $9,000.00" the same way it would on the item's own page.
+ * Unfiltered and unscored, same as `getObjectEvents` -- no significance
+ * ranking yet (Phase 4). A row whose object no longer resolves to a live
+ * module record (`locateObject` returning null) is skipped rather than
+ * shown broken; in practice this is rare, since `ObjectEvent` cascades away
+ * with its own object.
+ */
+export async function getRecentActivity(limit = 8): Promise<RecentActivityItem[]> {
+  const user = await requireKinesisUser();
+  const events = await prisma.objectEvent.findMany({
+    where: { userId: user.id },
+    orderBy: { occurredAt: "desc" },
+    take: limit,
+    include: { object: { select: objectLocationSelect } },
+  });
+  return events.flatMap((event) => {
+    const location = locateObject(event.object);
+    if (!location) return [];
+    return [{
+      id: event.id, ...describeObjectEvent(event), occurredAt: event.occurredAt,
+      objectName: location.name, objectType: location.type, module: location.module,
+      href: location.href, icon: location.icon, color: location.color,
+    }];
+  });
 }

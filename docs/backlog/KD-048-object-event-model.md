@@ -2,13 +2,49 @@
 
 **Status:** In Progress -- Phase 1 shipped in full, including its own
 remainder (every named event type wired across every module's mutations,
-not just Kinesis Links and deletion). Phase 2's one visible piece --
-extending the History section to every remaining object detail page -- is
-now partly done out of sequence: Finance Items and To-Dos each got a real
-detail page/window with History wired in (see below), ahead of the
-`ActivityEvent`-retirement work Phase 2 was otherwise about. People/
-Relationships still has no detail page to hang History off. Phases 3-6 not
-started.
+not just Kinesis Links and deletion). Phase 2 is now partly done, out of
+its own stated order: the dashboard's "Recent activity" widget reads from
+`ObjectEvent` now (see below); Finance Items and To-Dos each got a real
+detail page/window with History wired in (see below); `ActivityEvent`
+itself is not yet retired (see below). People/Relationships still has no
+detail page to hang History off. Phases 3-6 not started.
+
+**Dashboard "Recent activity" widget (shipped, Phase 2's other piece):**
+`getRecentActivity` moved from `lib/data/activity.ts` (`ActivityEvent`,
+flat `Added`/`Updated`/`Completed`/`Converted` sentences with no per-field
+detail) to a new account-wide reader of the same name in
+`lib/data/object-event-history.ts`, querying `ObjectEvent` by `userId`
+alone (the first reader of this shape -- every other `ObjectEvent` query in
+the repo is scoped to one `objectId`) and resolving each row's object via
+the existing `locateObject`/`objectLocationSelect` (`lib/objects/
+locations.ts`) for its module name, href, and (for a custom module's own
+item) icon/color. `components/dashboard/ActivityFeed.tsx` renders each
+row's real `describeObjectEvent` title/detail -- "Amount changed -- From
+$10,500.00 to $9,000.00" instead of "Updated Credit cards under Finance" --
+with a colored icon chip per module (built-in types get a small new
+icon map; custom items keep using their own module's icon/color the way
+`CustomModuleBadge` does elsewhere). Unfiltered and unscored, same as
+`getObjectEvents` -- no significance ranking yet (Phase 4), and the
+documented "Converted" gap (quick-capture conversion has no `ObjectEvent`
+narrative of its own, just a plain `ITEM_CREATED` on the new record) is
+unchanged from Phase 1's remainder -- a converted record now reads as
+"Created" in the feed rather than "Converted from To-Do X", matching what
+its own History section already shows.
+
+**`ActivityEvent` retirement: deliberately NOT done in this pass.** Per
+Phase 2's own text ("Retire `ActivityEvent` / `lib/data/activity.ts` once
+nothing reads it"), swapping the dashboard's read means the table's other
+reader, `getRecentActivity` in `lib/data/activity.ts`, now has zero
+callers -- removed as dead code. `addActivity` itself, the `ActivityEvent`
+Prisma model, and its ~12 call sites (`documents`/`goals`/`todos`/
+`finance`/`custom-modules` actions, `lib/data/capture.ts`'s
+`completeCaptureConversion`) are all left in place: they still write, just
+to a table nothing reads anymore. Retiring those -- a schema migration
+dropping the table, removing every `addActivity` call, and updating the
+~10 test files that mock `@/lib/data/activity` plus the account-export
+endpoint's raw table dump -- is real, separate scope this pass didn't take
+on; flagged here as the next concrete step toward closing Phase 2 rather
+than left implicit.
 
 **Finance Items and To-Dos detail pages (shipped, ahead of Phase 2):**
 Both modules previously had no per-item route at all -- editing was

@@ -9,7 +9,7 @@ import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
 import { getGoalDashboardSummary, getMilestonesDueSoon } from "@/lib/data/goals";
 import { getExpiringDocuments } from "@/lib/data/documents";
 import { getNeedsAttention } from "@/lib/data/attention";
-import { getRecentActivity } from "@/lib/data/activity";
+import { getRecentActivity } from "@/lib/data/object-event-history";
 import { getFinanceItems } from "@/lib/data/finance";
 import { getMonthlyCashFlow } from "@/lib/finance";
 import { getToday } from "@/lib/format/server";

@@ -14,14 +14,17 @@ export type ActivityItem = {
   createdAt: Date;
 };
 
+/**
+ * The dashboard's "Recent activity" widget no longer reads this table --
+ * see `getRecentActivity` in `lib/data/object-event-history.ts` (KD-048
+ * Phase 2). `addActivity` itself is left in place for now: every call site
+ * still writes here, and retiring the writes + the `ActivityEvent` table
+ * itself is a separate, larger cleanup (schema migration, ~10 test files)
+ * the KD-048 ticket tracks as its own step, not bundled into this change.
+ */
 export async function addActivity({ action, moduleName, objectName, icon, href }: Omit<ActivityItem, "id" | "createdAt">) {
   const user = await requireKinesisUser();
   return prisma.activityEvent.create({
     data: { id: crypto.randomUUID(), userId: user.id, action, moduleName, objectName, icon, href },
   });
-}
-
-export async function getRecentActivity(limit = 8) {
-  const user = await requireKinesisUser();
-  return prisma.activityEvent.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: limit });
 }

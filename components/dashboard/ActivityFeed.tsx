@@ -1,13 +1,23 @@
 import Link from "next/link";
-import { CheckCircle2, FileText, Landmark, Package, Target, UsersRound } from "lucide-react";
+import { FileText, Landmark, ListTodo, Package, Target, UsersRound, type LucideIcon } from "lucide-react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
-import type { ActivityItem } from "@/lib/data/activity";
+import type { RecentActivityItem } from "@/lib/data/object-event-history";
 import { formatActivityTime } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
 
-const icons = { documents: FileText, finance: Landmark, goals: Target, relationships: UsersRound };
+/** Every built-in object type's own icon for the feed's colored chip -- a custom module's own item brings its own via `item.icon` instead (see `ObjectLocation`). */
+const OBJECT_TYPE_ICONS: Record<string, LucideIcon> = {
+  DOCUMENT: FileText, GOAL: Target, TODO: ListTodo, FINANCE_ITEM: Landmark, PERSON: UsersRound,
+};
 
-export async function ActivityFeed({ activity }: { activity: ActivityItem[] }) {
+/**
+ * The account's most recent changes across every object (KD-048 Phase 2),
+ * replacing the old flat `ActivityEvent` log's `Added`/`Updated` sentences
+ * with the same real per-field facts an object's own History section shows
+ * -- "Amount changed -- From $10,500.00 to $9,000.00" rather than "Updated
+ * Credit cards under Finance".
+ */
+export async function ActivityFeed({ activity }: { activity: RecentActivityItem[] }) {
   const { locale } = await getFormatPreferences();
   return (
     <section className="flex h-[396px] flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
@@ -17,14 +27,26 @@ export async function ActivityFeed({ activity }: { activity: ActivityItem[] }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        {activity.length ? <div className="space-y-5">{activity.map((item) => {
-          const Icon = item.action === "Completed" ? CheckCircle2 : icons[item.icon as keyof typeof icons] ?? Package;
-          const title = item.moduleName === "Finance"
-            ? <>{item.action} <span className="break-words">{item.objectName}</span> under Finance</>
-            : <>{item.action === "Added" && item.icon.startsWith("custom:") ? "Added a new" : item.action} {item.moduleName}: <span className="break-words">{item.objectName}</span></>;
-          const content = <><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-50">{item.icon.startsWith("custom:") ? <CustomModuleIcon name={item.icon.slice(7)} className="h-5 w-5 text-zinc-700" /> : <Icon className="h-5 w-5 text-zinc-700" />}</div><p className="min-w-0 font-medium text-zinc-700">{title}</p><time dateTime={item.createdAt.toISOString()} className="text-sm text-zinc-500">{formatActivityTime(item.createdAt, undefined, locale)}</time></>;
-
-          return item.href ? <Link key={item.id} href={item.href} className="grid grid-cols-[44px_1fr_auto] items-center gap-4 rounded-xl transition hover:bg-zinc-50">{content}</Link> : <div key={item.id} className="grid grid-cols-[44px_1fr_auto] items-center gap-4">{content}</div>;
+        {activity.length ? <div className="space-y-4">{activity.map((item) => {
+          const BuiltInIcon = OBJECT_TYPE_ICONS[item.objectType] ?? Package;
+          return (
+            <Link
+              key={item.id} href={item.href}
+              className="-m-1 grid grid-cols-[44px_1fr_auto] items-center gap-4 rounded-xl p-1 transition hover:bg-zinc-50"
+            >
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                style={{ backgroundColor: `color-mix(in srgb, ${item.color} 12%, white)`, color: item.color }}
+              >
+                {item.icon ? <CustomModuleIcon name={item.icon} className="h-5 w-5" /> : <BuiltInIcon className="h-5 w-5" />}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-medium text-zinc-800">{item.objectName}</p>
+                <p className="truncate text-sm text-zinc-500">{item.title}{item.detail ? ` — ${item.detail}` : ""}</p>
+              </div>
+              <time dateTime={item.occurredAt.toISOString()} className="shrink-0 text-sm text-zinc-500">{formatActivityTime(item.occurredAt, undefined, locale)}</time>
+            </Link>
+          );
         })}</div> : <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">Your latest changes will appear here.</div>}
       </div>
     </section>
