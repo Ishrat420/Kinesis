@@ -58,7 +58,7 @@ Tentative limits, pending confirmation:
 |---------------------|-------------------------------------|-------|
 | Text                | 255 characters                      | Traditional single-line default. |
 | Notes / long text   | 10,000 characters                   | ~1,500–2,000 words. |
-| URL / Link          | 1,000 characters (candidate: 2,000) | Some pre-signed cloud-storage share links (S3, Google Cloud Storage) run past 1,000 chars; worth confirming against real `Document.link` values before locking this in. |
+| URL / Link          | 2,000 characters                    | Decided: some pre-signed cloud-storage share links (S3, Google Cloud Storage) run past 1,000 chars, so 1,000 was too tight; 2,000 comfortably covers those while still being a real, enforceable bound rather than "unbounded." |
 | Number              | ±9,999,999,999,999.999999           | Chosen to sit under JavaScript's safe-integer ceiling (2^53 ≈ 9.007 quadrillion) so no silent float-precision loss; 6 decimal places covers currency/percent without inviting meaningless precision. |
 
 `Date`, `Checkbox`, and `Kinesis Link` fields need no length limit — they
