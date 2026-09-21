@@ -10,7 +10,7 @@ import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEdito
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import type { CustomFieldType, CustomFieldValue, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
-import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLinkPreviewStat, KinesisLinkRecentEvent } from "@/lib/data/kinesis-links";
 import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
@@ -36,7 +36,7 @@ type EditableItem = {
  * the form being the only way this page ever looked, editable the moment you
  * opened it.
  */
-export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, locale, currency, deleteAction, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, recentEvents, locale, currency, deleteAction, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
   moduleId: string;
   item: EditableItem;
   moduleName: string;
@@ -44,6 +44,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
   moduleColor: string;
   linkOptions: KinesisLinkOption[];
   previews: Record<string, KinesisLinkPreviewStat[]>;
+  recentEvents: Record<string, KinesisLinkRecentEvent>;
   locale: string;
   currency: string;
   deleteAction: React.ReactNode;
@@ -76,7 +77,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
         ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
-        : <ReadView item={item} linkOptions={linkOptions} previews={previews} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
+        : <ReadView item={item} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
     </section>
   </>;
 }
@@ -97,8 +98,8 @@ function displayValue(field: DisplayField, locale: string, currency: string) {
   return field.value;
 }
 
-function ReadView({ item, linkOptions, previews, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; locale: string; currency: string;
+function ReadView({ item, linkOptions, previews, recentEvents, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; locale: string; currency: string;
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -138,12 +139,12 @@ function ReadView({ item, linkOptions, previews, locale, currency, kinesisLinks,
     {linkedFields.length > 0 && <div className={`grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))] ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
       {linkedFields.map(({ key, label, options }) => <div key={key} className="min-w-0 space-y-2">
         <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{label}</h3>
-        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
+        {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} recentEvent={recentEvents[option.objectId]} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
       </div>)}
     </div>}
     {kinesisLinks.length > 0 && (
       <div className={`${metadataFields.length > 0 || linkedFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
-        <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+        <KinesisLinks links={kinesisLinks} previews={previews} recentEvents={recentEvents} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
       </div>
     )}
   </div>;

@@ -4,7 +4,7 @@ import { ModuleContent } from "@/components/layout/ModuleContent";
 import { BackLink } from "@/components/navigation/BackLink";
 import { Breadcrumbs } from "@/components/navigation/Breadcrumbs";
 import { getGoal, getGoalUnits } from "@/lib/data/goals";
-import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews, getKinesisLinkRecentEvents } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
 import { getObjectEvents } from "@/lib/data/object-event-history";
 import { ObjectHistory } from "@/components/history/ObjectHistory";
@@ -50,6 +50,9 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   // the card it'll actually render as (KD-042), not the compact fallback
   // until the next reload.
   const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
+  // Only the targets actually linked here need a sneak peek, unlike
+  // `previews` above which also has to cover the picker's own candidates.
+  const recentEvents = await getKinesisLinkRecentEvents(kinesisLinks.map((link) => link.target.objectId));
 
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-xl border-[1.5px] border-red-200 bg-white px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>
@@ -63,7 +66,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
       </section>
 
       <MeasurableTargetForm action={targetAction} removeAction={removeTarget} units={units} targetValue={goal.targetValue} currentValue={goal.currentValue} unit={goal.unit} measuredMilestones={measuredMilestones} />
-      <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} previews={previews} action={updateGoalFieldsAction.bind(null, goal.id)}
+      <GoalSupportingInfo fields={goal.customFields} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} action={updateGoalFieldsAction.bind(null, goal.id)}
         kinesisLinks={kinesisLinks} addKinesisLinkAction={addKinesisLinkAction.bind(null, goal.objectId)} updateKinesisLinkAction={updateKinesisLinkAction.bind(null, goal.objectId)} removeKinesisLinkAction={removeKinesisLinkAction.bind(null, goal.objectId)}
       />
       {(health || hasMilestoneRisk) && <section className={`rounded-3xl border p-6 shadow-sm ${hasMilestoneRisk || health?.tone === "risk" ? "border-amber-200 bg-amber-50" : health?.tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-violet-200 bg-violet-50"}`}>

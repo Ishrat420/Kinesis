@@ -5,7 +5,7 @@ import { useActionState, useEffect, useState } from "react";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
-import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLinkPreviewStat, KinesisLinkRecentEvent } from "@/lib/data/kinesis-links";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { GoalActionState } from "../actions";
 import type { KinesisLinkActionState } from "@/app/actions";
@@ -21,10 +21,11 @@ const initialState: GoalActionState = {};
  * Unobtrusive when empty, per the ticket's own direction: an empty state
  * reads as an invitation rather than three empty headings.
  */
-export function GoalSupportingInfo({ fields, linkOptions, previews, action, addKinesisLinkAction, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+export function GoalSupportingInfo({ fields, linkOptions, previews, recentEvents, action, addKinesisLinkAction, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
   fields: CustomFieldValue[];
   linkOptions: KinesisLinkOption[];
   previews: Record<string, KinesisLinkPreviewStat[]>;
+  recentEvents: Record<string, KinesisLinkRecentEvent>;
   action: (state: GoalActionState, data: FormData) => Promise<GoalActionState>;
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   kinesisLinks: KinesisLink[];
@@ -49,16 +50,17 @@ export function GoalSupportingInfo({ fields, linkOptions, previews, action, addK
         {editing ? (
           <EditFields fields={fields} linkOptions={linkOptions} previews={previews} action={action} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onDone={() => setEditing(false)} />
         ) : (
-          <ReadFields fields={fields} previews={previews} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
+          <ReadFields fields={fields} previews={previews} recentEvents={recentEvents} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
         )}
       </div>
     </section>
   );
 }
 
-function ReadFields({ fields, previews, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+function ReadFields({ fields, previews, recentEvents, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
   fields: CustomFieldValue[];
   previews: Record<string, KinesisLinkPreviewStat[]>;
+  recentEvents: Record<string, KinesisLinkRecentEvent>;
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -96,7 +98,7 @@ function ReadFields({ fields, previews, kinesisLinks, updateKinesisLinkAction, r
 
       {kinesisLinks.length > 0 && (
         <FieldGroup title="Kinesis Links" icon={<ExternalLink className="h-4 w-4" />}>
-          <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+          <KinesisLinks links={kinesisLinks} previews={previews} recentEvents={recentEvents} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
         </FieldGroup>
       )}
 

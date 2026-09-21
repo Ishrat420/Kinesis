@@ -4,7 +4,7 @@ import { getCustomItem } from "@/lib/data/custom-modules";
 import { deleteCustomItemAction } from "../../../actions";
 import { CustomItemDetailRecord } from "./EditCustomItemForm";
 import { DeleteItemButton } from "./DeleteItemButton";
-import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews, getKinesisLinkRecentEvents } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
 import { getObjectEvents } from "@/lib/data/object-event-history";
 import { ObjectHistory } from "@/components/history/ObjectHistory";
@@ -24,6 +24,15 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
   // the card it'll actually render as (KD-042), not the compact fallback
   // until the next reload.
   const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
+  // Only the targets actually rendered as cards here need a sneak peek,
+  // unlike `previews` above which also has to cover the picker's own
+  // candidates: the item's own Kinesis Links, plus any template Kinesis
+  // Link field's own targets (a separate set of cards ReadView renders too).
+  const linkedObjectIds = [
+    ...kinesisLinks.map((link) => link.target.objectId),
+    ...item.templateFields.flatMap((field) => field.targetObjectIds ?? []),
+  ];
+  const recentEvents = await getKinesisLinkRecentEvents(linkedObjectIds);
   return <ModuleContent width="standard">
     <CustomItemDetailRecord
       moduleId={moduleId}
@@ -33,6 +42,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       moduleColor={item.module.color}
       linkOptions={linkOptions}
       previews={previews}
+      recentEvents={recentEvents}
       locale={locale}
       currency={currency}
       deleteAction={<DeleteItemButton action={deleteCustomItemAction.bind(null, moduleId, item.id)} />}

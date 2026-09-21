@@ -7,7 +7,7 @@ import { LinkCombobox } from "@/components/custom-fields/KinesisLinkField";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, KINESIS_LINK_DIRECTION_OPTIONS, kinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
 import type { LinkableObject } from "@/lib/objects/locations";
 import type { KinesisLink } from "@/lib/data/object-relationships";
-import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLinkPreviewStat, KinesisLinkRecentEvent } from "@/lib/data/kinesis-links";
 
 const SELECT_CLASS = "h-11 rounded-xl border border-zinc-300 bg-white px-3 text-sm font-medium outline-none focus:border-zinc-500";
 
@@ -29,10 +29,12 @@ const SELECT_CLASS = "h-11 rounded-xl border border-zinc-300 bg-white px-3 text-
  * "Add Kinesis Link" button, or `options`/`addAction` here anymore. A
  * caller wanting a heading over this list supplies its own.
  */
-export function KinesisLinks({ links, previews, updateAction, removeAction }: {
+export function KinesisLinks({ links, previews, recentEvents = {}, updateAction, removeAction }: {
   links: KinesisLink[];
   /** The same KD-042 rich-preview data every other Kinesis Link card on this page already shows -- keyed by objectId, so a linked target reads with exactly as much detail here as it does anywhere else. */
   previews: Record<string, KinesisLinkPreviewStat[]>;
+  /** Optional: each target's most recent History entry, keyed by objectId -- drives the card's own "sneak peek" loop. Omitted (or an id missing from it) means that card just never peeks. */
+  recentEvents?: Record<string, KinesisLinkRecentEvent>;
   updateAction: (linkId: string, data: FormData) => Promise<void>;
   removeAction: (linkId: string) => Promise<void>;
 }) {
@@ -69,7 +71,7 @@ export function KinesisLinks({ links, previews, updateAction, removeAction }: {
       </div>
     ) : (
       <div key={link.id} className="flex items-center gap-2">
-        <KinesisLinkCard option={link.target} label={link.label} className="flex-1" stats={previews[link.target.objectId] ?? []} />
+        <KinesisLinkCard option={link.target} label={link.label} className="flex-1" stats={previews[link.target.objectId] ?? []} recentEvent={recentEvents[link.target.objectId]} />
         <details className="relative shrink-0">
           <summary aria-label={`Actions for the Kinesis Link to ${link.target.name}`} className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-5 w-5" /></summary>
           <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg">

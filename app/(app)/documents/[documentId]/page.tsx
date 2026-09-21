@@ -4,7 +4,7 @@ import { getObjectEvents } from "@/lib/data/object-event-history";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { DocumentDetailRecord } from "./EditDocumentForm";
 import { getCurrentUser, getUserDisplayName } from "@/lib/data/user";
-import { getKinesisLinkOptions, getKinesisLinkPreviews } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, getKinesisLinkPreviews, getKinesisLinkRecentEvents } from "@/lib/data/kinesis-links";
 import { getKinesisLinks } from "@/lib/data/object-relationships";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDateInput } from "@/lib/dates";
@@ -29,6 +29,9 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   // the card it'll actually render as (KD-042), not the compact fallback
   // until the next reload.
   const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
+  // Only the targets actually linked here need a sneak peek, unlike
+  // `previews` above which also has to cover the picker's own candidates.
+  const recentEvents = await getKinesisLinkRecentEvents(kinesisLinks.map((link) => link.target.objectId));
 
   return <ModuleContent><DocumentDetailRecord document={{
     id: document.id, name: document.name, type: document.type, status: document.status, archived: document.archived,
@@ -37,7 +40,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     expiryDateLabel: document.expiryDateLabel, issueDateLabel: document.issueDateLabel, documentNumberLabel: document.documentNumberLabel,
     countryLabel: document.countryLabel, notesLabel: document.notesLabel, linkLabel: document.linkLabel, customFields: document.customFields,
     updatedAt: document.updatedAt.toISOString(),
-  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} history={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))} initialEditing={edit === "1"}
+  }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} history={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))} initialEditing={edit === "1"}
     kinesisLinks={kinesisLinks}
     addKinesisLinkAction={addKinesisLinkAction.bind(null, document.objectId)}
     updateKinesisLinkAction={updateKinesisLinkAction.bind(null, document.objectId)}

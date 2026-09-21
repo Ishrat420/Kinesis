@@ -6,6 +6,7 @@ import { resolveKind, formatPreviewValue, truncateLabel, type DisplayKind } from
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { formatDateInput } from "@/lib/dates";
 import { displayNumber } from "@/lib/goals/format";
+import { describeObjectEvent } from "./object-events";
 
 /** One configured preview field, already resolved and formatted, ready to render. */
 export type KinesisLinkPreviewStat = { label: string; kind: DisplayKind; value: string };
@@ -383,4 +384,40 @@ export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Recor
   ]);
 
   return { ...customItems, ...documents, ...goals, ...people, ...financeItems };
+}
+
+/** One Kinesis Link target's own most recent History entry -- what `KinesisLinkCard`'s "sneak peek" animates to and from. */
+export type KinesisLinkRecentEvent = { title: string; detail: string | null; occurredAt: string };
+
+/**
+ * The single most recent `ObjectEvent` for each of a batch of linked
+ * objects, in one query -- Prisma's own `distinct` maps to Postgres's
+ * `DISTINCT ON` for this connector, so this is exactly as batched and
+ * narrow as `getKinesisLinkPreviews` above (ADR-013), not one query per
+ * card. `orderBy` names `objectId` first only because Prisma requires the
+ * `distinct` field(s) to lead the sort; `occurredAt desc` is what actually
+ * picks the row kept for each id.
+ *
+ * An id with no key in the returned record has no history at all yet --
+ * its card shows no sneak peek rather than an empty one.
+ */
+export async function getKinesisLinkRecentEvents(objectIds: string[]): Promise<Record<string, KinesisLinkRecentEvent>> {
+  if (!objectIds.length) return {};
+
+  const user = await requireKinesisUser();
+  const [events, prefs] = await Promise.all([
+    prisma.objectEvent.findMany({
+      where: { objectId: { in: objectIds }, userId: user.id },
+      distinct: ["objectId"],
+      orderBy: [{ objectId: "asc" }, { occurredAt: "desc" }],
+    }),
+    getFormatPreferences(),
+  ]);
+
+  const result: Record<string, KinesisLinkRecentEvent> = {};
+  for (const event of events) {
+    const { title, detail } = describeObjectEvent(event, prefs);
+    result[event.objectId] = { title, detail, occurredAt: event.occurredAt.toISOString() };
+  }
+  return result;
 }

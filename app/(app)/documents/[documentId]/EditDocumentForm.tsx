@@ -11,7 +11,7 @@ import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSele
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
-import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
+import type { KinesisLinkPreviewStat, KinesisLinkRecentEvent } from "@/lib/data/kinesis-links";
 import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
@@ -47,8 +47,8 @@ export type EditableDocument = {
   updatedAt: string;
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, history, initialEditing = false, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; history: ObjectHistoryEntry[]; initialEditing?: boolean;
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, recentEvents, history, initialEditing = false, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; history: ObjectHistoryEntry[]; initialEditing?: boolean;
   kinesisLinks: KinesisLink[];
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
@@ -84,7 +84,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} history={history}
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} recentEvents={recentEvents} history={history}
           kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
         />
       )}
@@ -92,8 +92,8 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, history, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; history: ObjectHistoryEntry[];
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, recentEvents, history, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; history: ObjectHistoryEntry[];
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -118,7 +118,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, pre
         </dl>
         {kinesisLinks.length > 0 && (
           <div className="mt-6 border-t border-zinc-100 pt-6">
-            <KinesisLinks links={kinesisLinks} previews={previews} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
+            <KinesisLinks links={kinesisLinks} previews={previews} recentEvents={recentEvents} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} />
           </div>
         )}
       </section>
