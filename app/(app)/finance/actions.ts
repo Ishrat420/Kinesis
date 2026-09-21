@@ -64,6 +64,20 @@ const FINANCE_NAMED_FIELDS = [
   ["frequency", "Frequency"], ["startDate", "Start date"], ["endDate", "End date"], ["notes", "Notes"],
 ] as const;
 
+/**
+ * What an `amount` change's own History line names -- the item's own
+ * category ("Savings", "Credit Card") when it has one, or its kind
+ * ("Income"/"Expense"/"Asset"/"Liability") when it doesn't, rather than the
+ * generic column name "Amount". `describeFieldChange`
+ * (`lib/data/object-events.ts`) reads this back as the subject of
+ * "Increased"/"Decreased", keyed on `fieldKey === "amount"` alone -- the one
+ * literal fieldKey this file's own named-field diff ever writes.
+ */
+function financeAmountLabel(kind: FinanceKind, category: string | null): string {
+  if (category) return category;
+  return kind[0].toUpperCase() + kind.slice(1);
+}
+
 export async function saveFinanceItem(item: FinanceItem): Promise<FinanceActionState> {
   const user = await requireKinesisUser();
   const error = validate(item);
@@ -88,7 +102,11 @@ export async function saveFinanceItem(item: FinanceItem): Promise<FinanceActionS
       await tx.financeItem.update({ where: { id: item.id }, data });
       const changes: FieldChange[] = FINANCE_NAMED_FIELDS
         .filter(([key]) => financeColumnValue(existing[key]) !== financeColumnValue(data[key]))
-        .map(([key, label]) => ({ fieldKey: key, fieldLabel: label, oldValue: financeColumnValue(existing[key]), newValue: financeColumnValue(data[key]) }));
+        .map(([key, label]) => ({
+          fieldKey: key,
+          fieldLabel: key === "amount" ? financeAmountLabel(data.kind, data.category) : label,
+          oldValue: financeColumnValue(existing[key]), newValue: financeColumnValue(data[key]),
+        }));
       await recordFieldChanges(tx, user.id, existing.objectId, changes);
     } else {
       const created = await tx.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });

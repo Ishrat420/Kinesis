@@ -2,6 +2,7 @@ import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { describeObjectEvent } from "./object-events";
 import { locateObject, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
+import { getFormatPreferences } from "@/lib/format/server";
 
 /**
  * Split from `object-events.ts` deliberately: that file's write helpers take
@@ -26,11 +27,14 @@ export type ObjectEventEntry = {
  */
 export async function getObjectEvents(objectId: string): Promise<ObjectEventEntry[]> {
   const user = await requireKinesisUser();
-  const events = await prisma.objectEvent.findMany({
-    where: { objectId, userId: user.id },
-    orderBy: { occurredAt: "desc" },
-  });
-  return events.map((event) => ({ id: event.id, ...describeObjectEvent(event), occurredAt: event.occurredAt }));
+  const [events, prefs] = await Promise.all([
+    prisma.objectEvent.findMany({
+      where: { objectId, userId: user.id },
+      orderBy: { occurredAt: "desc" },
+    }),
+    getFormatPreferences(),
+  ]);
+  return events.map((event) => ({ id: event.id, ...describeObjectEvent(event, prefs), occurredAt: event.occurredAt }));
 }
 
 /** One `getRecentActivity` row -- an `ObjectEvent`'s own title/detail, plus where it happened. */
@@ -63,17 +67,20 @@ export type RecentActivityItem = {
  */
 export async function getRecentActivity(limit = 8): Promise<RecentActivityItem[]> {
   const user = await requireKinesisUser();
-  const events = await prisma.objectEvent.findMany({
-    where: { userId: user.id },
-    orderBy: { occurredAt: "desc" },
-    take: limit,
-    include: { object: { select: objectLocationSelect } },
-  });
+  const [events, prefs] = await Promise.all([
+    prisma.objectEvent.findMany({
+      where: { userId: user.id },
+      orderBy: { occurredAt: "desc" },
+      take: limit,
+      include: { object: { select: objectLocationSelect } },
+    }),
+    getFormatPreferences(),
+  ]);
   return events.flatMap((event) => {
     const location = locateObject(event.object);
     if (!location) return [];
     return [{
-      id: event.id, ...describeObjectEvent(event), occurredAt: event.occurredAt,
+      id: event.id, ...describeObjectEvent(event, prefs), occurredAt: event.occurredAt,
       objectName: location.name, objectType: location.type, module: location.module,
       href: location.href, icon: location.icon,
     }];

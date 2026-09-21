@@ -1,6 +1,8 @@
 import type { ObjectEvent, ObjectEventType, ObjectRelationshipType, Prisma } from "@prisma/client";
 import type { prisma } from "./prisma";
 import { kinesisLinkLabel } from "@/lib/objects/relationship-labels";
+import { formatMoney } from "@/lib/format/numbers";
+import { DEFAULT_FORMAT_PREFERENCES, type FormatPreferences } from "@/lib/format/preferences";
 
 /**
  * No `@/lib/auth` import here, deliberately: every write helper below takes
@@ -236,9 +238,13 @@ export type ObjectEventDescription = { title: string; detail: string | null };
 /**
  * Renders one `ObjectEvent` to the title/detail pair its History entry
  * shows. Pure and exported on its own (rather than folded into
- * `getObjectEvents`) so it can be unit-tested without a database.
+ * `getObjectEvents`) so it can be unit-tested without a database. `prefs`
+ * defaults to the app's own defaults rather than being required, so every
+ * existing call site (and test) that doesn't care about currency/locale
+ * keeps working unchanged; a caller that does -- `getObjectEvents` and
+ * `getRecentActivity` -- reads the owner's real `FormatPreferences` first.
  */
-export function describeObjectEvent(event: ObjectEvent): ObjectEventDescription {
+export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPreferences, "locale" | "currency"> = DEFAULT_FORMAT_PREFERENCES): ObjectEventDescription {
   const relatedName = event.relatedObjectName ?? "a deleted record";
   switch (event.eventType) {
     case "RELATIONSHIP_ADDED":
@@ -270,14 +276,32 @@ export function describeObjectEvent(event: ObjectEvent): ObjectEventDescription 
     case "TODO_REOPENED":
       return { title: "Reopened", detail: null };
     case "FIELD_CHANGED":
-      return describeFieldChange(event);
+      return describeFieldChange(event, prefs);
     default:
       return { title: event.fieldLabel ? `${event.fieldLabel} changed` : "Updated", detail: null };
   }
 }
 
-/** `FIELD_CHANGED` reads differently depending on whether the field was added, removed, or simply changed value. */
-function describeFieldChange(event: ObjectEvent): ObjectEventDescription {
+/**
+ * `FIELD_CHANGED` reads differently depending on whether the field was
+ * added, removed, or simply changed value. A Finance Item's `amount` is its
+ * own case, distinguished by `fieldKey === "amount"` -- the one literal
+ * fieldKey `FINANCE_NAMED_FIELDS` (`app/(app)/finance/actions.ts`) writes,
+ * unique to that one column: no other module's named-field diff or ad-hoc
+ * custom field ever produces it. `fieldLabel` there holds the item's own
+ * category (or, for an income/expense item with none, its kind) rather than
+ * the generic column name "Amount" -- set at write time so this renderer
+ * can read "Savings Increased"/"Decreased" the same way a balance actually
+ * moving reads to the owner, formatted as money rather than a bare number.
+ */
+function describeFieldChange(event: ObjectEvent, prefs: Pick<FormatPreferences, "locale" | "currency">): ObjectEventDescription {
+  if (event.fieldKey === "amount" && event.fieldLabel && event.oldValue !== null && event.newValue !== null) {
+    const previous = Number(event.oldValue);
+    const next = Number(event.newValue);
+    const direction = next > previous ? "Increased" : "Decreased";
+    const money = (value: number) => formatMoney(value, prefs.locale, prefs.currency);
+    return { title: `${event.fieldLabel} ${direction}`, detail: `From ${money(previous)} · To ${money(next)}` };
+  }
   const label = event.fieldLabel ?? "A field";
   if (event.oldValue === null) return { title: `${label} set`, detail: `To ${event.newValue}` };
   if (event.newValue === null) return { title: `${label} removed`, detail: `Was ${event.oldValue}` };

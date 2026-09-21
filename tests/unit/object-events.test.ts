@@ -125,6 +125,34 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     it("falls back to a generic label when somehow missing its own fieldLabel", () => {
       expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: null, oldValue: "1", newValue: "2" }))).toEqual({ title: "A field changed", detail: "From 1 · To 2" });
     });
+
+    describe("a Finance Item's amount (fieldKey \"amount\")", () => {
+      it("reads as Increased, naming the item's own category, formatted as money", () => {
+        const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Savings", oldValue: "1000", newValue: "2000" }));
+        expect(line).toEqual({ title: "Savings Increased", detail: "From $1,000 · To $2,000" });
+      });
+
+      it("reads as Decreased the same way", () => {
+        const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Savings", oldValue: "2000", newValue: "1500" }));
+        expect(line).toEqual({ title: "Savings Decreased", detail: "From $2,000 · To $1,500" });
+      });
+
+      it("formats with the caller's own locale/currency rather than the default", () => {
+        const line = describeObjectEvent(
+          event({ eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Salary", oldValue: "5000", newValue: "6000" }),
+          { locale: "en-US", currency: "USD" },
+        );
+        expect(line).toEqual({ title: "Salary Increased", detail: "From $5,000 · To $6,000" });
+      });
+
+      it("does not special-case a plain field that merely happens to be named \"amount\" without going through fieldKey", () => {
+        // fieldKey is the discriminator, not fieldLabel -- a differently-keyed
+        // field whose label happens to read "Amount" still gets the generic
+        // before/after rendering, unformatted.
+        const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "some-other-key", fieldLabel: "Amount", oldValue: "1000", newValue: "2000" }));
+        expect(line).toEqual({ title: "Amount changed", detail: "From 1000 · To 2000" });
+      });
+    });
   });
 
   it("falls back to a generic line for a type the renderer doesn't otherwise recognise", () => {

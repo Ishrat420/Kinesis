@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   prisma: { $transaction: vi.fn(), person: { updateMany: vi.fn() } },
 }));
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("@/lib/data/prisma", () => ({ prisma: mocks.prisma }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
