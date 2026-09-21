@@ -178,10 +178,11 @@ KD-052-event-significance-and-change-awareness
 
 ## 🚧 In Progress
 
+KD-023-universal-object-connection
+
 ## Accepted — Needs Planning
 
 KD-025-to-do-board
-KD-023-universal-object-connection
 KD-020-mobile-navigation-and-responsive-app
 
 ## ⛔ Blocked
