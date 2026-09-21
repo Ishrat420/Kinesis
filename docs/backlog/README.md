@@ -182,13 +182,13 @@ KD-052-event-significance-and-change-awareness
 
 KD-025-to-do-board
 KD-023-universal-object-connection
-KD-011-unified-todo-view
 KD-020-mobile-navigation-and-responsive-app
 
 ## ⛔ Blocked
 
 
 ## ✅ Done
+KD-011-unified-todo-view
 KD-048-object-event-model
 KD-049-typed-kinesis-link-connections
 KD-050-converge-kinesis-link-custom-fields
