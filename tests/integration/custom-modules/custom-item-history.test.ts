@@ -114,4 +114,48 @@ describe.sequential("a Custom Item's own history (KD-048)", () => {
       { eventType: "FIELD_CHANGED", fieldKey: "field-notes", fieldLabel: "Notes", oldValue: "Started reading", newValue: "Finished reading" },
     ]);
   });
+
+  /**
+   * A template NUMBER field configured as Currency or Percent (KD-042)
+   * stores a bare digit string (`ObjectField.value` is always plain text),
+   * but its own History line should read the way the field is actually
+   * configured to display -- "$250,000"/"50%" -- not the raw number
+   * underneath. Formatted at write time (saveTemplateFieldValues), since
+   * ObjectEvent has no column recording a field's kind and a template
+   * field's own fieldKey (its id) is too opaque for the generic renderer
+   * to resolve one from at read time.
+   */
+  it("formats a template NUMBER field's own history as currency or percent, not a bare digit string", async () => {
+    await prisma.template.create({
+      data: { id: "template-money", userId: owner, name: "Portfolio", fields: { create: [
+        { id: "field-price", label: "Price", type: "NUMBER", numberFormat: "CURRENCY", position: 0 },
+        { id: "field-share", label: "Ownership", type: "NUMBER", numberFormat: "PERCENT", position: 1 },
+      ] } },
+    });
+    await prisma.customModule.create({ data: { id: "module-money", userId: owner, name: "Investments", normalizedName: "investments", icon: "star", color: "#333333", templateId: "template-money" } });
+
+    await createCustomItemAction("module-money", {}, form({ name: "Property" }, undefined, [
+      { templateFieldId: "field-price", value: "250000" },
+      { templateFieldId: "field-share", value: "50" },
+    ]));
+    const item = await prisma.customItem.findFirstOrThrow({ where: { moduleId: "module-money", name: "Property" } });
+
+    await updateCustomItemAction("module-money", item.id, {}, form(
+      { name: "Property", updatedAt: item.updatedAt.toISOString() },
+      undefined,
+      [
+        { templateFieldId: "field-price", value: "275000" },
+        { templateFieldId: "field-share", value: "60" },
+      ],
+    ));
+
+    const events = await eventsOn(item.objectId);
+    expect(events).toMatchObject([
+      { eventType: "ITEM_CREATED" },
+      { eventType: "FIELD_CHANGED", fieldKey: "field-price", oldValue: null, newValue: "$250,000" },
+      { eventType: "FIELD_CHANGED", fieldKey: "field-share", oldValue: null, newValue: "50%" },
+      { eventType: "FIELD_CHANGED", fieldKey: "field-price", oldValue: "$250,000", newValue: "$275,000" },
+      { eventType: "FIELD_CHANGED", fieldKey: "field-share", oldValue: "50%", newValue: "60%" },
+    ]);
+  });
 });

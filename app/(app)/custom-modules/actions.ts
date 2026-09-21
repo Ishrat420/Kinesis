@@ -16,6 +16,9 @@ import { parseDateOnly, formatDateInput } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 import { checkLength, checkNumberMagnitude, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
+import { formatMoney, formatPercent } from "@/lib/format/numbers";
+import { getFormatPreferences } from "@/lib/format/server";
+import type { CustomFieldType, NumberFieldFormat } from "@prisma/client";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidateShell(); revalidatePath(`/custom-modules/${moduleId}`); };
@@ -217,6 +220,28 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
 }
 
 /**
+ * A template NUMBER field configured as Currency or Percent (KD-042) reads
+ * that way in its own History line too -- "$1,234"/"42%" rather than the
+ * bare digit string `ObjectField.value` actually stores. Formatted here, at
+ * write time, rather than by `describeObjectEvent` at read time the way a
+ * Finance Item's `amount` is: that field change's own `fieldKey` is a fixed
+ * literal string ("amount") the generic renderer can key off directly, but
+ * a template field's own `fieldKey` is that field's id -- a different,
+ * opaque value per instance, with nothing on `ObjectEvent` itself recording
+ * which kind it is. Resolving it there would mean joining back to
+ * `TemplateField` for every FIELD_CHANGED event `getObjectEvents`/
+ * `getRecentActivity` render, for every object type, not just this one.
+ * A plain NUMBER (no `numberFormat`), and every other field type, passes
+ * `value` through unchanged.
+ */
+function formatTemplateFieldValue(type: CustomFieldType, numberFormat: NumberFieldFormat | null, value: string, prefs: { locale: string; currency: string }): string {
+  if (type !== "NUMBER" || !numberFormat) return value;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return value;
+  return numberFormat === "CURRENCY" ? formatMoney(amount, prefs.locale, prefs.currency) : formatPercent(amount, prefs.locale);
+}
+
+/**
  * Writes an object's values for the template fields it's rendering (KD-035
  * Phase 3). A value row's `templateFieldId` is what makes it one -- unlike
  * extras, these are never deleted-and-recreated wholesale: a field with
@@ -238,7 +263,11 @@ async function saveTemplateFieldValues(
   values: { templateFieldId: string; value: string; targetObjectIds: string[] }[],
   dueDateFieldId: string | null,
 ) {
-  const templateFields = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, label: true, multiline: true } })).map((field) => [field.id, field]));
+  const templateFields = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, label: true, multiline: true, numberFormat: true } })).map((field) => [field.id, field]));
+  // Fetched once per save, the same way saveFinanceItem fetches `today`
+  // once (lib/format/server's getFormatPreferences is itself cache()d, so
+  // this costs nothing extra beyond the first call in the request).
+  const prefs = await getFormatPreferences();
   const changes: FieldChange[] = [];
   for (const submitted of values) {
     if (submitted.templateFieldId === dueDateFieldId) continue;
@@ -267,7 +296,7 @@ async function saveTemplateFieldValues(
     if (isEmpty) {
       if (existing) {
         await tx.objectField.delete({ where: { id: existing.id } });
-        changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: existing.value, newValue: null });
+        changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: formatTemplateFieldValue(templateField.type, templateField.numberFormat, existing.value, prefs), newValue: null });
       }
       continue;
     }
@@ -277,10 +306,14 @@ async function saveTemplateFieldValues(
       // `deleteMany` only makes sense against a row that already exists --
       // clears out its old targets before the fresh `create` below.
       await tx.objectField.update({ where: { id: existing.id }, data: { value: submitted.value, links: { deleteMany: {}, create: targets } } });
-      if (existing.value !== submitted.value) changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: existing.value, newValue: submitted.value });
+      if (existing.value !== submitted.value) changes.push({
+        fieldKey: submitted.templateFieldId, fieldLabel: templateField.label,
+        oldValue: formatTemplateFieldValue(templateField.type, templateField.numberFormat, existing.value, prefs),
+        newValue: formatTemplateFieldValue(templateField.type, templateField.numberFormat, submitted.value, prefs),
+      });
     } else {
       await tx.objectField.create({ data: { id: crypto.randomUUID(), objectId, templateFieldId: submitted.templateFieldId, label: "", type: templateField.type, value: submitted.value, position: 0, links: { create: targets } } });
-      changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: null, newValue: submitted.value });
+      changes.push({ fieldKey: submitted.templateFieldId, fieldLabel: templateField.label, oldValue: null, newValue: formatTemplateFieldValue(templateField.type, templateField.numberFormat, submitted.value, prefs) });
     }
   }
   await recordFieldChanges(tx, userId, objectId, changes);
