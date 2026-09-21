@@ -1,6 +1,6 @@
 # BUG-007 — No optimistic concurrency on multi-row saves
 
-**Status:** Partially fixed — Document, Template, and CustomItem are done; `saveRelationshipMap` is still open (see "Why this is filed rather than fixed now", below, which still applies to that surface alone)
+**Status:** Fixed — Document, Template, CustomItem, and the relationship map (`saveRelationshipMap`) all now refuse a stale save instead of silently overwriting.
 **Priority:** Low
 **Planned Release:** v1.3.0
 
@@ -10,18 +10,18 @@ Every multi-row save in Kinesis is whole-collection last-write-wins. The server 
 
 Confirmed in:
 
-* `saveRelationshipMap` (`app/(app)/relationships/actions.ts`) — reconciles the entire person/relationship graph (people, connections, practices, reflections, important dates, linked goals) from the payload in one transaction. **Still open** — see below.
+* `saveRelationshipMap` (`app/(app)/relationships/actions.ts`) — reconciles the entire person/relationship graph (people, connections, practices, reflections, important dates, linked goals) from the payload in one transaction. **Fixed** — see "Fix (relationship map)" below.
 * `updateCustomItemAction` (`app/(app)/custom-modules/actions.ts`) — deletes and recreates an item's extra fields wholesale on every save. **Fixed.**
 * `updateDocument` (`lib/data/documents.ts`) — replaces a document's custom fields the same way. **Fixed.**
 * `updateTemplate` (`lib/data/templates.ts`) — reconciles a template's field list from the submitted set. **Fixed.**
 
-None of these read a version or `updatedAt` before writing, and none compare it against anything. The write always succeeds if the owner check passes, regardless of what changed underneath it since the form was loaded. (This description is of the original, pre-fix behavior — see "Fix" below for the three surfaces that no longer work this way.)
+None of these read a version or `updatedAt` before writing, and none compare it against anything. The write always succeeded if the owner check passed, regardless of what changed underneath it since the form was loaded. (This description is of the original, pre-fix behavior — see "Fix" below for how each of the four surfaces now works instead.)
 
 ## Functional impact
 
-* **Silent data loss.** Open the same goal, document, template, or relationship map in two tabs (or two devices), edit both, save the older one first and the newer one second — the second save wins completely, and whatever was only in the first save is gone. No error, no warning, no merge. The person has no way to know it happened short of noticing missing content later. **No longer true for Document, Template, or CustomItem** — a save from a stale tab is now refused with a distinguishable conflict, rather than silently overwriting. Still true for the relationship map.
+* **Silent data loss.** Open the same goal, document, template, or relationship map in two tabs (or two devices), edit both, save the older one first and the newer one second — the second save used to win completely, with whatever was only in the first save gone. No error, no warning, no merge. **No longer true for any of the four surfaces** — a save from a stale tab is now refused with a distinguishable conflict, rather than silently overwriting.
 * **Already causing visible friction, not just a theoretical risk.** `EditCustomItemForm.tsx` carries a `key={item.templateFields.map(...).join(",")}` / `key={item.fields.map(...).join(",")}` remount hack specifically because "Add to template" (a separate action) mutates the item's field list out from under an already-open edit form. That hack forces React to throw the form away and remount it fresh rather than let it silently save over data it no longer has an accurate picture of — a symptom of this exact gap, worked around locally instead of fixed at the source. (The remount hack itself is unchanged by this fix — it's still the right way to handle a field-list change out from under an open form — but a save that races it is now refused rather than silently wrong.)
-* **Worst on the relationship map**, since a save there reconciles the entire graph at once: a save from a stale tab doesn't just lose one field's edit, it can resurrect a person or connection that was deleted in the other tab, or drop one that was added there. **This surface is still open** — see below.
+* **Was worst on the relationship map**, since a save there reconciles the entire graph at once: a save from a stale tab didn't just lose one field's edit, it could resurrect a person or connection deleted in another tab, or drop one added there. **Fixed** — see below.
 * **Scope is narrower than a typical multi-tenant app.** Kinesis is a single-owner deployment (one Clerk user, enforced by the proxy), so this is never two different accounts racing each other — it's the same person losing their own edit across tabs or devices. Real, and already evidenced, but not a cross-account data-integrity issue.
 
 ## Fix (Document, Template, CustomItem)
@@ -38,10 +38,18 @@ Client-side, the form needs the *freshest known* `updatedAt`, not just the one t
 
 Every existing test that exercises these functions' other validation rules now goes through a small `save`/`asOwner`-style helper that fetches the row's real, current `updatedAt` immediately before saving (the same way a freshly-loaded form would), so none of them incidentally became a conflict test. Each surface also has its own dedicated conflict-path integration test (data layer and, where relevant, the action's conflict-to-state mapping), red/green verified.
 
-## Likely fix, relationship map (not yet designed in detail)
+## Fix (relationship map)
 
-`saveRelationshipMap` is the hard case: it reconciles a whole graph across several tables with no single row whose `updatedAt` represents "the map's version," so it needs a real design decision — most likely a small dedicated per-user version-counter table, rather than repurposing `UserSettings` or computing `MAX(updatedAt)` across the graph on the fly (wrong on deletes) — rather than a direct port of the other three surfaces' fix.
+`saveRelationshipMap` reconciles a whole graph across several tables with no single row whose own `updatedAt` can represent "the map's version" the way a Document or Template row can. Rather than repurpose `UserSettings` (an unrelated save path already writes that row) or compute `MAX(updatedAt)` across the graph on the fly (wrong on deletes — the maximum can go *down* when the row carrying it is removed, breaking the monotonic comparison the check depends on), the fix is a small dedicated table, `RelationshipMapVersion` (`userId` primary key, `version Int @default(0)`), holding one integer per user that only ever increases.
 
-## Why this is filed rather than fixed now (relationship map only)
+`getRelationshipMap` upserts this row on every read (`create` if missing, no-op `update` otherwise) rather than backfilling it in a migration — a save is always preceded by a read, so the row is guaranteed to exist by the time any save needs it. It returns `version` as a sibling of the map's own `people`/`relationships`, not folded into the `RelationshipMapData` type itself: the client's in-flight edit payload has no natural version field of its own (unlike `DocumentInput`, which is never spread into a client snapshot the way the map's `{ people, relationships }` state is), so keeping it a separate return value avoids forcing every constructor of that payload shape to carry a meaningless `version`.
 
-The relationship-map case needs its own design pass — a version-counter scheme, plus its own conflict UI — before implementation starts, and is meaningfully larger than the other three surfaces' fix (which reused each row's existing `updatedAt` and the app's existing refusal mechanism end to end). Given the single-owner scope above, it's real but not urgent enough to justify that investment ahead of other work right now.
+`saveRelationshipMap(data, expectedVersion)` gates its whole transaction on one version-conditioned `updateMany` (`where: { userId, version: expectedVersion }, data: { version: { increment: 1 } }`), run first, alone, before any of the reconciliation below it — the same shape as `updateDocument`'s own check. A zero-row result means either the row is gone (refused as not-found, effectively unreachable given the always-preceded-by-a-read guarantee above) or someone else's save already bumped it, refused via the same `refuseConflict`/`isConflictRefusal` mechanism the other three surfaces use — `saveRelationshipMap` was ported onto that shared mechanism too, replacing a bespoke local `SaveRefused` class it used to throw its one refusal through.
+
+**Deliberately excluded from the version check:** `saveMapGeometry`, the separate, high-frequency (400ms-debounced, fires on every drag) autosave for where a bubble sits. Bumping the version there would mean an unrelated edit sitting open in another tab conflicts against nothing but a moved bubble — the map's own reconciliation logic already treats a resize/move as "not a change worth recording" for the same reason, and the version check follows that same line.
+
+**Conflict UX** reuses `SaveConflictNotice` — the same amber, reload-prompting component the other three surfaces already show on a conflict — swapped in for the plain error banner only when the map's own `saveError` state is flagged `conflict: true`. No new UI was designed for this; the map's own error banner already covered every other failure mode.
+
+**Client-side freshest-version tracking** follows Template's pattern (a component that stays mounted across a save, with no read/edit toggle to remount it): a `savedVersion` state set from each successful save's returned `version`, compared against the page's own `initialVersion` prop with a plain numeric `Math.max`-shaped comparison — simpler than Template's own ISO-string lexical comparison, since a version is an integer rather than a timestamp.
+
+Also fixed alongside this: `deleteAllDataAction` (`app/(app)/settings/actions.ts`) and the data-export route (`app/api/settings/export/route.ts`) both now include `RelationshipMapVersion`, caught by the same drift-detecting seed-and-sweep tests (`tests/integration/settings/delete-all-data.test.ts`, `export.test.ts`) that already exist specifically to catch a new table like this one.

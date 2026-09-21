@@ -126,6 +126,7 @@ export async function deleteAllDataAction(confirmation: string) {
     // Cascades to every TemplateField; must run after group 1 (see above).
     prisma.template.deleteMany({ where: owned }),
     prisma.userSettings.deleteMany({ where: owned }),
+    prisma.relationshipMapVersion.deleteMany({ where: owned }),
 
     // 3. Deliberately kept: SecurityEvent is the account's audit trail, so it
     //    outlives the data it describes and records this deletion too.

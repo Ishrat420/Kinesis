@@ -5,9 +5,11 @@ const mocks = vi.hoisted(() => ({ requireKinesisUser: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth", () => ({ requireKinesisUser: mocks.requireKinesisUser }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/server", () => ({ connection: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { getPersonHistoryAction, saveRelationshipMap } from "@/app/(app)/relationships/actions";
+import { getRelationshipMap } from "@/lib/data/relationships";
 import type { RelationshipMapData, RelationshipPerson } from "@/lib/relationships";
 
 /**
@@ -29,6 +31,9 @@ const soloMap = (people: RelationshipPerson[]): RelationshipMapData => ({ people
 
 const eventsOn = (objectId: string) => prisma.objectEvent.findMany({ where: { objectId }, orderBy: { occurredAt: "asc" } });
 
+/** Fetches the map's real, current version immediately before saving, the same way a freshly-loaded map would (BUG-007) -- so none of these incidentally becomes a conflict test. */
+const save = async (data: RelationshipMapData) => saveRelationshipMap(data, (await getRelationshipMap()).version);
+
 describe.sequential("a Person's own history (KD-048)", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -43,17 +48,17 @@ describe.sequential("a Person's own history (KD-048)", () => {
   });
 
   it("records ITEM_CREATED for a new person", async () => {
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Sam" })]));
+    await save(soloMap([person("friend-one", { name: "Sam" })]));
     const created = await prisma.person.findFirstOrThrow({ where: { userId: owner, name: "Sam" } });
 
     await expect(eventsOn(created.objectId)).resolves.toMatchObject([{ eventType: "ITEM_CREATED" }]);
   });
 
   it("records FIELD_CHANGED only for the fields that actually changed", async () => {
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Sam" })]));
+    await save(soloMap([person("friend-one", { name: "Sam" })]));
     const created = await prisma.person.findFirstOrThrow({ where: { userId: owner, name: "Sam" } });
 
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Samantha", detail: "Colleague" })]));
+    await save(soloMap([person("friend-one", { name: "Samantha", detail: "Colleague" })]));
 
     const events = await eventsOn(created.objectId);
     expect(events).toMatchObject([
@@ -64,19 +69,19 @@ describe.sequential("a Person's own history (KD-048)", () => {
   });
 
   it("records nothing when a person is resubmitted unchanged", async () => {
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Sam" })]));
+    await save(soloMap([person("friend-one", { name: "Sam" })]));
     const created = await prisma.person.findFirstOrThrow({ where: { userId: owner, name: "Sam" } });
 
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Sam" })]));
+    await save(soloMap([person("friend-one", { name: "Sam" })]));
 
     await expect(eventsOn(created.objectId)).resolves.toHaveLength(1); // just the original ITEM_CREATED
   });
 
   it("never records history for the owner's own self bubble", async () => {
-    await saveRelationshipMap(soloMap([person("self", { name: "Me", detail: "You" })]));
+    await save(soloMap([person("self", { name: "Me", detail: "You" })]));
     const self = await prisma.person.findFirstOrThrow({ where: { userId: owner, isSelf: true } });
 
-    await saveRelationshipMap(soloMap([person("self", { name: "My name", detail: "You" })]));
+    await save(soloMap([person("self", { name: "My name", detail: "You" })]));
 
     await expect(eventsOn(self.objectId)).resolves.toEqual([]);
   });
@@ -110,9 +115,9 @@ describe.sequential("getPersonHistoryAction (KD-048)", () => {
   });
 
   it("returns the same title/detail pairs the person's own History section would show", async () => {
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Sam" })]));
+    await save(soloMap([person("friend-one", { name: "Sam" })]));
     const created = await prisma.person.findFirstOrThrow({ where: { userId: owner, name: "Sam" } });
-    await saveRelationshipMap(soloMap([person("friend-one", { name: "Samantha" })]));
+    await save(soloMap([person("friend-one", { name: "Samantha" })]));
 
     const entries = await getPersonHistoryAction(created.objectId);
 
@@ -125,7 +130,7 @@ describe.sequential("getPersonHistoryAction (KD-048)", () => {
 
   it("returns nothing for another account's person, even with the right objectId", async () => {
     mocks.requireKinesisUser.mockResolvedValue({ id: stranger });
-    await saveRelationshipMap(soloMap([person("their-friend", { name: "Theirs" })]));
+    await save(soloMap([person("their-friend", { name: "Theirs" })]));
     const theirs = await prisma.person.findFirstOrThrow({ where: { userId: stranger, name: "Theirs" } });
 
     mocks.requireKinesisUser.mockResolvedValue({ id: owner });

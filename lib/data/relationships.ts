@@ -37,18 +37,23 @@ const toImportantDate = (importantDate: ImportantDateRow): ImportantDateEntry =>
   repeatsYearly: importantDate.repeatsYearly,
 });
 
-export async function getRelationshipMap(defaultSelfName?: string): Promise<RelationshipMapData> {
+export async function getRelationshipMap(defaultSelfName?: string): Promise<RelationshipMapData & { version: number }> {
   await connection();
   const user = await requireKinesisUser();
   if (defaultSelfName && await prisma.person.count({ where: { userId: user.id } }) === 0) {
     await prisma.person.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name: defaultSelfName, category: null, isSelf: true, positionX: 488, positionY: 250, bubbleSize: 118, object: objectFor.person(defaultSelfName, user.id) } });
   }
-  const [people, relationships] = await Promise.all([
+  const [people, relationships, mapVersion] = await Promise.all([
     prisma.person.findMany({ where: { userId: user.id }, include: { selfPractices: { orderBy: { position: "asc" } }, selfReflections: { orderBy: { reflectedAt: "desc" } }, selfImportantDates: { orderBy: { date: "asc" } } }, orderBy: { createdAt: "asc" } }),
     prisma.relationship.findMany({ where: { userId: user.id }, include: { practices: { orderBy: { position: "asc" } }, reflections: { orderBy: { reflectedAt: "desc" } }, importantDates: { orderBy: { date: "asc" } }, linkedGoals: true }, orderBy: { createdAt: "asc" } }),
+    // Created here, lazily, rather than backfilled by a migration (BUG-007):
+    // a save is always preceded by a read, so the row this conditions
+    // `saveRelationshipMap`'s write on always exists by the time it's needed.
+    prisma.relationshipMapVersion.upsert({ where: { userId: user.id }, create: { userId: user.id }, update: {} }),
   ]);
   return {
     people: people.map((person) => ({ id: person.id, objectId: person.objectId, name: person.name, detail: person.isSelf ? "You" : person.category || "Relationship", x: person.positionX, y: person.positionY, size: person.bubbleSize, color: person.color, icon: person.icon as RelationshipMapData["people"][number]["icon"], selfRelationship: { practices: person.selfPractices.map(toPractice), reflections: person.selfReflections.map(toReflection), importantDates: person.selfImportantDates.map(toImportantDate), notes: person.selfNotes || "" } })),
     relationships: relationships.map((relationship) => ({ id: relationship.id, from: relationship.firstPersonId, to: relationship.secondPersonId, type: relationship.type, notes: relationship.notes || "", practices: relationship.practices.map(toPractice), reflections: relationship.reflections.map(toReflection), importantDates: relationship.importantDates.map(toImportantDate), linkedGoals: relationship.linkedGoals.map(({ goalId }) => goalId), createdAt: relationship.createdAt.toISOString() })),
+    version: mapVersion.version,
   };
 }

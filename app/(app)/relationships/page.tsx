@@ -9,7 +9,7 @@ export default async function RelationshipsPage() {
   const relationshipMap = await getRelationshipMap(getUserDisplayName(user));
   return (
     <ModuleContent width="full">
-      <RelationshipMap goals={goals} userDisplayName={getUserDisplayName(user)} initialData={relationshipMap} />
+      <RelationshipMap goals={goals} userDisplayName={getUserDisplayName(user)} initialData={relationshipMap} initialVersion={relationshipMap.version} />
     </ModuleContent>
   );
 }

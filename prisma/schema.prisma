@@ -23,6 +23,7 @@ model User {
   goals               Goal[]
   people              Person[]
   relationships       Relationship[]
+  relationshipMapVersion RelationshipMapVersion?
   goalUnits           GoalUnit[]
   customModules       CustomModule[]
   templates           Template[]
@@ -520,6 +521,26 @@ model RelationshipGoal {
 
   @@id([relationshipId, goalId])
   @@index([goalId])
+}
+
+/**
+ * BUG-007: the relationship map reconciles people, connections, practices,
+ * reflections, important dates and linked goals across several tables in one
+ * save, with no single row whose own `updatedAt` can stand in for "the map's
+ * version" the way a Document or Template row can. This is that version,
+ * kept in a table of its own rather than bolted onto `UserSettings` -- an
+ * unrelated save path already writes that row, and coupling this counter to
+ * it would mean reasoning about two features touching the same row. Bumped
+ * by exactly one, inside the same transaction, on every successful
+ * `saveRelationshipMap` -- never by `saveMapGeometry`'s own autosave, which
+ * is deliberately not a change this ticket's conflict check watches for.
+ * Row is created lazily (`getRelationshipMap` upserts it) rather than
+ * backfilled, since every save is preceded by a read.
+ */
+model RelationshipMapVersion {
+  userId  String @id
+  version Int    @default(0)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model GoalMetricSnapshot {

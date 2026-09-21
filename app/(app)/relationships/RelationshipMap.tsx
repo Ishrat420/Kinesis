@@ -44,6 +44,7 @@ import {
   useTransition,
 } from "react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
+import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
 import { formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { saveMapGeometry, saveRelationshipMap } from "./actions";
@@ -83,7 +84,7 @@ function pickNextColor(existing: Person[]): string {
   return colors.find((color) => !used.has(color)) ?? colors[existing.length % colors.length];
 }
 
-export function RelationshipMap({ goals, userDisplayName, initialData }: { goals: GoalOption[]; userDisplayName: string; initialData: RelationshipMapData }) {
+export function RelationshipMap({ goals, userDisplayName, initialData, initialVersion }: { goals: GoalOption[]; userDisplayName: string; initialData: RelationshipMapData; initialVersion: number }) {
   const startingPeople = initialData.people.length ? initialData.people : initialPeople.map((person) => ({ ...person, name: userDisplayName }));
   const [people, setPeople] = useState(startingPeople);
   const [relationships, setRelationships] = useState(initialData.relationships);
@@ -117,14 +118,26 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   */
   const [saving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveConflict, setSaveConflict] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savedContent, setSavedContent] = useState(() => contentFingerprint({ people: startingPeople, relationships: initialData.relationships }));
   const dirty = contentFingerprint({ people, relationships }) !== savedContent;
 
+  // The freshest version known, not just the one the page loaded with (BUG-007):
+  // `revalidateShell()`'s post-save prop refresh isn't synchronous with the save
+  // completing, so without this a quick second save would refuse itself as a
+  // conflict against its own prior write. This component stays mounted across a
+  // save (no read/edit toggle to remount it), so a plain derived comparison is
+  // enough -- the same shape as Template's own fix for this.
+  const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  const currentVersion = savedVersion !== null && savedVersion > initialVersion ? savedVersion : initialVersion;
+
   function saveContent() {
     const snapshot = { people, relationships };
     const fingerprint = contentFingerprint(snapshot);
+    const expectedVersion = currentVersion;
     setSaveError(null);
+    setSaveConflict(false);
     startSaving(async () => {
       // A rejected Server Action (a network blip, a dropped connection) is not
       // one of `saveRelationshipMap`'s own `{ error }` returns and would
@@ -132,8 +145,9 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
       // permanently stuck mid-save, with "Save changes" disabled and nothing
       // in the UI saying why, until the page happened to be reloaded.
       try {
-        const result = await saveRelationshipMap(snapshot);
-        if (result.error) { setSaveError(result.error); return; }
+        const result = await saveRelationshipMap(snapshot, expectedVersion);
+        if (result.error) { setSaveError(result.error); setSaveConflict(Boolean(result.conflict)); return; }
+        if (result.version !== undefined) setSavedVersion(result.version);
         // The snapshot's fingerprint, not the live one: anything edited while the
         // save was in flight is still unsaved and must stay that way.
         setSavedContent(fingerprint);
@@ -325,9 +339,10 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
         </>}
       />
 
-      {(saveError || geometryFailed) && (
+      {saveConflict && saveError && <div className="mb-4"><SaveConflictNotice message={saveError} /></div>}
+      {((saveError && !saveConflict) || geometryFailed) && (
         <p role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium leading-5 text-red-700">
-          {saveError ?? "Bubble positions could not be saved. They will be retried the next time you move one."}
+          {saveError && !saveConflict ? saveError : "Bubble positions could not be saved. They will be retried the next time you move one."}
         </p>
       )}
 

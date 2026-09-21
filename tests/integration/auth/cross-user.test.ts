@@ -9,6 +9,7 @@ import { addMilestoneAction, addTargetAction, deleteGoalAction, deleteMilestoneA
 import { deleteFinanceItem, saveFinanceItem } from "@/app/(app)/finance/actions";
 import { createCustomItemAction, deleteCustomItemAction, deleteCustomModuleAction, toggleCustomItemArchivedAction, updateCustomItemAction } from "@/app/(app)/custom-modules/actions";
 import { saveRelationshipMap } from "@/app/(app)/relationships/actions";
+import { getRelationshipMap } from "@/lib/data/relationships";
 import { emptySelfRelationship } from "@/lib/relationships";
 
 const form = (values: Record<string, string | string[]>) => {
@@ -154,6 +155,7 @@ describe.sequential("cross-user authorization contract", () => {
 
   it("saves a mixed owned, foreign, and missing relationship-goal payload, linking only the owned goal", async () => {
     const beforeB = await ownerState("ownerB");
+    const mapVersion = (await getRelationshipMap()).version;
     // A foreign or missing goal id used to refuse the whole save -- blocking
     // the new people and relationship along with it -- rather than just being
     // left out of what gets linked. ownerB's goal must still never end up
@@ -168,7 +170,7 @@ describe.sequential("cross-user authorization contract", () => {
         id: "replacement-relationship", from: "replacement-self", to: "replacement-person", type: "Friend", notes: "must be inserted",
         practices: [], reflections: [], importantDates: [], linkedGoals: [ids.goalA, ids.goalB, "missing-goal"], createdAt: "2026-01-01T00:00:00.000Z",
       }],
-    })).resolves.toEqual({ savedAt: expect.any(Number) });
+    }, mapVersion)).resolves.toEqual({ savedAt: expect.any(Number), version: mapVersion + 1 });
 
     const relationship = (await ownerState("ownerA")).relationships.find((item) => item.id === "replacement-relationship");
     expect(relationship?.linkedGoals).toEqual([expect.objectContaining({ goalId: ids.goalA })]);
@@ -195,6 +197,7 @@ describe.sequential("cross-user authorization contract", () => {
 
     const beforeA = await ownerState("ownerA");
     const beforeB = await ownerState("ownerB");
+    const mapVersion = (await getRelationshipMap()).version;
 
     const result = await saveRelationshipMap({
       people: [
@@ -209,7 +212,7 @@ describe.sequential("cross-user authorization contract", () => {
         // Smuggled: another account's real, existing connection id.
         { id: ids.relationshipB, from: ids.personB1, to: ids.personB2, type: "intrusion", notes: "intrusion", practices: [], reflections: [], importantDates: [], linkedGoals: [], createdAt: "2026-01-01T00:00:00.000Z" },
       ],
-    });
+    }, mapVersion);
 
     expect(result.error).toBeTruthy();
     expect(await ownerState("ownerA")).toEqual(beforeA);

@@ -45,7 +45,7 @@ describe.sequential("repro: creating a brand-new relationship", () => {
       ],
     };
 
-    const result = await saveRelationshipMap(payload);
+    const result = await saveRelationshipMap(payload, before.version);
     expect(result.error).toBeUndefined();
 
     await expect(prisma.person.count({ where: { userId: owner } })).resolves.toBe(2);
@@ -66,7 +66,7 @@ describe.sequential("repro: creating a brand-new relationship", () => {
     const result = await saveRelationshipMap({
       people: before.people,
       relationships: [{ id: "nc-relationship-2", from: firstPersonId, to: secondPersonId, type: "Friend", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z" }],
-    });
+    }, before.version);
 
     expect(result.error).toBeUndefined();
     await expect(prisma.relationship.count({ where: { userId: owner } })).resolves.toBe(1);

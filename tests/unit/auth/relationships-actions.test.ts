@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     relationshipReflection: { findMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn(), createMany: vi.fn() },
     relationshipImportantDate: { findMany: vi.fn(), deleteMany: vi.fn(), update: vi.fn(), createMany: vi.fn() },
     relationshipGoal: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
+    relationshipMapVersion: { updateMany: vi.fn(), findFirst: vi.fn() },
     objectEvent: { create: vi.fn(), createMany: vi.fn() },
   },
   prisma: { $transaction: vi.fn(), person: { updateMany: vi.fn() } },
@@ -51,6 +52,9 @@ function emptyDatabase() {
   mocks.tx.relationshipReflection.findMany.mockResolvedValue([]);
   mocks.tx.relationshipImportantDate.findMany.mockResolvedValue([]);
   mocks.tx.relationshipGoal.findMany.mockResolvedValue([]);
+  // The map is at version 0 and the save's own expectedVersion matches it,
+  // unless a test is specifically exercising BUG-007's conflict path.
+  mocks.tx.relationshipMapVersion.updateMany.mockResolvedValue({ count: 1 });
 }
 
 describe("saveRelationshipMap authorization", () => {
@@ -83,7 +87,7 @@ describe("saveRelationshipMap authorization", () => {
         id: "relationship-id", from: "person-one", to: "person-two", type: null,
         practices: [], reflections: [], linkedGoals: ["owned-goal", "not-this-owners-goal"], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
       }],
-    }));
+    }), 0);
 
     expect(result.savedAt).toEqual(expect.any(Number));
     expect(mocks.tx.goal.findMany).toHaveBeenCalledWith({
@@ -109,7 +113,7 @@ describe("saveRelationshipMap authorization", () => {
         id: "relationship-id", from: "person-one", to: "person-two", type: null,
         practices: [], reflections: [], linkedGoals: ["deleted-goal"], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
       }],
-    }));
+    }), 0);
 
     expect(result.savedAt).toEqual(expect.any(Number));
     expect(mocks.tx.relationshipGoal.deleteMany).toHaveBeenCalledWith({ where: { OR: [{ relationshipId: "relationship-id", goalId: { in: ["deleted-goal"] } }] } });
@@ -117,7 +121,7 @@ describe("saveRelationshipMap authorization", () => {
   });
 
   it("refuses a payload that fails validation without opening a transaction", async () => {
-    const result = await saveRelationshipMap(map({ people: [person("person-one")] }));
+    const result = await saveRelationshipMap(map({ people: [person("person-one")] }), 0);
 
     expect(result.error).toBe("A connection points at someone who is not on the map.");
     expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
@@ -158,7 +162,7 @@ describe("saveRelationshipMap reconciliation", () => {
       { id: "relationship-id", firstPersonId: "person-one", secondPersonId: "person-two", type: null, notes: null },
     ]);
 
-    const result = await saveRelationshipMap(map());
+    const result = await saveRelationshipMap(map(), 0);
 
     expect(result.savedAt).toEqual(expect.any(Number));
     expect(mocks.deleteObjects).not.toHaveBeenCalled();
@@ -190,7 +194,7 @@ describe("saveRelationshipMap reconciliation", () => {
         practices: [{ id: "practice-id", title: "Sunday walk", cadence: "Weekly", anchorDate: "2026-01-04" }],
         reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
       }],
-    }));
+    }), 0);
 
     expect(result.error).toBeUndefined();
     expect(mocks.tx.connectionPractice.deleteMany).not.toHaveBeenCalled();
@@ -211,7 +215,7 @@ describe("saveRelationshipMap reconciliation", () => {
       { id: "relationship-id", firstPersonId: "person-one", secondPersonId: "person-two", type: null, notes: null },
     ]);
 
-    await saveRelationshipMap(map());
+    await saveRelationshipMap(map(), 0);
 
     expect(mocks.deleteObjects).toHaveBeenCalledWith(mocks.tx, ["object-gone"], "owner-id");
   });
@@ -226,9 +230,43 @@ describe("saveRelationshipMap reconciliation", () => {
       { id: "relationship-id", firstPersonId: "person-two", secondPersonId: "person-one", type: null, notes: null },
     ]);
 
-    const result = await saveRelationshipMap(map());
+    const result = await saveRelationshipMap(map(), 0);
 
-    expect(result).toEqual({ error: "A connection cannot be moved to different people." });
+    expect(result).toMatchObject({ error: "A connection cannot be moved to different people." });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveRelationshipMap concurrency (BUG-007)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireKinesisUser.mockResolvedValue({ id: "owner-id" });
+    mocks.prisma.$transaction.mockImplementation((callback: (tx: typeof mocks.tx) => Promise<void>) => callback(mocks.tx));
+    emptyDatabase();
+  });
+
+  it("refuses a save whose expected version no longer matches, without writing anything", async () => {
+    // Someone else's save (another tab, most likely) already bumped it.
+    mocks.tx.relationshipMapVersion.updateMany.mockResolvedValue({ count: 0 });
+    mocks.tx.relationshipMapVersion.findFirst.mockResolvedValue({ userId: "owner-id" });
+
+    const result = await saveRelationshipMap(map(), 0);
+
+    expect(result).toEqual({ error: "This map changed elsewhere. Reload to see the latest version before saving again.", conflict: true });
+    expect(mocks.tx.person.findMany).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("returns the map's freshest version after a successful save", async () => {
+    mocks.tx.person.findMany.mockResolvedValue([]);
+    mocks.tx.relationship.findMany.mockResolvedValue([]);
+
+    const result = await saveRelationshipMap(map({ people: [], relationships: [] }), 4);
+
+    expect(result).toEqual({ savedAt: expect.any(Number), version: 5 });
+    expect(mocks.tx.relationshipMapVersion.updateMany).toHaveBeenCalledWith({
+      where: { userId: "owner-id", version: 4 },
+      data: { version: { increment: 1 } },
+    });
   });
 });

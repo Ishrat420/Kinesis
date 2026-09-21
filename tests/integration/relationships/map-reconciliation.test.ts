@@ -64,7 +64,7 @@ describe.sequential("relationship map reconciliation", () => {
 
   it("keeps every child row's identity across an unrelated edit", async () => {
     const before = await getRelationshipMap();
-    const result = await saveRelationshipMap(rename(before, "Samantha"));
+    const result = await saveRelationshipMap(rename(before, "Samantha"), before.version);
     expect(result.error).toBeUndefined();
 
     // Same rows, not replacements wearing the same values.
@@ -79,7 +79,8 @@ describe.sequential("relationship map reconciliation", () => {
   /** The bug that made the calendar's recurring practices wander. */
   it("does not move a practice's anchor when the map is saved", async () => {
     const before = await prisma.connectionPractice.findUniqueOrThrow({ where: { id: "practice-1" } });
-    await saveRelationshipMap(rename(await getRelationshipMap(), "Samantha"));
+    const beforeMap = await getRelationshipMap();
+    await saveRelationshipMap(rename(beforeMap, "Samantha"), beforeMap.version);
     const after = await prisma.connectionPractice.findUniqueOrThrow({ where: { id: "practice-1" } });
     expect(after.anchorDate).toEqual(before.anchorDate);
     expect(after.createdAt).toEqual(before.createdAt);
@@ -91,7 +92,8 @@ describe.sequential("relationship map reconciliation", () => {
    * the save because the row itself did -- which is what this is really about.
    */
   it("leaves an important date's read reminder intact", async () => {
-    await saveRelationshipMap(rename(await getRelationshipMap(), "Samantha"));
+    const before = await getRelationshipMap();
+    await saveRelationshipMap(rename(before, "Samantha"), before.version);
     await expect(prisma.notificationRead.findUniqueOrThrow({ where: { id: "read-1" } })).resolves.toMatchObject({
       relationshipDateId: "date-1",
       itemKey: "relationship:date-1:REMINDER_DUE:2026-03-09",
@@ -100,7 +102,8 @@ describe.sequential("relationship map reconciliation", () => {
   });
 
   it("renames the person's shared identity along with the person", async () => {
-    await saveRelationshipMap(rename(await getRelationshipMap(), "Samantha"));
+    const before = await getRelationshipMap();
+    await saveRelationshipMap(rename(before, "Samantha"), before.version);
     await expect(prisma.object.findUniqueOrThrow({ where: { id: "object-friend" } })).resolves.toMatchObject({ name: "Samantha" });
   });
 
@@ -117,7 +120,7 @@ describe.sequential("relationship map reconciliation", () => {
         ],
         importantDates: [],
       }],
-    });
+    }, before.version);
 
     expect(result.error).toBeUndefined();
     await expect(prisma.connectionPractice.findMany({ orderBy: { position: "asc" }, select: { id: true, title: true, cadence: true, anchorDate: true, position: true } })).resolves.toEqual([
@@ -137,7 +140,7 @@ describe.sequential("relationship map reconciliation", () => {
     const result = await saveRelationshipMap({
       people: before.people.filter((person) => person.id !== "person-friend"),
       relationships: [],
-    });
+    }, before.version);
 
     expect(result.error).toBeUndefined();
     await expect(prisma.person.findMany({ select: { id: true } })).resolves.toEqual([{ id: "person-self" }]);
@@ -164,5 +167,34 @@ describe.sequential("relationship map reconciliation", () => {
     mocks.requireKinesisUser.mockResolvedValue({ id: "someone-else" });
     await expect(saveMapGeometry([{ id: "person-friend", x: 999, y: 999, size: 140 }])).resolves.toMatchObject({ savedAt: expect.any(Number) });
     await expect(prisma.person.findUniqueOrThrow({ where: { id: "person-friend" } })).resolves.toMatchObject({ positionX: 1, positionY: 2 });
+  });
+
+  /** BUG-007: the version-conditioned write this whole reconciliation is now gated on. */
+  describe("map version (BUG-007)", () => {
+    it("bumps the version by one on a successful save and returns it", async () => {
+      const before = await getRelationshipMap();
+      const result = await saveRelationshipMap(rename(before, "Samantha"), before.version);
+
+      expect(result).toMatchObject({ version: before.version + 1 });
+      await expect(getRelationshipMap()).resolves.toMatchObject({ version: before.version + 1 });
+    });
+
+    it("refuses a save against a stale version, without writing anything", async () => {
+      const before = await getRelationshipMap();
+      // Simulates a second tab's save landing first.
+      await saveRelationshipMap(rename(before, "A different edit"), before.version);
+
+      const result = await saveRelationshipMap(rename(before, "Samantha"), before.version);
+
+      expect(result).toEqual({ error: "This map changed elsewhere. Reload to see the latest version before saving again.", conflict: true });
+      await expect(prisma.person.findUniqueOrThrow({ where: { id: "person-friend" } })).resolves.toMatchObject({ name: "A different edit" });
+    });
+
+    it("never bumps the version for geometry-only autosave", async () => {
+      const before = await getRelationshipMap();
+      await saveMapGeometry([{ id: "person-friend", x: 640, y: 480, size: 96 }]);
+
+      await expect(getRelationshipMap()).resolves.toMatchObject({ version: before.version });
+    });
   });
 });

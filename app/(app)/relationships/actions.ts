@@ -19,11 +19,9 @@ import { revalidateShell } from "@/lib/actions/revalidate";
 import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 import { getObjectEvents } from "@/lib/data/object-event-history";
 import type { ObjectHistoryEntry } from "@/components/history/ObjectHistory";
+import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/actions/refusal";
 
-export type RelationshipMapState = { error?: string; savedAt?: number };
-
-/** A refusal the owner should read, as opposed to a fault they cannot act on. */
-class SaveRefused extends Error {}
+export type RelationshipMapState = { error?: string; savedAt?: number; conflict?: boolean; version?: number };
 
 /** Which parent a set of child rows hangs off: a connection, or a person's own space. */
 type ChildOwner = { relationshipId: string } | { selfPersonId: string };
@@ -116,8 +114,17 @@ export async function saveMapGeometry(geometry: PersonGeometry[]): Promise<Relat
  * A save that changes nothing costs a handful of SELECTs and no writes at all.
  *
  * It returns its outcome rather than throwing. The map shows the message.
+ *
+ * `expectedVersion` is the map's own version (BUG-007) as the caller last
+ * read it: the write below is conditioned on `RelationshipMapVersion` still
+ * carrying that exact number, so a save from a stale tab is refused instead
+ * of silently resurrecting a person deleted elsewhere, or dropping one added
+ * there. Required, not optional, so no call site can skip it by omission.
+ * `saveMapGeometry`'s own autosave never touches this counter -- a drag
+ * isn't a change this check watches for, and bumping it there would make an
+ * unrelated edit in another tab conflict against nothing but a moved bubble.
  */
-export async function saveRelationshipMap(data: RelationshipMapData): Promise<RelationshipMapState> {
+export async function saveRelationshipMap(data: RelationshipMapData, expectedVersion: number): Promise<RelationshipMapState> {
   const user = await requireKinesisUser();
   const invalid = validateRelationshipMap(data);
   if (invalid) return { error: invalid };
@@ -127,6 +134,19 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Gates the entire reconciliation below on the map still being at the
+      // version the caller read it at. Runs first, alone, as its own atomic
+      // statement -- the same shape as `updateDocument`'s own version check.
+      const bump = await tx.relationshipMapVersion.updateMany({
+        where: { userId: user.id, version: expectedVersion },
+        data: { version: { increment: 1 } },
+      });
+      if (bump.count === 0) {
+        const stillExists = await tx.relationshipMapVersion.findFirst({ where: { userId: user.id }, select: { userId: true } });
+        if (!stillExists) refuse("This map could not be found. Reload and try again.");
+        refuseConflict("This map changed elsewhere. Reload to see the latest version before saving again.");
+      }
+
       // A goal deleted elsewhere while this map sat open in a tab leaves its
       // id in `linkedGoals` with nothing behind it. Refusing the whole save
       // over that used to block every other edit on the map until the page
@@ -214,7 +234,7 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
           // re-point an existing one, so a payload that does is not an edit to
           // apply -- and applying it would collide with the unique pair.
           if (existing.firstPersonId !== relationship.from || existing.secondPersonId !== relationship.to) {
-            throw new SaveRefused("A connection cannot be moved to different people.");
+            refuse("A connection cannot be moved to different people.");
           }
           if (existing.type !== relationship.type || (existing.notes ?? "") !== relationship.notes) {
             await tx.relationship.update({ where: { id: relationship.id }, data: { type: relationship.type, notes } });
@@ -314,13 +334,18 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
       if (linked.length) await tx.relationshipGoal.createMany({ data: linked });
     }, { timeout: 20_000 });
   } catch (error) {
-    if (error instanceof SaveRefused) return { error: error.message };
-    console.error("Failed to save the relationship map", error);
-    return { error: "The map could not be saved. Your changes are still here — try again." };
+    // A refusal raised inside the transaction, which has now rolled back.
+    // Anything else is a fault, and belongs to the boundary rather than the map.
+    const refused = refusalOf(error);
+    if (refused === null) {
+      console.error("Failed to save the relationship map", error);
+      return { error: "The map could not be saved. Your changes are still here — try again." };
+    }
+    return { error: refused, conflict: isConflictRefusal(error) };
   }
 
   revalidateShell();
-  return { savedAt: Date.now() };
+  return { savedAt: Date.now(), version: expectedVersion + 1 };
 }
 
 /**

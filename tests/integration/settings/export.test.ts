@@ -32,6 +32,7 @@ const owner = "export-owner";
 const EXPECTED_KEYS: Record<string, string[]> = {
   User: ["user"],
   UserSettings: ["settings"],
+  RelationshipMapVersion: ["relationshipMapVersion"],
   Object: ["objects"],
   ObjectField: ["objectFields"],
   FieldLink: ["fieldLinks"],

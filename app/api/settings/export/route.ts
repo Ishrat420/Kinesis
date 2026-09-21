@@ -6,9 +6,10 @@ export async function GET() {
   if (verification !== true) return verification;
   const kinesisUser = await requireKinesisUser();
   const userId = kinesisUser.id;
-  const [user, settings, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, securityEvents] = await Promise.all([
+  const [user, settings, relationshipMapVersion, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, securityEvents] = await Promise.all([
     prisma.user.findMany({ where: { id: userId }, omit: { clerkUserId: true } }),
     prisma.userSettings.findMany({ where: { userId } }),
+    prisma.relationshipMapVersion.findMany({ where: { userId } }),
     prisma.object.findMany({ where: { userId } }),
     // A document's or a custom item's fields hang off its Object identity
     // rather than off the typed record itself (20260915000000), so they are
@@ -43,7 +44,7 @@ export async function GET() {
   ]);
   await prisma.securityEvent.create({ data: { event: "DATA_EXPORT_COMPLETED", userId } });
   const exportedAt = new Date().toISOString();
-  return new Response(JSON.stringify({ exportedAt, user, settings, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, securityEvents }, null, 2), {
+  return new Response(JSON.stringify({ exportedAt, user, settings, relationshipMapVersion, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, securityEvents }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="kinesis-export-${exportedAt.slice(0, 10)}.json"`, "Cache-Control": "no-store" },
   });
 }
