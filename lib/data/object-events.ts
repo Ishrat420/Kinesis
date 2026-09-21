@@ -69,19 +69,27 @@ export async function recordRelationshipRemoved(client: Client, params: {
  * Retyping an existing Kinesis Link in place (`updateKinesisLinkAction`,
  * KD-050's "Change relationship") -- one `RELATIONSHIP_CHANGED` event per
  * endpoint rather than a remove-then-add pair, since retyping never changes
- * *what's* linked, only *how* (KD-048). `inverse` stays constant per side
- * across the change -- only the type(s)/text differ.
+ * *what's* linked, only *how* (KD-048). `inverse` (the side each endpoint
+ * holds *after* the retype) is fixed per side the same way `recordRelationshipAdded`
+ * writes it -- but a retype from a forward-facing type to an inverse-facing
+ * one (or back) flips which endpoint `ObjectRelationship` stores as its
+ * `sourceObjectId`, so the endpoint that held the *old* type's forward side
+ * can become the new type's inverse side, or vice versa. `oldSourceObjectId`
+ * -- the relationship's source before this retype -- lets each row record
+ * its own pre-retype side (`oldInverse`) independently of its post-retype
+ * one, rather than assuming the two always match.
  */
 export async function recordRelationshipChanged(client: Client, params: {
   userId: string;
   source: RelationshipEndpoint;
   target: RelationshipEndpoint;
+  oldSourceObjectId: string;
   oldType: ObjectRelationshipType;
   oldCustomLabel: string | null;
   newType: ObjectRelationshipType;
   newCustomLabel: string | null;
 }) {
-  const { userId, source, target, oldType, oldCustomLabel, newType, newCustomLabel } = params;
+  const { userId, source, target, oldSourceObjectId, oldType, oldCustomLabel, newType, newCustomLabel } = params;
   const base = {
     userId,
     eventType: "RELATIONSHIP_CHANGED" as const,
@@ -92,8 +100,8 @@ export async function recordRelationshipChanged(client: Client, params: {
     source: "USER" as const,
   };
   await writeEventPair(client, [
-    { ...base, id: crypto.randomUUID(), objectId: source.objectId, inverse: false, relatedObjectId: target.objectId, relatedObjectName: target.name },
-    { ...base, id: crypto.randomUUID(), objectId: target.objectId, inverse: true, relatedObjectId: source.objectId, relatedObjectName: source.name },
+    { ...base, id: crypto.randomUUID(), objectId: source.objectId, inverse: false, oldInverse: source.objectId !== oldSourceObjectId, relatedObjectId: target.objectId, relatedObjectName: target.name },
+    { ...base, id: crypto.randomUUID(), objectId: target.objectId, inverse: true, oldInverse: target.objectId !== oldSourceObjectId, relatedObjectId: source.objectId, relatedObjectName: source.name },
   ]);
 }
 
@@ -238,7 +246,11 @@ export function describeObjectEvent(event: ObjectEvent): ObjectEventDescription 
     case "RELATIONSHIP_REMOVED":
       return { title: "No longer linked", detail: `${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} · ${relatedName}` };
     case "RELATIONSHIP_CHANGED":
-      return { title: "Relationship changed", detail: `From ${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} · To ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})` };
+      // `oldInverse` is null on rows written before that column existed --
+      // falling back to `inverse` there reproduces this event's original
+      // (only sometimes correct) rendering for old data, rather than
+      // guessing at a pre-retype side this row never recorded.
+      return { title: "Relationship changed", detail: `From ${resolveLabel(event.oldRelationshipType, event.oldValue, event.oldInverse ?? event.inverse)} · To ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})` };
     case "ITEM_DELETED":
       return { title: `${relatedName} was deleted`, detail: null };
     case "ITEM_CREATED":

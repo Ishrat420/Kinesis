@@ -1,0 +1,12 @@
+-- Fixes RELATIONSHIP_CHANGED's direction bug: a retype that flips a link
+-- between a forward-facing type and an inverse-facing one also flips which
+-- endpoint ObjectRelationship stores as its source, so the single `inverse`
+-- column (which always describes the side *after* the retype) rendered the
+-- wrong "From" label whenever that flip happened. `oldInverse` records each
+-- endpoint's side *before* the retype independently, so describeObjectEvent
+-- can resolve the "From" and "To" halves of one RELATIONSHIP_CHANGED event
+-- from their own correct orientation. Null on every existing row -- their
+-- true pre-retype side was never recorded and can't be reconstructed;
+-- describeObjectEvent falls back to `inverse` for those, unchanged from
+-- today's (only sometimes correct) behavior.
+ALTER TABLE "ObjectEvent" ADD COLUMN "oldInverse" BOOLEAN;

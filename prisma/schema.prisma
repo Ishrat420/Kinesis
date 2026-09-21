@@ -365,6 +365,19 @@ model ObjectEvent {
   newRelationshipType ObjectRelationshipType?
   inverse             Boolean?
 
+  /// Set only for RELATIONSHIP_CHANGED -- which side of `oldRelationshipType`
+  /// this endpoint held *before* the retype, independently of `inverse`
+  /// (which always describes the side *after*). KD-050's "Change
+  /// relationship" control can retype a link from a forward-facing type to
+  /// an inverse-facing one (or back), which flips which endpoint is stored
+  /// as `ObjectRelationship.sourceObjectId` -- so an endpoint that was the
+  /// old link's source (forward) can become the new link's target
+  /// (inverse), or vice versa. A single `inverse` value can't describe both
+  /// halves of that one event correctly. Null on rows written before this
+  /// field existed; `describeObjectEvent` falls back to `inverse` for those,
+  /// which is only right when a retype happened not to flip sides.
+  oldInverse Boolean?
+
   /// Set only for relationship/link-shaped events -- the *other* object.
   /// relatedObjectId goes null if that object is later deleted; relatedObjectName
   /// is a snapshot so the line still reads ("Depends on -> Save $30k") even then.

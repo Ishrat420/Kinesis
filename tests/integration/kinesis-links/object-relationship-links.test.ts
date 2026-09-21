@@ -295,6 +295,27 @@ describe.sequential("Kinesis Links over the shared Object layer (KD-049)", () =>
       ]);
     });
 
+    it("keeps each side's 'From' label correct when a retype flips which endpoint is forward", async () => {
+      // Retyping from a forward-facing option (SUPPORTS, doc is source) to
+      // an inverse-facing one (BLOCKS|inverse, doc becomes target) flips
+      // ObjectRelationship's stored source/target -- see "stores the picked
+      // inverse direction with source and target swapped" above for the
+      // same flip on a plain add. Before oldInverse existed, both objects'
+      // "From" label was resolved from the *new* orientation instead of
+      // their own actual pre-retype one, so the doc (previously forward)
+      // would misread as "From Supported by" and the goal (previously
+      // inverse) would misread as "From Supports" -- exactly swapped.
+      await add(docObjectId, goalObjectId, "SUPPORTS|forward");
+      const { id } = await onlyRelationship();
+
+      await retype(docObjectId, id, "BLOCKS|inverse");
+
+      await expect(onlyRelationship()).resolves.toMatchObject({ sourceObjectId: goalObjectId, targetObjectId: docObjectId, type: "BLOCKS" });
+      const [onDoc, onGoal] = await Promise.all([getObjectEvents(docObjectId), getObjectEvents(goalObjectId)]);
+      expect(onDoc[0]).toMatchObject({ title: "Relationship changed", detail: "From Supports · To Blocked by (Buy a house)" });
+      expect(onGoal[0]).toMatchObject({ title: "Relationship changed", detail: "From Supported by · To Blocks (Mortgage pre-approval)" });
+    });
+
     it("writes a RELATIONSHIP_REMOVED event on both sides when a link is removed, alongside the original add", async () => {
       await add(docObjectId, goalObjectId, "DEPENDS_ON|forward");
       const { id } = await onlyRelationship();

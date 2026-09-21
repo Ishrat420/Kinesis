@@ -200,6 +200,7 @@ export async function updateKinesisLinkAction(objectId: string, relationshipId: 
       userId: user.id,
       source: { objectId: sourceObjectId, name: nameOf(sourceObjectId) },
       target: { objectId: targetObjectId, name: nameOf(targetObjectId) },
+      oldSourceObjectId: relationship.sourceObjectId,
       oldType: relationship.type,
       oldCustomLabel: relationship.customLabel,
       newType: choice.type,

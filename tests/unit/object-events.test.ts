@@ -16,6 +16,7 @@ function event(overrides: Partial<ObjectEvent>): ObjectEvent {
     oldRelationshipType: null,
     newRelationshipType: null,
     inverse: null,
+    oldInverse: null,
     relatedObjectId: null,
     relatedObjectName: null,
     source: "USER",
@@ -52,6 +53,25 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     const onTarget = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: true, relatedObjectName: "Mortgage pre-approval" }));
     expect(onSource).toEqual({ title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)" });
     expect(onTarget).toEqual({ title: "Relationship changed", detail: "From Supported by · To Blocked by (Mortgage pre-approval)" });
+  });
+
+  it("falls back to `inverse` for a RELATIONSHIP_CHANGED row with no `oldInverse` recorded (pre-migration data)", () => {
+    const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: false, oldInverse: null, relatedObjectName: "Buy a house" }));
+    expect(line).toEqual({ title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)" });
+  });
+
+  it("renders RELATIONSHIP_CHANGED's 'From' side from its own pre-retype orientation when a retype flips which endpoint is forward", () => {
+    // A retype from a forward-facing type to an inverse-facing one (or back)
+    // flips ObjectRelationship's stored source/target -- so this endpoint's
+    // pre-retype side (oldInverse: true, the old link's target) can differ
+    // from its post-retype side (inverse: false, the new link's source).
+    // Using `inverse` for both, as before this fix, would have rendered the
+    // "From" side as "Supports" instead of the actually-true "Supported by".
+    const line = describeObjectEvent(event({
+      eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS",
+      oldInverse: true, inverse: false, relatedObjectName: "Buy a house",
+    }));
+    expect(line).toEqual({ title: "Relationship changed", detail: "From Supported by · To Blocks (Buy a house)" });
   });
 
   it("renders ITEM_DELETED naming the deleted record in its title, with no detail line", () => {
