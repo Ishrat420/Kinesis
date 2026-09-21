@@ -1,8 +1,11 @@
 # KD-048 — Object Event Model (Universal History & Change Log)
 
 **Status:** In Progress -- Phases 1 and 2 shipped in full; Phase 3 turned
-out to already be covered by Phase 1's own remainder, not separate work;
-Phases 4-6 not started.
+out to already be covered by Phase 1's own remainder, not separate work.
+Phases 4 and 6 (significance, surfacing, and Change Awareness) are spun
+out to their own ticket, **KD-052**, for further design rather than
+picked up here as a direct continuation. Phase 5 (Timeline) already has
+its own ticket, KD-015.
 
 * **Phase 1 (Foundation) -- Shipped in full**, including its own
   remainder (every named event type wired across every module's
@@ -31,10 +34,18 @@ Phases 4-6 not started.
   further wrinkle (template field values' own upsert-per-field diff) was
   built alongside it. Nothing named in Phase 3 remains outstanding; this
   status line is the only thing that hadn't caught up to that yet.
-* **Phase 4 (Significance & surfacing) -- Not started.**
-* **Phase 5 (Timeline / Year in Review) -- Not started, blocked on
-  Phase 4** for any real curation.
-* **Phase 6 (Change Awareness & AI summaries) -- Unscheduled.**
+* **Phase 4 (Significance & surfacing) -- Deferred to KD-052.** Not
+  started here; carried into that ticket for further design and
+  functional consideration rather than resumed as this ticket's own
+  next phase.
+* **Phase 5 (Timeline / Year in Review) -- Already has its own ticket,
+  KD-015**, which already names KD-048 as its dependency. Not started;
+  unblocked on its foundation now that Phases 1-3 are Done, but still
+  wants KD-052's significance work for genuine curation rather than a
+  Timeline that has to show everything because nothing is scored yet.
+* **Phase 6 (Change Awareness & AI summaries) -- Deferred to KD-052**,
+  alongside Phase 4. Unscheduled, unscoped beyond the one paragraph
+  below.
 
 **Two small loose ends, both deliberate, not forgotten** (each already
 called out where the relevant work happened, restated here so the
@@ -851,19 +862,24 @@ genuinely Custom-Item-specific diff for template field values
 creation, archival, and deletion are all wired. Nothing named here is
 outstanding.
 
-**Phase 4 — Significance & surfacing**
+**Phase 4 — Significance & surfacing (deferred to KD-052)**
 Add `classifyEventSignificance`. Feed "high" events into Kinesis Link
 preview cards. Reconsider an Attention "changed" reason (needs "last
-viewed" — likely its own small ticket).
+viewed" — likely its own small ticket). Carried into **KD-052 (Event
+Significance, Surfacing & Change Awareness)** for further design and
+functional consideration rather than picked up here directly.
 
-**Phase 5 — Timeline / Year in Review**
+**Phase 5 — Timeline / Year in Review (tracked as its own ticket, KD-015)**
 Build KD-015 on top of the now-populated log: period grouping, highlight
-selection, celebratory copy per KD-015's own notes. Re-tag KD-015 off
-`Maturity Dependent` once Phases 1–3 exist to review.
+selection, celebratory copy per KD-015's own notes. Phases 1-3 now exist
+to review -- KD-015 is unblocked on its foundation, though real curation
+still wants KD-052's significance work first, per that ticket's own notes.
 
-**Phase 6 — Change Awareness & AI summaries (unscheduled)**
+**Phase 6 — Change Awareness & AI summaries (deferred to KD-052, unscheduled)**
 Per-domain regression detection ("expires earlier than before", a metric
 trending the wrong way). AI-narrated summaries over the same stream.
+Carried into KD-052 alongside Phase 4, both unscoped beyond this
+one-paragraph mention.
 
 ## Behaviour / constraints
 

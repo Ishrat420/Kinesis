@@ -172,6 +172,7 @@ KD-041-search-visibility-for-archived-records
 KD-043-field-length-limits
 KD-045-mobile-add-custom-module-to-dashboard
 KD-051-relationship-connection-history
+KD-052-event-significance-and-change-awareness
 
 ## ✓ Accepted
 

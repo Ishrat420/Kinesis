@@ -2,12 +2,20 @@
 
 **Status:** Idea
 **Priority:** Medium
-**Tags:** UX / UI, Maturity Dependent, Foundation Dependent
+**Tags:** UX / UI, Foundation Dependent
 
 **Depends on:** KD-048 (Object Event Model) — this ticket's whole example
-output is a curated read over a structured event log, which doesn't exist
-yet. Revisit once KD-048's Phase 1–3 have shipped and there's real event
-data to build a Timeline over.
+output is a curated read over a structured event log. KD-048's Phases
+1-3 are now Done, so the foundation this ticket was waiting on exists:
+every core module writes a complete `ObjectEvent` stream to build a
+Timeline over. Still wants **KD-052 (Event Significance, Surfacing &
+Change Awareness)** for genuine curation ("meaningful highlights over
+raw counts," per this ticket's own notes below) before a Timeline reads
+as more than an unfiltered activity log — `Maturity Dependent` dropped
+since the blocking maturity question was specifically "does the event
+substrate exist," which it now does; `Foundation Dependent` kept since
+KD-052's significance work is still a real prerequisite for a good
+result here.
 
 ## Summary
 
