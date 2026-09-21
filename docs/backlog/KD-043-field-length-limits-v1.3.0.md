@@ -209,3 +209,8 @@ aren't free text.
   display-time concern this ticket doesn't replace — a stored value can
   still be within this ticket's limit and get truncated further for display
   in a tight card.
+* ADR-015 — Field Length and Number-Magnitude Limits, By Kind. Records the
+  decision this ticket shipped: why limits are grouped by kind rather than
+  per-field, why all three enforcement layers exist, why `CHECK ... NOT
+  VALID` resolved the DB-constraint-vs-audit tension, and why violations
+  reject rather than truncate.
