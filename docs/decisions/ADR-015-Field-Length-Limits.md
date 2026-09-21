@@ -126,7 +126,7 @@ database layer's job is to stop anything catastrophic, not to duplicate
 the app layer's precise per-kind number.
 
 **Classifying built-in fields by kind** is a one-time, per-field manual
-decision (documented in `docs/backlog/KD-043-field-length-limits-v1.3.0.md`),
+decision (documented in `docs/backlog/KD-043-field-length-limits-v1.3.0-DONE.md`),
 since built-in modules' own native columns have no existing tag to infer a
 kind from. The generic custom-fields engine already carries an explicit
 `type` (and, since KD-042, `numberFormat`) to key off instead. A
@@ -172,7 +172,7 @@ here.
 
 ## Related
 
-* `docs/backlog/KD-043-field-length-limits-v1.3.0.md` — the ticket this
+* `docs/backlog/KD-043-field-length-limits-v1.3.0-DONE.md` — the ticket this
   decision was made under; contains the full per-model field
   classification table and test coverage this decision doesn't repeat here.
 * ADR-013 — establishes `lib/custom-fields/kinds.ts`'s "one formatter per
