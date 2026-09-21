@@ -161,12 +161,12 @@ describe.sequential("cross-user authorization contract", () => {
     // not a wholesale refusal.
     await expect(saveRelationshipMap({
       people: [
-        { id: "replacement-self", name: "Replacement", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship() },
-        { id: "replacement-person", name: "Replacement person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship() },
+        { id: "replacement-self", name: "Replacement", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship(), objectId: null },
+        { id: "replacement-person", name: "Replacement person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship(), objectId: null },
       ],
       relationships: [{
         id: "replacement-relationship", from: "replacement-self", to: "replacement-person", type: "Friend", notes: "must be inserted",
-        practices: [], reflections: [], importantDates: [], linkedGoals: [ids.goalA, ids.goalB, "missing-goal"],
+        practices: [], reflections: [], importantDates: [], linkedGoals: [ids.goalA, ids.goalB, "missing-goal"], createdAt: "2026-01-01T00:00:00.000Z",
       }],
     })).resolves.toEqual({ savedAt: expect.any(Number) });
 
@@ -198,16 +198,16 @@ describe.sequential("cross-user authorization contract", () => {
 
     const result = await saveRelationshipMap({
       people: [
-        { id: ids.personA1, name: "Owner A self", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship() },
-        { id: ids.personA2, name: "owner-a-private-person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship() },
+        { id: ids.personA1, name: "Owner A self", detail: "You", x: 0, y: 0, size: 84, color: "#111111", icon: "user", selfRelationship: emptySelfRelationship(), objectId: null },
+        { id: ids.personA2, name: "owner-a-private-person", detail: "Friend", x: 1, y: 1, size: 84, color: "#222222", icon: "heart", selfRelationship: emptySelfRelationship(), objectId: null },
         // Smuggled: another account's real, existing person id.
-        { id: ids.personB1, name: "intrusion", detail: "You", x: 2, y: 2, size: 84, color: "#333333", icon: "user", selfRelationship: emptySelfRelationship() },
-        { id: ids.personB2, name: "intrusion", detail: "Friend", x: 3, y: 3, size: 84, color: "#444444", icon: "heart", selfRelationship: emptySelfRelationship() },
+        { id: ids.personB1, name: "intrusion", detail: "You", x: 2, y: 2, size: 84, color: "#333333", icon: "user", selfRelationship: emptySelfRelationship(), objectId: null },
+        { id: ids.personB2, name: "intrusion", detail: "Friend", x: 3, y: 3, size: 84, color: "#444444", icon: "heart", selfRelationship: emptySelfRelationship(), objectId: null },
       ],
       relationships: [
-        { id: ids.relationshipA, from: ids.personA1, to: ids.personA2, type: "Friend", notes: "owner-a-relationship-notes", practices: [], reflections: [], importantDates: [], linkedGoals: [] },
+        { id: ids.relationshipA, from: ids.personA1, to: ids.personA2, type: "Friend", notes: "owner-a-relationship-notes", practices: [], reflections: [], importantDates: [], linkedGoals: [], createdAt: "2026-01-01T00:00:00.000Z" },
         // Smuggled: another account's real, existing connection id.
-        { id: ids.relationshipB, from: ids.personB1, to: ids.personB2, type: "intrusion", notes: "intrusion", practices: [], reflections: [], importantDates: [], linkedGoals: [] },
+        { id: ids.relationshipB, from: ids.personB1, to: ids.personB2, type: "intrusion", notes: "intrusion", practices: [], reflections: [], importantDates: [], linkedGoals: [], createdAt: "2026-01-01T00:00:00.000Z" },
       ],
     });
 

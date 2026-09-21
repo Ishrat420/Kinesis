@@ -38,10 +38,10 @@ describe.sequential("repro: creating a brand-new relationship", () => {
     const payload: RelationshipMapData = {
       people: [
         ...before.people,
-        { id: newPersonId, name: "New person", detail: "Relationship", x: 430, y: 340, size: 84, color: "#aa7866", icon: "user", selfRelationship: { practices: [], reflections: [], importantDates: [], notes: "" } },
+        { id: newPersonId, name: "New person", detail: "Relationship", x: 430, y: 340, size: 84, color: "#aa7866", icon: "user", selfRelationship: { practices: [], reflections: [], importantDates: [], notes: "" }, objectId: null },
       ],
       relationships: [
-        { id: "nc-relationship-1", from: firstPersonId, to: secondPersonId, type: "Relationship", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
+        { id: "nc-relationship-1", from: firstPersonId, to: secondPersonId, type: "Relationship", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z" },
       ],
     };
 
@@ -65,7 +65,7 @@ describe.sequential("repro: creating a brand-new relationship", () => {
 
     const result = await saveRelationshipMap({
       people: before.people,
-      relationships: [{ id: "nc-relationship-2", from: firstPersonId, to: secondPersonId, type: "Friend", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" }],
+      relationships: [{ id: "nc-relationship-2", from: firstPersonId, to: secondPersonId, type: "Friend", practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z" }],
     });
 
     expect(result.error).toBeUndefined();

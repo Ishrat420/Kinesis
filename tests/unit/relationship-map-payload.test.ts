@@ -10,7 +10,7 @@ import {
 
 const person = (id: string, overrides: Partial<RelationshipPerson> = {}): RelationshipPerson => ({
   id, name: id, detail: "Friend", x: 10, y: 20, size: 84, color: "#292524", icon: "user",
-  selfRelationship: { practices: [], reflections: [], importantDates: [], notes: "" },
+  selfRelationship: { practices: [], reflections: [], importantDates: [], notes: "" }, objectId: null,
   ...overrides,
 });
 
@@ -18,7 +18,7 @@ const map = (overrides: Partial<RelationshipMapData> = {}): RelationshipMapData 
   people: [person("one"), person("two")],
   relationships: [{
     id: "link", from: "one", to: "two", type: "Friend",
-    practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "",
+    practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
   }],
   ...overrides,
 });
@@ -41,8 +41,8 @@ describe("validateRelationshipMap", () => {
   it("rejects the same pair connected twice in either direction", () => {
     expect(validateRelationshipMap(map({
       relationships: [
-        { id: "a", from: "one", to: "two", type: null, practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
-        { id: "b", from: "two", to: "one", type: null, practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" },
+        { id: "a", from: "one", to: "two", type: null, practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z" },
+        { id: "b", from: "two", to: "one", type: null, practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z" },
       ],
     }))).toBe("Two of these people are connected twice.");
   });

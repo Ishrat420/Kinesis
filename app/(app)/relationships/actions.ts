@@ -17,6 +17,8 @@ import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { parseDateOnly } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
+import { getObjectEvents } from "@/lib/data/object-event-history";
+import type { ObjectHistoryEntry } from "@/components/history/ObjectHistory";
 
 export type RelationshipMapState = { error?: string; savedAt?: number };
 
@@ -319,4 +321,23 @@ export async function saveRelationshipMap(data: RelationshipMapData): Promise<Re
 
   revalidateShell();
   return { savedAt: Date.now() };
+}
+
+/**
+ * A Person's own History (KD-048), fetched on demand from the map's
+ * client-side inspector rather than pre-loaded on the page like every other
+ * object's detail page -- the map holds every person's data in one client
+ * component, so eagerly reading each one's history up front would mean one
+ * query per person on every visit to the page, not per person actually
+ * inspected. The ownership check is redundant with `getObjectEvents`'s own
+ * `userId` scoping (a foreign objectId simply matches no rows), but keeps
+ * this action's own contract narrow -- "history of one of my own people" --
+ * rather than "history of any object id I happen to own."
+ */
+export async function getPersonHistoryAction(objectId: string): Promise<ObjectHistoryEntry[]> {
+  const user = await requireKinesisUser();
+  const owned = await prisma.person.findFirst({ where: { objectId, userId: user.id }, select: { id: true } });
+  if (!owned) return [];
+  const events = await getObjectEvents(objectId);
+  return events.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }));
 }

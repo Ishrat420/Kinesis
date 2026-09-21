@@ -2,14 +2,46 @@
 
 **Status:** In Progress -- Phase 1 shipped in full, including its own
 remainder (every named event type wired across every module's mutations,
-not just Kinesis Links and deletion). Phase 2 is now mostly done, out of
-its own stated order: the dashboard's "Recent activity" widget reads from
-`ObjectEvent` now (see below); Finance Items and To-Dos each got a real
-detail page/window with History wired in (see below); `ActivityEvent` is
-now fully retired, including new History coverage for Person/Relationships
-that it turned out to be the only thing tracking (see below). People/
-Relationships still has no detail page to hang a History *section* off,
-even though it now records events. Phases 3-6 not started.
+not just Kinesis Links and deletion). Phase 2 is now done in substance,
+out of its own stated order: the dashboard's "Recent activity" widget
+reads from `ObjectEvent` now (see below); Finance Items and To-Dos each
+got a real detail page/window with History wired in (see below);
+`ActivityEvent` is fully retired; and Person now has a real, collapsed
+History card on the Relationships map (see below), closing Phase 2's
+last named gap ("extend the History section to every remaining object
+detail page ... People/Relationships"). Relationship (the connection
+between two people) has the same card but nothing real to show yet --
+it still has no `ObjectEvent` coverage of its own; see below. Phases 3-6
+not started.
+
+**Person and Relationship History cards on the Relationships map
+(shipped, closing Phase 2):** The map has no per-record detail page the
+way other modules do -- one client component (`RelationshipMap.tsx`)
+holds every person and connection at once -- so History here is a
+collapsed card inside the existing Person details / Relationship details
+inspector tabs (replacing the old static "Size and position..." tip on
+the Person tab, and new on the Relationship tab, which had no equivalent
+box before), rather than a page section. Collapsed by default so an
+inspector already showing several sections doesn't grow just to hold a
+rarely-opened list; expanding "pans out" in place via a CSS grid-row
+transition. Person's card is real: `RelationshipPerson` now carries its
+own `objectId` (`null` only for a person added this session and not yet
+saved -- there's nothing to fetch until `saveRelationshipMap` actually
+creates their `Object` row, so the card doesn't render at all for one),
+and a new `getPersonHistoryAction` (`app/(app)/relationships/actions.ts`)
+wraps the existing `getObjectEvents`, called on demand from the client
+component (`app/(app)/relationships/HistoryCard.tsx`) rather than
+pre-loaded the way a page-based detail view already has its History
+section's data in hand. Relationship's card is deliberately honest
+rather than invented: `Relationship` has no `objectId` at all -- it was
+never brought into the universal Object layer KD-023/024 built, and nothing
+records an event against one today (retyping it, adding a shared date,
+linking a goal -- none of it is tracked anywhere) -- so its card shows only
+"Connected" from the row's own `createdAt`, with a line saying plainly that
+edits aren't tracked yet, instead of a real change log. Giving
+`Relationship` its own `objectId`/`ObjectEvent` coverage is real, separate
+scope this pass didn't take on -- flagged here as the next concrete step
+if a connection's own edit history is ever wanted, not left implicit.
 
 **Dashboard "Recent activity" widget (shipped, Phase 2's other piece):**
 `getRecentActivity` moved from `lib/data/activity.ts` (`ActivityEvent`,

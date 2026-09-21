@@ -25,7 +25,6 @@ import {
   PawPrint,
   Plus,
   Save,
-  Sparkles,
   Stethoscope,
   StickyNote,
   Target,
@@ -48,6 +47,7 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { saveMapGeometry, saveRelationshipMap } from "./actions";
+import { PersonHistoryCard, RelationshipHistoryCard } from "./HistoryCard";
 import { Z_INDEX } from "@/lib/layout/z-index";
 import { contentFingerprint, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
@@ -57,7 +57,7 @@ type GoalOption = { id: string; name: string; status: string };
 type SheetState = "collapsed" | "partial" | "expanded";
 
 const initialPeople: Person[] = [
-  { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user", selfRelationship: emptySelfRelationship() },
+  { id: "self", name: "", detail: "You", x: 488, y: 250, size: 118, color: "#292524", icon: "user", selfRelationship: emptySelfRelationship(), objectId: null },
 ];
 
 const icons: Record<PersonIconName, React.ElementType> = {
@@ -244,7 +244,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   function createConnection() {
     if (!pendingConnection || relationshipExists(pendingConnection.from, pendingConnection.to)) return;
     const [firstPersonId, secondPersonId] = [pendingConnection.from, pendingConnection.to].sort();
-    const relationship: Relationship = { id: crypto.randomUUID(), from: firstPersonId, to: secondPersonId, type: pendingConnection.type || null, practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "" };
+    const relationship: Relationship = { id: crypto.randomUUID(), from: firstPersonId, to: secondPersonId, type: pendingConnection.type || null, practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: new Date().toISOString() };
     setRelationships((current) => [...current, relationship]);
     setSelection({ kind: "relationship", id: relationship.id });
     setPendingConnection(null);
@@ -274,7 +274,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData }: { goals
   function addPerson() {
     const id = crypto.randomUUID();
     justCreatedPersonIdRef.current = id;
-    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: pickNextColor(current), icon: "user", selfRelationship: emptySelfRelationship() }]);
+    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: pickNextColor(current), icon: "user", selfRelationship: emptySelfRelationship(), objectId: null }]);
     setMultiSelection([]);
     setSelection({ kind: "person", id });
   }
@@ -498,7 +498,7 @@ function PersonInspector({ person, relationships, people, justCreatedPersonIdRef
       )}
 
       <button onClick={onDelete} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove person</button>
-      <div className="mt-5 rounded-xl bg-[#f7f5f1] p-3 text-[10px] leading-4 text-zinc-400"><Sparkles className="mr-1 inline h-3 w-3"/> Size and position are yours to define—they don&apos;t imply importance.</div>
+      <PersonHistoryCard objectId={person.objectId} locale={locale} />
     </div>
   </div>;
 }
@@ -545,6 +545,7 @@ function RelationshipInspector({ relationship, people, goals, onChange, onDelete
       </>}
       <RelationshipSection icon={StickyNote} title="Notes" addLabel=""><textarea value={relationship.notes} onChange={(event) => onChange({ notes: event.target.value })} placeholder="Add a note about this relationship…" className={NOTES_TEXTAREA_CLASS} /></RelationshipSection>
       <button onClick={onDelete} className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove connection</button>
+      <RelationshipHistoryCard createdAt={relationship.createdAt} locale={locale} />
     </div>
   </div>;
 }

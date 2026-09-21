@@ -30,8 +30,15 @@ export type ReflectionEntry = { id: string; text: string; date: string };
 export type ImportantDateEntry = { id: string; label: string; date: string; repeatsYearly: boolean };
 /** The private space a person keeps for the relationship they have with themselves (KD-021). Deliberately has no linked goals. */
 export type SelfRelationship = { practices: ConnectionPracticeEntry[]; reflections: ReflectionEntry[]; importantDates: ImportantDateEntry[]; notes: string };
-export type RelationshipPerson = { id: string; name: string; detail: string; x: number; y: number; size: number; color: string; icon: PersonIconName; selfRelationship: SelfRelationship };
-export type RelationshipRecord = { id: string; from: string; to: string; type: string | null; practices: ConnectionPracticeEntry[]; reflections: ReflectionEntry[]; linkedGoals: string[]; importantDates: ImportantDateEntry[]; notes: string };
+/**
+ * `objectId` is null only for a person added this session and not yet saved
+ * -- `saveRelationshipMap` is what actually creates their `Object` row (KD-048),
+ * so there is nothing to fetch History for until a save has happened at least
+ * once. Every person the map loaded from the server already has one.
+ */
+export type RelationshipPerson = { id: string; name: string; detail: string; x: number; y: number; size: number; color: string; icon: PersonIconName; selfRelationship: SelfRelationship; objectId: string | null };
+/** `createdAt` is read-only, server-assigned metadata -- never part of a save, only of the History card's "Connected" line. */
+export type RelationshipRecord = { id: string; from: string; to: string; type: string | null; practices: ConnectionPracticeEntry[]; reflections: ReflectionEntry[]; linkedGoals: string[]; importantDates: ImportantDateEntry[]; notes: string; createdAt: string };
 export type RelationshipMapData = { people: RelationshipPerson[]; relationships: RelationshipRecord[] };
 
 export const PERSON_ICONS = [

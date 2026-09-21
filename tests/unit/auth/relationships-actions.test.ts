@@ -30,7 +30,7 @@ import type { RelationshipMapData, RelationshipPerson } from "@/lib/relationship
 
 const person = (id: string, overrides: Partial<RelationshipPerson> = {}): RelationshipPerson => ({
   id, name: id, detail: "Friend", x: 10, y: 20, size: 84, color: "#292524", icon: "user",
-  selfRelationship: { practices: [], reflections: [], importantDates: [], notes: "" },
+  selfRelationship: { practices: [], reflections: [], importantDates: [], notes: "" }, objectId: null,
   ...overrides,
 });
 
@@ -38,7 +38,7 @@ const map = (overrides: Partial<RelationshipMapData> = {}): RelationshipMapData 
   people: [person("person-one"), person("person-two")],
   relationships: [{
     id: "relationship-id", from: "person-one", to: "person-two", type: null,
-    practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "",
+    practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
   }],
   ...overrides,
 });
@@ -81,7 +81,7 @@ describe("saveRelationshipMap authorization", () => {
     const result = await saveRelationshipMap(map({
       relationships: [{
         id: "relationship-id", from: "person-one", to: "person-two", type: null,
-        practices: [], reflections: [], linkedGoals: ["owned-goal", "not-this-owners-goal"], importantDates: [], notes: "",
+        practices: [], reflections: [], linkedGoals: ["owned-goal", "not-this-owners-goal"], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
       }],
     }));
 
@@ -107,7 +107,7 @@ describe("saveRelationshipMap authorization", () => {
     const result = await saveRelationshipMap(map({
       relationships: [{
         id: "relationship-id", from: "person-one", to: "person-two", type: null,
-        practices: [], reflections: [], linkedGoals: ["deleted-goal"], importantDates: [], notes: "",
+        practices: [], reflections: [], linkedGoals: ["deleted-goal"], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
       }],
     }));
 
@@ -188,7 +188,7 @@ describe("saveRelationshipMap reconciliation", () => {
       relationships: [{
         id: "relationship-id", from: "person-one", to: "person-two", type: null,
         practices: [{ id: "practice-id", title: "Sunday walk", cadence: "Weekly", anchorDate: "2026-01-04" }],
-        reflections: [], linkedGoals: [], importantDates: [], notes: "",
+        reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z",
       }],
     }));
 
