@@ -178,8 +178,6 @@ KD-052-event-significance-and-change-awareness
 
 ## 🚧 In Progress
 
-KD-048-object-event-model
-
 ## Accepted — Needs Planning
 
 KD-025-to-do-board
@@ -191,6 +189,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-048-object-event-model
 KD-049-typed-kinesis-link-connections
 KD-050-converge-kinesis-link-custom-fields
 KD-047-important-dates-row-actions

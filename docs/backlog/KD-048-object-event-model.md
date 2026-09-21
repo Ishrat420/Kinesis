@@ -1,11 +1,15 @@
 # KD-048 — Object Event Model (Universal History & Change Log)
 
-**Status:** In Progress -- Phases 1 and 2 shipped in full; Phase 3 turned
-out to already be covered by Phase 1's own remainder, not separate work.
-Phases 4 and 6 (significance, surfacing, and Change Awareness) are spun
-out to their own ticket, **KD-052**, for further design rather than
-picked up here as a direct continuation. Phase 5 (Timeline) already has
-its own ticket, KD-015.
+**Status:** Done -- Phases 1 and 2 (this ticket's actual scope) shipped
+in full; Phase 3 turned out to already be covered by Phase 1's own
+remainder, not separate work. Phases 4 and 6 (significance, surfacing,
+and Change Awareness) are spun out to their own ticket, **KD-052**, for
+further design rather than picked up here as a direct continuation.
+Phase 5 (Timeline) already has its own ticket, KD-015. Closing this
+ticket now that every phase still inside its own scope is shipped and
+every phase that isn't has a home elsewhere -- not because the larger
+"universal event stream" ambition is finished (KD-052 and KD-015 both
+continue it), but because nothing further is owed *to this ticket*.
 
 * **Phase 1 (Foundation) -- Shipped in full**, including its own
   remainder (every named event type wired across every module's
@@ -47,20 +51,23 @@ its own ticket, KD-015.
   alongside Phase 4. Unscheduled, unscoped beyond the one paragraph
   below.
 
-**Two small loose ends, both deliberate, not forgotten** (each already
-called out where the relevant work happened, restated here so the
-open-items list is complete in one place): `lib/objects/locations.ts`'s
+**Two small loose ends, both deliberate scope exclusions, not
+incomplete work** -- neither blocks closing this ticket, both already
+called out where the relevant work happened, restated here so a future
+reader doesn't have to go find them: `lib/objects/locations.ts`'s
 `locateObject` still points a Finance Item's or To-Do's own Kinesis Link
 cards at their list pages (`/finance`, `/todos#todo-<id>`) rather than
 their new per-item detail routes; and quick-capture conversion still has
 no `ObjectEvent` narrative of its own -- a converted record reads as
 "Created" rather than "Converted from To-Do X."
 
-**No ADR yet.** Flagged in this doc's own "Related" section below:
-"what counts as an event, and who's allowed to read one" is a decision,
-not just a work item, the same way notifications got ADR-010 once their
-own shape settled. Worth writing now that Phases 1-3 are done and the
-model has proven itself across every core module.
+**No ADR written.** Not a blocker to Done -- an ADR is a separate
+artifact from a backlog ticket per this backlog's own ADR-vs-backlog
+distinction -- but worth a future pass: "what counts as an event, and
+who's allowed to read one" is a decision, not just a work item, the same
+way notifications got ADR-010 once their own shape settled. The model
+has now proven itself across every core module, so there's a real,
+stable shape to document if anyone picks this up.
 
 **Person and Relationship History cards on the Relationships map
 (shipped, closing Phase 2):** The map has no per-record detail page the
