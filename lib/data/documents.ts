@@ -212,7 +212,7 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
 
 /** The Document columns a save can change and that are worth their own History line -- everything `DocumentInput` accepts except `status`/`archived` (each has its own named event below) and the `*Label` fields, which name a field rather than hold a value. */
 const NAMED_FIELDS = [
-  ["expiryDate", "Expiry date"], ["issueDate", "Issue date"], ["documentNumber", "Document number"],
+  ["name", "Name"], ["expiryDate", "Expiry date"], ["issueDate", "Issue date"], ["documentNumber", "Document number"],
   ["country", "Country"], ["notes", "Notes"], ["link", "Link"], ["prompt", "Reminder"],
 ] as const satisfies readonly (readonly [keyof DocumentInput, string])[];
 
@@ -237,7 +237,7 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
   return prisma.$transaction(async (transaction) => {
     const owned = await transaction.document.findFirst({
       where: { id, userId: user.id },
-      select: { objectId: true, status: true, archived: true, expiryDate: true, issueDate: true, documentNumber: true, country: true, notes: true, link: true, prompt: true },
+      select: { objectId: true, status: true, archived: true, name: true, expiryDate: true, issueDate: true, documentNumber: true, country: true, notes: true, link: true, prompt: true },
     });
     if (!owned) refuse("This document no longer exists.");
     const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true, label: true, value: true } });

@@ -54,7 +54,7 @@ function financeColumnValue(value: unknown): string | null {
 
 /** The Finance Item columns a save can change and that are worth their own History line. No status or archival concept exists here to map onto. */
 const FINANCE_NAMED_FIELDS = [
-  ["amount", "Amount"], ["category", "Category"], ["rate", "Rate"], ["monthlyContribution", "Monthly contribution"],
+  ["name", "Name"], ["amount", "Amount"], ["category", "Category"], ["rate", "Rate"], ["monthlyContribution", "Monthly contribution"],
   ["frequency", "Frequency"], ["startDate", "Start date"], ["endDate", "End date"], ["notes", "Notes"],
 ] as const;
 
@@ -76,7 +76,7 @@ export async function saveFinanceItem(item: FinanceItem): Promise<FinanceActionS
   await prisma.$transaction(async (tx) => {
     const existing = await tx.financeItem.findFirst({
       where: { id: item.id, userId: user.id },
-      select: { objectId: true, amount: true, category: true, rate: true, monthlyContribution: true, frequency: true, startDate: true, endDate: true, notes: true },
+      select: { objectId: true, name: true, amount: true, category: true, rate: true, monthlyContribution: true, frequency: true, startDate: true, endDate: true, notes: true },
     });
     if (existing) {
       await tx.financeItem.update({ where: { id: item.id }, data });
