@@ -40,8 +40,8 @@ linking a goal -- none of it is tracked anywhere) -- so its card shows only
 "Connected" from the row's own `createdAt`, with a line saying plainly that
 edits aren't tracked yet, instead of a real change log. Giving
 `Relationship` its own `objectId`/`ObjectEvent` coverage is real, separate
-scope this pass didn't take on -- flagged here as the next concrete step
-if a connection's own edit history is ever wanted, not left implicit.
+scope this pass didn't take on -- tracked as its own ticket,
+**KD-051 (History for a Connection's Own Facts)**, rather than left implicit.
 
 **Dashboard "Recent activity" widget (shipped, Phase 2's other piece):**
 `getRecentActivity` moved from `lib/data/activity.ts` (`ActivityEvent`,
