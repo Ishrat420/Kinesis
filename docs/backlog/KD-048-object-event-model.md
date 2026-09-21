@@ -1,18 +1,55 @@
 # KD-048 — Object Event Model (Universal History & Change Log)
 
-**Status:** In Progress -- Phase 1 shipped in full, including its own
-remainder (every named event type wired across every module's mutations,
-not just Kinesis Links and deletion). Phase 2 is now done in substance,
-out of its own stated order: the dashboard's "Recent activity" widget
-reads from `ObjectEvent` now (see below); Finance Items and To-Dos each
-got a real detail page/window with History wired in (see below);
-`ActivityEvent` is fully retired; and Person now has a real, collapsed
-History card on the Relationships map (see below), closing Phase 2's
-last named gap ("extend the History section to every remaining object
-detail page ... People/Relationships"). Relationship (the connection
-between two people) has the same card but nothing real to show yet --
-it still has no `ObjectEvent` coverage of its own; see below. Phases 3-6
-not started.
+**Status:** In Progress -- Phases 1 and 2 shipped in full; Phase 3 turned
+out to already be covered by Phase 1's own remainder, not separate work;
+Phases 4-6 not started.
+
+* **Phase 1 (Foundation) -- Shipped in full**, including its own
+  remainder (every named event type wired across every module's
+  mutations, not just Kinesis Links and deletion).
+* **Phase 2 (Replace `ActivityEvent`) -- Shipped in full**, out of its
+  own stated order: the dashboard's "Recent activity" widget reads from
+  `ObjectEvent` now; Finance Items and To-Dos each got a real detail
+  page/window with History wired in; `ActivityEvent` is fully retired;
+  and Person now has a real, collapsed History card on the Relationships
+  map, closing Phase 2's last named gap ("extend the History section to
+  every remaining object detail page ... People/Relationships"). All
+  four core surfaces the phase named -- dashboard, Documents, Finance/
+  Todos, People -- are done. Relationship (the connection between two
+  people, as opposed to a Person) has the same card but nothing real to
+  show yet -- it was never brought into the universal Object layer at
+  all, so it has no `ObjectEvent` coverage of its own to read. That gap
+  is real but is no longer this ticket's scope: it's spun out to
+  **KD-051 (History for a Connection's Own Facts)**, see below.
+* **Phase 3 (Custom module coverage) -- Shipped, absorbed into Phase 1's
+  remainder rather than done as separate work.** The phase's own
+  description asked for a generic `ObjectField` value-diff keyed by
+  field id, plus creation/archival/deletion coverage -- all of which
+  Phase 1's remainder actually built while wiring Documents and Goals
+  (Finding 2: their ad-hoc custom fields share the exact same
+  delete-and-recreate pattern Custom Items use), and Custom Items'
+  further wrinkle (template field values' own upsert-per-field diff) was
+  built alongside it. Nothing named in Phase 3 remains outstanding; this
+  status line is the only thing that hadn't caught up to that yet.
+* **Phase 4 (Significance & surfacing) -- Not started.**
+* **Phase 5 (Timeline / Year in Review) -- Not started, blocked on
+  Phase 4** for any real curation.
+* **Phase 6 (Change Awareness & AI summaries) -- Unscheduled.**
+
+**Two small loose ends, both deliberate, not forgotten** (each already
+called out where the relevant work happened, restated here so the
+open-items list is complete in one place): `lib/objects/locations.ts`'s
+`locateObject` still points a Finance Item's or To-Do's own Kinesis Link
+cards at their list pages (`/finance`, `/todos#todo-<id>`) rather than
+their new per-item detail routes; and quick-capture conversion still has
+no `ObjectEvent` narrative of its own -- a converted record reads as
+"Created" rather than "Converted from To-Do X."
+
+**No ADR yet.** Flagged in this doc's own "Related" section below:
+"what counts as an event, and who's allowed to read one" is a decision,
+not just a work item, the same way notifications got ADR-010 once their
+own shape settled. Worth writing now that Phases 1-3 are done and the
+model has proven itself across every core module.
 
 **Person and Relationship History cards on the Relationships map
 (shipped, closing Phase 2):** The map has no per-record detail page the
@@ -93,10 +130,10 @@ add/edit out of History and the Recent Activity feed. Fixed by porting the
 same fields the old tracking covered (name/category/icon/color) onto
 `recordEvent`/`recordFieldChanges`, excluding the owner's own self bubble
 exactly as the old code did -- covered by the new
-`tests/integration/relationships/person-history.test.ts`. People/
-Relationships otherwise still has no detail page (see Status above), so
-this coverage currently only feeds the dashboard feed, not a History
-section of its own.
+`tests/integration/relationships/person-history.test.ts`. At the time
+this coverage was added, People/Relationships still had no detail page
+to show it on, so it only fed the dashboard feed -- since resolved by
+the Person History card described above.
 
 **Finance Items and To-Dos detail pages (shipped, ahead of Phase 2):**
 Both modules previously had no per-item route at all -- editing was
@@ -783,20 +820,36 @@ other event type above, is visible in this section on both linked objects'
 pages where relevant, not only the one where the action happened. No
 significance scoring yet — newest first, unfiltered (Phase 4).
 
-**Phase 2 — Replace `ActivityEvent`**
-Move the dashboard "Recent activity" widget onto `ObjectEvent`. Move
-Document's own history onto the generic Phase-1 section (retire
-`getActivityForHref`). Extend the History section to every remaining
-object detail page (Todos, Finance, People/Relationships) so "everywhere"
-is actually true. Retire `ActivityEvent` / `lib/data/activity.ts` once
-nothing reads it — one source of truth, not two logs drifting apart.
+**Phase 2 — Replace `ActivityEvent` (Shipped, in full)**
+Move the dashboard "Recent activity" widget onto `ObjectEvent` — done.
+Move Document's own history onto the generic Phase-1 section (retire
+`getActivityForHref`) — done. Extend the History section to every
+remaining object detail page (Todos, Finance, People/Relationships) so
+"everywhere" is actually true — done: Todos and Finance each got a real
+detail page/window (ahead of this phase, but satisfying it); People got
+the collapsed History card described above, closing the one item this
+phase explicitly named. "Relationships" (the connection, not the person)
+is the one piece that isn't real yet, and that's now KD-051's scope, not
+this phase's. Retire `ActivityEvent` / `lib/data/activity.ts` once
+nothing reads it — done, including the one real gap the retirement
+surfaced along the way: Person add/edit had no other coverage, ported
+onto `recordEvent`/`recordFieldChanges`.
 
-**Phase 3 — Custom module coverage**
+**Phase 3 — Custom module coverage (Shipped, absorbed into Phase 1's
+remainder)**
 `ObjectField` is fully dynamic, so this needs a generic "did this field's
 value change" diff at the point a Custom Item's fields are saved, keyed by
 `ObjectField.id` with a `fieldLabel` snapshot — rather than named columns
 the way core modules get in Phase 1. Cover Custom Item creation/archival/
-deletion the same way.
+deletion the same way. **All of this shipped already**, not as separate
+work: Phase 1's remainder built the shared `diffObjectFields` helper for
+exactly this reason (Finding 2 — Documents and Goals save their own
+ad-hoc custom fields through the identical delete-and-recreate pattern
+Custom Items use, so one helper covers all three), plus a further,
+genuinely Custom-Item-specific diff for template field values
+(`saveTemplateFieldValues`'s own upsert-per-field shape). Custom Item
+creation, archival, and deletion are all wired. Nothing named here is
+outstanding.
 
 **Phase 4 — Significance & surfacing**
 Add `classifyEventSignificance`. Feed "high" events into Kinesis Link
