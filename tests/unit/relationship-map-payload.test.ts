@@ -7,6 +7,7 @@ import {
   type RelationshipMapData,
   type RelationshipPerson,
 } from "@/lib/relationships";
+import { NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 const person = (id: string, overrides: Partial<RelationshipPerson> = {}): RelationshipPerson => ({
   id, name: id, detail: "Friend", x: 10, y: 20, size: 84, color: "#292524", icon: "user",
@@ -60,6 +61,30 @@ describe("validateRelationshipMap", () => {
     ["a duplicated person", map({ people: [person("one"), person("one")] }), "The same person appears on the map twice."],
   ])("rejects %s", (_label, payload, message) => {
     expect(validateRelationshipMap(payload)).toBe(message);
+  });
+
+  /** KD-043 -- length limits on the free-text fields this validator already checks. */
+  it("accepts a person's description at exactly the text limit", () => {
+    expect(validateRelationshipMap(map({ people: [person("one", { detail: "a".repeat(TEXT_LIMIT) }), person("two")] }))).toBeNull();
+  });
+
+  it("rejects a person's description one character over the text limit", () => {
+    expect(validateRelationshipMap(map({ people: [person("one", { detail: "a".repeat(TEXT_LIMIT + 1) }), person("two")] })))
+      .toBe("one's description is too long.");
+  });
+
+  it("rejects a connection's type over the text limit", () => {
+    expect(validateRelationshipMap(map({ relationships: [{ id: "link", from: "one", to: "two", type: "a".repeat(TEXT_LIMIT + 1), practices: [], reflections: [], linkedGoals: [], importantDates: [], notes: "", createdAt: "2026-01-01T00:00:00.000Z" }] })))
+      .toBe("A connection's type is too long.");
+  });
+
+  it("rejects a reflection over the notes limit", () => {
+    const overLong = map({ relationships: [{
+      id: "link", from: "one", to: "two", type: null, linkedGoals: [], importantDates: [], notes: "",
+      practices: [], reflections: [{ id: "r", text: "a".repeat(NOTES_LIMIT + 1), date: "2026-01-01" }],
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }] });
+    expect(validateRelationshipMap(overLong)).toBe("This connection has an empty reflection.");
   });
 });
 

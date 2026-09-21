@@ -1,4 +1,5 @@
 import { parseDateOnly } from "@/lib/dates";
+import { NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 /**
  * How often a connection practice comes round.
@@ -153,12 +154,12 @@ function validateShared({ practices, reflections, importantDates, notes }: Share
   if (!Array.isArray(practices) || practices.length > MAX_CHILDREN) return `${label} has too many connection practices.`;
   for (const practice of practices) {
     if (!isId(practice?.id) || !isFilledText(practice?.title, 120)) return `${label} has a connection practice without a name.`;
-    if (!isFilledText(practice?.cadence, 60)) return `${label} has a connection practice without a frequency.`;
+    if (!isFilledText(practice?.cadence, TEXT_LIMIT)) return `${label} has a connection practice without a frequency.`;
     if (!parseDateOnly(String(practice?.anchorDate ?? ""))) return `${label} has a connection practice with an invalid start date.`;
   }
   if (!Array.isArray(reflections) || reflections.length > MAX_CHILDREN) return `${label} has too many reflections.`;
   for (const reflection of reflections) {
-    if (!isId(reflection?.id) || !isFilledText(reflection?.text, 5_000)) return `${label} has an empty reflection.`;
+    if (!isId(reflection?.id) || !isFilledText(reflection?.text, NOTES_LIMIT)) return `${label} has an empty reflection.`;
     if (!parseDateOnly(String(reflection?.date ?? ""))) return `${label} has a reflection with an invalid date.`;
   }
   if (!Array.isArray(importantDates) || importantDates.length > MAX_CHILDREN) return `${label} has too many important dates.`;
@@ -167,7 +168,7 @@ function validateShared({ practices, reflections, importantDates, notes }: Share
     if (!parseDateOnly(String(importantDate?.date ?? ""))) return `${label} has an important date with an invalid date.`;
     if (typeof importantDate?.repeatsYearly !== "boolean") return `${label} has an important date that does not say whether it repeats.`;
   }
-  if (!isText(notes, 10_000)) return `${label} has notes that are too long.`;
+  if (!isText(notes, NOTES_LIMIT)) return `${label} has notes that are too long.`;
   return null;
 }
 
@@ -182,7 +183,7 @@ export function validateRelationshipMap(data: RelationshipMapData): string | nul
     if (peopleIds.has(person.id)) return "The same person appears on the map twice.";
     peopleIds.add(person.id);
     if (!isFilledText(person.name, 120)) return "Every person needs a name.";
-    if (!isText(person.detail, 120)) return `${person.name}'s description is too long.`;
+    if (!isText(person.detail, TEXT_LIMIT)) return `${person.name}'s description is too long.`;
     if (!isCoordinate(person.x) || !isCoordinate(person.y)) return `${person.name} is positioned off the map.`;
     if (!isBubbleSize(person.size)) return `${person.name}'s bubble is an impossible size.`;
     if (!/^#[0-9a-f]{6}$/i.test(String(person.color))) return `${person.name} has an invalid colour.`;
@@ -206,7 +207,7 @@ export function validateRelationshipMap(data: RelationshipMapData): string | nul
     const pair = JSON.stringify([relationship.from, relationship.to].sort());
     if (pairs.has(pair)) return "Two of these people are connected twice.";
     pairs.add(pair);
-    if (relationship.type !== null && !isText(relationship.type, 60)) return "A connection's type is too long.";
+    if (relationship.type !== null && !isText(relationship.type, TEXT_LIMIT)) return "A connection's type is too long.";
     if (!Array.isArray(relationship.linkedGoals) || relationship.linkedGoals.some((goalId) => !isId(goalId))) return "A connection links to an invalid goal.";
     if (new Set(relationship.linkedGoals).size !== relationship.linkedGoals.length) return "A connection links to the same goal twice.";
     const problem = validateShared(relationship, "This connection");

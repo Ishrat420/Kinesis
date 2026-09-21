@@ -10,6 +10,7 @@ import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import { captureTargets, captureTargetCarries, DEFAULT_CAPTURE_TARGET, splitCaptureDetails, type CaptureDetail, type CaptureTargetType } from "@/lib/capture/targets";
 import { captureLinkOptionsAction, saveTodoDetailsAction, type TodoDetailsState } from "@/app/(app)/todos/actions";
+import { NOTES_LIMIT } from "@/lib/validation/field-limits";
 
 const initialState: TodoDetailsState = {};
 
@@ -182,6 +183,7 @@ export function TodoDetailsForm({
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
+              maxLength={NOTES_LIMIT}
               className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`}
             />
           </div>

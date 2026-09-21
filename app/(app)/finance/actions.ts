@@ -11,6 +11,7 @@ import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 import { formatDateInput } from "@/lib/dates";
+import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type FinanceActionState = { error?: string; saved?: boolean };
 
@@ -33,7 +34,12 @@ function validate(item: FinanceItem): string | null {
   if (item.amount < 0) return "The amount cannot be negative.";
   if (item.rate !== undefined && (!Number.isFinite(item.rate) || item.rate < 0)) return "Enter the rate as a positive number.";
   if (item.monthlyContribution !== undefined && (!Number.isFinite(item.monthlyContribution) || item.monthlyContribution < 0)) return "Enter the monthly amount as a positive number.";
-  if (item.category !== undefined && item.category.length > 60) return "Keep the category under 60 characters.";
+  const magnitudeError = checkNumberMagnitude(item.amount, "the amount")
+    ?? checkNumberMagnitude(item.rate, "the rate")
+    ?? checkNumberMagnitude(item.monthlyContribution, "the monthly amount");
+  if (magnitudeError) return magnitudeError;
+  const textError = checkLength(item.category, TEXT_LIMIT, "the category") ?? checkLength(item.notes, NOTES_LIMIT, "the notes");
+  if (textError) return textError;
 
   const recurring = item.kind === "income" || item.kind === "expense";
   if (recurring && !isFinanceFrequency(item.frequency)) return "Choose how often this repeats.";

@@ -13,6 +13,7 @@ import { prisma } from "@/lib/data/prisma";
 import { createCustomItemAction, updateCustomItemAction } from "@/app/(app)/custom-modules/actions";
 import { getCustomItem } from "@/lib/data/custom-modules";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
+import { TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 /**
  * The bug this exists to catch: saveTemplateFieldValues built the same
@@ -157,5 +158,36 @@ describe.sequential("a template's Kinesis Link field value", () => {
 
     expect(result).toMatchObject({ error: "An item can't be linked to itself." });
     await expect(prisma.objectField.findFirst({ where: { objectId: item.objectId, templateFieldId: "field-related" } })).resolves.toBeNull();
+  });
+
+  /**
+   * KD-043, on creation specifically: `saveTemplateFieldValues` refuses
+   * mid-transaction the same way the update path already did, but
+   * `createCustomItemAction`'s own `$transaction` call had no try/catch at
+   * all before this ticket -- a refusal here would have crashed instead of
+   * coming back as a friendly `{error}`, since nothing caught it.
+   */
+  it("refuses a template TEXT field value over the text limit on creation, without writing the item", async () => {
+    const result = await createCustomItemAction("module-1", {}, form(
+      { name: "Too much detail" },
+      [{ templateFieldId: "field-notes", value: "a".repeat(TEXT_LIMIT + 1), targetObjectIds: [] }],
+    ));
+
+    expect(result).toEqual({ error: expect.stringContaining("Notes") });
+    await expect(prisma.customItem.findFirst({ where: { name: "Too much detail" } })).resolves.toBeNull();
+  });
+
+  it("refuses the same over-limit value on update, leaving the existing value in place", async () => {
+    await createCustomItemAction("module-1", {}, form({ name: "Deep Work" }, []));
+    const item = await prisma.customItem.findFirstOrThrow({ where: { name: "Deep Work" }, select: { id: true, updatedAt: true } });
+
+    const result = await updateCustomItemAction("module-1", item.id, {}, form(
+      { name: "Deep Work", updatedAt: item.updatedAt.toISOString() },
+      [{ templateFieldId: "field-notes", value: "a".repeat(TEXT_LIMIT + 1), targetObjectIds: [] }],
+    ));
+
+    expect(result).toMatchObject({ error: expect.stringContaining("Notes") });
+    const read = await getCustomItem("module-1", item.id);
+    expect(read?.templateFields.find((f) => f.templateFieldId === "field-notes")?.value).toBeFalsy();
   });
 });

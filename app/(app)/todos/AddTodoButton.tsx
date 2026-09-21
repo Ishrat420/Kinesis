@@ -10,6 +10,7 @@ import { useFormatPreferences } from "@/lib/format/context";
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import { createTodoAction, type CreateTodoState } from "./actions";
+import { NOTES_LIMIT } from "@/lib/validation/field-limits";
 
 const initialState: CreateTodoState = {};
 
@@ -195,6 +196,7 @@ export function AddTodoForm({
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={4}
+              maxLength={NOTES_LIMIT}
               placeholder="Add any extra details…"
               className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`}
             />

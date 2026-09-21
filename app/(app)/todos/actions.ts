@@ -9,6 +9,7 @@ import { parseDateOnly } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { captureCreateHref, DEFAULT_CAPTURE_TARGET, isCaptureTargetType } from "@/lib/capture/targets";
 import { refusalOf } from "@/lib/actions/refusal";
+import { checkLength, NOTES_LIMIT } from "@/lib/validation/field-limits";
 
 export type CaptureState = { error?: string; captured?: { id: string; name: string } };
 /** What a row-level action reports back to the board. */
@@ -77,6 +78,8 @@ export async function createTodoAction(_previousState: CreateTodoState, formData
 
   const linkObjectIds = formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean);
   const notes = text(formData, "notes");
+  const notesError = checkLength(notes, NOTES_LIMIT, "the notes");
+  if (notesError) return { error: notesError };
 
   try {
     await createTodo(name, {
@@ -121,11 +124,15 @@ export async function saveTodoDetailsAction(id: string, _previousState: TodoDeta
   const statusValue = text(formData, "status");
   if (statusValue && !isTodoStatus(statusValue)) return { error: "Choose a valid status." };
 
+  const detailsNotes = text(formData, "notes") || null;
+  const detailsNotesError = checkLength(detailsNotes, NOTES_LIMIT, "the notes");
+  if (detailsNotesError) return { error: detailsNotesError };
+
   try {
     await updateTodoDetails(id, {
       status: statusValue ? (statusValue as TodoStatus) : undefined,
       dueDate: dueDateValue ? parseDateOnly(dueDateValue) : null,
-      notes: text(formData, "notes") || null,
+      notes: detailsNotes,
       // The form submits one entry per linked object, so the whole set arrives
       // together and an empty set legitimately means "no longer concerns anything".
       linkObjectIds: formData.getAll("linkObjectId").map((value) => String(value).trim()).filter(Boolean),

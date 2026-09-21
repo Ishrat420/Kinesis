@@ -11,6 +11,7 @@ import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { revalidateShell } from "@/lib/actions/revalidate";
+import { checkLength, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type DocumentActionState = { error?: string; success?: boolean; conflict?: boolean; updatedAt?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -66,16 +67,26 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
   if (!form.ok) return form;
   const customFields = form.fields;
 
+  const documentNumber = text(formData, "documentNumber") || null;
+  const country = text(formData, "country") || null;
+  const notes = text(formData, "notes") || null;
+  const link = text(formData, "link") || null;
+  const lengthError = checkLength(documentNumber, TEXT_LIMIT, "the document number")
+    ?? checkLength(country, TEXT_LIMIT, "the country")
+    ?? checkLength(notes, NOTES_LIMIT, "the notes")
+    ?? checkLength(link, LINK_LIMIT, "the link");
+  if (lengthError) return { ok: false, error: lengthError };
+
   return { ok: true, data: {
     name,
     type,
     status: getDocumentState({ expiryDate, prompt, archived }, today).status,
     expiryDate,
     issueDate: issueField.value,
-    documentNumber: text(formData, "documentNumber") || null,
-    country: text(formData, "country") || null,
-    notes: text(formData, "notes") || null,
-    link: text(formData, "link") || null,
+    documentNumber,
+    country,
+    notes,
+    link,
     prompt,
     archived,
     expiryDateLabel: text(formData, "expiryDateLabel") || "Expiry date",

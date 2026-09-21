@@ -1,9 +1,115 @@
 # KD-043 — Field Length Limits
 
-**Status:** Planning Needed
+**Status:** Done
 **Priority:** Medium
 **Tags:** Data Model, Technical Debt, UX / UI
 **Planned Release:** v1.3.0
+
+## Shipped
+
+All three enforcement layers exist now, for every field this ticket's own
+audit named:
+
+* **Server** — `lib/validation/field-limits.ts` (`TEXT_LIMIT`, `NOTES_LIMIT`,
+  `LINK_LIMIT`, `NUMBER_MAGNITUDE_LIMIT`, `checkLength`, `checkNumberMagnitude`)
+  is the one shared vocabulary every action file, and the generic
+  custom-fields engine (`parseCustomFields`, `saveTemplateFieldValues`),
+  calls into. `createCustomItemAction`'s own transaction had no
+  try/catch at all before this -- a template field's refusal would have
+  crashed instead of returning a friendly error, since nothing caught it;
+  fixed alongside wiring the check in, matching `updateCustomItemAction`'s
+  existing pattern.
+* **Client** — a matching `maxLength` on every corresponding `<input>`/
+  `<textarea>`, including normalizing three pre-existing ad-hoc numbers
+  that predated this ticket to the shared vocabulary instead of leaving
+  them as one-off magic numbers: the Relationships map's own
+  `validateRelationshipMap` already limited `person.detail` (120),
+  `relationship.type` (60), and `reflection.text` (5,000) -- each raised
+  to the matching shared tier (255 / 255 / 10,000) rather than left as
+  three different numbers meaning the same thing. Finance's own
+  `category` check (60) similarly normalized to 255, though it turned out
+  to be defensive-only: `category` renders as a closed `<select>`, not
+  free text, so no client `maxLength` was needed there at all.
+* **Database** — a `CHECK ... NOT VALID` constraint per column
+  (migration `20261013000000_field_length_limits`), not `VARCHAR(n)`:
+  `NOT VALID` enforces the constraint on every future write immediately
+  without scanning or validating rows that already exist, which is what
+  let this ship with zero pre-migration audit and zero risk of the
+  migration itself failing (or needing to truncate anything) against
+  existing data -- resolving the "Enforcement layers" open question
+  below without needing the audit it originally assumed was required.
+  `ObjectField.value` (one physical column holding every custom-field
+  kind at once) got a single blanket ceiling at the loosest tier
+  (`NOTES_LIMIT`) rather than a per-`type` `CASE` expression -- the DB
+  layer's job is "stop anything catastrophic," not duplicate the app
+  layer's precise per-kind number.
+
+**Violation behaviour:** reject with a clear, field-named error
+("Keep the notes under 10,000 characters."), never truncate --
+resolving that open question the direction it already leaned.
+
+**Classifying built-in fields by kind:** done per-model, documented in
+the table below. A `TEXT`-typed `TemplateField` gets two tiers depending
+on its own `multiline` flag (already shipped in the schema, ahead of
+this ticket) -- `Notes`-flavoured template fields get `NOTES_LIMIT`, an
+ordinary single-line one gets `TEXT_LIMIT`. An **ad-hoc** custom field
+(no `TemplateField` behind it) has no `multiline` option at all, so a
+`TEXT`-typed one always gets the single-line tier regardless of how long
+its own textarea looks in the UI.
+
+| Model | Fields | Kind |
+|---|---|---|
+| Document | `documentNumber`, `country` | Text |
+| Document | `notes` | Notes |
+| Document | `link` | Link |
+| Goal | `unit` | Text |
+| Goal | `note` | Notes |
+| Goal | `targetValue`, `currentValue` | Number |
+| Milestone | `value` | Number |
+| FinanceItem | `category` | Text |
+| FinanceItem | `notes` | Notes |
+| FinanceItem | `amount`, `rate`, `monthlyContribution` | Number |
+| Person | `category` (the map's `person.detail`) | Text |
+| Person | `selfNotes` | Notes |
+| Relationship | `type` | Text |
+| Relationship | `notes` | Notes |
+| RelationshipReflection | `text` | Notes |
+| ConnectionPractice | `cadence` | Text |
+| CustomModule | `description` | Text |
+| ObjectField | `value`, type `TEXT` (no `multiline`) or ad-hoc | Text |
+| ObjectField (template-backed) | `value`, type `TEXT` with `TemplateField.multiline: true` | Notes |
+| ObjectField | `value`, type `LINK` | Link |
+| ObjectField | `value`, type `NUMBER` | Number |
+| Todo | `notes` | Notes |
+
+**Deliberately excluded**, confirmed not free text: `Document.status`
+(computed, not typed), `Document.owner` (derived from the account's own
+display name, not user input), `Goal.status` (fixed dropdown values),
+`FinanceItem.kind`/`frequency` (fixed vocabularies, `isFinanceFrequency`-
+checked), `ObjectField`/`TemplateField` values of type `DATE`,
+`CHECKBOX`, or `KINESIS_LINK`. Every `Name`-shaped field (`Document.name`,
+`Goal.name`, `Person.name`, `Todo.name`, `CustomModule.name`,
+`CustomItem.name`, `Template.name`, `TemplateField.label`,
+`Milestone.name`, practice/date/goal-unit "name" fields, etc.) stays out
+of this ticket's scope per its own framing -- a name's length is a
+different, already-mostly-handled kind of constraint, not a general
+data-safety measure. One exception worth a follow-up, not fixed here:
+`Document.name` itself has no length limit at all today, unlike every
+other module's own name field -- a real gap, but a Name-tier one, so
+left for whoever picks up the Name-field story specifically rather than
+folded into this ticket's own scope.
+
+**Test coverage:** `tests/unit/validation/field-limits.test.ts` (the
+shared helpers, pure); `tests/unit/custom-fields-length-limits.test.ts`
+(`parseCustomFields`'s per-kind checks); new cases in
+`tests/unit/relationship-map-payload.test.ts` (the three normalized
+Relationships-map limits); and integration coverage confirming the
+checks actually run against a real database, not just in a mock, across
+representative surfaces: `tests/integration/documents/document-actions.test.ts`
+(a link over the limit), `tests/integration/todos/create-todo.test.ts`
+(notes over the limit), and `tests/integration/custom-modules/template-field-values.test.ts`
+(a template field over the limit, on both creation -- the newly-added
+try/catch -- and update).
 
 ## Summary
 
@@ -21,7 +127,7 @@ Waiting until there's "enough data to justify it" gets the sequencing
 backwards: the more real data exists, the more a new limit risks colliding
 with something already stored.
 
-## What exists today
+## What existed before this ticket
 
 An audit across the schema and forms found roughly 30 distinct free-text
 fields spread across ~15 models — Document (`name`, `status`, `owner`,
@@ -30,17 +136,18 @@ fields spread across ~15 models — Document (`name`, `status`, `owner`,
 `notes`), Person/Relationship (`name`, `category`, `selfNotes`, `type`,
 `notes`), Milestone, CustomModule, CustomItem, Template, TemplateField, Todo,
 plus the generic custom-fields engine (`ObjectField.value`) shared across
-every module. Each lives in its own form component, validated (or, today,
-not validated at all) by one of roughly 8 separate server action files.
+every module. Each lives in its own form component, validated (or, before
+this ticket, not validated at all) by one of roughly 8 separate server
+action files.
 
-None of the three layers enforce anything on these fields:
+None of the three layers enforced anything on these fields:
 
-* **Database** — every one of them is a plain Prisma `String`, which maps to
-  an unbounded Postgres `TEXT` column. No `@db.VarChar(n)` anywhere.
+* **Database** — every one of them was a plain Prisma `String`, which maps
+  to an unbounded Postgres `TEXT` column. No `@db.VarChar(n)` anywhere.
 * **Server** — `parseCustomFields` / `parseTemplateFields` and the other
-  action files only `.trim()` values; nothing checks length.
+  action files only `.trim()`ed values; nothing checked length.
 * **Client** — the shared value inputs (`TemplateFieldValues.tsx`,
-  `CustomFieldsEditor.tsx`, and every module's own form) have no `maxLength`
+  `CustomFieldsEditor.tsx`, and every module's own form) had no `maxLength`
   on anything but a Name field.
 
 ## Direction
@@ -52,7 +159,7 @@ fields. A `status`/`category`/`type` string and a `notes` field want very
 different limits; picking one number for everything would either be too
 tight for notes or too loose for everything else.
 
-Tentative limits, pending confirmation:
+Limits, as shipped:
 
 | Kind                | Limit                              | Notes |
 |---------------------|-------------------------------------|-------|
@@ -64,7 +171,7 @@ Tentative limits, pending confirmation:
 `Date`, `Checkbox`, and `Kinesis Link` fields need no length limit — they
 aren't free text.
 
-## Open questions
+## Open questions (all resolved -- see "Shipped" above)
 
 * **Enforcement layers.** Client-side `maxLength` alone isn't real
   enforcement (a direct POST bypasses it), so every limited field needs

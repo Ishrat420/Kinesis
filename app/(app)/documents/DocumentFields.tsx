@@ -9,6 +9,7 @@ import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/ty
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
+import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type CustomField = CustomFieldValue;
 
@@ -59,11 +60,11 @@ export function DocumentFields({
         <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">More details</p>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" value={values.documentNumber} />
-          <EditableField label={labels.country} labelName="countryLabel" name="country" value={values.country} />
+          <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" value={values.documentNumber} maxLength={TEXT_LIMIT} />
+          <EditableField label={labels.country} labelName="countryLabel" name="country" value={values.country} maxLength={TEXT_LIMIT} />
         </div>
-        <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon />
-        <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline />
+        <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon maxLength={LINK_LIMIT} />
+        <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline maxLength={NOTES_LIMIT} />
 
         <CustomFieldsEditor initialFields={initialCustomFields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
       </div>
@@ -77,18 +78,18 @@ export function DocumentFields({
  */
 const inputClass = "h-[50px] min-w-0 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm";
 
-function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, onChange }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; onChange?: (value: string) => void }) {
+function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, maxLength, onChange }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; maxLength?: number; onChange?: (value: string) => void }) {
   return (
     <div className="min-w-0 space-y-2">
       <EditableLabel name={labelName} initialValue={label} ariaLabel={`${label} field name`} />
       {multiline ? (
-        <textarea name={name} defaultValue={value} aria-label={label} rows={3} className={`${inputClass} min-h-[92px] resize-y py-3`} />
+        <textarea name={name} defaultValue={value} aria-label={label} rows={3} maxLength={maxLength} className={`${inputClass} min-h-[92px] resize-y py-3`} />
       ) : type === "date" ? (
         <DateRowField name={name} label={label} value={value} onChange={onChange} />
       ) : (
         <div className="relative min-w-0">
           {icon && <Link2 aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />}
-          <input name={name} type={type} defaultValue={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} placeholder={icon ? "https://example.com" : undefined} className={`${inputClass} ${icon ? "pl-10" : ""}`} />
+          <input name={name} type={type} defaultValue={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} placeholder={icon ? "https://example.com" : undefined} maxLength={maxLength} className={`${inputClass} ${icon ? "pl-10" : ""}`} />
         </div>
       )}
     </div>

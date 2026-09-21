@@ -15,6 +15,7 @@ import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/acti
 import { parseDateOnly, formatDateInput } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
+import { checkLength, checkNumberMagnitude, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidateShell(); revalidatePath(`/custom-modules/${moduleId}`); };
@@ -50,13 +51,16 @@ export async function createCustomModuleAction(_: CreateModuleState, data: FormD
   if (!name) return { error: "Enter a module name.", field: "name" };
   if (name.length > 60) return { error: "Keep the module name under 60 characters.", field: "name" };
   if (!(icon in CUSTOM_MODULE_ICONS) || !/^#[0-9a-f]{6}$/i.test(color)) return { error: "Choose a valid icon and colour." };
+  const description = getValue(data, "description") || null;
+  const descriptionError = checkLength(description, TEXT_LIMIT, "the description");
+  if (descriptionError) return { error: descriptionError };
   // Ownership rather than trust: a stray or someone else's template id in the
   // submitted form should fail closed, not silently create an unlinked module.
   if (templateId && !(await prisma.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } }))) {
     return { error: "Choose a template you own, or leave it blank." };
   }
   try {
-    const customModule = await prisma.customModule.create({ data: { id: crypto.randomUUID(), userId: user.id, name, normalizedName: name.toLocaleLowerCase(), icon, color, description: getValue(data, "description") || null, templateId } });
+    const customModule = await prisma.customModule.create({ data: { id: crypto.randomUUID(), userId: user.id, name, normalizedName: name.toLocaleLowerCase(), icon, color, description, templateId } });
     revalidateShell();
     return { moduleId: customModule.id };
   } catch (error) {
@@ -87,18 +91,27 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
 
   const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
-  await prisma.$transaction(async (tx) => {
-    const created = await tx.customItem.create({ data: {
-      id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, dueDate,
-      // Whatever the module is currently linked to, permanently, per KD-035
-      // Decision 7 -- later relinking the module never reaches back to this item.
-      object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
-    } });
-    await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
-    if (ownedModule.templateId && templateValues.values.length) {
-      await saveTemplateFieldValues(tx, user.id, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
-    }
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.customItem.create({ data: {
+        id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, dueDate,
+        // Whatever the module is currently linked to, permanently, per KD-035
+        // Decision 7 -- later relinking the module never reaches back to this item.
+        object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
+      } });
+      await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+      if (ownedModule.templateId && templateValues.values.length) {
+        await saveTemplateFieldValues(tx, user.id, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
+      }
+    });
+  } catch (failure) {
+    // A refusal raised inside the transaction (KD-043: a template field
+    // value over its kind's length limit), which has now rolled back --
+    // same boundary `updateCustomItemAction` already draws.
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
   refresh(moduleId);
   return {};
 }
@@ -225,7 +238,7 @@ async function saveTemplateFieldValues(
   values: { templateFieldId: string; value: string; targetObjectIds: string[] }[],
   dueDateFieldId: string | null,
 ) {
-  const templateFields = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, label: true } })).map((field) => [field.id, field]));
+  const templateFields = new Map((await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, label: true, multiline: true } })).map((field) => [field.id, field]));
   const changes: FieldChange[] = [];
   for (const submitted of values) {
     if (submitted.templateFieldId === dueDateFieldId) continue;
@@ -233,6 +246,20 @@ async function saveTemplateFieldValues(
     // stale, or never legitimate. Nothing to write either way.
     const templateField = templateFields.get(submitted.templateFieldId);
     if (!templateField) continue;
+
+    // KD-043: same length/range limits as an ad-hoc field, keyed the same
+    // way -- except TEXT here has two tiers, since only a template field can
+    // be flagged `multiline` ("Notes") at all.
+    if (templateField.type === "TEXT") {
+      const error = checkLength(submitted.value, templateField.multiline ? NOTES_LIMIT : TEXT_LIMIT, `“${templateField.label}”`);
+      if (error) refuse(error);
+    } else if (templateField.type === "LINK") {
+      const error = checkLength(submitted.value, LINK_LIMIT, `“${templateField.label}”`);
+      if (error) refuse(error);
+    } else if (templateField.type === "NUMBER" && submitted.value) {
+      const error = checkNumberMagnitude(Number(submitted.value), `“${templateField.label}”`);
+      if (error) refuse(error);
+    }
 
     const existing = await tx.objectField.findFirst({ where: { objectId, templateFieldId: submitted.templateFieldId } });
     const isEmpty = !submitted.value && !submitted.targetObjectIds.length;

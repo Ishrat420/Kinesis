@@ -7,6 +7,7 @@ import { useFormatPreferences } from "@/lib/format/context";
 import { Modal } from "@/components/overlay/Modal";
 import { MEASURE_REMOVAL_CONSEQUENCE } from "@/lib/goals/measure";
 import type { GoalActionState } from "../actions";
+import { TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
 const initialState: GoalActionState = {};
@@ -252,7 +253,7 @@ function MeasurableTargetFields({ action, removeAction, units, targetValue, curr
           <button type="button" onClick={onDone} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
         </div>
         <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Target value<input name="targetValue" type="number" min="0" step="any" required defaultValue={targetValue ?? ""} placeholder="120,000" className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /></label>
-        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
+        <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Unit<input name="unit" required list="goal-units" defaultValue={unit ?? ""} maxLength={TEXT_LIMIT} placeholder="$AUD, Books..." className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /><datalist id="goal-units">{units.map((item) => <option key={item} value={item} />)}</datalist></label>
         <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Current value<input name="currentValue" type="number" min="0" step="any" required defaultValue={currentValue ?? ""} placeholder="2,000" className="mt-2 h-12 w-full rounded-2xl border-[1.5px] border-zinc-200 bg-white px-4 text-base font-semibold text-zinc-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15" /></label>
         {state.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{state.error}</p>}
         {removeState.error && <p role="alert" className="text-sm font-medium text-red-600 sm:col-span-3">{removeState.error}</p>}

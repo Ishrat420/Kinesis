@@ -169,7 +169,6 @@ KD-007-adding-priority
 KD-016-automated-document-field-extraction
 KD-017-turn-dashboard-into-decision-surface
 KD-041-search-visibility-for-archived-records
-KD-043-field-length-limits
 KD-045-mobile-add-custom-module-to-dashboard
 KD-051-relationship-connection-history
 KD-052-event-significance-and-change-awareness
@@ -190,6 +189,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 ## ✅ Done
 KD-011-unified-todo-view
+KD-043-field-length-limits
 KD-048-object-event-model
 KD-049-typed-kinesis-link-connections
 KD-050-converge-kinesis-link-custom-fields

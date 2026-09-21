@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 import { prisma } from "@/lib/data/prisma";
 import { createTodoAction } from "@/app/(app)/todos/actions";
 import { getTodos } from "@/lib/data/todos";
+import { NOTES_LIMIT } from "@/lib/validation/field-limits";
 
 /**
  * The in-page "Add to-do" button's create, against the real database: status,
@@ -69,6 +70,12 @@ describe.sequential("create to-do", () => {
 
   it("refuses an empty title instead of creating a nameless To-Do", async () => {
     expect(await createTodoAction({}, form({ name: "   " }))).toEqual({ error: expect.any(String) });
+    expect(await prisma.todo.count({ where: { userId: owner } })).toBe(0);
+  });
+
+  it("refuses notes over the notes limit, without creating the To-Do", async () => {
+    const result = await createTodoAction({}, form({ name: "Too much detail", notes: "a".repeat(NOTES_LIMIT + 1) }));
+    expect(result).toEqual({ error: expect.stringContaining("the notes") });
     expect(await prisma.todo.count({ where: { userId: owner } })).toBe(0);
   });
 

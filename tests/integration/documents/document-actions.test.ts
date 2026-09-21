@@ -12,6 +12,7 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 import { prisma } from "@/lib/data/prisma";
 import { createDocumentAction, updateDocumentAction, deleteDocumentTypeAction } from "@/app/(app)/documents/actions";
 import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
+import { LINK_LIMIT } from "@/lib/validation/field-limits";
 
 /**
  * The Documents module's server actions had no integration coverage at all --
@@ -68,6 +69,13 @@ describe.sequential("Documents server actions", () => {
     it("rejects an expiry date that only looks valid", async () => {
       const result = await createDocumentAction({}, form({ name: "Passport", type: "Passport", expiryDate: "2026-02-30" }));
       expect(result).toEqual({ error: "Enter a valid expiry date." });
+    });
+
+    /** KD-043 -- writing this at all confirms the length check actually runs before the database write, not after. */
+    it("rejects a link over the link limit, without writing anything", async () => {
+      const result = await createDocumentAction({}, form({ name: "Passport", type: "Passport", link: "https://example.com/" + "a".repeat(LINK_LIMIT) }));
+      expect(result).toEqual({ error: expect.stringContaining("the link") });
+      await expect(prisma.document.findFirst({ where: { userId: owner, name: "Passport" } })).resolves.toBeNull();
     });
 
     it("falls back to the default reminder when an unlisted prompt value is submitted", async () => {

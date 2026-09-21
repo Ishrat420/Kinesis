@@ -1,4 +1,5 @@
 import { CUSTOM_FIELD_TYPES, CUSTOM_FIELDS_FORM_KEY, type CustomFieldType, type CustomFieldValue } from "./types";
+import { checkLength, checkNumberMagnitude, LINK_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type ParsedCustomFields = { ok: true; fields: CustomFieldValue[] } | { ok: false; error: string };
 
@@ -58,10 +59,25 @@ export function parseCustomFields(data: FormData, key: string = CUSTOM_FIELDS_FO
     // blocking every other change on this form until they come back and
     // repair it is worse than leaving it empty.
     if (type === "KINESIS_LINK" && !targetObjectIds.length && !existingId) return { ok: false, error: `Choose what “${label}” links to.` };
+    const value = type === "KINESIS_LINK" ? "" : asString(entry.value).trim();
+    // KD-043: length/range limits by kind -- DATE, CHECKBOX, and KINESIS_LINK
+    // aren't free text, so they need none. An ad-hoc TEXT field has no
+    // "Notes" (multiline) variant the way a TemplateField can (that flag
+    // lives only on TemplateField), so it always gets the single-line tier.
+    if (type === "TEXT") {
+      const error = checkLength(value, TEXT_LIMIT, `“${label}”`);
+      if (error) return { ok: false, error };
+    } else if (type === "LINK") {
+      const error = checkLength(value, LINK_LIMIT, `“${label}”`);
+      if (error) return { ok: false, error };
+    } else if (type === "NUMBER" && value) {
+      const error = checkNumberMagnitude(Number(value), `“${label}”`);
+      if (error) return { ok: false, error };
+    }
     fields.push({
       id: existingId,
       label,
-      value: type === "KINESIS_LINK" ? "" : asString(entry.value).trim(),
+      value,
       type,
       targetObjectIds,
     });

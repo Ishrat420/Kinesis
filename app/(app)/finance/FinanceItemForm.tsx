@@ -17,6 +17,7 @@ import {
   MAX_PAYOFF_MONTHS,
 } from "@/lib/finance";
 import { formatDate, formatDateInput } from "@/lib/dates";
+import { NOTES_LIMIT } from "@/lib/validation/field-limits";
 import { deleteFinanceItemAction, saveFinanceItemAction, type FinanceActionState } from "@/app/(app)/finance/actions";
 import { useFormatPreferences } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
@@ -166,7 +167,7 @@ export function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: 
       <Field label="Frequency *"><div className="relative"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className={`${FIELD_CLASS} appearance-none pr-9`}>{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"/></div></Field>
       <div className="grid grid-cols-2 gap-3"><Field label="Start date"><DateField name="startDate" value={startDateInput} onChange={setStartDateInput} ariaLabel="Start date"/></Field><Field label="End date"><DateField name="endDate" value={endDateInput} onChange={setEndDateInput} ariaLabel="End date"/></Field></div>
     </>}
-    <Field label="Notes"><textarea name="notes" rows={3} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
+    <Field label="Notes"><textarea name="notes" rows={3} maxLength={NOTES_LIMIT} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
     {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
     <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : <><Check className="h-4 w-4" aria-hidden="true"/>{item ? "Save changes" : `Add ${kindLabels[kind]}`}</>}</button>
   </form>;

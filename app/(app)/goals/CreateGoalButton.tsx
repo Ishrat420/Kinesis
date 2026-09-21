@@ -9,6 +9,7 @@ import type { CaptureParams } from "@/lib/capture/params";
 import { formatDate } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { Modal } from "@/components/overlay/Modal";
+import { NOTES_LIMIT } from "@/lib/validation/field-limits";
 
 const initialState: GoalActionState = {};
 
@@ -95,7 +96,7 @@ export function CreateGoalButton({ capture }: { capture?: CaptureParams }) {
               <label className={FIELD_LABEL_CLASS}>
                 Note <span className="font-normal text-zinc-400">optional</span>
               </label>
-              <textarea name="note" rows={3} placeholder="Why this matters, or a first thought…" className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`} />
+              <textarea name="note" rows={3} maxLength={NOTES_LIMIT} placeholder="Why this matters, or a first thought…" className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`} />
             </div>
 
             {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}

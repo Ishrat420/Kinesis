@@ -15,6 +15,7 @@ import { completeCaptureConversion } from "@/lib/data/capture";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { diffObjectFields, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "@/lib/data/object-events";
+import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type GoalActionState = { error?: string; saved?: boolean };
 
@@ -48,8 +49,11 @@ export async function createGoalAction(_previousState: GoalActionState, data: Fo
   if (!name) return { error: "Enter a goal name." };
   const targetDate = optionalDate(data, "targetDate");
   if (targetDate === undefined) return { error: "Enter a valid target date." };
+  const note = value(data, "note") || null;
+  const noteError = checkLength(note, NOTES_LIMIT, "the note");
+  if (noteError) return { error: noteError };
   const goal = await prisma.$transaction(async (tx) => {
-    const created = await tx.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note: value(data, "note") || null, object: objectFor.goal(name, user.id) } });
+    const created = await tx.goal.create({ data: { id: crypto.randomUUID(), user: { connect: { id: user.id } }, name, targetDate, note, object: objectFor.goal(name, user.id) } });
     await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
     return created;
   });
@@ -136,7 +140,11 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
   if (targetValue === null || !Number.isFinite(targetValue)) return { error: "Enter a target value as a number." };
   if (currentValue === null || !Number.isFinite(currentValue)) return { error: "Enter a current value as a number." };
   if (targetValue < 0 || currentValue < 0) return { error: "Target and current values cannot be negative." };
+  const magnitudeError = checkNumberMagnitude(targetValue, "the target value") ?? checkNumberMagnitude(currentValue, "the current value");
+  if (magnitudeError) return { error: magnitudeError };
   if (!unit) return { error: "Enter a unit, such as $AUD or Books." };
+  const unitError = checkLength(unit, TEXT_LIMIT, "the unit");
+  if (unitError) return { error: unitError };
   if (!DEFAULT_GOAL_UNITS.some((item) => item.toLowerCase() === unit.toLowerCase())) await prisma.goalUnit.upsert({ where: { userId_name: { userId: user.id, name: unit } }, update: {}, create: { id: crypto.randomUUID(), userId: user.id, name: unit } });
   try {
     await prisma.$transaction(async (tx) => {
@@ -218,6 +226,8 @@ export async function addMilestoneAction(id: string, _previousState: GoalActionS
   if (!name) return { error: "Enter a milestone name." };
   if (dueDate === undefined) return { error: "Enter a valid due date." };
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
+  const milestoneMagnitudeError = checkNumberMagnitude(milestoneValue, "the target value");
+  if (milestoneMagnitudeError) return { error: milestoneMagnitudeError };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetValue: true, currentValue: true, targetDate: true, _count: { select: { milestones: true } } } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
@@ -234,6 +244,8 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
   if (!name) return { error: "Enter a milestone name." };
   if (dueDate === undefined) return { error: "Enter a valid due date." };
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
+  const milestoneMagnitudeError = checkNumberMagnitude(milestoneValue, "the target value");
+  if (milestoneMagnitudeError) return { error: milestoneMagnitudeError };
   const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetValue: true, targetDate: true } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);

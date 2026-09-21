@@ -20,6 +20,7 @@ import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { DirectionField, KinesisLinks, TargetPicker } from "@/components/kinesis-links/KinesisLinks";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
+import { LINK_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 type FieldPhase = "choosing" | "confirming" | "ready";
 type EditorField = CustomFieldValue & { key: string; phase: FieldPhase; editingName: boolean };
@@ -386,6 +387,7 @@ function FieldInput({ field, index, linkOptions, previews, update }: {
       onChange={(event) => update({ value: event.target.value })}
       aria-label={`Field ${index + 1} value`}
       placeholder={valuePlaceholder(field.type)}
+      maxLength={field.type === "LINK" ? LINK_LIMIT : field.type === "NUMBER" ? undefined : TEXT_LIMIT}
       className={inputClass}
     />
   );

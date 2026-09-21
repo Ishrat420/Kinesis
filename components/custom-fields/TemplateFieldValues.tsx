@@ -8,6 +8,7 @@ import type { CustomFieldType, KinesisLinkOption, NumberFieldFormat } from "@/li
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
+import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; multiline: boolean; numberFormat?: NumberFieldFormat; value: string; targetObjectIds: string[] };
 
@@ -98,6 +99,7 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
         aria-label={field.label}
         placeholder="Notes"
         rows={5}
+        maxLength={NOTES_LIMIT}
         className="w-full min-w-0 resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-base outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm"
       />
     );
@@ -110,6 +112,7 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
       onChange={(event) => onChange({ value: event.target.value })}
       aria-label={field.label}
       placeholder={field.type === "NUMBER" ? "Number" : field.type === "LINK" ? "https://…" : "Text"}
+      maxLength={field.type === "LINK" ? LINK_LIMIT : field.type === "NUMBER" || field.type === "DATE" ? undefined : TEXT_LIMIT}
       className={FIELD_INPUT_CLASS}
     />
   );
