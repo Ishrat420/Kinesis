@@ -104,7 +104,7 @@ below for cases that should not even appear as a line item.
 |---|---|
 | Notes | LOW |
 | Name | LOW |
-| Balance increase or decrease | HIGH |
+| Balance increase or decrease | HIGH¹ |
 | Interest rate increase or decrease | HIGH |
 | Monthly payment increase or decrease | HIGH |
 
@@ -116,7 +116,14 @@ below for cases that should not even appear as a line item.
 | Name | LOW |
 | Start date / End date | NORMAL |
 | Frequency | HIGH |
-| Amount increase or decrease | HIGH |
+| Amount increase or decrease | HIGH¹ |
+
+¹ **Magnitude dead zone, not unconditional HIGH.** Balance/Amount
+changes under ~2% downgrade to NORMAL regardless of this table — see
+"Magnitude" below. This is the one row in this whole classification
+where the base tier itself depends on the value, not just the field;
+every other HIGH in these two tables (interest rate, monthly payment,
+frequency) stays unconditional, since none of them drift on their own.
 
 #### Document
 
@@ -250,6 +257,35 @@ other arbitrary text):
 
 Tunable later; not a v1 blocker.
 
+**Magnitude dead zone (base-tier downgrade, not just a score bonus).**
+Finance's `amount`/balance field is written by more than manual edits —
+Kinesis already applies automatic interest/contribution arithmetic to
+Finance items, recording an `ObjectEvent` for that just like a manual
+change (shipped ahead of this ticket). A daily accrual might move a
+balance by a few cents: an unconditional "Balance/Amount change = HIGH"
+means that tick scores HIGH(70) + same-day freshness(+30) = 100 on its
+own, clearing every destination threshold including Dashboard (>=80) —
+flooding "meaningful changes" with routine accrual noise on every
+account, every day.
+
+So for the two rows marked ¹ above specifically, magnitude **gates the
+base tier**, evaluated before the rest of Surface Score:
+
+```text
+< 2% change   -> base significance downgrades from HIGH to NORMAL
+>= 2% change  -> base significance stays HIGH, as the table says
+```
+
+The magnitude *score* (`+0` to `+15` above) still applies afterward as
+usual on top of whichever tier that lands on. Nothing else in the
+significance tables works this way — this dead zone exists specifically
+because Balance/Amount is the one field in this whole classification
+with a system-driven writer capable of making many small, real,
+individually-uninteresting changes; every other HIGH row (interest
+rate, monthly payment, frequency, expiry date, milestone completed,
+etc.) is written by a deliberate action or a real boundary crossing,
+never automatic drift, so none of them need one.
+
 ### 3. Selection algorithm
 
 ```text
@@ -345,6 +381,28 @@ Total                     50
 
 Barely eligible for a card peek (score exactly at the >= 50 threshold),
 nowhere near Dashboard-worthy (>= 80).
+
+**Daily interest accrual, today, on a depended-upon savings account:**
+
+```text
+Balance $10,000.00 -> $10,004.32 (0.04% change)
+
+Balance change, but < 2%     -> downgraded to NORMAL     40
+Occurred today                                          +30
+Depends on                                               +20
+Magnitude (< 2%)                                          +0
+----------------------------------------------------------------
+Surface Score                                             90
+```
+
+Without the dead zone this would have started from HIGH(70) and scored
+120 — comfortably clearing Dashboard. With it, it still clears the peek
+and Timeline thresholds (today's freshness and the dependency alone are
+enough), but the automatic penny-level tick no longer *automatically*
+qualifies as "meaningful" on its own — it takes a real dependency or
+timing coincidence to get there, not just existing. A genuinely large
+same-day swing on the same account still reaches HIGH and easily clears
+every threshold, as the first example above shows.
 
 ## Phase 6 — Change Awareness & AI summaries (unscheduled)
 
