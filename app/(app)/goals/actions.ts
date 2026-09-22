@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/data/prisma";
-import { DEFAULT_GOAL_UNITS, GOAL_STATUSES } from "@/lib/goals/format";
+import { DEFAULT_GOAL_UNITS, displayNumber, GOAL_STATUSES } from "@/lib/goals/format";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireKinesisUser } from "@/lib/auth";
@@ -146,6 +146,7 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
   const unitError = checkLength(unit, TEXT_LIMIT, "the unit");
   if (unitError) return { error: unitError };
   if (!DEFAULT_GOAL_UNITS.some((item) => item.toLowerCase() === unit.toLowerCase())) await prisma.goalUnit.upsert({ where: { userId_name: { userId: user.id, name: unit } }, update: {}, create: { id: crypto.randomUUID(), userId: user.id, name: unit } });
+  const { locale } = await getFormatPreferences();
   try {
     await prisma.$transaction(async (tx) => {
     const previous = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, targetValue: true, currentValue: true, unit: true } });
@@ -154,9 +155,13 @@ export async function addTargetAction(id: string, _previousState: GoalActionStat
     if (previous.currentValue !== currentValue) await tx.goalMetricSnapshot.create({ data: { id: crypto.randomUUID(), goalId: id, value: currentValue } });
     await tx.milestone.updateMany({ where: { goalId: id, value: { lte: currentValue }, completed: false }, data: { completed: true, completedAt: new Date(), autoCompleted: true } });
 
+    // Each side is formatted with the unit it actually held -- `previous.unit`
+    // for the old value, `unit` for the new one -- so a target/current value
+    // changed in the same submission as its own unit still reads correctly
+    // (KD-051: the History peek's numbers were unitless before this).
     const changes: FieldChange[] = [];
-    if (previous.targetValue !== targetValue) changes.push({ fieldKey: "targetValue", fieldLabel: "Target value", oldValue: previous.targetValue !== null ? String(previous.targetValue) : null, newValue: String(targetValue) });
-    if (previous.currentValue !== currentValue) changes.push({ fieldKey: "currentValue", fieldLabel: "Current value", oldValue: previous.currentValue !== null ? String(previous.currentValue) : null, newValue: String(currentValue) });
+    if (previous.targetValue !== targetValue) changes.push({ fieldKey: "targetValue", fieldLabel: "Target value", oldValue: previous.targetValue !== null ? displayNumber(previous.targetValue, previous.unit, locale) : null, newValue: displayNumber(targetValue, unit, locale) });
+    if (previous.currentValue !== currentValue) changes.push({ fieldKey: "currentValue", fieldLabel: "Current value", oldValue: previous.currentValue !== null ? displayNumber(previous.currentValue, previous.unit, locale) : null, newValue: displayNumber(currentValue, unit, locale) });
     if (previous.unit !== unit) changes.push({ fieldKey: "unit", fieldLabel: "Unit", oldValue: previous.unit, newValue: unit });
     await recordFieldChanges(tx, user.id, previous.objectId, changes);
     });
@@ -195,14 +200,15 @@ export async function removeTargetAction(id: string, _previousState: GoalActionS
   });
   if (!goal) return {};
   if (goal.milestones.length && value(data, "confirmed") !== "true") return { error: MEASURE_REMOVAL_CONFIRMATION };
+  const { locale } = await getFormatPreferences();
   await prisma.$transaction(async (tx) => {
     await tx.goal.updateMany({ where: { id, userId: user.id }, data: { targetValue: null, currentValue: null, unit: null } });
     await tx.goalMetricSnapshot.deleteMany({ where: { goalId: id, goal: { userId: user.id } } });
     await tx.milestone.updateMany({ where: { goalId: id, goal: { userId: user.id } }, data: { value: null, autoCompleted: false } });
 
     const changes: FieldChange[] = [];
-    if (goal.targetValue !== null) changes.push({ fieldKey: "targetValue", fieldLabel: "Target value", oldValue: String(goal.targetValue), newValue: null });
-    if (goal.currentValue !== null) changes.push({ fieldKey: "currentValue", fieldLabel: "Current value", oldValue: String(goal.currentValue), newValue: null });
+    if (goal.targetValue !== null) changes.push({ fieldKey: "targetValue", fieldLabel: "Target value", oldValue: displayNumber(goal.targetValue, goal.unit, locale), newValue: null });
+    if (goal.currentValue !== null) changes.push({ fieldKey: "currentValue", fieldLabel: "Current value", oldValue: displayNumber(goal.currentValue, goal.unit, locale), newValue: null });
     if (goal.unit !== null) changes.push({ fieldKey: "unit", fieldLabel: "Unit", oldValue: goal.unit, newValue: null });
     await recordFieldChanges(tx, user.id, goal.objectId, changes);
   });

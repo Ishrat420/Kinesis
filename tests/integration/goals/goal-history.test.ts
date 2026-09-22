@@ -11,6 +11,8 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 import { prisma } from "@/lib/data/prisma";
 import { addTargetAction, createGoalAction, removeTargetAction, toggleMilestoneAction, updateGoalFieldsAction, updateGoalStatusAction, updateGoalTargetDateAction } from "@/app/(app)/goals/actions";
 import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
+import { displayNumber } from "@/lib/goals/format";
+import { DEFAULT_LOCALE } from "@/lib/format/preferences";
 
 /** KD-048 Phase 1 remainder: Goals' own lifecycle and field changes enter the ObjectEvent history. */
 
@@ -105,7 +107,20 @@ describe.sequential("a Goal's own history (KD-048)", () => {
     expect(events.filter((event) => event.eventType === "FIELD_CHANGED" && event.fieldKey === "targetValue")).toHaveLength(1); // only the first save touched it
   });
 
-  it("removeTargetAction records FIELD_CHANGED clearing targetValue, currentValue, and unit", async () => {
+  it("addTargetAction bakes the goal's own unit into targetValue/currentValue's History strings", async () => {
+    const objectId = await makeGoal("goal-measure-units");
+
+    await addTargetAction("goal-measure-units", {}, form({ targetValue: "50000", currentValue: "1000", unit: "$AUD" }));
+
+    const events = await eventsOn(objectId);
+    expect(events).toMatchObject([
+      { fieldKey: "targetValue", oldValue: null, newValue: displayNumber(50000, "$AUD", DEFAULT_LOCALE) },
+      { fieldKey: "currentValue", oldValue: null, newValue: displayNumber(1000, "$AUD", DEFAULT_LOCALE) },
+      { fieldKey: "unit", oldValue: null, newValue: "$AUD" },
+    ]);
+  });
+
+  it("removeTargetAction records FIELD_CHANGED clearing targetValue, currentValue, and unit, with the unit baked into each cleared value", async () => {
     const objectId = await makeGoal("goal-remove-measure");
     await addTargetAction("goal-remove-measure", {}, form({ targetValue: "50000", currentValue: "1000", unit: "$AUD" }));
 
@@ -114,8 +129,8 @@ describe.sequential("a Goal's own history (KD-048)", () => {
     const events = await eventsOn(objectId);
     const cleared = events.filter((event) => event.eventType === "FIELD_CHANGED" && event.newValue === null);
     expect(cleared).toMatchObject([
-      { fieldKey: "targetValue", oldValue: "50000", newValue: null },
-      { fieldKey: "currentValue", oldValue: "1000", newValue: null },
+      { fieldKey: "targetValue", oldValue: displayNumber(50000, "$AUD", DEFAULT_LOCALE), newValue: null },
+      { fieldKey: "currentValue", oldValue: displayNumber(1000, "$AUD", DEFAULT_LOCALE), newValue: null },
       { fieldKey: "unit", oldValue: "$AUD", newValue: null },
     ]);
   });
