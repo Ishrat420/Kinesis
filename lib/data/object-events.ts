@@ -248,13 +248,14 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  * renderer can pick an icon by `action` instead of `direction`'s up/down
  * coloring, which a relationship has no use for (`direction` stays "flat").
  * `icon` names which one, by `relationshipIconKey`'s own per-type vocabulary
- * -- set only for `action: "added"`/`"removed"`, each of which involves
- * exactly one type (the one being added, or the one being removed); a retype
- * (`action: "changed"`) crosses two different types, so it has no single
- * icon to name and a renderer falls back to a neutral one instead. `caption`
- * is set only for that same retype case, naming the target the relationship's
- * `from`/`to` pair is between -- the two labels alone don't say what they're
- * labeling.
+ * -- set only for `action: "added"`, where the type being added is the
+ * useful signal. `action: "removed"` has no `icon`: a renderer shows the
+ * same plain "unlinked" glyph either way, since which type was removed
+ * matters less than that it's gone. A retype (`action: "changed"`) crosses
+ * two different types, so it has no single icon to name either, and a
+ * renderer falls back to a neutral one instead. `caption` is set only for
+ * that same retype case, naming the target the relationship's `from`/`to`
+ * pair is between -- the two labels alone don't say what they're labeling.
  */
 export type ObjectEventDescription = {
   title: string;
@@ -296,9 +297,11 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return { title: "Linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "added", icon } };
     }
     case "RELATIONSHIP_REMOVED": {
+      // No `icon` here -- a removed link always renders the same plain
+      // Unlink glyph regardless of type (`KinesisLinkCard`'s `DiffConnector`),
+      // so there's nothing for one to key off.
       const label = resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse);
-      const icon = relationshipIconKey(event.oldRelationshipType, event.inverse);
-      return { title: "No longer linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "removed", icon } };
+      return { title: "No longer linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "removed" } };
     }
     case "RELATIONSHIP_CHANGED": {
       // `oldInverse` is null on rows written before that column existed --

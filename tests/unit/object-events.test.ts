@@ -43,9 +43,9 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(inverse).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added", icon: "generic" } });
   });
 
-  it("renders RELATIONSHIP_REMOVED with the old label, its own title distinguishing it from an active link", () => {
+  it("renders RELATIONSHIP_REMOVED with the old label, its own title distinguishing it from an active link, and no `icon` (removal renders the same glyph regardless of type)", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_REMOVED", oldRelationshipType: "BLOCKS", inverse: false, relatedObjectName: "Submit application" }));
-    expect(line).toEqual({ title: "No longer linked", detail: "Blocks · Submit application", change: { from: "Blocks", to: "Submit application", direction: "flat", kind: "relationship", action: "removed", icon: "blocks" } });
+    expect(line).toEqual({ title: "No longer linked", detail: "Blocks · Submit application", change: { from: "Blocks", to: "Submit application", direction: "flat", kind: "relationship", action: "removed" } });
   });
 
   it("renders RELATIONSHIP_CHANGED with old and new labels, each resolved from this row's own side", () => {

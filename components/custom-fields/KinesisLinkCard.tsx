@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Ban, FileText, GitBranch, GitCompare, Handshake, Landmark, Link2, Link as LinkIcon, ListTodo, Milestone, OctagonAlert, Target, TrendingUp, Unlink, UsersRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Ban, Blend, FileText, GitCompare, Handshake, Landmark, Link2, Link as LinkIcon, ListTodo, OctagonAlert, Split, Target, TrendingUp, Unlink, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { LinkableObject } from "@/lib/objects/locations";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
@@ -11,14 +11,14 @@ import type { RelationshipIconKey } from "@/lib/objects/relationship-labels";
 import { formatActivityTime } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 
-/** One purpose-picked glyph per canonical relationship label (`relationshipIconKey`'s own vocabulary) -- "generic" (an ad-hoc `CUSTOM` link, or a row with no relationship type at all) has no entry here and falls back to the plain Link2/Unlink pair in `DiffConnector` below instead. */
+/** One purpose-picked glyph per canonical relationship label (`relationshipIconKey`'s own vocabulary), shown only for a link being *added* -- see `DiffConnector` below for why removal never looks type-specific. "generic" (an ad-hoc `CUSTOM` link, or a row with no relationship type at all) has no entry here and falls back to the plain `Link2` instead. */
 const RELATIONSHIP_ICONS: Record<Exclude<RelationshipIconKey, "generic">, typeof Link2> = {
   "supports": TrendingUp,
   "supported-by": Handshake,
   "blocks": Ban,
   "blocked-by": OctagonAlert,
-  "depends-on": GitBranch,
-  "required-for": Milestone,
+  "depends-on": Split,
+  "required-for": Blend,
   "related-to": LinkIcon,
   "alongside": GitCompare,
 };
@@ -26,15 +26,15 @@ const RELATIONSHIP_ICONS: Record<Exclude<RelationshipIconKey, "generic">, typeof
 /**
  * The diff row's connector, between `change.from` and `change.to`. A
  * magnitude change (Finance amount, a plain field, status) gets the
- * direction-tinted arrow. A relationship's `added`/`removed` gets a glyph
- * picked for that link's own type -- `change.icon`, from `RELATIONSHIP_ICONS`
- * above, or the generic Link2/Unlink pair for an ad-hoc `CUSTOM` link with no
- * fixed type to key off -- colored by the action (indigo added, amber
- * removed) rather than the type, so an added "Blocks" link doesn't read as a
- * warning just because "blocks" sounds alarming. A retype (`action:
- * "changed"`) crosses two different types at once, so no single icon could
- * describe it honestly -- it keeps the same neutral arrow a flat value
- * change gets.
+ * direction-tinted arrow. Adding a relationship gets a glyph picked for that
+ * link's own type -- `change.icon`, from `RELATIONSHIP_ICONS` above, or the
+ * generic `Link2` for an ad-hoc `CUSTOM` link with no fixed type to key off.
+ * Removing one always shows the same plain `Unlink`, regardless of type --
+ * unlike adding, where the type is the useful signal, a removal is a removal
+ * either way; what matters is that a link that used to be there no longer
+ * is. A retype (`action: "changed"`) crosses two different
+ * types at once, so no single icon could describe it honestly -- it keeps
+ * the same neutral arrow a flat value change gets.
  */
 function DiffConnector({ change }: { change: NonNullable<KinesisLinkRecentEvent["change"]> }) {
   if (change.kind !== "relationship") {
@@ -42,9 +42,10 @@ function DiffConnector({ change }: { change: NonNullable<KinesisLinkRecentEvent[
       change.direction === "up" ? "text-emerald-600" : change.direction === "down" ? "text-amber-600" : "text-zinc-400"
     }`} />;
   }
-  if (change.action !== "added" && change.action !== "removed") return <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />;
-  const Icon = (change.icon && change.icon !== "generic" ? RELATIONSHIP_ICONS[change.icon] : undefined) ?? (change.action === "added" ? Link2 : Unlink);
-  return <Icon className={`h-4 w-4 shrink-0 ${change.action === "added" ? "text-indigo-600" : "text-amber-700"}`} />;
+  if (change.action === "removed") return <Unlink className="h-4 w-4 shrink-0 text-amber-700" />;
+  if (change.action !== "added") return <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />;
+  const Icon = (change.icon && change.icon !== "generic" ? RELATIONSHIP_ICONS[change.icon] : undefined) ?? Link2;
+  return <Icon className="h-4 w-4 shrink-0 text-indigo-600" />;
 }
 
 /**
