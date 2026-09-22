@@ -1,26 +1,32 @@
 # KD-052 — Event Significance, Surfacing & Change Awareness
 
-**Status:** Planning Needed
+**Status:** Accepted
 **Priority:** Low
-**Tags:** Architecture, UX / UI, Needs Research
+**Tags:** Architecture, UX / UI, Data Model
 
 ## Summary
 
 KD-048 (Object Event Model) shipped Phases 1-3 in full: every core module
 and Custom Items write a complete, typed `ObjectEvent` stream, read
 unfiltered and unscored everywhere it's shown today (a History section,
-the dashboard's Recent Activity feed). KD-048's own Phases 4 and 6 were
-never started — this ticket splits them out for their own design pass
-rather than treating them as a quick follow-on to a now-finished ticket:
+the dashboard's Recent Activity feed, and now the Kinesis Link card's own
+History peek). KD-048's own Phases 4 and 6 were never started — this
+ticket splits them out for their own design pass rather than treating
+them as a quick follow-on to a now-finished ticket:
 
 * **Phase 4 — Significance & surfacing.** A pure classifier deciding
   which events are worth surfacing *beyond* a plain chronological list,
-  and feeding that into at least one real consumer (Kinesis Link preview
-  cards).
+  feeding a deterministic scoring pass that decides what a given UI
+  surface shows. **This phase is now fully specified below** — a
+  concrete per-event significance table across every module, plus a v1
+  "Surface Score" algorithm and the destination thresholds that consume
+  it. Not yet implemented.
 * **Phase 6 — Change Awareness & AI summaries.** A layer beyond a raw
   diff: knowing whether a change is a *regression* for that specific
   field (an expiry moving earlier is bad; a savings target moving
   earlier is good), plus AI-narrated summaries over the same stream.
+  Still unscheduled and unscoped beyond the one paragraph below —
+  this ticket update does not touch Phase 6.
 
 **Phase 5 (Timeline / Year in Review) is deliberately not part of this
 ticket** — it already has its own ticket, **KD-015 ("Kinesis Year in
@@ -35,61 +41,318 @@ See "Related" below for what should happen to KD-015 now.
   Custom Items — Phases 1-3 of KD-048 are genuinely done, not partially.
 * **No significance concept exists anywhere today** — no stored score,
   no classifier function, nothing. Every current reader
-  (`getObjectEvents`, `getRecentActivity`) shows every event, newest
-  first.
+  (`getObjectEvents`, `getRecentActivity`, `getKinesisLinkRecentEvents`)
+  shows every event, newest first, with no scoring or filtering.
 * **KD-042's Kinesis Link preview cards (Done) already have the exact
-  slot Phase 4 needs.** `lib/data/kinesis-links.ts`'s
-  `getKinesisLinkPreviews` builds a `KinesisLinkPreviewStat[]` per
-  linked object, one function per object type
-  (`getDocumentPreviews`, `getGoalPreviews`, etc.), merged and handed to
-  `KinesisLinkCard.tsx`, which renders whatever's in that array with no
-  per-type logic of its own. A "Latest: …" stat is one more push onto
-  that same array once a qualifying event exists — no change needed to
-  the card component itself.
+  slot Phase 4 needs**, and the History peek built since (the "big
+  diff" / per-type relationship icon work) already renders a single
+  qualifying event nicely once one is chosen — Phase 4's job is
+  *picking which one*, not building anywhere new to show it.
+  `lib/data/kinesis-links.ts`'s `getKinesisLinkRecentEvents` already
+  does the batched, single-most-recent-event lookup per linked object;
+  the Surface Score pass below is a filter/ranking step in front of
+  that query, not a new query shape.
+* **`describeObjectEvent` (`lib/data/object-events.ts`) is the one
+  place that already knows every event type's shape** — it's the
+  natural home for a co-located significance table, the same way
+  `numericDirection`/`relationshipIconKey` already live next to the
+  rendering logic they support.
+* Two concrete HIGH-significance events named in this ticket's table
+  already exist in code, built ad hoc before this ticket was written up:
+  `DOCUMENT_EXPIRING_SOON` (a document entering its reminder window) and
+  `GOAL_MILESTONE_COMPLETED` (carrying a `"<completed>/<total>"`
+  progress snapshot). Both are usable inputs to the classifier below
+  with no further schema work.
 * **No "last viewed" concept exists anywhere** — no column, no table,
   nothing tracks when an account last opened a given record. This
   blocks the one Attention-facing idea KD-048 raised ("this changed
-  since you last looked").
+  since you last looked"), and is explicitly out of scope for the
+  Surface Score below (see "Attention" in the destination thresholds).
 
-## Phase 4 — Significance & surfacing
+## Phase 4 — Significance & surfacing (v1 design accepted)
 
-Carried over from KD-048's own design, unchanged unless replanning
-decides otherwise:
+### Design principle
 
-**The classifier.** `classifyEventSignificance(event): "low" | "normal"
-| "high"` — a small, pure, read-time function, **not a stored column**,
-driven by `eventType` + `fieldKey` (or, for `RELATIONSHIP_*` events,
-`newRelationshipType`/`oldRelationshipType` — e.g. the bare `RELATES_TO`
-a to-do's own incidental linking uses should stay "low", while a
-deliberately-chosen type like `BLOCKS` should not). This mirrors
-`isGoalOverdue` — a pure function over stored facts rather than a
-persisted flag (ADR-010's own precedent) — so the policy stays
-centralized and changeable without a migration.
+Deterministic and boring internally, even where the result should feel
+smart. Every score is reconstructable by hand from the event's own
+stored fields plus the rules below — no learned weights, no hidden
+state. When Kinesis surfaces something that looks wrong, the fix is
+reading this table, not debugging a black box.
 
-Starting point proposed in KD-048: `GOAL_COMPLETED` /
-`ITEM_ARCHIVED` / `STATUS_CHANGED` = high; a `FIELD_CHANGED` on a
-notes/description-shaped field = low. Percentage-based thresholds for
-numeric fields (a balance moving >10%) were flagged as a reasonable
-later refinement, not a v1 requirement.
+### 1. Base significance
 
-**Surfacing, first consumer.** Feed "high" events into Kinesis Link
-preview cards (KD-042) via the integration point described above.
+`classifyEventSignificance(event): "high" | "normal" | "low" | "ignore"`
+— a small, pure, read-time function, **not a stored column**, mirroring
+`isGoalOverdue`'s pure-function-over-stored-facts pattern (ADR-010).
+Driven by `eventType` + `fieldKey` (for `FIELD_CHANGED`/named-column
+diffs) or by relationship type (for `RELATIONSHIP_*` events).
 
-**Surfacing, second (harder) consumer — Attention.** "This changed
-since you last looked" is a plausible future Attention reason, but it
-needs a "last viewed" concept that doesn't exist anywhere in Kinesis
-today. This is real, separate design work — a new per-user-per-object
-timestamp (a new table? a column somewhere existing?), a decision about
-which views actually write it (every detail-page view? something
-narrower, for cost reasons?), and how it interacts with Attention's
-existing overdue/due-soon model, which is otherwise unrelated to this.
-**Likely deserves its own sub-ticket rather than being solved inside
-this one** — flagged here as an open question, not a commitment.
+```text
+HIGH    = 70
+NORMAL  = 40
+LOW     = 10
+IGNORE  = 0, excluded before any scoring happens
+```
+
+`IGNORE` stops immediately and is never considered for any awareness
+surface, including plain History — see "Reminder" and "Issue date"
+below for cases that should not even appear as a line item.
+
+#### Finance — Asset / Liability
+
+| Change | Significance |
+|---|---|
+| Notes | LOW |
+| Name | LOW |
+| Balance increase or decrease | HIGH |
+| Interest rate increase or decrease | HIGH |
+| Monthly payment increase or decrease | HIGH |
+
+#### Finance — Income / Expense
+
+| Change | Significance |
+|---|---|
+| Notes | LOW |
+| Name | LOW |
+| Start date / End date | NORMAL |
+| Frequency | HIGH |
+| Amount increase or decrease | HIGH |
+
+#### Document
+
+| Change | Significance |
+|---|---|
+| Notes | LOW |
+| Name | LOW |
+| Type | N/A — not editable once created, so never diffed |
+| Reminder (lead time / `prompt`) | IGNORE |
+| Expiry date | HIGH |
+| Issue date | IGNORE |
+| Document number | NORMAL |
+| Country | NORMAL |
+| Link | IGNORE |
+| Kinesis Links (typed) | HIGH |
+| Custom Kinesis Links | HIGH |
+| **Document entering its reminder window** (automatic, system-detected — already implemented as `DOCUMENT_EXPIRING_SOON`) | **HIGH** |
+
+#### Goal
+
+| Change | Significance |
+|---|---|
+| Status changed | HIGH |
+| Completed | HIGH |
+| Reopened | HIGH |
+| Target date changed | HIGH |
+| Milestone added | NORMAL |
+| Milestone updated | LOW |
+| Milestone completed | HIGH |
+| Milestone deleted | NORMAL |
+| Measurable target added | HIGH |
+| Measurable target updated (target value or current value) | HIGH |
+
+Implementation note: "Milestone added/updated/completed/deleted" map
+directly onto the `GOAL_MILESTONE_ADDED`/`UPDATED`/`COMPLETED`/`DELETED`
+event types. "Goal reopened" does **not** currently have a dedicated
+event type the way "Goal completed" does (`GOAL_COMPLETED`) — moving a
+goal *out* of "Finished" back to another status is today just a generic
+`STATUS_CHANGED` row. The classifier can special-case this (`STATUS_CHANGED`
+where `oldValue === "Finished"` scores HIGH like a reopen; every other
+`STATUS_CHANGED` transition falls through to a lower default) without a
+new event type or migration — flagged here so it isn't missed during
+implementation, not proposing a schema change.
+
+#### Kinesis Link relationship type
+
+The significance of the relationship-change event itself
+(`RELATIONSHIP_ADDED`/`REMOVED`/`CHANGED` for a link of this type):
+
+| Type | Significance |
+|---|---|
+| Supports | NORMAL |
+| Supported by | NORMAL |
+| Blocks | HIGH |
+| Blocked by | HIGH |
+| Depends on | HIGH |
+| Required for | HIGH |
+| Related to | LOW |
+| Alongside | NORMAL |
+| Any other custom Kinesis Link | LOW |
+
+This table classifies *the link-change event*, not the downstream
+object's own changes — see "Kinesis Link relevance" in the scoring
+formula below for that, a related but separate idea: it means a
+meaningful change to an object is more relevant to surface when
+*another* object actually depends on it, not that `DEPENDS_ON` itself
+is more important everywhere it appears.
+
+### 2. Surface Score
+
+Applies only to events that pass the significance gate below — **LOW
+can never escape History purely because of context or freshness**, and
+IGNORE never reaches scoring at all:
+
+```ts
+if (significance === "ignore") exclude;      // never shown anywhere
+if (significance === "low") historyOnly;      // valid History line, never scored further
+// only "normal" / "high" continue to scoring
+```
+
+```text
+Surface Score
+= Base significance
++ Freshness
++ Kinesis Link relevance
++ Magnitude
+```
+
+Not every event needs all four components — Freshness and Kinesis Link
+relevance apply wherever the event has an age and is being viewed
+through a link; Magnitude only applies where Kinesis understands the
+value numerically (see below).
+
+**Freshness** (for Kinesis Link card peeks and anywhere else age
+matters):
+
+```text
+0-3 days      +30
+4-7 days      +20
+8-30 days     +10
+31-60 days     +0
+61-90 days    -30
+>90 days      exclude
+```
+
+This stops a six-month-old HIGH event permanently beating something
+useful that happened yesterday.
+
+**Kinesis Link relevance** (when deciding what to show *through* a
+Kinesis Link, i.e. is this object depended on by the one whose card is
+rendering):
+
+```text
+Blocks / Blocked by         +20
+Depends on / Required for   +20
+Supports / Supported by     +10
+Alongside                    +5
+Related to                   +0
+Custom                       +0
+```
+
+**Magnitude** (Finance only for v1 — never applied to names, notes, or
+other arbitrary text):
+
+```text
+< 2% change      +0
+2-10%            +5
+10-25%          +10
+>25%            +15
+```
+
+Tunable later; not a v1 blocker.
+
+### 3. Selection algorithm
+
+```text
+1. Get recent ObjectEvents.
+2. Classify:
+     IGNORE      -> discard
+     LOW         -> History only
+     NORMAL/HIGH -> continue
+3. Calculate Surface Score:
+     base significance + freshness + Kinesis Link relevance + magnitude (where supported)
+4. Apply the destination's threshold.
+5. Pick the highest-scoring event.
+6. If tied, pick the newest.
+7. If nothing qualifies, show nothing.
+```
+
+### 4. Destination thresholds
+
+| Surface | Threshold |
+|---|---|
+| History | none — HIGH, NORMAL and LOW all appear, unscored |
+| Kinesis Link animated peek | score >= 50 |
+| Timeline (KD-015) | score >= 65 |
+| Dashboard "meaningful changes" | score >= 80 |
+| Attention | **not** this threshold — separate algorithm, TBD (see Open Questions) |
+
+### 5. Kinesis Link animated peek — concrete rule
+
+```text
+Eligibility: NORMAL or HIGH, age <= 90 days, Surface Score >= 50
+Selection:   highest Surface Score, then newest event
+```
+
+One additional safeguard: **only one event per card.** Don't rotate
+through five events — the card briefly reveals the single best current
+change, then returns to the live preview, exactly as the existing peek
+animation already works (`KinesisLinkCard.tsx`'s `useHistorySneakPeek`);
+this ticket changes *which* event is picked, not the animation itself.
+
+### Worked examples
+
+**Savings balance change, today, on a depended-upon object:**
+
+```text
+Balance $10,000 -> $20,000
+
+HIGH                     70
+Occurred today          +30
+Depends on               +20
+100% increase            +15
+----------------------------
+Surface Score           135
+```
+
+Definitely show it. The peek reads "Savings increased from $10,000 to
+$20,000."
+
+**Name change, today, on the same depended-upon object:**
+
+```text
+"House savings" -> "House deposit"
+
+LOW                       10
+```
+
+LOW is gated before scoring — this never reaches the peek regardless of
+freshness or relevance, and never even computes a number. (An earlier
+draft of this scoring idea let LOW events reach 60 through context and
+freshness alone; the significance gate above exists specifically to
+close that hole.)
+
+**Document expiry changed, yesterday, on a Required-for'd document:**
+
+```text
+HIGH                      70
+Changed yesterday        +30
+Required for              +20
+----------------------------
+Total                    120
+```
+
+Very strong candidate.
+
+**Document number changed, 25 days ago, Related to:**
+
+```text
+NORMAL                    40
+25 days ago               +10
+Related to                 +0
+----------------------------
+Total                     50
+```
+
+Barely eligible for a card peek (score exactly at the >= 50 threshold),
+nowhere near Dashboard-worthy (>= 80).
 
 ## Phase 6 — Change Awareness & AI summaries (unscheduled)
 
 Two related but distinct capabilities, both unscheduled and unscoped
-beyond KD-048's original one-paragraph mention:
+beyond KD-048's original one-paragraph mention. Unaffected by this
+update — Surface Score is a *volume/relevance* ranking, not a
+*good/bad* judgment, and the two are designed to stay independent (see
+Open Questions):
 
 * **Per-domain regression detection** — e.g. "insurance expires earlier
   than before," a metric trending the wrong way. This is a step beyond
@@ -112,14 +375,10 @@ beyond KD-048's original one-paragraph mention:
 * **Where does "last viewed" tracking actually belong?** New table
   keyed by `(userId, objectId)`, or something narrower? Which views
   write it, and at what cost (a write on every detail-page load, across
-  every module, is a real amount of new traffic)? Worth a design pass
-  on its own before Attention's "changed" reason can move from "plausible
-  future idea" to planned work.
-* **Are significance thresholds fixed in code, or ever user-configurable?**
-  KD-048's proposal is a fixed, centralized function. Worth confirming
-  that's still the right call before implementation, rather than
-  assuming no one will ever want to tune what counts as "high" for
-  their own account.
+  every module, is a real amount of new traffic)? Still blocks Attention
+  using this scoring work at all — Attention deliberately does **not**
+  consume the Surface Score thresholds above and needs its own
+  algorithm once this exists.
 * **How does Phase 6's per-domain regression classifier relate to
   Phase 4's `classifyEventSignificance`?** Same function extended with
   polarity, two independent classifiers consulted together, or a
@@ -130,6 +389,17 @@ beyond KD-048's original one-paragraph mention:
   summaries could reasonably wait until Timeline exists and its own
   curated output proves out, rather than being built speculatively
   ahead of a real UI that needs it.
+* **Should "Goal reopened" get its own event type** (`GOAL_REOPENED`,
+  mirroring `GOAL_COMPLETED`), **or stay a classifier-side special case**
+  on `STATUS_CHANGED`'s `oldValue`? Either works for scoring; a
+  dedicated type would also let History/the Kinesis Link peek render it
+  with its own copy instead of a generic "Status changed" line, the way
+  `GOAL_COMPLETED` already does for the opposite transition — worth
+  deciding at implementation time rather than here.
+* **Magnitude thresholds and the freshness/relevance point values are
+  the stated v1 defaults, explicitly called out as tunable later** — no
+  further decision needed before implementation, just noting they are
+  not meant to be treated as final forever.
 
 ## Related
 
@@ -143,9 +413,11 @@ beyond KD-048's original one-paragraph mention:
   Timeline over) but still benefits from this ticket's significance
   work for genuine curation ("meaningful highlights over raw counts," per
   KD-015's own notes) rather than a Timeline that has to show everything
-  because nothing is scored yet. Worth revisiting KD-015's own tags now
-  rather than waiting for this ticket to fully close.
-* **Touches:** KD-042 (Kinesis Link Rich Preview Card, Done) — the
-  existing integration point Phase 4's "Latest: …" line would extend.
+  because nothing is scored yet. The Timeline threshold (score >= 65) is
+  proposed directly in this ticket's destination table. Worth revisiting
+  KD-015's own tags now rather than waiting for this ticket to fully close.
+* **Touches:** KD-042 (Kinesis Link Rich Preview Card, Done) and the
+  Kinesis Link card's History peek (shipped since KD-042 closed) — the
+  existing integration points Phase 4's scoring pass would filter for.
 * **Precedent:** ADR-010 — `isGoalOverdue`'s pure-function-over-stored-facts
   pattern, which `classifyEventSignificance` is designed to follow.
