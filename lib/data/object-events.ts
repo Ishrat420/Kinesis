@@ -232,8 +232,30 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  * optional `detail` line spelling out the before/after (or the two sides of
  * a Kinesis Link) beneath it. `detail` is `null` for a dataless moment like
  * `ITEM_CREATED` that has nothing to show a second line for.
+ *
+ * `change` is set only when `detail` is a plain "From X · To Y" before/after
+ * (a field's value changing, or a status changing) -- the two sides broken
+ * out as their own strings, for a renderer that wants to lay them out as a
+ * diff (the Kinesis Link card's own History peek) rather than parse them
+ * back out of `detail`'s prose. `direction` is "up"/"down" only when both
+ * sides parse as distinct finite numbers; "flat" otherwise (plain text, or
+ * a kind -- like Custom Module currency/percent -- already formatted with
+ * symbols at write time, so no direction to show from these two strings
+ * alone).
  */
-export type ObjectEventDescription = { title: string; detail: string | null };
+export type ObjectEventDescription = {
+  title: string;
+  detail: string | null;
+  change?: { from: string; to: string; direction: "up" | "down" | "flat" };
+};
+
+/** "up"/"down" only when both values parse as distinct finite numbers; "flat" for plain text, unparseable, or equal values. */
+function numericDirection(from: string, to: string): "up" | "down" | "flat" {
+  const previous = Number(from);
+  const next = Number(to);
+  if (!Number.isFinite(previous) || !Number.isFinite(next) || previous === next) return "flat";
+  return next > previous ? "up" : "down";
+}
 
 /**
  * Renders one `ObjectEvent` to the title/detail pair its History entry
@@ -266,7 +288,12 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
     case "ITEM_RESTORED":
       return { title: "Restored", detail: null };
     case "STATUS_CHANGED":
-      return { title: "Status changed", detail: `From ${event.oldValue} · To ${event.newValue}` };
+      return {
+        title: "Status changed",
+        detail: `From ${event.oldValue} · To ${event.newValue}`,
+        // A status is a fixed vocabulary, never a magnitude -- "flat" always, not numericDirection's job here.
+        change: event.oldValue !== null && event.newValue !== null ? { from: event.oldValue, to: event.newValue, direction: "flat" } : undefined,
+      };
     case "GOAL_COMPLETED":
       return { title: "Goal completed", detail: null };
     case "GOAL_MILESTONE_COMPLETED":
@@ -300,10 +327,16 @@ function describeFieldChange(event: ObjectEvent, prefs: Pick<FormatPreferences, 
     const next = Number(event.newValue);
     const direction = next > previous ? "Increased" : "Decreased";
     const money = (value: number) => formatMoney(value, prefs.locale, prefs.currency);
-    return { title: `${event.fieldLabel} ${direction}`, detail: `From ${money(previous)} · To ${money(next)}` };
+    const from = money(previous);
+    const to = money(next);
+    return { title: `${event.fieldLabel} ${direction}`, detail: `From ${from} · To ${to}`, change: { from, to, direction: next > previous ? "up" : "down" } };
   }
   const label = event.fieldLabel ?? "A field";
   if (event.oldValue === null) return { title: `${label} set`, detail: `To ${event.newValue}` };
   if (event.newValue === null) return { title: `${label} removed`, detail: `Was ${event.oldValue}` };
-  return { title: `${label} changed`, detail: `From ${event.oldValue} · To ${event.newValue}` };
+  return {
+    title: `${label} changed`,
+    detail: `From ${event.oldValue} · To ${event.newValue}`,
+    change: { from: event.oldValue, to: event.newValue, direction: numericDirection(event.oldValue, event.newValue) },
+  };
 }

@@ -386,8 +386,8 @@ export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Recor
   return { ...customItems, ...documents, ...goals, ...people, ...financeItems };
 }
 
-/** One Kinesis Link target's own most recent History entry -- what `KinesisLinkCard`'s "sneak peek" animates to and from. */
-export type KinesisLinkRecentEvent = { title: string; detail: string | null; occurredAt: string };
+/** One Kinesis Link target's own most recent History entry -- what `KinesisLinkCard`'s "sneak peek" animates to and from. `change`, when present, is the event's own before/after broken into its two sides -- see `ObjectEventDescription`. */
+export type KinesisLinkRecentEvent = { title: string; detail: string | null; change?: { from: string; to: string; direction: "up" | "down" | "flat" }; occurredAt: string };
 
 /**
  * The single most recent `ObjectEvent` for each of a batch of linked
@@ -416,8 +416,8 @@ export async function getKinesisLinkRecentEvents(objectIds: string[]): Promise<R
 
   const result: Record<string, KinesisLinkRecentEvent> = {};
   for (const event of events) {
-    const { title, detail } = describeObjectEvent(event, prefs);
-    result[event.objectId] = { title, detail, occurredAt: event.occurredAt.toISOString() };
+    const { title, detail, change } = describeObjectEvent(event, prefs);
+    result[event.objectId] = { title, detail, change, occurredAt: event.occurredAt.toISOString() };
   }
   return result;
 }

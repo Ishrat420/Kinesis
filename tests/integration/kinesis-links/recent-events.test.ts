@@ -57,6 +57,24 @@ describe.sequential("getKinesisLinkRecentEvents", () => {
     expect(events["obj-a"]).toMatchObject({ title: "Savings Increased" });
   });
 
+  it("carries the event's own before/after as `change`, for the card's own big-diff peek", async () => {
+    await seedObject("obj-diff", owner);
+    await prisma.objectEvent.create({ data: { id: "event-diff", userId: owner, objectId: "obj-diff", eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Savings", oldValue: "1000", newValue: "2000", source: "USER", occurredAt: new Date("2026-01-01T00:00:00Z") } });
+
+    const events = await getKinesisLinkRecentEvents(["obj-diff"]);
+
+    expect(events["obj-diff"]).toMatchObject({ change: { from: "$1,000", to: "$2,000", direction: "up" } });
+  });
+
+  it("omits `change` for an event with nothing to diff", async () => {
+    await seedObject("obj-created", owner);
+    await prisma.objectEvent.create({ data: { id: "event-created", userId: owner, objectId: "obj-created", eventType: "ITEM_CREATED", source: "USER", occurredAt: new Date("2026-01-01T00:00:00Z") } });
+
+    const events = await getKinesisLinkRecentEvents(["obj-created"]);
+
+    expect(events["obj-created"].change).toBeUndefined();
+  });
+
   it("batches across several objects in one call, keyed by objectId", async () => {
     await seedObject("obj-b", owner);
     await seedObject("obj-c", owner);

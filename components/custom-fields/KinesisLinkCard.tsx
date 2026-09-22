@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Clock, FileText, Landmark, ListTodo, Target, UsersRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, FileText, Landmark, ListTodo, Target, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { LinkableObject } from "@/lib/objects/locations";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
@@ -63,6 +63,15 @@ const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, F
  * `PEEK_LOOP_MS`, holds it, then rolls back -- a vertical slide/fade
  * swap of the content only, never the card itself, so nothing here
  * spins or carousels.
+ *
+ * The peek itself is a "big diff": `recentEvent.change`'s two sides laid
+ * out as a single before -> after line, the arrow tinted by direction
+ * (green up, amber down) -- only meaningful when both sides parsed as
+ * distinct numbers (`describeObjectEvent`'s own `numericDirection`), so a
+ * plain text change gets a neutral gray arrow rather than a wrong color.
+ * Not every event has a clean two-sided `change` at all (a created,
+ * archived, or linked moment has nothing to diff) -- that case falls back
+ * to the same title/detail line every other History surface shows.
  */
 export function KinesisLinkCard({ option, stats = [], label, recentEvent, className = "" }: { option: LinkableObject; stats?: KinesisLinkPreviewStat[]; label?: string; recentEvent?: KinesisLinkRecentEvent; className?: string }) {
   const color = option.color ?? "#52525b";
@@ -109,12 +118,22 @@ export function KinesisLinkCard({ option, stats = [], label, recentEvent, classN
         </div>
         {recentEvent && (
           <div className={`col-start-1 row-start-1 min-w-0 self-center transition-all duration-500 ease-out ${peeking ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"}`}>
-            <span className="mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
-              <Clock className="h-3 w-3" />Latest change
-            </span>
-            <p className="break-words text-sm font-bold text-zinc-800">{recentEvent.title}</p>
-            {recentEvent.detail && <p className="mt-0.5 break-words text-sm text-zinc-500">{recentEvent.detail}</p>}
-            <p className="mt-1 text-xs text-zinc-400">{formatActivityTime(recentEvent.occurredAt, undefined, locale)}</p>
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide" style={{ color }}>Latest change</span>
+            {recentEvent.change ? (
+              <div className="flex flex-wrap items-baseline gap-2.5">
+                <span className="break-words text-base font-medium text-zinc-400">{recentEvent.change.from}</span>
+                <ArrowRight className={`h-4 w-4 shrink-0 ${
+                  recentEvent.change.direction === "up" ? "text-emerald-600" : recentEvent.change.direction === "down" ? "text-amber-600" : "text-zinc-400"
+                }`} />
+                <span className="break-words text-lg font-bold tracking-tight text-zinc-900">{recentEvent.change.to}</span>
+              </div>
+            ) : (
+              <>
+                <p className="break-words text-sm font-bold text-zinc-800">{recentEvent.title}</p>
+                {recentEvent.detail && <p className="mt-0.5 break-words text-sm text-zinc-500">{recentEvent.detail}</p>}
+              </>
+            )}
+            <p className="mt-1.5 text-xs text-zinc-400">{formatActivityTime(recentEvent.occurredAt, undefined, locale)}</p>
           </div>
         )}
       </div>

@@ -87,7 +87,10 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
   });
 
   it("renders STATUS_CHANGED with a from/to detail line", () => {
-    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Revisit Later" }))).toEqual({ title: "Status changed", detail: "From Active · To Revisit Later" });
+    expect(describeObjectEvent(event({ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Revisit Later" }))).toEqual({
+      title: "Status changed", detail: "From Active · To Revisit Later",
+      change: { from: "Active", to: "Revisit Later", direction: "flat" },
+    });
   });
 
   it("renders ITEM_ARCHIVED and ITEM_RESTORED as plain, fixed titles", () => {
@@ -111,7 +114,10 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
 
   describe("FIELD_CHANGED", () => {
     it("reads as a plain before/after when the field already had a value", () => {
-      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Notes", oldValue: "Old note", newValue: "New note" }))).toEqual({ title: "Notes changed", detail: "From Old note · To New note" });
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Notes", oldValue: "Old note", newValue: "New note" }))).toEqual({
+        title: "Notes changed", detail: "From Old note · To New note",
+        change: { from: "Old note", to: "New note", direction: "flat" },
+      });
     });
 
     it("reads as \"set\" when the field had no prior value", () => {
@@ -123,18 +129,27 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     });
 
     it("falls back to a generic label when somehow missing its own fieldLabel", () => {
-      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: null, oldValue: "1", newValue: "2" }))).toEqual({ title: "A field changed", detail: "From 1 · To 2" });
+      expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: null, oldValue: "1", newValue: "2" }))).toEqual({
+        title: "A field changed", detail: "From 1 · To 2",
+        change: { from: "1", to: "2", direction: "up" },
+      });
     });
 
     describe("a Finance Item's amount (fieldKey \"amount\")", () => {
       it("reads as Increased, naming the item's own category, formatted as money", () => {
         const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Savings", oldValue: "1000", newValue: "2000" }));
-        expect(line).toEqual({ title: "Savings Increased", detail: "From $1,000 · To $2,000" });
+        expect(line).toEqual({
+          title: "Savings Increased", detail: "From $1,000 · To $2,000",
+          change: { from: "$1,000", to: "$2,000", direction: "up" },
+        });
       });
 
       it("reads as Decreased the same way", () => {
         const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Savings", oldValue: "2000", newValue: "1500" }));
-        expect(line).toEqual({ title: "Savings Decreased", detail: "From $2,000 · To $1,500" });
+        expect(line).toEqual({
+          title: "Savings Decreased", detail: "From $2,000 · To $1,500",
+          change: { from: "$2,000", to: "$1,500", direction: "down" },
+        });
       });
 
       it("formats with the caller's own locale/currency rather than the default", () => {
@@ -142,7 +157,10 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
           event({ eventType: "FIELD_CHANGED", fieldKey: "amount", fieldLabel: "Salary", oldValue: "5000", newValue: "6000" }),
           { locale: "en-US", currency: "USD" },
         );
-        expect(line).toEqual({ title: "Salary Increased", detail: "From $5,000 · To $6,000" });
+        expect(line).toEqual({
+          title: "Salary Increased", detail: "From $5,000 · To $6,000",
+          change: { from: "$5,000", to: "$6,000", direction: "up" },
+        });
       });
 
       it("does not special-case a plain field that merely happens to be named \"amount\" without going through fieldKey", () => {
@@ -150,7 +168,37 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
         // field whose label happens to read "Amount" still gets the generic
         // before/after rendering, unformatted.
         const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "some-other-key", fieldLabel: "Amount", oldValue: "1000", newValue: "2000" }));
-        expect(line).toEqual({ title: "Amount changed", detail: "From 1000 · To 2000" });
+        expect(line).toEqual({
+          title: "Amount changed", detail: "From 1000 · To 2000",
+          change: { from: "1000", to: "2000", direction: "up" },
+        });
+      });
+    });
+
+    describe("change.direction, for a renderer laying the two sides out as a diff", () => {
+      it("reads down for a numeric decrease, up for a numeric increase", () => {
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Count", oldValue: "10", newValue: "3" })).change).toEqual({ from: "10", to: "3", direction: "down" });
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Count", oldValue: "3", newValue: "10" })).change).toEqual({ from: "3", to: "10", direction: "up" });
+      });
+
+      it("reads flat for a value that isn't a number at all, rather than guessing", () => {
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Status", oldValue: "Draft", newValue: "Final" })).change).toEqual({ from: "Draft", to: "Final", direction: "flat" });
+      });
+
+      it("reads flat for a value already formatted with symbols at write time (Custom Module currency/percent), rather than a wrong direction", () => {
+        // saveTemplateFieldValues bakes "$250,000"/"60%" in before this ever
+        // runs, so there are no bare numbers left here to compare -- flat is
+        // the honest answer, not a guess dressed up as a real signal.
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Price", oldValue: "$250,000", newValue: "$275,000" })).change).toEqual({ from: "$250,000", to: "$275,000", direction: "flat" });
+      });
+
+      it("reads flat when both sides are the same number, not up or down", () => {
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Count", oldValue: "5", newValue: "5" })).change).toEqual({ from: "5", to: "5", direction: "flat" });
+      });
+
+      it("carries no change at all for a \"set\" or \"removed\" row -- there is only one real side to show", () => {
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Country", oldValue: null, newValue: "Australia" })).change).toBeUndefined();
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Country", oldValue: "Australia", newValue: null })).change).toBeUndefined();
       });
     });
   });
