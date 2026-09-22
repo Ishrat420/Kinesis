@@ -28,36 +28,36 @@ function event(overrides: Partial<ObjectEvent>): ObjectEvent {
 describe("describeObjectEvent: the title/detail pair a History entry renders", () => {
   it("renders RELATIONSHIP_ADDED with the forward label from the source side", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: false, relatedObjectName: "Save $30k" }));
-    expect(line).toEqual({ title: "Linked", detail: "Depends on · Save $30k" });
+    expect(line).toEqual({ title: "Linked", detail: "Depends on · Save $30k", change: { from: "Depends on", to: "Save $30k", direction: "flat", kind: "relationship", action: "added" } });
   });
 
   it("renders the same RELATIONSHIP_ADDED with the inverse label from the target side", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: true, relatedObjectName: "Mortgage pre-approval" }));
-    expect(line).toEqual({ title: "Linked", detail: "Required for · Mortgage pre-approval" });
+    expect(line).toEqual({ title: "Linked", detail: "Required for · Mortgage pre-approval", change: { from: "Required for", to: "Mortgage pre-approval", direction: "flat", kind: "relationship", action: "added" } });
   });
 
   it("renders a CUSTOM RELATIONSHIP_ADDED with its literal text, identically regardless of inverse", () => {
     const forward = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "CUSTOM", newValue: "Renewal document", inverse: false, relatedObjectName: "Passport" }));
     const inverse = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "CUSTOM", newValue: "Renewal document", inverse: true, relatedObjectName: "Passport" }));
-    expect(forward).toEqual({ title: "Linked", detail: "Renewal document · Passport" });
-    expect(inverse).toEqual({ title: "Linked", detail: "Renewal document · Passport" });
+    expect(forward).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added" } });
+    expect(inverse).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added" } });
   });
 
   it("renders RELATIONSHIP_REMOVED with the old label, its own title distinguishing it from an active link", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_REMOVED", oldRelationshipType: "BLOCKS", inverse: false, relatedObjectName: "Submit application" }));
-    expect(line).toEqual({ title: "No longer linked", detail: "Blocks · Submit application" });
+    expect(line).toEqual({ title: "No longer linked", detail: "Blocks · Submit application", change: { from: "Blocks", to: "Submit application", direction: "flat", kind: "relationship", action: "removed" } });
   });
 
   it("renders RELATIONSHIP_CHANGED with old and new labels, each resolved from this row's own side", () => {
     const onSource = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: false, relatedObjectName: "Buy a house" }));
     const onTarget = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: true, relatedObjectName: "Mortgage pre-approval" }));
-    expect(onSource).toEqual({ title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)" });
-    expect(onTarget).toEqual({ title: "Relationship changed", detail: "From Supported by · To Blocked by (Mortgage pre-approval)" });
+    expect(onSource).toEqual({ title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)", change: { from: "Supports", to: "Blocks", direction: "flat", kind: "relationship", action: "changed", caption: "Buy a house" } });
+    expect(onTarget).toEqual({ title: "Relationship changed", detail: "From Supported by · To Blocked by (Mortgage pre-approval)", change: { from: "Supported by", to: "Blocked by", direction: "flat", kind: "relationship", action: "changed", caption: "Mortgage pre-approval" } });
   });
 
   it("falls back to `inverse` for a RELATIONSHIP_CHANGED row with no `oldInverse` recorded (pre-migration data)", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS", inverse: false, oldInverse: null, relatedObjectName: "Buy a house" }));
-    expect(line).toEqual({ title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)" });
+    expect(line).toEqual({ title: "Relationship changed", detail: "From Supports · To Blocks (Buy a house)", change: { from: "Supports", to: "Blocks", direction: "flat", kind: "relationship", action: "changed", caption: "Buy a house" } });
   });
 
   it("renders RELATIONSHIP_CHANGED's 'From' side from its own pre-retype orientation when a retype flips which endpoint is forward", () => {
@@ -71,7 +71,7 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
       eventType: "RELATIONSHIP_CHANGED", oldRelationshipType: "SUPPORTS", newRelationshipType: "BLOCKS",
       oldInverse: true, inverse: false, relatedObjectName: "Buy a house",
     }));
-    expect(line).toEqual({ title: "Relationship changed", detail: "From Supported by · To Blocks (Buy a house)" });
+    expect(line).toEqual({ title: "Relationship changed", detail: "From Supported by · To Blocks (Buy a house)", change: { from: "Supported by", to: "Blocks", direction: "flat", kind: "relationship", action: "changed", caption: "Buy a house" } });
   });
 
   it("renders ITEM_DELETED naming the deleted record in its title, with no detail line", () => {

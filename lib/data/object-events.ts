@@ -242,11 +242,26 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  * a kind -- like Custom Module currency/percent -- already formatted with
  * symbols at write time, so no direction to show from these two strings
  * alone).
+ *
+ * A relationship event (`RELATIONSHIP_ADDED`/`REMOVED`/`CHANGED`) is a diff
+ * too, just not a magnitude one -- `kind: "relationship"` marks it so a
+ * renderer can pick a Link2/Unlink/ArrowRight icon by `action` instead of
+ * `direction`'s up/down coloring, which a relationship has no use for
+ * (`direction` stays "flat"). `caption` is set only for a retype
+ * (`action: "changed"`), naming the target the relationship's `from`/`to`
+ * pair is between -- the two labels alone don't say what they're labeling.
  */
 export type ObjectEventDescription = {
   title: string;
   detail: string | null;
-  change?: { from: string; to: string; direction: "up" | "down" | "flat" };
+  change?: {
+    from: string;
+    to: string;
+    direction: "up" | "down" | "flat";
+    kind?: "relationship";
+    action?: "added" | "removed" | "changed";
+    caption?: string;
+  };
 };
 
 /** "up"/"down" only when both values parse as distinct finite numbers; "flat" for plain text, unparseable, or equal values. */
@@ -269,16 +284,27 @@ function numericDirection(from: string, to: string): "up" | "down" | "flat" {
 export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPreferences, "locale" | "currency"> = DEFAULT_FORMAT_PREFERENCES): ObjectEventDescription {
   const relatedName = event.relatedObjectName ?? "a deleted record";
   switch (event.eventType) {
-    case "RELATIONSHIP_ADDED":
-      return { title: "Linked", detail: `${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} · ${relatedName}` };
-    case "RELATIONSHIP_REMOVED":
-      return { title: "No longer linked", detail: `${resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse)} · ${relatedName}` };
-    case "RELATIONSHIP_CHANGED":
+    case "RELATIONSHIP_ADDED": {
+      const label = resolveLabel(event.newRelationshipType, event.newValue, event.inverse);
+      return { title: "Linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "added" } };
+    }
+    case "RELATIONSHIP_REMOVED": {
+      const label = resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse);
+      return { title: "No longer linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "removed" } };
+    }
+    case "RELATIONSHIP_CHANGED": {
       // `oldInverse` is null on rows written before that column existed --
       // falling back to `inverse` there reproduces this event's original
       // (only sometimes correct) rendering for old data, rather than
       // guessing at a pre-retype side this row never recorded.
-      return { title: "Relationship changed", detail: `From ${resolveLabel(event.oldRelationshipType, event.oldValue, event.oldInverse ?? event.inverse)} · To ${resolveLabel(event.newRelationshipType, event.newValue, event.inverse)} (${relatedName})` };
+      const oldLabel = resolveLabel(event.oldRelationshipType, event.oldValue, event.oldInverse ?? event.inverse);
+      const newLabel = resolveLabel(event.newRelationshipType, event.newValue, event.inverse);
+      return {
+        title: "Relationship changed",
+        detail: `From ${oldLabel} · To ${newLabel} (${relatedName})`,
+        change: { from: oldLabel, to: newLabel, direction: "flat", kind: "relationship", action: "changed", caption: relatedName },
+      };
+    }
     case "ITEM_DELETED":
       return { title: `${relatedName} was deleted`, detail: null };
     case "ITEM_CREATED":

@@ -66,6 +66,16 @@ describe.sequential("getKinesisLinkRecentEvents", () => {
     expect(events["obj-diff"]).toMatchObject({ change: { from: "$1,000", to: "$2,000", direction: "up" } });
   });
 
+  it("carries a relationship event's `change` with its `kind`/`action`, for the peek's Link2/Unlink styling", async () => {
+    await seedObject("obj-linked", owner);
+    await seedObject("obj-target", owner);
+    await prisma.objectEvent.create({ data: { id: "event-linked", userId: owner, objectId: "obj-linked", eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: false, relatedObjectId: "obj-target", relatedObjectName: "Save $30k", source: "USER", occurredAt: new Date("2026-01-01T00:00:00Z") } });
+
+    const events = await getKinesisLinkRecentEvents(["obj-linked"]);
+
+    expect(events["obj-linked"]).toMatchObject({ change: { from: "Depends on", to: "Save $30k", direction: "flat", kind: "relationship", action: "added" } });
+  });
+
   it("omits `change` for an event with nothing to diff", async () => {
     await seedObject("obj-created", owner);
     await prisma.objectEvent.create({ data: { id: "event-created", userId: owner, objectId: "obj-created", eventType: "ITEM_CREATED", source: "USER", occurredAt: new Date("2026-01-01T00:00:00Z") } });

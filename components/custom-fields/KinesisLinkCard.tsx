@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, FileText, Landmark, ListTodo, Target, UsersRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, FileText, Landmark, Link2, ListTodo, Target, Unlink, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { LinkableObject } from "@/lib/objects/locations";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
@@ -65,12 +65,18 @@ const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, F
  * spins or carousels.
  *
  * The peek itself is a "big diff": `recentEvent.change`'s two sides laid
- * out as a single before -> after line, the arrow tinted by direction
- * (green up, amber down) -- only meaningful when both sides parsed as
- * distinct numbers (`describeObjectEvent`'s own `numericDirection`), so a
- * plain text change gets a neutral gray arrow rather than a wrong color.
- * Not every event has a clean two-sided `change` at all (a created,
- * archived, or linked moment has nothing to diff) -- that case falls back
+ * out as a single before -> after line. For a value change the arrow is
+ * tinted by direction (green up, amber down) -- only meaningful when both
+ * sides parsed as distinct numbers (`describeObjectEvent`'s own
+ * `numericDirection`), so a plain text change gets a neutral gray arrow
+ * rather than a wrong color. A relationship event (`change.kind ===
+ * "relationship"`) has no magnitude to color, so it swaps the arrow for a
+ * Link2/Unlink icon by `action` instead -- indigo for added, amber (and a
+ * struck-through "from") for removed, the same neutral arrow as a flat
+ * value change for a retype, which also gets a caption line naming the
+ * target underneath since its two labels alone don't say what they're
+ * labeling. Not every event has a clean two-sided `change` at all (a
+ * created or archived moment has nothing to diff) -- that case falls back
  * to the same title/detail line every other History surface shows.
  */
 export function KinesisLinkCard({ option, stats = [], label, recentEvent, className = "" }: { option: LinkableObject; stats?: KinesisLinkPreviewStat[]; label?: string; recentEvent?: KinesisLinkRecentEvent; className?: string }) {
@@ -120,13 +126,26 @@ export function KinesisLinkCard({ option, stats = [], label, recentEvent, classN
           <div className={`col-start-1 row-start-1 min-w-0 self-center transition-all duration-500 ease-out ${peeking ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"}`}>
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide" style={{ color }}>Latest change</span>
             {recentEvent.change ? (
-              <div className="flex flex-wrap items-baseline gap-2.5">
-                <span className="break-words text-base font-medium text-zinc-400">{recentEvent.change.from}</span>
-                <ArrowRight className={`h-4 w-4 shrink-0 ${
-                  recentEvent.change.direction === "up" ? "text-emerald-600" : recentEvent.change.direction === "down" ? "text-amber-600" : "text-zinc-400"
-                }`} />
-                <span className="break-words text-lg font-bold tracking-tight text-zinc-900">{recentEvent.change.to}</span>
-              </div>
+              <>
+                <div className="flex flex-wrap items-baseline gap-2.5">
+                  <span className={`break-words text-base font-medium ${recentEvent.change.action === "removed" ? "text-zinc-400 line-through" : "text-zinc-400"}`}>{recentEvent.change.from}</span>
+                  {recentEvent.change.kind === "relationship" ? (
+                    recentEvent.change.action === "added" ? (
+                      <Link2 className="h-4 w-4 shrink-0 text-indigo-600" />
+                    ) : recentEvent.change.action === "removed" ? (
+                      <Unlink className="h-4 w-4 shrink-0 text-amber-700" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />
+                    )
+                  ) : (
+                    <ArrowRight className={`h-4 w-4 shrink-0 ${
+                      recentEvent.change.direction === "up" ? "text-emerald-600" : recentEvent.change.direction === "down" ? "text-amber-600" : "text-zinc-400"
+                    }`} />
+                  )}
+                  <span className={`break-words text-lg font-bold tracking-tight ${recentEvent.change.action === "removed" ? "text-zinc-400" : "text-zinc-900"}`}>{recentEvent.change.to}</span>
+                </div>
+                {recentEvent.change.caption && <p className="mt-0.5 break-words text-sm text-zinc-500">{recentEvent.change.caption}</p>}
+              </>
             ) : (
               <>
                 <p className="break-words text-sm font-bold text-zinc-800">{recentEvent.title}</p>
