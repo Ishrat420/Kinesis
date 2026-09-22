@@ -1,6 +1,6 @@
 import type { ObjectEvent, ObjectEventType, ObjectRelationshipType, Prisma } from "@prisma/client";
 import type { prisma } from "./prisma";
-import { kinesisLinkLabel } from "@/lib/objects/relationship-labels";
+import { kinesisLinkLabel, relationshipIconKey, type RelationshipIconKey } from "@/lib/objects/relationship-labels";
 import { formatMoney } from "@/lib/format/numbers";
 import { DEFAULT_FORMAT_PREFERENCES, type FormatPreferences } from "@/lib/format/preferences";
 
@@ -245,11 +245,16 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  *
  * A relationship event (`RELATIONSHIP_ADDED`/`REMOVED`/`CHANGED`) is a diff
  * too, just not a magnitude one -- `kind: "relationship"` marks it so a
- * renderer can pick a Link2/Unlink/ArrowRight icon by `action` instead of
- * `direction`'s up/down coloring, which a relationship has no use for
- * (`direction` stays "flat"). `caption` is set only for a retype
- * (`action: "changed"`), naming the target the relationship's `from`/`to`
- * pair is between -- the two labels alone don't say what they're labeling.
+ * renderer can pick an icon by `action` instead of `direction`'s up/down
+ * coloring, which a relationship has no use for (`direction` stays "flat").
+ * `icon` names which one, by `relationshipIconKey`'s own per-type vocabulary
+ * -- set only for `action: "added"`/`"removed"`, each of which involves
+ * exactly one type (the one being added, or the one being removed); a retype
+ * (`action: "changed"`) crosses two different types, so it has no single
+ * icon to name and a renderer falls back to a neutral one instead. `caption`
+ * is set only for that same retype case, naming the target the relationship's
+ * `from`/`to` pair is between -- the two labels alone don't say what they're
+ * labeling.
  */
 export type ObjectEventDescription = {
   title: string;
@@ -260,6 +265,7 @@ export type ObjectEventDescription = {
     direction: "up" | "down" | "flat";
     kind?: "relationship";
     action?: "added" | "removed" | "changed";
+    icon?: RelationshipIconKey;
     caption?: string;
   };
 };
@@ -286,11 +292,13 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
   switch (event.eventType) {
     case "RELATIONSHIP_ADDED": {
       const label = resolveLabel(event.newRelationshipType, event.newValue, event.inverse);
-      return { title: "Linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "added" } };
+      const icon = relationshipIconKey(event.newRelationshipType, event.inverse);
+      return { title: "Linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "added", icon } };
     }
     case "RELATIONSHIP_REMOVED": {
       const label = resolveLabel(event.oldRelationshipType, event.oldValue, event.inverse);
-      return { title: "No longer linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "removed" } };
+      const icon = relationshipIconKey(event.oldRelationshipType, event.inverse);
+      return { title: "No longer linked", detail: `${label} · ${relatedName}`, change: { from: label, to: relatedName, direction: "flat", kind: "relationship", action: "removed", icon } };
     }
     case "RELATIONSHIP_CHANGED": {
       // `oldInverse` is null on rows written before that column existed --

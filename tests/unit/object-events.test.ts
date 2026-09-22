@@ -28,24 +28,24 @@ function event(overrides: Partial<ObjectEvent>): ObjectEvent {
 describe("describeObjectEvent: the title/detail pair a History entry renders", () => {
   it("renders RELATIONSHIP_ADDED with the forward label from the source side", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: false, relatedObjectName: "Save $30k" }));
-    expect(line).toEqual({ title: "Linked", detail: "Depends on · Save $30k", change: { from: "Depends on", to: "Save $30k", direction: "flat", kind: "relationship", action: "added" } });
+    expect(line).toEqual({ title: "Linked", detail: "Depends on · Save $30k", change: { from: "Depends on", to: "Save $30k", direction: "flat", kind: "relationship", action: "added", icon: "depends-on" } });
   });
 
   it("renders the same RELATIONSHIP_ADDED with the inverse label from the target side", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "DEPENDS_ON", inverse: true, relatedObjectName: "Mortgage pre-approval" }));
-    expect(line).toEqual({ title: "Linked", detail: "Required for · Mortgage pre-approval", change: { from: "Required for", to: "Mortgage pre-approval", direction: "flat", kind: "relationship", action: "added" } });
+    expect(line).toEqual({ title: "Linked", detail: "Required for · Mortgage pre-approval", change: { from: "Required for", to: "Mortgage pre-approval", direction: "flat", kind: "relationship", action: "added", icon: "required-for" } });
   });
 
-  it("renders a CUSTOM RELATIONSHIP_ADDED with its literal text, identically regardless of inverse", () => {
+  it("renders a CUSTOM RELATIONSHIP_ADDED with its literal text, identically regardless of inverse, and a generic icon (no fixed type to key one off)", () => {
     const forward = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "CUSTOM", newValue: "Renewal document", inverse: false, relatedObjectName: "Passport" }));
     const inverse = describeObjectEvent(event({ eventType: "RELATIONSHIP_ADDED", newRelationshipType: "CUSTOM", newValue: "Renewal document", inverse: true, relatedObjectName: "Passport" }));
-    expect(forward).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added" } });
-    expect(inverse).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added" } });
+    expect(forward).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added", icon: "generic" } });
+    expect(inverse).toEqual({ title: "Linked", detail: "Renewal document · Passport", change: { from: "Renewal document", to: "Passport", direction: "flat", kind: "relationship", action: "added", icon: "generic" } });
   });
 
   it("renders RELATIONSHIP_REMOVED with the old label, its own title distinguishing it from an active link", () => {
     const line = describeObjectEvent(event({ eventType: "RELATIONSHIP_REMOVED", oldRelationshipType: "BLOCKS", inverse: false, relatedObjectName: "Submit application" }));
-    expect(line).toEqual({ title: "No longer linked", detail: "Blocks · Submit application", change: { from: "Blocks", to: "Submit application", direction: "flat", kind: "relationship", action: "removed" } });
+    expect(line).toEqual({ title: "No longer linked", detail: "Blocks · Submit application", change: { from: "Blocks", to: "Submit application", direction: "flat", kind: "relationship", action: "removed", icon: "blocks" } });
   });
 
   it("renders RELATIONSHIP_CHANGED with old and new labels, each resolved from this row's own side", () => {

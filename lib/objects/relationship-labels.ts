@@ -38,6 +38,37 @@ export function kinesisLinkLabel(type: ObjectRelationshipType, customLabel: stri
   return relationshipLabel(type, inverse);
 }
 
+/**
+ * A purpose-picked icon per canonical label (KD-051's History-peek "Option
+ * B") -- one glyph per side of every type, not a rotated pair, so "Depends
+ * on" and "Required for" read as different relationships rather than the
+ * same shape mirrored. `RELATES_TO` and `ALONGSIDE` are symmetric (one label
+ * either way, see `relationshipLabel`), so they get one icon each too.
+ * "generic" is the fallback for `CUSTOM` (an ad-hoc typed label has no fixed
+ * meaning to key an icon off) and for a row missing its relationship type
+ * entirely -- a renderer falls back to its own neutral icon for either.
+ */
+export type RelationshipIconKey =
+  | "supports" | "supported-by"
+  | "blocks" | "blocked-by"
+  | "depends-on" | "required-for"
+  | "related-to" | "alongside"
+  | "generic";
+
+const iconKeys: Record<ObjectRelationshipTypeValue, { forward: RelationshipIconKey; inverse: RelationshipIconKey }> = {
+  SUPPORTS: { forward: "supports", inverse: "supported-by" },
+  BLOCKS: { forward: "blocks", inverse: "blocked-by" },
+  DEPENDS_ON: { forward: "depends-on", inverse: "required-for" },
+  RELATES_TO: { forward: "related-to", inverse: "related-to" },
+  ALONGSIDE: { forward: "alongside", inverse: "alongside" },
+};
+
+/** The icon key for a Kinesis Link's `type`/`inverse`, mirroring `kinesisLinkLabel`'s own (type, inverse) -> label lookup, but for the History peek's per-type icon rather than its text. */
+export function relationshipIconKey(type: ObjectRelationshipType | null, inverse: boolean | null): RelationshipIconKey {
+  if (!type || type === "CUSTOM") return "generic";
+  return iconKeys[type][inverse ? "inverse" : "forward"];
+}
+
 /** One picker option per selectable direction of a canonical type, or the ad-hoc Custom sentinel. */
 export type KinesisLinkDirectionOption = { value: string; label: string; type: ObjectRelationshipTypeValue; inverse: boolean };
 

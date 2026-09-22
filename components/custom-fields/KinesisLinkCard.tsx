@@ -1,14 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, FileText, Landmark, Link2, ListTodo, Target, Unlink, UsersRound } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Ban, FileText, GitBranch, GitCompare, Handshake, Landmark, Link2, Link as LinkIcon, ListTodo, Milestone, OctagonAlert, Target, TrendingUp, Unlink, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { LinkableObject } from "@/lib/objects/locations";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { PreviewStats } from "./PreviewStats";
 import type { KinesisLinkPreviewStat, KinesisLinkRecentEvent } from "@/lib/data/kinesis-links";
+import type { RelationshipIconKey } from "@/lib/objects/relationship-labels";
 import { formatActivityTime } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
+
+/** One purpose-picked glyph per canonical relationship label (`relationshipIconKey`'s own vocabulary) -- "generic" (an ad-hoc `CUSTOM` link, or a row with no relationship type at all) has no entry here and falls back to the plain Link2/Unlink pair in `DiffConnector` below instead. */
+const RELATIONSHIP_ICONS: Record<Exclude<RelationshipIconKey, "generic">, typeof Link2> = {
+  "supports": TrendingUp,
+  "supported-by": Handshake,
+  "blocks": Ban,
+  "blocked-by": OctagonAlert,
+  "depends-on": GitBranch,
+  "required-for": Milestone,
+  "related-to": LinkIcon,
+  "alongside": GitCompare,
+};
+
+/**
+ * The diff row's connector, between `change.from` and `change.to`. A
+ * magnitude change (Finance amount, a plain field, status) gets the
+ * direction-tinted arrow. A relationship's `added`/`removed` gets a glyph
+ * picked for that link's own type -- `change.icon`, from `RELATIONSHIP_ICONS`
+ * above, or the generic Link2/Unlink pair for an ad-hoc `CUSTOM` link with no
+ * fixed type to key off -- colored by the action (indigo added, amber
+ * removed) rather than the type, so an added "Blocks" link doesn't read as a
+ * warning just because "blocks" sounds alarming. A retype (`action:
+ * "changed"`) crosses two different types at once, so no single icon could
+ * describe it honestly -- it keeps the same neutral arrow a flat value
+ * change gets.
+ */
+function DiffConnector({ change }: { change: NonNullable<KinesisLinkRecentEvent["change"]> }) {
+  if (change.kind !== "relationship") {
+    return <ArrowRight className={`h-4 w-4 shrink-0 ${
+      change.direction === "up" ? "text-emerald-600" : change.direction === "down" ? "text-amber-600" : "text-zinc-400"
+    }`} />;
+  }
+  if (change.action !== "added" && change.action !== "removed") return <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />;
+  const Icon = (change.icon && change.icon !== "generic" ? RELATIONSHIP_ICONS[change.icon] : undefined) ?? (change.action === "added" ? Link2 : Unlink);
+  return <Icon className={`h-4 w-4 shrink-0 ${change.action === "added" ? "text-indigo-600" : "text-amber-700"}`} />;
+}
 
 /**
  * How often the card rolls into its own "sneak peek" of the linked
@@ -65,16 +102,11 @@ const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, F
  * spins or carousels.
  *
  * The peek itself is a "big diff": `recentEvent.change`'s two sides laid
- * out as a single before -> after line. For a value change the arrow is
- * tinted by direction (green up, amber down) -- only meaningful when both
- * sides parsed as distinct numbers (`describeObjectEvent`'s own
- * `numericDirection`), so a plain text change gets a neutral gray arrow
- * rather than a wrong color. A relationship event (`change.kind ===
- * "relationship"`) has no magnitude to color, so it swaps the arrow for a
- * Link2/Unlink icon by `action` instead -- indigo for added, amber (and a
- * struck-through "from") for removed, the same neutral arrow as a flat
- * value change for a retype, which also gets a caption line naming the
- * target underneath since its two labels alone don't say what they're
+ * out as a single before -> after line, connected by `DiffConnector` below
+ * -- a direction-tinted arrow for a magnitude change, a type-specific icon
+ * for a relationship's own added/removed, a struck-through "from" and muted
+ * "to" for removed specifically. A retype gets a caption line naming the
+ * target underneath, since its two labels alone don't say what they're
  * labeling. Not every event has a clean two-sided `change` at all (a
  * created or archived moment has nothing to diff) -- that case falls back
  * to the same title/detail line every other History surface shows.
@@ -129,19 +161,7 @@ export function KinesisLinkCard({ option, stats = [], label, recentEvent, classN
               <>
                 <div className="flex flex-wrap items-baseline gap-2.5">
                   <span className={`break-words text-base font-medium ${recentEvent.change.action === "removed" ? "text-zinc-400 line-through" : "text-zinc-400"}`}>{recentEvent.change.from}</span>
-                  {recentEvent.change.kind === "relationship" ? (
-                    recentEvent.change.action === "added" ? (
-                      <Link2 className="h-4 w-4 shrink-0 text-indigo-600" />
-                    ) : recentEvent.change.action === "removed" ? (
-                      <Unlink className="h-4 w-4 shrink-0 text-amber-700" />
-                    ) : (
-                      <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />
-                    )
-                  ) : (
-                    <ArrowRight className={`h-4 w-4 shrink-0 ${
-                      recentEvent.change.direction === "up" ? "text-emerald-600" : recentEvent.change.direction === "down" ? "text-amber-600" : "text-zinc-400"
-                    }`} />
-                  )}
+                  <DiffConnector change={recentEvent.change} />
                   <span className={`break-words text-lg font-bold tracking-tight ${recentEvent.change.action === "removed" ? "text-zinc-400" : "text-zinc-900"}`}>{recentEvent.change.to}</span>
                 </div>
                 {recentEvent.change.caption && <p className="mt-0.5 break-words text-sm text-zinc-500">{recentEvent.change.caption}</p>}
