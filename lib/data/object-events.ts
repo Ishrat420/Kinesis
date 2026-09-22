@@ -209,23 +209,30 @@ export async function recordArchivedChanged(client: Client, userId: string, obje
  * A plain, mostly-dataless moment with no two-sided value to diff --
  * `ITEM_CREATED`, `GOAL_COMPLETED`, `GOAL_MILESTONE_COMPLETED`,
  * `GOAL_MILESTONE_ADDED`, `GOAL_MILESTONE_DELETED`, `TODO_COMPLETED`,
- * `TODO_REOPENED`. `label` names the specific thing for a type that needs
- * one (a milestone's own name); omitted, the line reads generically.
- * `newValue` carries the one extra fact a milestone moment wants alongside
- * its name -- `GOAL_MILESTONE_ADDED`'s own due date (`formatDateInput`'d),
- * or `GOAL_MILESTONE_COMPLETED`/`GOAL_MILESTONE_DELETED`'s
- * `"<completed>/<total>"` progress snapshot, read back by
- * `milestoneProgressText` below.
+ * `TODO_REOPENED`, `DOCUMENT_EXPIRING_SOON`. `label` names the specific
+ * thing for a type that needs one (a milestone's own name); omitted, the
+ * line reads generically. `newValue` carries the one extra fact a moment
+ * wants alongside its name -- `GOAL_MILESTONE_ADDED`'s own due date
+ * (`formatDateInput`'d), `GOAL_MILESTONE_COMPLETED`/`GOAL_MILESTONE_DELETED`'s
+ * `"<completed>/<total>"` progress snapshot (read back by
+ * `milestoneProgressText` below), or `DOCUMENT_EXPIRING_SOON`'s own expiry
+ * date. `source` defaults to `USER` (this just happened, someone's own
+ * doing) -- `DOCUMENT_EXPIRING_SOON` is the one caller that passes `SYSTEM`,
+ * for the lazy read-path recompute that finds a document has crossed into
+ * its reminder window between one page view and the next, nobody having
+ * taken an action here at all (the same reasoning `recordStatusChanged`'s
+ * own `source` already documents).
  */
 export async function recordEvent(
   client: Client,
   userId: string,
   objectId: string,
-  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "GOAL_MILESTONE_ADDED" | "GOAL_MILESTONE_DELETED" | "TODO_COMPLETED" | "TODO_REOPENED">,
+  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "GOAL_MILESTONE_ADDED" | "GOAL_MILESTONE_DELETED" | "TODO_COMPLETED" | "TODO_REOPENED" | "DOCUMENT_EXPIRING_SOON">,
   label?: string,
   newValue?: string,
+  source: "USER" | "SYSTEM" = "USER",
 ) {
-  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType, fieldLabel: label ?? null, newValue: newValue ?? null, source: "USER" } });
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType, fieldLabel: label ?? null, newValue: newValue ?? null, source } });
 }
 
 /** One changed attribute of a milestone, ready to write -- see `recordMilestoneUpdated` below. */
@@ -377,6 +384,8 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       };
     case "GOAL_COMPLETED":
       return { title: "Goal completed", detail: null };
+    case "DOCUMENT_EXPIRING_SOON":
+      return { title: "Document is expiring soon", detail: event.newValue ? `Expires ${formatDate(event.newValue, prefs.locale)}` : null };
     case "GOAL_MILESTONE_COMPLETED":
       return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed", detail: milestoneProgressText(event.newValue) };
     case "GOAL_MILESTONE_ADDED": {

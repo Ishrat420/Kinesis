@@ -102,6 +102,13 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: "GOAL_COMPLETED" }))).toEqual({ title: "Goal completed", detail: null });
   });
 
+  it("renders DOCUMENT_EXPIRING_SOON with its own fixed title, the expiry date as its detail when one was recorded", () => {
+    expect(describeObjectEvent(event({ eventType: "DOCUMENT_EXPIRING_SOON" }))).toEqual({ title: "Document is expiring soon", detail: null });
+    expect(describeObjectEvent(event({ eventType: "DOCUMENT_EXPIRING_SOON", newValue: "2030-06-01" }))).toEqual({
+      title: "Document is expiring soon", detail: "Expires 1 June 2030",
+    });
+  });
+
   it("renders GOAL_MILESTONE_COMPLETED naming the milestone when its name was recorded, generically otherwise", () => {
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved" }))).toEqual({ title: 'Milestone "Deposit saved" completed', detail: null });
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: null }))).toEqual({ title: "Milestone completed", detail: null });

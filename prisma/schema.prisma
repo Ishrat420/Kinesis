@@ -407,6 +407,7 @@ enum ObjectEventType {
   GOAL_MILESTONE_ADDED    // KD-051: a milestone's own History, so it shows up in its goal's Kinesis Link peek too
   GOAL_MILESTONE_UPDATED  // one row per changed attribute (name/value/dueDate), same shape as FIELD_CHANGED but scoped to a milestone
   GOAL_MILESTONE_DELETED
+  DOCUMENT_EXPIRING_SOON  // fires instead of a generic STATUS_CHANGED specifically for the -> "Expiring soon" transition, same as GOAL_COMPLETED does for "Finished"
   GOAL_COMPLETED
   ITEM_CREATED
   ITEM_DELETED

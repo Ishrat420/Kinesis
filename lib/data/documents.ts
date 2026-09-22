@@ -1,4 +1,4 @@
-import type { FieldLink, ObjectField } from "@prisma/client";
+import type { FieldLink, ObjectField, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getDocumentState, getExpiryDetails } from "@/lib/documents/expiry";
 import { DEFAULT_DOCUMENT_TYPES, formatDocumentType, isDefaultDocumentType } from "@/lib/documents/types";
@@ -166,6 +166,23 @@ function withCustomFields<T extends { object: { fields: (ObjectField & { links: 
   return { ...document, customFields: presentCustomFields(object.fields) };
 }
 
+/**
+ * A Document's computed `status` just moved -- ordinarily a generic
+ * STATUS_CHANGED line, except landing specifically on "Expiring soon",
+ * which gets its own named moment (`DOCUMENT_EXPIRING_SOON`) instead, the
+ * same way `GOAL_COMPLETED` gets its own type rather than a generic
+ * "Finished" status line. `expiryDate` is the document's *current* one, so
+ * the line can say when -- both call sites below already have it in hand,
+ * whether from the row just read or the save that's about to write it.
+ */
+async function recordDocumentStatusChange(tx: Prisma.TransactionClient, userId: string, objectId: string, oldStatus: string, newStatus: string, expiryDate: Date | null, source: "USER" | "SYSTEM") {
+  if (newStatus === "Expiring soon") {
+    await recordEvent(tx, userId, objectId, "DOCUMENT_EXPIRING_SOON", undefined, expiryDate ? formatDateInput(expiryDate) : undefined, source);
+  } else {
+    await recordStatusChanged(tx, userId, objectId, oldStatus, newStatus, source);
+  }
+}
+
 export async function getDocument(id: string) {
   const user = await requireKinesisUser();
   const document = await prisma.document.findFirst({
@@ -184,7 +201,7 @@ export async function getDocument(id: string) {
       // Nobody took an action here -- the status just crossed a boundary
       // (expiry) between one page view and the next -- so this is SYSTEM,
       // not USER.
-      await recordStatusChanged(tx, user.id, document.objectId, document.status, status, "SYSTEM");
+      await recordDocumentStatusChange(tx, user.id, document.objectId, document.status, status, document.expiryDate, "SYSTEM");
       return updated;
     }).then(withCustomFields);
   }
@@ -283,10 +300,10 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
     }
     // `status` is recomputed by the caller (`getDocumentState`) as a side
     // effect of whatever else changed on this save (a new expiry date, an
-    // archive toggle) -- still worth its own STATUS_CHANGED line when it
-    // actually moves, independently of whichever field caused it.
+    // archive toggle) -- still worth its own line when it actually moves,
+    // independently of whichever field caused it.
     if (data.status !== owned.status) {
-      await recordStatusChanged(transaction, user.id, owned.objectId, owned.status, data.status);
+      await recordDocumentStatusChange(transaction, user.id, owned.objectId, owned.status, data.status, document.expiryDate ?? null, "USER");
     }
     const namedChanges: FieldChange[] = NAMED_FIELDS
       .filter(([key]) => columnValue(owned[key]) !== columnValue(document[key]))

@@ -13,6 +13,7 @@ import { prisma } from "@/lib/data/prisma";
 import { createDocumentAction, updateDocumentAction } from "@/app/(app)/documents/actions";
 import { getDocument } from "@/lib/data/documents";
 import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
+import { formatDateInput } from "@/lib/dates";
 
 /** KD-048 Phase 1 remainder: a Document's own field/status/archival changes enter the ObjectEvent history. */
 
@@ -124,6 +125,31 @@ describe.sequential("a Document's own history (KD-048)", () => {
     await getDocument("doc-lapsed");
 
     await expect(eventsOn(objectId)).resolves.toMatchObject([{ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Expired", source: "SYSTEM" }]);
+  });
+
+  it("getDocument records DOCUMENT_EXPIRING_SOON, not a generic STATUS_CHANGED, when a read finds the status has newly entered its reminder window", async () => {
+    const expiry = new Date(Date.now() + 60 * 86_400_000);
+    const { objectId } = await makeDocument("doc-expiring-soon", { expiryDate: expiry, status: "Active" });
+
+    await getDocument("doc-expiring-soon");
+
+    const events = await eventsOn(objectId);
+    expect(events).toMatchObject([{ eventType: "DOCUMENT_EXPIRING_SOON", fieldLabel: null, newValue: formatDateInput(expiry), source: "SYSTEM" }]);
+    expect(events.filter((event) => event.eventType === "STATUS_CHANGED")).toHaveLength(0);
+  });
+
+  it("updateDocumentAction records DOCUMENT_EXPIRING_SOON (source USER), not a generic STATUS_CHANGED, when an edit moves the computed status into the reminder window", async () => {
+    const { objectId, document } = await makeDocument("doc-expiring-soon-edit");
+    const expiry = new Date(Date.now() + 60 * 86_400_000);
+
+    await updateDocumentAction(document.id, {}, form({
+      name: "doc-expiring-soon-edit", type: "Passport", updatedAt: document.updatedAt.toISOString(),
+      expiryDate: formatDateInput(expiry),
+    }));
+
+    const events = await eventsOn(objectId);
+    expect(events).toContainEqual(expect.objectContaining({ eventType: "DOCUMENT_EXPIRING_SOON", newValue: formatDateInput(expiry), source: "USER" }));
+    expect(events.filter((event) => event.eventType === "STATUS_CHANGED")).toHaveLength(0);
   });
 
   it("updateDocumentAction diffs the document's own ad-hoc custom fields", async () => {
