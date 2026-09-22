@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/data/prisma";
 import { DEFAULT_GOAL_UNITS, displayNumber, GOAL_STATUSES } from "@/lib/goals/format";
 import { revalidatePath } from "next/cache";
@@ -14,7 +15,7 @@ import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
-import { diffObjectFields, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "@/lib/data/object-events";
+import { diffObjectFields, recordEvent, recordFieldChanges, recordMilestoneUpdated, recordStatusChanged, type FieldChange, type MilestoneFieldChange } from "@/lib/data/object-events";
 import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
 export type GoalActionState = { error?: string; saved?: boolean };
@@ -226,6 +227,15 @@ export async function removeTargetAction(id: string, _previousState: GoalActionS
 const measuredValue = (goalTargetValue: number | null, milestoneValue: number | null) =>
   goalTargetValue === null ? null : milestoneValue;
 
+/** "<completed>/<total>" milestone count for a goal, read right after whatever change just happened -- the `newValue` a `GOAL_MILESTONE_COMPLETED`/`GOAL_MILESTONE_DELETED` row carries (`milestoneProgressText` in `lib/data/object-events.ts` reads it back for display). */
+async function milestoneProgress(tx: Prisma.TransactionClient, goalId: string) {
+  const [total, completed] = await Promise.all([
+    tx.milestone.count({ where: { goalId } }),
+    tx.milestone.count({ where: { goalId, completed: true } }),
+  ]);
+  return `${completed}/${total}`;
+}
+
 export async function addMilestoneAction(id: string, _previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
   const user = await requireKinesisUser();
   const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate");
@@ -234,13 +244,17 @@ export async function addMilestoneAction(id: string, _previousState: GoalActionS
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
   const milestoneMagnitudeError = checkNumberMagnitude(milestoneValue, "the target value");
   if (milestoneMagnitudeError) return { error: milestoneMagnitudeError };
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetValue: true, currentValue: true, targetDate: true, _count: { select: { milestones: true } } } });
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, targetValue: true, currentValue: true, targetDate: true, _count: { select: { milestones: true } } } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
   const measured = measuredValue(goal.targetValue, milestoneValue);
   const auto = measured !== null && goal.currentValue !== null && goal.currentValue >= measured;
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: measured, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } }); refresh(id);
+  await prisma.$transaction(async (tx) => {
+    await tx.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: measured, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } });
+    await recordEvent(tx, user.id, goal.objectId, "GOAL_MILESTONE_ADDED", name, dueDate ? formatDateInput(dueDate) : undefined);
+  });
+  refresh(id);
   return { saved: true };
 }
 
@@ -252,21 +266,45 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
   const milestoneMagnitudeError = checkNumberMagnitude(milestoneValue, "the target value");
   if (milestoneMagnitudeError) return { error: milestoneMagnitudeError };
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetValue: true, targetDate: true } });
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, targetValue: true, targetDate: true, unit: true } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
-  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { name, value: measuredValue(goal.targetValue, milestoneValue), dueDate } });
+  const { locale } = await getFormatPreferences();
+  try {
+    await prisma.$transaction(async (tx) => {
+      const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, value: true, dueDate: true } });
+      if (!previous) refuse("This milestone no longer exists.");
+      const measured = measuredValue(goal.targetValue, milestoneValue);
+      await tx.milestone.update({ where: { id: milestoneId }, data: { name, value: measured, dueDate } });
+
+      // Each row is tagged with the milestone's *new* name (`name`, not
+      // `previous.name`) even when the name itself is one of the changes --
+      // that's the identity this milestone reads as going forward.
+      const changes: MilestoneFieldChange[] = [];
+      if (previous.name !== name) changes.push({ fieldKey: "name", oldValue: previous.name, newValue: name });
+      if (previous.value !== measured) changes.push({ fieldKey: "value", oldValue: previous.value !== null ? displayNumber(previous.value, goal.unit, locale) : null, newValue: measured !== null ? displayNumber(measured, goal.unit, locale) : null });
+      if (previous.dueDate?.getTime() !== dueDate?.getTime()) changes.push({ fieldKey: "dueDate", oldValue: previous.dueDate ? formatDateInput(previous.dueDate) : null, newValue: dueDate ? formatDateInput(dueDate) : null });
+      await recordMilestoneUpdated(tx, user.id, goal.objectId, name, changes);
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused };
+  }
   refresh(id);
   return { saved: true };
 }
 
 export async function duplicateMilestoneAction(id: string, milestoneId: string) {
   const user = await requireKinesisUser();
-  const milestone = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
+  const milestone = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, include: { goal: { select: { objectId: true } } } });
   if (!milestone) return;
   const count = await prisma.milestone.count({ where: { goalId: id } });
-  await prisma.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name: milestone.name, value: milestone.value, dueDate: milestone.dueDate, position: count } });
+  await prisma.$transaction(async (tx) => {
+    await tx.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name: milestone.name, value: milestone.value, dueDate: milestone.dueDate, position: count } });
+    await recordEvent(tx, user.id, milestone.goal.objectId, "GOAL_MILESTONE_ADDED", milestone.name, milestone.dueDate ? formatDateInput(milestone.dueDate) : undefined);
+  });
   refresh(id);
 }
 
@@ -274,18 +312,32 @@ export async function updateMilestoneDueDateAction(id: string, milestoneId: stri
   const user = await requireKinesisUser();
   const dueDate = optionalDate(data, "dueDate");
   if (dueDate === undefined) return { error: "Enter a valid due date." };
-  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { targetDate: true } });
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, targetDate: true } });
   if (!goal) return {};
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
-  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { dueDate } });
+  await prisma.$transaction(async (tx) => {
+    const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, dueDate: true } });
+    if (!previous) return;
+    await tx.milestone.update({ where: { id: milestoneId }, data: { dueDate } });
+    if (previous.dueDate?.getTime() !== dueDate?.getTime()) {
+      await recordMilestoneUpdated(tx, user.id, goal.objectId, previous.name, [{ fieldKey: "dueDate", oldValue: previous.dueDate ? formatDateInput(previous.dueDate) : null, newValue: dueDate ? formatDateInput(dueDate) : null }]);
+    }
+  });
   refresh(id);
   return {};
 }
 
 export async function removeMilestoneDueDateAction(id: string, milestoneId: string) {
   const user = await requireKinesisUser();
-  await prisma.milestone.updateMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, data: { dueDate: null } });
+  const goal = await prisma.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+  if (!goal) return;
+  await prisma.$transaction(async (tx) => {
+    const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, dueDate: true } });
+    if (!previous || !previous.dueDate) return;
+    await tx.milestone.update({ where: { id: milestoneId }, data: { dueDate: null } });
+    await recordMilestoneUpdated(tx, user.id, goal.objectId, previous.name, [{ fieldKey: "dueDate", oldValue: formatDateInput(previous.dueDate), newValue: null }]);
+  });
   refresh(id);
 }
 
@@ -301,13 +353,26 @@ export async function toggleMilestoneAction(id: string, milestoneId: string, com
   if (!owned) return { error: "This milestone no longer exists." };
   await prisma.$transaction(async (tx) => {
     const updated = await tx.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true, objectId: true } } } });
-    if (completed) await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_COMPLETED", updated.name);
+    if (completed) {
+      const progress = await milestoneProgress(tx, id);
+      await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_COMPLETED", updated.name, progress);
+    }
   });
   refresh(id);
   return {};
 }
 
-export async function deleteMilestoneAction(id: string, milestoneId: string) { const user = await requireKinesisUser(); await prisma.milestone.deleteMany({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } }); refresh(id); }
+export async function deleteMilestoneAction(id: string, milestoneId: string) {
+  const user = await requireKinesisUser();
+  await prisma.$transaction(async (tx) => {
+    const milestone = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, goal: { select: { objectId: true } } } });
+    if (!milestone) return;
+    await tx.milestone.delete({ where: { id: milestoneId } });
+    const progress = await milestoneProgress(tx, id);
+    await recordEvent(tx, user.id, milestone.goal.objectId, "GOAL_MILESTONE_DELETED", milestone.name, progress);
+  });
+  refresh(id);
+}
 
 export async function toggleProgressAction(id: string, field: "showMilestoneProgress" | "showTargetProgress", shown: boolean) {
   const user = await requireKinesisUser();

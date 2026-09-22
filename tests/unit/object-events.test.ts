@@ -107,6 +107,39 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: null }))).toEqual({ title: "Milestone completed", detail: null });
   });
 
+  it("renders GOAL_MILESTONE_COMPLETED's progress snapshot as its detail line, when one was recorded", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved", newValue: "3/5" }))).toEqual({
+      title: 'Milestone "Deposit saved" completed', detail: "3 of 5 milestones completed",
+    });
+  });
+
+  it("renders GOAL_MILESTONE_ADDED naming the milestone, with its due date when one was set", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_ADDED", fieldLabel: "Deposit saved" }))).toEqual({ title: "Milestone added", detail: "Deposit saved" });
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_ADDED", fieldLabel: "Deposit saved", newValue: "2030-06-01" }))).toEqual({
+      title: "Milestone added", detail: "Deposit saved · Due 1 June 2030",
+    });
+  });
+
+  it("renders GOAL_MILESTONE_UPDATED as a per-attribute diff, the milestone's own name in the title", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_UPDATED", fieldKey: "value", fieldLabel: "Deposit saved", oldValue: "1000", newValue: "2000" }))).toEqual({
+      title: 'Milestone "Deposit saved" updated', detail: "Target value changed · From 1000 · To 2000",
+      change: { from: "1000", to: "2000", direction: "up" },
+    });
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_UPDATED", fieldKey: "name", fieldLabel: "Deposit saved", oldValue: "Save deposit", newValue: "Deposit saved" }))).toMatchObject({
+      title: 'Milestone "Deposit saved" updated', detail: "Name changed · From Save deposit · To Deposit saved",
+    });
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_UPDATED", fieldKey: "dueDate", fieldLabel: "Deposit saved", oldValue: "2030-06-01", newValue: null }))).toMatchObject({
+      title: 'Milestone "Deposit saved" updated', detail: "Due date changed · From 2030-06-01 · To ",
+    });
+  });
+
+  it("renders GOAL_MILESTONE_DELETED naming the milestone, with its progress snapshot when one was recorded", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_DELETED", fieldLabel: "Deposit saved" }))).toEqual({ title: "Milestone deleted", detail: "Deposit saved" });
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_DELETED", fieldLabel: "Deposit saved", newValue: "2/4" }))).toEqual({
+      title: "Milestone deleted", detail: "Deposit saved · 2 of 4 milestones completed",
+    });
+  });
+
   it("renders TODO_COMPLETED and TODO_REOPENED as plain, fixed titles", () => {
     expect(describeObjectEvent(event({ eventType: "TODO_COMPLETED" }))).toEqual({ title: "Completed", detail: null });
     expect(describeObjectEvent(event({ eventType: "TODO_REOPENED" }))).toEqual({ title: "Reopened", detail: null });

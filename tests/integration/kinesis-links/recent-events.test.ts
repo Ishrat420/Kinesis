@@ -76,6 +76,15 @@ describe.sequential("getKinesisLinkRecentEvents", () => {
     expect(events["obj-linked"]).toMatchObject({ change: { from: "Depends on", to: "Save $30k", direction: "flat", kind: "relationship", action: "added", icon: "depends-on" } });
   });
 
+  it("renders a goal's own milestone events too (KD-051) -- they land on the goal's objectId same as any other event", async () => {
+    await seedObject("obj-milestone-goal", owner);
+    await prisma.objectEvent.create({ data: { id: "event-milestone-added", userId: owner, objectId: "obj-milestone-goal", eventType: "GOAL_MILESTONE_ADDED", fieldLabel: "Save deposit", newValue: "2030-06-01", source: "USER", occurredAt: new Date("2026-01-01T00:00:00Z") } });
+
+    const events = await getKinesisLinkRecentEvents(["obj-milestone-goal"]);
+
+    expect(events["obj-milestone-goal"]).toMatchObject({ title: "Milestone added", detail: "Save deposit · Due 1 June 2030" });
+  });
+
   it("omits `change` for an event with nothing to diff", async () => {
     await seedObject("obj-created", owner);
     await prisma.objectEvent.create({ data: { id: "event-created", userId: owner, objectId: "obj-created", eventType: "ITEM_CREATED", source: "USER", occurredAt: new Date("2026-01-01T00:00:00Z") } });

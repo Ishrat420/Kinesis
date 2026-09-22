@@ -1,6 +1,7 @@
 import type { ObjectEvent, ObjectEventType, ObjectRelationshipType, Prisma } from "@prisma/client";
 import type { prisma } from "./prisma";
 import { kinesisLinkLabel, relationshipIconKey, type RelationshipIconKey } from "@/lib/objects/relationship-labels";
+import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
 import { DEFAULT_FORMAT_PREFERENCES, type FormatPreferences } from "@/lib/format/preferences";
 
@@ -205,20 +206,46 @@ export async function recordArchivedChanged(client: Client, userId: string, obje
 }
 
 /**
- * A plain, dataless moment with no field to diff -- `ITEM_CREATED`,
- * `GOAL_COMPLETED`, `GOAL_MILESTONE_COMPLETED`, `TODO_COMPLETED`,
+ * A plain, mostly-dataless moment with no two-sided value to diff --
+ * `ITEM_CREATED`, `GOAL_COMPLETED`, `GOAL_MILESTONE_COMPLETED`,
+ * `GOAL_MILESTONE_ADDED`, `GOAL_MILESTONE_DELETED`, `TODO_COMPLETED`,
  * `TODO_REOPENED`. `label` names the specific thing for a type that needs
- * one (a milestone's own name for `GOAL_MILESTONE_COMPLETED`); omitted, the
- * line reads generically.
+ * one (a milestone's own name); omitted, the line reads generically.
+ * `newValue` carries the one extra fact a milestone moment wants alongside
+ * its name -- `GOAL_MILESTONE_ADDED`'s own due date (`formatDateInput`'d),
+ * or `GOAL_MILESTONE_COMPLETED`/`GOAL_MILESTONE_DELETED`'s
+ * `"<completed>/<total>"` progress snapshot, read back by
+ * `milestoneProgressText` below.
  */
 export async function recordEvent(
   client: Client,
   userId: string,
   objectId: string,
-  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "TODO_COMPLETED" | "TODO_REOPENED">,
+  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "GOAL_MILESTONE_ADDED" | "GOAL_MILESTONE_DELETED" | "TODO_COMPLETED" | "TODO_REOPENED">,
   label?: string,
+  newValue?: string,
 ) {
-  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType, fieldLabel: label ?? null, source: "USER" } });
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType, fieldLabel: label ?? null, newValue: newValue ?? null, source: "USER" } });
+}
+
+/** One changed attribute of a milestone, ready to write -- see `recordMilestoneUpdated` below. */
+export type MilestoneFieldChange = { fieldKey: "name" | "value" | "dueDate"; oldValue: string | null; newValue: string | null };
+
+/**
+ * A milestone's own name/target value/due date changed -- `GOAL_MILESTONE_UPDATED`,
+ * one row per changed attribute (mirroring `recordFieldChanges`), `fieldLabel`
+ * carrying the milestone's own name so History (and the Kinesis Link peek
+ * reading the same stream) can say *which* milestone, the way
+ * `GOAL_MILESTONE_COMPLETED` already does.
+ */
+export async function recordMilestoneUpdated(client: Client, userId: string, objectId: string, milestoneName: string, changes: MilestoneFieldChange[]) {
+  if (!changes.length) return;
+  await client.objectEvent.createMany({
+    data: changes.map((change) => ({
+      id: crypto.randomUUID(), userId, objectId, eventType: "GOAL_MILESTONE_UPDATED" as const,
+      fieldKey: change.fieldKey, fieldLabel: milestoneName, oldValue: change.oldValue, newValue: change.newValue, source: "USER" as const,
+    })),
+  });
 }
 
 /** Resolves a canonical/`CUSTOM` type + snapshot into the label it reads as from this row's own side, falling back gracefully for a row somehow missing the type its own event type requires. */
@@ -279,6 +306,23 @@ function numericDirection(from: string, to: string): "up" | "down" | "flat" {
   return next > previous ? "up" : "down";
 }
 
+/** `"<completed>/<total>"` (written by `recordEvent`'s `newValue`) -> "3 of 5 milestones completed", or `null` for a row written before this existed. */
+function milestoneProgressText(raw: string | null): string | null {
+  const match = raw?.match(/^(\d+)\/(\d+)$/);
+  if (!match) return null;
+  return `${match[1]} of ${match[2]} milestones completed`;
+}
+
+/** The human label for one of `MilestoneFieldChange`'s attribute keys -- `GOAL_MILESTONE_UPDATED`'s own "which field" analogue to `FIELD_CHANGED`'s free-text `fieldLabel`. */
+function milestoneAttributeLabel(fieldKey: string | null): string {
+  switch (fieldKey) {
+    case "name": return "Name";
+    case "value": return "Target value";
+    case "dueDate": return "Due date";
+    default: return "Milestone";
+  }
+}
+
 /**
  * Renders one `ObjectEvent` to the title/detail pair its History entry
  * shows. Pure and exported on its own (rather than folded into
@@ -334,7 +378,28 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
     case "GOAL_COMPLETED":
       return { title: "Goal completed", detail: null };
     case "GOAL_MILESTONE_COMPLETED":
-      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed", detail: null };
+      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed", detail: milestoneProgressText(event.newValue) };
+    case "GOAL_MILESTONE_ADDED": {
+      const name = event.fieldLabel ?? "Milestone";
+      const due = event.newValue ? `Due ${formatDate(event.newValue, prefs.locale)}` : null;
+      return { title: "Milestone added", detail: due ? `${name} · ${due}` : name };
+    }
+    case "GOAL_MILESTONE_UPDATED": {
+      const name = event.fieldLabel ?? "Milestone";
+      const attribute = milestoneAttributeLabel(event.fieldKey);
+      const from = event.oldValue ?? "";
+      const to = event.newValue ?? "";
+      return {
+        title: `Milestone "${name}" updated`,
+        detail: `${attribute} changed · From ${from} · To ${to}`,
+        change: { from, to, direction: numericDirection(from, to) },
+      };
+    }
+    case "GOAL_MILESTONE_DELETED": {
+      const name = event.fieldLabel ?? "Milestone";
+      const progress = milestoneProgressText(event.newValue);
+      return { title: "Milestone deleted", detail: progress ? `${name} · ${progress}` : name };
+    }
     case "TODO_COMPLETED":
       return { title: "Completed", detail: null };
     case "TODO_REOPENED":

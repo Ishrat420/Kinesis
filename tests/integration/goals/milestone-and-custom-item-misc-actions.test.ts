@@ -58,6 +58,15 @@ describe.sequential("duplicateMilestoneAction", () => {
     expect(copy.dueDate?.toISOString()).toBe("2026-03-01T00:00:00.000Z");
   });
 
+  it("records GOAL_MILESTONE_ADDED for the copy, naming it and its due date, on the goal's own objectId", async () => {
+    const { goal, milestone } = await makeGoalWithMilestone();
+
+    await duplicateMilestoneAction(goal.id, milestone.id);
+
+    const events = await prisma.objectEvent.findMany({ where: { objectId: goal.objectId } });
+    expect(events).toMatchObject([{ eventType: "GOAL_MILESTONE_ADDED", fieldLabel: "First 3 books", newValue: "2026-03-01" }]);
+  });
+
   it("does nothing when the milestone belongs to someone else's goal", async () => {
     const stranger = "misc-actions-stranger";
     await prisma.user.deleteMany({ where: { id: stranger } });
