@@ -44,7 +44,7 @@ function FinanceItemFields({ item, today }: { item: FinanceItemDetail; today: Da
         value={money(displayedAmount)}
         caption={recurring ? (item.frequency ? `per ${item.frequency.toLowerCase()}` : undefined) : item.balanceAsOf ? `as of ${formatDate(item.balanceAsOf, locale)}` : undefined}
       />
-      {!recurring && item.rate !== undefined && <StatTile label={liability ? "Interest rate" : "Interest / growth rate"} value={`${item.rate}%`} caption="p.a." />}
+      {!recurring && item.rate !== undefined && <StatTile label="Interest rate" value={`${item.rate}%`} caption="p.a." />}
       {!recurring && item.monthlyContribution !== undefined && <StatTile label={liability ? "Monthly payment" : "Monthly contribution"} value={money(item.monthlyContribution)} />}
       {recurring && item.startDate && <StatTile label="Start date" value={formatDate(item.startDate, locale)} />}
       {recurring && item.endDate && <StatTile label="End date" value={formatDate(item.endDate, locale)} />}
