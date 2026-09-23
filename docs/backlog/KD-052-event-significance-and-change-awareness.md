@@ -143,12 +143,49 @@ IGNORE  = 0, excluded before any scoring happens
 surface, including plain History — see "Reminder" and "Issue date"
 below for cases that should not even appear as a line item.
 
+#### Item creation (every module)
+
+| Change | Significance |
+|---|---|
+| `ITEM_CREATED`, for a standalone record (Document, Goal, Todo, Person, Custom Item) | LOW |
+
+Closes a gap the coverage audit flagged: `ITEM_CREATED` fires on every
+module and had no row anywhere before this. A new record appearing is
+routine, not urgent — LOW, the same tier as a cosmetic edit like
+Notes. **Milestone added is the deliberate exception**, sitting at
+NORMAL in the Goal table below rather than here: a milestone isn't a
+standalone record, it's a sub-object created *against* an existing
+Goal, so its creation is more relevant to that goal's own story than
+an ordinary new record is on its own — worth the higher tier precisely
+because of what it's attached to, not despite being "just a creation."
+
+#### Ad-hoc / custom fields (every module) — NORMAL, for now
+
+| Change | Significance |
+|---|---|
+| A custom field added or updated on a system module (Document, Goal, Todo, a Custom Item's own ad-hoc fields, Custom Module template fields — including Currency/Percent-formatted ones) | NORMAL |
+| ...where that custom field is itself a Kinesis Link using a recognized system relationship (Supports, Blocks, Depends on, etc.) | Per the Kinesis Link relationship type table below instead — not this row |
+| ...where that custom field is itself a Kinesis Link with a CUSTOM (free-text) type | NORMAL either way (matches "Any other custom Kinesis Link" below) |
+
+Closes the other gap the coverage audit flagged: every table below is
+an exhaustive list of *named* fields, but a large share of real
+traffic is ad-hoc — Documents/Goals/Custom Items' own free-form
+`ObjectField`s and Custom Module template fields are all keyed by an
+opaque per-instance id (`diffObjectFields`), not a literal name the
+classifier can look up by. There was no default for "a field I don't
+recognize" before this. NORMAL is the v1 default for all of it — not
+LOW (a real value changed, worth more than a cosmetic Notes edit) and
+not HIGH (no way to know a given custom field is actually important
+without letting the owner say so, which doesn't exist yet — see
+"Deferred to a future ticket" under Open Questions).
+
 #### Finance — Asset / Liability
 
 | Change | Significance |
 |---|---|
 | Notes | LOW |
 | Name | LOW |
+| Category | NORMAL |
 | Balance increase or decrease | HIGH¹ |
 | Interest rate increase or decrease | HIGH |
 | Monthly payment increase or decrease | HIGH |
@@ -159,6 +196,7 @@ below for cases that should not even appear as a line item.
 |---|---|
 | Notes | LOW |
 | Name | LOW |
+| Category | NORMAL |
 | Start date / End date | NORMAL |
 | Frequency | HIGH |
 | Amount increase or decrease | HIGH¹ |
@@ -186,6 +224,22 @@ frequency) stays unconditional, since none of them drift on their own.
 | Kinesis Links (typed) | HIGH |
 | Custom Kinesis Links | NORMAL |
 | **Document entering its reminder window** (automatic, system-detected — already implemented as `DOCUMENT_EXPIRING_SOON`) | **HIGH** |
+| Archived (Active -> Archived) | HIGH |
+| Restored (Archived -> Active) | HIGH |
+
+Archived/Restored map onto the existing `ITEM_ARCHIVED`/`ITEM_RESTORED`
+event types, which Documents share with Custom Items (see the coverage
+audit) — this HIGH tier applies wherever those two event types are
+written, not just for Documents. This is a deliberate contrast with
+Goal's own Archived, which is NORMAL below: different module, different
+semantics. A Document going in or out of its archive is closer to a
+status/lifecycle transition a user actively cares about tracking (an
+expired passport finally renewed and archived, or an archived one
+pulled back out because it's needed again), where a Goal being archived
+is more often a quiet, administrative cleanup action — see the Goal
+section's own rationale for why that one stays NORMAL. Not an
+inconsistency between the two tables; the two "archived" concepts mean
+different things in each module.
 
 #### Goal
 
@@ -206,6 +260,7 @@ and not all of them deserve the same weight:
 | Milestone added | NORMAL |
 | Milestone updated | LOW |
 | Milestone completed | HIGH |
+| Milestone reopened (completed -> not completed) | HIGH |
 | Milestone deleted | NORMAL |
 | Measurable target added | HIGH |
 | Measurable target updated (target value or current value) | HIGH |
@@ -224,13 +279,17 @@ action instead of automatic system writes. It also cuts against
 KD-015's own stated principle to avoid framing inactivity negatively —
 an Archived goal doesn't need a HIGH spotlight moment.
 
-Implementation note: "Milestone added/updated/completed/deleted" map
-directly onto the `GOAL_MILESTONE_ADDED`/`UPDATED`/`COMPLETED`/`DELETED`
-event types, and Completed maps onto the existing `GOAL_COMPLETED`
-type — none of those three need any new classifier logic, their event
-type alone already says HIGH/NORMAL/LOW as listed above. Reopened,
-Revisit Later, and Archived are the three that stay generic
-`STATUS_CHANGED` rows and need the classifier to inspect the value:
+Implementation note: "Milestone added/updated/completed/reopened/deleted"
+map directly onto the
+`GOAL_MILESTONE_ADDED`/`UPDATED`/`COMPLETED`/`REOPENED`/`DELETED` event
+types, and Goal-level Completed maps onto the existing `GOAL_COMPLETED`
+type — none of those five need any new classifier logic, their event
+type alone already says HIGH/NORMAL/LOW as listed above
+(`GOAL_MILESTONE_REOPENED` is already implemented and always HIGH,
+unconditionally — unlike the Goal-level "Reopened" row below, it has no
+value to inspect). Goal-level Reopened, Revisit Later, and Archived are
+the three that stay generic `STATUS_CHANGED` rows and need the
+classifier to inspect the value:
 
 ```text
 eventType === "GOAL_COMPLETED"                        -> HIGH
@@ -249,6 +308,24 @@ type** purely for nicer History/peek copy (the way `GOAL_COMPLETED`
 already exists) rather than staying this classifier-side
 `STATUS_CHANGED` special case is a separate, still-undecided question
 — see Open Questions.
+
+#### Todo
+
+| Change | Significance |
+|---|---|
+| Completed (`TODO_COMPLETED`) | HIGH |
+| Reopened (`TODO_REOPENED`) | HIGH |
+| Status changed (To Do <-> Waiting, `STATUS_CHANGED`) | HIGH |
+| Due date added or changed | HIGH |
+| Notes added or changed | LOW |
+| Title changed (`name` field) | LOW |
+
+Closes the "Todo entirely unclassified" gap the coverage audit flagged.
+Todo has no archive concept of its own (no `archived` column on the
+model at all), so there's no Archived/Restored row here the way there
+is for Document. Todo's own Kinesis Links go through the universal
+Kinesis Link relationship type table below like every other module's —
+nothing Todo-specific about link scoring.
 
 #### Kinesis Link relationship type
 
@@ -559,6 +636,25 @@ deterministic approach has been tried and found wanting, not before.
   the stated v1 defaults, explicitly called out as tunable later** — no
   further decision needed before implementation, just noting they are
   not meant to be treated as final forever.
+
+**Deferred to a future ticket, not yet planned:**
+
+* **User-configurable priority for custom fields and custom Kinesis
+  Links.** The "Ad-hoc / custom fields" default of NORMAL above is a v1
+  stopgap, not a final answer — letting the record's own owner mark a
+  specific custom field or a custom-typed Kinesis Link as more or less
+  important than that default is a real feature idea, but a whole
+  customization surface of its own (where would that control live, does
+  it apply per-field or per-instance, how does it interact with the
+  fixed tables above). Not designed, not scoped, not planned yet.
+* **Broader planning for what to do with Relationship significance.**
+  The Kinesis Link relationship type table above covers the common
+  case, but doesn't resolve everything: `RELATIONSHIP_CHANGED` (a link
+  being retyped) carries both an old and a new relationship type on the
+  same event row, and this ticket doesn't say which one — or some
+  combination — should drive its significance. That needs more thought
+  than a quick table lookup and is being left for a future ticket
+  rather than guessed at here.
 
 ## Related
 
