@@ -10,9 +10,16 @@ KD-048 (Object Event Model) shipped Phases 1-3 in full: every core module
 and Custom Items write a complete, typed `ObjectEvent` stream, read
 unfiltered and unscored everywhere it's shown today (a History section,
 the dashboard's Recent Activity feed, and now the Kinesis Link card's own
-History peek). KD-048's own Phases 4 and 6 were never started — this
-ticket splits them out for their own design pass rather than treating
-them as a quick follow-on to a now-finished ticket:
+History peek). KD-048's other phases never started, and never had proper
+planning done for them either — each was named in a single paragraph and
+left there. **This ticket exists to plan the rest of that work: re-aligning
+the priorities first, then making the technical decisions**, rather than
+treating what's left as a quick follow-on to a now-finished ticket.
+
+That re-alignment changes the phase numbering itself, not just what's
+behind each phase — **KD-048's own Phase 5 (Timeline) has been pulled
+out of this ticket entirely** (see below), so what KD-048 called Phase 6
+is renumbered Phase 5 here. Two phases remain in scope for this ticket:
 
 * **Phase 4 — Significance & surfacing.** A pure classifier deciding
   which events are worth surfacing *beyond* a plain chronological list,
@@ -21,27 +28,40 @@ them as a quick follow-on to a now-finished ticket:
   concrete per-event significance table across every module, plus a v1
   "Surface Score" algorithm and the destination thresholds that consume
   it. Not yet implemented.
-* **Phase 6 — Change Awareness (regression detection).** A layer
+* **Phase 5 — Change Awareness (regression detection).** A layer
   beyond a raw diff: knowing whether a change is a *regression* for
   that specific field (an expiry moving earlier is bad; a savings
   target moving earlier is good). Still deterministic, still
   unscheduled and unscoped beyond the one paragraph below — this
-  ticket update does not touch Phase 6. AI-narrated summaries, which
-  used to be bundled into this phase, are explicitly **not** part of
-  this ticket at all anymore — see the note at the end of Phase 6.
+  ticket update does not touch it beyond the renumbering. AI-narrated
+  summaries, which used to be bundled into this phase under its old
+  KD-048 numbering, are explicitly **not** part of this ticket at all
+  anymore — see the note at the end of Phase 5.
 
-**Phase 5 (Timeline / Year in Review) is deliberately not part of this
-ticket** — it already has its own ticket, **KD-015 ("Kinesis Year in
-Review / Timeline Highlights")**, which already names KD-048 as its
-dependency. Timeline is a fundamentally different kind of surface from
+**KD-048's original Phase 5 (Timeline / Year in Review) is deliberately
+not part of this ticket at all** — not renumbered, not touched, fully
+out. (Watch the numbering here: this ticket's own "Phase 5" above is
+Change Awareness, KD-048's old Phase 6 — a different phase entirely
+from KD-048's original Phase 5, which is Timeline and is what the rest
+of this paragraph is about.) Timeline already has its own ticket,
+**KD-015 ("Kinesis Year in Review / Timeline Highlights")**, which
+already names KD-048 as its dependency. Timeline is a fundamentally
+different kind of surface from
 everything else this ticket scores: it's about showing progression over
 time — closer to a series of snapshots building up naturally as time
 passes than a ranked pick of a standout moment at read time — so it is
 **not** a Surface Score consumer the way the Kinesis Link peek or
 Dashboard are (see "Destination thresholds" below). It's its own,
 separately-scoped, **low-priority** design pass under KD-015, not a
-phase to redo here. See "Related" below for what should happen to
-KD-015 now.
+phase to redo here — including the open question of *what Timeline's
+own selection mechanism actually is*, which belongs entirely to KD-015
+now, not to this ticket (see that ticket's own notes). Whether KD-015
+ends up reusing this ticket's significance classifier at all is
+likewise KD-015's call to make there: Phase 4 below is built as a
+small, composable domain function specifically so that kind of reuse
+is *available* to any future consumer, Timeline included, without this
+ticket needing to decide who uses it. See "Related" below for what
+should happen to KD-015 now.
 
 ## What already exists (confirmed by reading the code, not assumed)
 
@@ -61,10 +81,14 @@ KD-015 now.
   the Surface Score pass below is a filter/ranking step in front of
   that query, not a new query shape.
 * **`describeObjectEvent` (`lib/data/object-events.ts`) is the one
-  place that already knows every event type's shape** — it's the
-  natural home for a co-located significance table, the same way
+  place that already knows every event type's shape** — a natural home
+  for `classifyEventSignificance` to live *alongside*, the same way
   `numericDirection`/`relationshipIconKey` already live next to the
-  rendering logic they support.
+  rendering logic they support. It should stay its own exported,
+  standalone function there, not folded into `describeObjectEvent`
+  itself — a consumer that only wants "is this worth surfacing," not
+  title/detail text, shouldn't have to call through the renderer to
+  get it (see Phase 4's design principles).
 * Two concrete HIGH-significance events named in this ticket's table
   already exist in code, built ad hoc before this ticket was written up:
   `DOCUMENT_EXPIRING_SOON` (a document entering its reminder window) and
@@ -79,13 +103,26 @@ KD-015 now.
 
 ## Phase 4 — Significance & surfacing (v1 design accepted)
 
-### Design principle
+### Design principles
 
-Deterministic and boring internally, even where the result should feel
-smart. Every score is reconstructable by hand from the event's own
-stored fields plus the rules below — no learned weights, no hidden
-state. When Kinesis surfaces something that looks wrong, the fix is
-reading this table, not debugging a black box.
+Two, not one:
+
+1. **Deterministic and boring internally**, even where the result
+   should feel smart. Every score is reconstructable by hand from the
+   event's own stored fields plus the rules below — no learned
+   weights, no hidden state. When Kinesis surfaces something that
+   looks wrong, the fix is reading this table, not debugging a black
+   box.
+2. **Centralized and reusable, not surface-specific.** The
+   classifier (`classifyEventSignificance`) and the Surface Score
+   calculator built on top of it are each one small, composable domain
+   function, living in one place with a single source of truth — not
+   duplicated per consumer, and not written just for the Kinesis Link
+   peek or Dashboard. Anything that later wants "is this event worth
+   surfacing" — a notification, an API, Timeline, something not built
+   yet — calls the same function rather than re-implementing the
+   policy. This ticket builds that function; it does not decide who
+   ends up calling it, or how.
 
 ### 1. Base significance
 
@@ -428,7 +465,7 @@ A genuinely large same-day swing on the same account still starts from
 HIGH and clears every threshold easily, as the first example above
 shows.
 
-## Phase 6 — Change Awareness (unscheduled)
+## Phase 5 — Change Awareness (unscheduled)
 
 Still deterministic, still unscheduled and unscoped beyond KD-048's
 original one-paragraph mention. Unaffected by this update — Surface
@@ -467,19 +504,11 @@ deterministic approach has been tried and found wanting, not before.
   using this scoring work at all — Attention deliberately does **not**
   consume the Surface Score thresholds above and needs its own
   algorithm once this exists.
-* **How does Phase 6's per-domain regression classifier relate to
+* **How does Phase 5's per-domain regression classifier relate to
   Phase 4's `classifyEventSignificance`?** Same function extended with
   polarity, two independent classifiers consulted together, or a
-  Phase 6 concept that doesn't need Phase 4 to exist first at all? Not
+  Phase 5 concept that doesn't need Phase 4 to exist first at all? Not
   decided in KD-048's original text — needs deciding here.
-* **What is Timeline's own selection mechanism?** Now explicitly *not*
-  a Surface Score consumer (see "Destination thresholds" above) — it's
-  a progression/snapshot view, closer to "capture a point periodically
-  and let the shape build up over time" than "rank recent events and
-  pick a winner." What gets snapshotted, how often, and whether it
-  reuses Phase 4's significance classification at all is undesigned.
-  Belongs entirely to KD-015, **out of scope here, and low priority** —
-  not a blocker for anything in this ticket.
 * **Should "Goal reopened" get its own event type** (`GOAL_REOPENED`,
   mirroring `GOAL_COMPLETED`), **or stay a classifier-side special case**
   on `STATUS_CHANGED`'s `oldValue`? Either works for scoring; a
@@ -495,8 +524,9 @@ deterministic approach has been tried and found wanting, not before.
 ## Related
 
 * **Builds on:** KD-048 (Object Event Model) — Phases 1-3, Done. This
-  ticket is exactly the Phase 4/6 work KD-048's own doc deferred rather
-  than treating as in-scope follow-on.
+  ticket is exactly the re-planning of what KD-048's own doc deferred
+  as Phases 4 and 6 (renumbered 4 and 5 here — see Summary) rather than
+  treating it as in-scope follow-on.
 * **Feeds:** KD-015 (Kinesis Year in Review / Timeline Highlights) —
   currently `Idea` / tagged `Maturity Dependent`, `Foundation Dependent`,
   blocked on KD-048 existing. Since KD-048 Phases 1-3 are now Done, KD-015
@@ -506,13 +536,16 @@ deterministic approach has been tried and found wanting, not before.
   "Destination thresholds" above — an earlier draft of this ticket
   wrongly gave it a threshold) since it isn't picking a single best
   event, it's building a progression/snapshot view over time. What this
-  ticket does still feed it is the significance *classification* itself
-  (Phase 4's per-event HIGH/NORMAL/LOW/IGNORE table) as one plausible
-  input to whatever snapshot mechanism KD-015 designs — not the scoring
-  or thresholds. KD-015 remains its own, separately-scoped, **low
-  priority** design pass; worth revisiting its tags now that KD-048's
-  foundation exists, but not worth pulling forward on the strength of
-  this ticket alone.
+  ticket hands over instead is `classifyEventSignificance` itself — a
+  small, composable, reusable domain function (Phase 4's design
+  principles above), available for KD-015 to call if it wants the same
+  HIGH/NORMAL/LOW/IGNORE classification as an input to whatever
+  snapshot mechanism it designs. Whether it does, and what that
+  mechanism actually is, are **KD-015's own decisions**, tracked there,
+  not here. KD-015 remains its own, separately-scoped, **low priority**
+  design pass; worth revisiting its tags now that KD-048's foundation
+  exists, but not worth pulling forward on the strength of this ticket
+  alone.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card, Done) and the
   Kinesis Link card's History peek (shipped since KD-042 closed) — the
   existing integration points Phase 4's scoring pass would filter for.

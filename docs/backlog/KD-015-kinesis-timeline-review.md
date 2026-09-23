@@ -102,3 +102,25 @@ The Timeline should make the user's forward motion visible, helping them recogni
 * Avoid framing inactivity or missed goals negatively.
 * Data should come from existing Kinesis records rather than requiring additional manual entry.
 * Future versions may use AI to help select or narrate highlights, but the underlying facts should remain deterministic and traceable.
+
+## Open questions
+
+* **What is this Timeline's own selection/snapshot mechanism?**
+  Moved here from KD-052, which explicitly does *not* decide this on
+  Timeline's behalf. Not simply "run KD-052's Surface Score and take
+  the top N" — KD-052's Phase 4 deliberately excludes Timeline from its
+  destination thresholds, since Timeline is a progression/snapshot view
+  (what changed over a period, and what shape that took) rather than a
+  "pick the single best recent event" surface the way a Kinesis Link
+  peek or the Dashboard are. What actually gets captured as a
+  highlight, how a period is chosen and summarized, and whether any of
+  that reuses KD-052's own significance classification are this
+  ticket's decisions to make.
+* **Does this Timeline reuse KD-052's `classifyEventSignificance`?**
+  KD-052 builds that classifier as a small, composable, reusable domain
+  function specifically so other consumers can call it — but whether
+  Timeline actually should is a real design choice, not a given. It
+  might be a useful ingredient (e.g. filtering out LOW-significance
+  noise before building a period's summary) without being the whole
+  mechanism, since "significant" and "worth a Timeline highlight" are
+  related but not identical questions.
