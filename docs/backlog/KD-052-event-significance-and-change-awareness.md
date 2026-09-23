@@ -184,7 +184,7 @@ frequency) stays unconditional, since none of them drift on their own.
 | Country | NORMAL |
 | Link | IGNORE |
 | Kinesis Links (typed) | HIGH |
-| Custom Kinesis Links | HIGH |
+| Custom Kinesis Links | NORMAL |
 | **Document entering its reminder window** (automatic, system-detected — already implemented as `DOCUMENT_EXPIRING_SOON`) | **HIGH** |
 
 #### Goal
@@ -265,7 +265,7 @@ The significance of the relationship-change event itself
 | Required for | HIGH |
 | Related to | LOW |
 | Alongside | NORMAL |
-| Any other custom Kinesis Link | LOW |
+| Any other custom Kinesis Link | NORMAL |
 
 This table classifies *the link-change event*, not the downstream
 object's own changes — see "Kinesis Link relevance" in the scoring
