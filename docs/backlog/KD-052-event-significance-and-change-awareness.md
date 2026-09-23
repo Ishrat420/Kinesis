@@ -21,12 +21,14 @@ them as a quick follow-on to a now-finished ticket:
   concrete per-event significance table across every module, plus a v1
   "Surface Score" algorithm and the destination thresholds that consume
   it. Not yet implemented.
-* **Phase 6 — Change Awareness & AI summaries.** A layer beyond a raw
-  diff: knowing whether a change is a *regression* for that specific
-  field (an expiry moving earlier is bad; a savings target moving
-  earlier is good), plus AI-narrated summaries over the same stream.
-  Still unscheduled and unscoped beyond the one paragraph below —
-  this ticket update does not touch Phase 6.
+* **Phase 6 — Change Awareness (regression detection).** A layer
+  beyond a raw diff: knowing whether a change is a *regression* for
+  that specific field (an expiry moving earlier is bad; a savings
+  target moving earlier is good). Still deterministic, still
+  unscheduled and unscoped beyond the one paragraph below — this
+  ticket update does not touch Phase 6. AI-narrated summaries, which
+  used to be bundled into this phase, are explicitly **not** part of
+  this ticket at all anymore — see the note at the end of Phase 6.
 
 **Phase 5 (Timeline / Year in Review) is deliberately not part of this
 ticket** — it already has its own ticket, **KD-015 ("Kinesis Year in
@@ -426,13 +428,12 @@ A genuinely large same-day swing on the same account still starts from
 HIGH and clears every threshold easily, as the first example above
 shows.
 
-## Phase 6 — Change Awareness & AI summaries (unscheduled)
+## Phase 6 — Change Awareness (unscheduled)
 
-Two related but distinct capabilities, both unscheduled and unscoped
-beyond KD-048's original one-paragraph mention. Unaffected by this
-update — Surface Score is a *volume/relevance* ranking, not a
-*good/bad* judgment, and the two are designed to stay independent (see
-Open Questions):
+Still deterministic, still unscheduled and unscoped beyond KD-048's
+original one-paragraph mention. Unaffected by this update — Surface
+Score is a *volume/relevance* ranking, not a *good/bad* judgment, and
+this stays independent of it (see Open Questions):
 
 * **Per-domain regression detection** — e.g. "insurance expires earlier
   than before," a metric trending the wrong way. This is a step beyond
@@ -443,12 +444,19 @@ Open Questions):
   domain-specific and would need its own classifier layered on top of
   the event stream (and on top of, or alongside, `classifyEventSignificance`
   — their relationship needs deciding, see Open Questions), not
-  something the event itself can encode generically.
-* **AI-narrated summaries** — consumes the same read API the Timeline
-  (KD-015) would use; needs nothing event-model-specific beyond the
-  stream being complete and well-labelled, which it already is. Model
-  choice, cost, prompt design, and UX (where does a summary appear, how
-  often is it regenerated) are all unexplored.
+  something the event itself can encode generically. This is a
+  deterministic classifier, same spirit as everything else in this
+  ticket — no model involved.
+
+**AI is deliberately out of this ticket entirely, not just deprioritized
+within it.** AI-narrated summaries used to be bundled into this phase;
+they've been pulled out completely. The plan for now is to make the
+deterministic Surface Score approach above as strong as it can be and
+see whether that's actually good enough on its own — it may turn out
+Kinesis never needs an AI layer for this at all. AI summarization is
+not being designed, scoped, or planned here; if it ever becomes worth
+doing, that's a future ticket of its own, decided only after the
+deterministic approach has been tried and found wanting, not before.
 
 ## Open questions
 
@@ -472,14 +480,6 @@ Open Questions):
   reuses Phase 4's significance classification at all is undesigned.
   Belongs entirely to KD-015, **out of scope here, and low priority** —
   not a blocker for anything in this ticket.
-* **AI summaries: scope this small, or wait for a concrete driver?**
-  KD-015 (Timeline) was originally assumed to be the nearer,
-  better-specified consumer to wait for, but it's now understood to be
-  its own low-priority design pass with an undecided mechanism (see
-  above) — so "wait for Timeline" is no longer obviously the shorter
-  wait. AI summaries could still reasonably wait for *some* concrete
-  consumer to prove curation out against, just not necessarily Timeline
-  specifically anymore.
 * **Should "Goal reopened" get its own event type** (`GOAL_REOPENED`,
   mirroring `GOAL_COMPLETED`), **or stay a classifier-side special case**
   on `STATUS_CHANGED`'s `oldValue`? Either works for scoring; a
