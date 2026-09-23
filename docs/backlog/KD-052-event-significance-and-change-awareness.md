@@ -363,9 +363,8 @@ value numerically (see below).
 matters):
 
 ```text
-0-3 days      +30
-4-7 days      +20
-8-30 days     +10
+0-14 days      +30
+15-30 days     +20
 31-60 days     +0
 61-90 days    -30
 >90 days      exclude
@@ -382,7 +381,7 @@ rendering):
 Blocks / Blocked by         +20
 Depends on / Required for   +20
 Supports / Supported by     +10
-Alongside                    +5
+Alongside                   +10
 Related to                   +0
 Custom                       +0
 ```
@@ -515,13 +514,13 @@ Very strong candidate.
 
 ```text
 NORMAL                    40
-25 days ago               +10
+25 days ago               +20
 Related to                 +0
 ----------------------------
-Total                     50
+Total                     60
 ```
 
-Barely eligible for a card peek (score exactly at the >= 50 threshold).
+Barely eligible for a card peek 
 
 **Daily interest accrual, today, on a depended-upon savings account:**
 
