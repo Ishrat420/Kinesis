@@ -215,16 +215,10 @@ frequency) stays unconditional, since none of them drift on their own.
 Archived/Restored map onto the existing `ITEM_ARCHIVED`/`ITEM_RESTORED`
 event types, which Documents share with Custom Items (see the coverage
 audit) — this HIGH tier applies wherever those two event types are
-written, not just for Documents. This is a deliberate contrast with
-Goal's own Archived, which is NORMAL below: different module, different
-semantics. A Document going in or out of its archive is closer to a
-status/lifecycle transition a user actively cares about tracking (an
-expired passport finally renewed and archived, or an archived one
-pulled back out because it's needed again), where a Goal being archived
-is more often a quiet, administrative cleanup action — see the Goal
-section's own rationale for why that one stays NORMAL. Not an
-inconsistency between the two tables; the two "archived" concepts mean
-different things in each module.
+written, not just for Documents. This matches Goal's own Archived tier
+below (also HIGH, for its own reasoning specific to Goals and their
+Kinesis Links) — the two modules land on the same significance for
+different underlying reasons, not a coincidence worth flagging further.
 
 #### Goal
 
@@ -233,14 +227,14 @@ Finished, Archived) — not a boolean `archived` flag the way Documents
 and Custom Items work. Moving *to* "Finished" already writes its own
 dedicated event (`GOAL_COMPLETED`), not a generic `STATUS_CHANGED` row
 — every other transition between the four values is `STATUS_CHANGED`,
-and not all of them deserve the same weight:
+and all of them land on the same tier:
 
 | Change | Significance |
 |---|---|
 | Completed (-> Finished) | HIGH |
 | Reopened (any status -> Active) | HIGH |
-| Moved to Revisit Later | NORMAL |
-| Archived | NORMAL |
+| Moved to Revisit Later | HIGH |
+| Archived | HIGH |
 | Target date changed | HIGH |
 | Milestone added | NORMAL |
 | Milestone updated | LOW |
@@ -250,19 +244,24 @@ and not all of them deserve the same weight:
 | Measurable target added | HIGH |
 | Measurable target updated (target value or current value) | HIGH |
 
-**Completed and Reopened are HIGH; Revisit Later and Archived are
-NORMAL, deliberately not the same tier**, even though three of the
-four are just `STATUS_CHANGED` rows underneath (only Completed already
-has its own event type). Completing or reviving a goal are genuinely
-notable, low-frequency moments. Archiving and deferring are quieter,
-more administrative, and can happen in a batch (a cleanup pass
-archiving several stale goals in one sitting) — scoring those HIGH
-would flood the peek's single-best-pick surface with
-competing archival noise the same way unconditional Finance balance
-scoring did before the magnitude dead zone, just from bulk human
-action instead of automatic system writes. It also cuts against
-KD-015's own stated principle to avoid framing inactivity negatively —
-an Archived goal doesn't need a HIGH spotlight moment.
+**All four Goal status values are HIGH — every status transition
+matters, not just Completed/Reopened.** An earlier draft of this ticket
+scored Revisit Later and Archived as NORMAL, on the reasoning that
+they're quieter, more administrative moments than completing or
+reviving a goal. That's been reconsidered: a Goal's status change is
+significant specifically *because of* what it tells anything linked to
+that Goal through a Kinesis Link. If another object depends on, is
+blocked by, or otherwise tracks this Goal, "this Goal moved to Revisit
+Later" or "this Goal was archived" both effectively mean *stop
+tracking this for now* — which is exactly the kind of thing a linked
+object's owner needs to know, the same way Completed or Reopened is.
+Downgrading it to NORMAL would risk it getting buried under freshness
+decay before anyone sees it. This does mean a batch cleanup pass
+archiving several stale goals at once could compete for the peek's
+single-best-pick slot the same way unconditional Finance balance
+scoring did before the magnitude dead zone — no dead zone exists for
+this yet, since batch archiving is a human action, not an automatic
+system write; revisit if it turns out to be noisy in practice.
 
 Implementation note: "Milestone added/updated/completed/reopened/deleted"
 map directly onto the
@@ -271,24 +270,23 @@ types, and Goal-level Completed maps onto the existing `GOAL_COMPLETED`
 type — none of those five need any new classifier logic, their event
 type alone already says HIGH/NORMAL/LOW as listed above
 (`GOAL_MILESTONE_REOPENED` is already implemented and always HIGH,
-unconditionally — unlike the Goal-level "Reopened" row below, it has no
-value to inspect). Goal-level Reopened, Revisit Later, and Archived are
-the three that stay generic `STATUS_CHANGED` rows and need the
-classifier to inspect the value:
+unconditionally). Goal-level status changes are simpler than the table
+above might suggest, now that every value lands on HIGH:
 
 ```text
-eventType === "GOAL_COMPLETED"                        -> HIGH
-eventType === "STATUS_CHANGED":
-  newValue === "Active" && oldValue !== "Active"       -> HIGH   (Reopened)
-  newValue === "Revisit Later"                         -> NORMAL
-  newValue === "Archived"                              -> NORMAL
+eventType === "GOAL_COMPLETED"     -> HIGH
+eventType === "STATUS_CHANGED"     -> HIGH   (unconditional — every Goal
+                                               status transition is HIGH,
+                                               no value inspection needed)
 ```
 
-No new event type or migration needed for any of this. "Reopened"
-deliberately checks *any* prior status, not just `oldValue ===
-"Finished"` — Goals can move Archived -> Active or Revisit Later ->
-Active directly, and both should count as a reopen the same as
-un-finishing one. Whether Reopened is worth its **own dedicated event
+No new event type or migration needed for any of this — significance no
+longer depends on *which* status a Goal moved to or from, only that it
+moved. That said, "Reopened" (any status -> Active) is still worth
+distinguishing at the *rendering* layer even though it no longer
+matters for scoring: Goals can move Archived -> Active or Revisit Later
+-> Active directly, and both read naturally as "reopened" rather than a
+generic "Status changed" line. Whether Reopened is worth its **own dedicated event
 type** purely for nicer History/peek copy (the way `GOAL_COMPLETED`
 already exists) rather than staying this classifier-side
 `STATUS_CHANGED` special case is a separate, still-undecided question
