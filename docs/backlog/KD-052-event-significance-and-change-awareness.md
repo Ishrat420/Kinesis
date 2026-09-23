@@ -45,23 +45,8 @@ Change Awareness, KD-048's old Phase 6 — a different phase entirely
 from KD-048's original Phase 5, which is Timeline and is what the rest
 of this paragraph is about.) Timeline already has its own ticket,
 **KD-015 ("Kinesis Year in Review / Timeline Highlights")**, which
-already names KD-048 as its dependency. Timeline is a fundamentally
-different kind of surface from
-everything else this ticket scores: it's about showing progression over
-time — closer to a series of snapshots building up naturally as time
-passes than a ranked pick of a standout moment at read time — so it is
-**not** a Surface Score consumer the way the Kinesis Link peek or
-Dashboard are (see "Destination thresholds" below). It's its own,
-separately-scoped, **low-priority** design pass under KD-015, not a
-phase to redo here — including the open question of *what Timeline's
-own selection mechanism actually is*, which belongs entirely to KD-015
-now, not to this ticket (see that ticket's own notes). Whether KD-015
-ends up reusing this ticket's significance classifier at all is
-likewise KD-015's call to make there: Phase 4 below is built as a
-small, composable domain function specifically so that kind of reuse
-is *available* to any future consumer, Timeline included, without this
-ticket needing to decide who uses it. See "Related" below for what
-should happen to KD-015 now.
+already names KD-048 as its dependency. Timeline is a
+different kind of surface and will be planned separately as part of KD-015.
 
 ## What already exists (confirmed by reading the code, not assumed)
 
@@ -468,21 +453,7 @@ never automatic drift, so none of them need one.
 | History | none — HIGH, NORMAL and LOW all appear, unscored |
 | Kinesis Link animated peek | score >= 50 |
 | Dashboard "meaningful changes" | score >= 80 |
-| Timeline (KD-015) | **not** this table — a different mechanism entirely, see below |
-| Attention | **not** this threshold — separate algorithm, TBD (see Open Questions) |
-
-**Timeline does not belong in this comparison at all**, and an earlier
-draft of this ticket wrongly gave it a threshold (score >= 65) as if it
-were just another consumer picking the single best recent event the
-way the peek and Dashboard do. It isn't. Timeline is about *progression
-over time* — closer to a series of snapshots building up naturally as
-time passes than a ranked pick of standout moments at read time.
-Surface Score answers "what's the one best thing to show right now";
-Timeline needs to answer "what does the shape of this record's history
-look like," which is a different question with a different mechanism
-(what gets captured as a snapshot, how often, what makes a span of time
-worth a point on the timeline). That's separate design work under
-KD-015, **not scoped here, and low priority** — see Open Questions.
+| Attention | **not** this threshold, should not be effected |
 
 ### 5. Kinesis Link animated peek — concrete rule
 
