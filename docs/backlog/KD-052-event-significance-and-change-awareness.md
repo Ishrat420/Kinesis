@@ -31,9 +31,15 @@ them as a quick follow-on to a now-finished ticket:
 **Phase 5 (Timeline / Year in Review) is deliberately not part of this
 ticket** — it already has its own ticket, **KD-015 ("Kinesis Year in
 Review / Timeline Highlights")**, which already names KD-048 as its
-dependency. KD-015 is a *consumer* of whatever this ticket builds
-(it curates by significance and date range), not a phase to redo here.
-See "Related" below for what should happen to KD-015 now.
+dependency. Timeline is a fundamentally different kind of surface from
+everything else this ticket scores: it's about showing progression over
+time — closer to a series of snapshots building up naturally as time
+passes than a ranked pick of a standout moment at read time — so it is
+**not** a Surface Score consumer the way the Kinesis Link peek or
+Dashboard are (see "Destination thresholds" below). It's its own,
+separately-scoped, **low-priority** design pass under KD-015, not a
+phase to redo here. See "Related" below for what should happen to
+KD-015 now.
 
 ## What already exists (confirmed by reading the code, not assumed)
 
@@ -308,9 +314,22 @@ never automatic drift, so none of them need one.
 |---|---|
 | History | none — HIGH, NORMAL and LOW all appear, unscored |
 | Kinesis Link animated peek | score >= 50 |
-| Timeline (KD-015) | score >= 65 |
 | Dashboard "meaningful changes" | score >= 80 |
+| Timeline (KD-015) | **not** this table — a different mechanism entirely, see below |
 | Attention | **not** this threshold — separate algorithm, TBD (see Open Questions) |
+
+**Timeline does not belong in this comparison at all**, and an earlier
+draft of this ticket wrongly gave it a threshold (score >= 65) as if it
+were just another consumer picking the single best recent event the
+way the peek and Dashboard do. It isn't. Timeline is about *progression
+over time* — closer to a series of snapshots building up naturally as
+time passes than a ranked pick of standout moments at read time.
+Surface Score answers "what's the one best thing to show right now";
+Timeline needs to answer "what does the shape of this record's history
+look like," which is a different question with a different mechanism
+(what gets captured as a snapshot, how often, what makes a span of time
+worth a point on the timeline). That's separate design work under
+KD-015, **not scoped here, and low priority** — see Open Questions.
 
 ### 5. Kinesis Link animated peek — concrete rule
 
@@ -396,13 +415,16 @@ Surface Score                                             90
 ```
 
 Without the dead zone this would have started from HIGH(70) and scored
-120 — comfortably clearing Dashboard. With it, it still clears the peek
-and Timeline thresholds (today's freshness and the dependency alone are
-enough), but the automatic penny-level tick no longer *automatically*
-qualifies as "meaningful" on its own — it takes a real dependency or
-timing coincidence to get there, not just existing. A genuinely large
-same-day swing on the same account still reaches HIGH and easily clears
-every threshold, as the first example above shows.
+120. With it, 90 still clears both the peek (>=50) and Dashboard (>=80)
+thresholds here — but only because it's fresh *and* depended-upon.
+Strip either of those away (the same accrual on an account nothing
+depends on) and it drops to 40+30+0+0 = 70: clears the peek, misses
+Dashboard. That's the dead zone doing its job — the automatic tick no
+longer qualifies as "meaningful" on its own tier alone; something else
+(a real dependency, good timing) has to carry it the rest of the way.
+A genuinely large same-day swing on the same account still starts from
+HIGH and clears every threshold easily, as the first example above
+shows.
 
 ## Phase 6 — Change Awareness & AI summaries (unscheduled)
 
@@ -442,11 +464,22 @@ Open Questions):
   polarity, two independent classifiers consulted together, or a
   Phase 6 concept that doesn't need Phase 4 to exist first at all? Not
   decided in KD-048's original text — needs deciding here.
+* **What is Timeline's own selection mechanism?** Now explicitly *not*
+  a Surface Score consumer (see "Destination thresholds" above) — it's
+  a progression/snapshot view, closer to "capture a point periodically
+  and let the shape build up over time" than "rank recent events and
+  pick a winner." What gets snapshotted, how often, and whether it
+  reuses Phase 4's significance classification at all is undesigned.
+  Belongs entirely to KD-015, **out of scope here, and low priority** —
+  not a blocker for anything in this ticket.
 * **AI summaries: scope this small, or wait for a concrete driver?**
-  KD-015 (Timeline) is the nearer, better-specified consumer; AI
-  summaries could reasonably wait until Timeline exists and its own
-  curated output proves out, rather than being built speculatively
-  ahead of a real UI that needs it.
+  KD-015 (Timeline) was originally assumed to be the nearer,
+  better-specified consumer to wait for, but it's now understood to be
+  its own low-priority design pass with an undecided mechanism (see
+  above) — so "wait for Timeline" is no longer obviously the shorter
+  wait. AI summaries could still reasonably wait for *some* concrete
+  consumer to prove curation out against, just not necessarily Timeline
+  specifically anymore.
 * **Should "Goal reopened" get its own event type** (`GOAL_REOPENED`,
   mirroring `GOAL_COMPLETED`), **or stay a classifier-side special case**
   on `STATUS_CHANGED`'s `oldValue`? Either works for scoring; a
@@ -468,12 +501,18 @@ Open Questions):
   currently `Idea` / tagged `Maturity Dependent`, `Foundation Dependent`,
   blocked on KD-048 existing. Since KD-048 Phases 1-3 are now Done, KD-015
   is unblocked for its *foundation* (real event data exists to build a
-  Timeline over) but still benefits from this ticket's significance
-  work for genuine curation ("meaningful highlights over raw counts," per
-  KD-015's own notes) rather than a Timeline that has to show everything
-  because nothing is scored yet. The Timeline threshold (score >= 65) is
-  proposed directly in this ticket's destination table. Worth revisiting
-  KD-015's own tags now rather than waiting for this ticket to fully close.
+  Timeline over). It's a looser relationship than originally drafted
+  here, though: Timeline is **not** a Surface Score consumer (see
+  "Destination thresholds" above — an earlier draft of this ticket
+  wrongly gave it a threshold) since it isn't picking a single best
+  event, it's building a progression/snapshot view over time. What this
+  ticket does still feed it is the significance *classification* itself
+  (Phase 4's per-event HIGH/NORMAL/LOW/IGNORE table) as one plausible
+  input to whatever snapshot mechanism KD-015 designs — not the scoring
+  or thresholds. KD-015 remains its own, separately-scoped, **low
+  priority** design pass; worth revisiting its tags now that KD-048's
+  foundation exists, but not worth pulling forward on the strength of
+  this ticket alone.
 * **Touches:** KD-042 (Kinesis Link Rich Preview Card, Done) and the
   Kinesis Link card's History peek (shipped since KD-042 closed) — the
   existing integration points Phase 4's scoring pass would filter for.
