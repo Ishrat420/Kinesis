@@ -120,6 +120,14 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     });
   });
 
+  it("renders GOAL_MILESTONE_REOPENED naming the milestone and its progress snapshot, generically otherwise", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Deposit saved" }))).toEqual({ title: 'Milestone "Deposit saved" is reopened', detail: null });
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: null }))).toEqual({ title: "Milestone reopened", detail: null });
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Deposit saved", newValue: "0/5" }))).toEqual({
+      title: 'Milestone "Deposit saved" is reopened', detail: "0 of 5 milestones completed",
+    });
+  });
+
   it("renders GOAL_MILESTONE_ADDED naming the milestone, with its due date when one was set", () => {
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_ADDED", fieldLabel: "Deposit saved" }))).toEqual({ title: "Milestone added", detail: "Deposit saved" });
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_ADDED", fieldLabel: "Deposit saved", newValue: "2030-06-01" }))).toEqual({

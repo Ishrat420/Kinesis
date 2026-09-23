@@ -353,10 +353,9 @@ export async function toggleMilestoneAction(id: string, milestoneId: string, com
   if (!owned) return { error: "This milestone no longer exists." };
   await prisma.$transaction(async (tx) => {
     const updated = await tx.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true, objectId: true } } } });
-    if (completed) {
-      const progress = await milestoneProgress(tx, id);
-      await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_COMPLETED", updated.name, progress);
-    }
+    const progress = await milestoneProgress(tx, id);
+    if (completed) await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_COMPLETED", updated.name, progress);
+    else await recordEvent(tx, user.id, updated.goal.objectId, "GOAL_MILESTONE_REOPENED", updated.name, progress);
   });
   refresh(id);
   return {};

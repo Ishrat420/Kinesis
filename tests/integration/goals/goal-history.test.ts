@@ -143,16 +143,19 @@ describe.sequential("a Goal's own history (KD-048)", () => {
     await expect(eventsOn(objectId)).resolves.toEqual([]);
   });
 
-  it("toggleMilestoneAction records GOAL_MILESTONE_COMPLETED naming the milestone and its progress, only when completing", async () => {
+  it("toggleMilestoneAction records GOAL_MILESTONE_COMPLETED/GOAL_MILESTONE_REOPENED naming the milestone and its progress, on each toggle", async () => {
     const objectId = await makeGoal("goal-milestone");
     await prisma.milestone.create({ data: { id: "milestone-1", goalId: "goal-milestone", name: "Save deposit", position: 0 } });
     await prisma.milestone.create({ data: { id: "milestone-2", goalId: "goal-milestone", name: "Sign lease", position: 1 } });
 
     await toggleMilestoneAction("goal-milestone", "milestone-1", true);
-    await expect(eventsOn(objectId)).resolves.toMatchObject([{ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Save deposit", newValue: "1/2" }]);
-
     await toggleMilestoneAction("goal-milestone", "milestone-1", false);
-    await expect(eventsOn(objectId)).resolves.toHaveLength(1); // reopening a milestone records nothing new
+
+    const events = await eventsOn(objectId);
+    expect(events).toMatchObject([
+      { eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Save deposit", newValue: "1/2" },
+      { eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Save deposit", newValue: "0/2" },
+    ]);
   });
 
   it("addMilestoneAction records GOAL_MILESTONE_ADDED naming the milestone, with its due date when one was set", async () => {

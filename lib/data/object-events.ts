@@ -208,12 +208,14 @@ export async function recordArchivedChanged(client: Client, userId: string, obje
 /**
  * A plain, mostly-dataless moment with no two-sided value to diff --
  * `ITEM_CREATED`, `GOAL_COMPLETED`, `GOAL_MILESTONE_COMPLETED`,
- * `GOAL_MILESTONE_ADDED`, `GOAL_MILESTONE_DELETED`, `TODO_COMPLETED`,
- * `TODO_REOPENED`, `DOCUMENT_EXPIRING_SOON`. `label` names the specific
- * thing for a type that needs one (a milestone's own name); omitted, the
- * line reads generically. `newValue` carries the one extra fact a moment
- * wants alongside its name -- `GOAL_MILESTONE_ADDED`'s own due date
- * (`formatDateInput`'d), `GOAL_MILESTONE_COMPLETED`/`GOAL_MILESTONE_DELETED`'s
+ * `GOAL_MILESTONE_REOPENED`, `GOAL_MILESTONE_ADDED`,
+ * `GOAL_MILESTONE_DELETED`, `TODO_COMPLETED`, `TODO_REOPENED`,
+ * `DOCUMENT_EXPIRING_SOON`. `label` names the specific thing for a type
+ * that needs one (a milestone's own name); omitted, the line reads
+ * generically. `newValue` carries the one extra fact a moment wants
+ * alongside its name -- `GOAL_MILESTONE_ADDED`'s own due date
+ * (`formatDateInput`'d), `GOAL_MILESTONE_COMPLETED`/
+ * `GOAL_MILESTONE_REOPENED`/`GOAL_MILESTONE_DELETED`'s
  * `"<completed>/<total>"` progress snapshot (read back by
  * `milestoneProgressText` below), or `DOCUMENT_EXPIRING_SOON`'s own expiry
  * date. `source` defaults to `USER` (this just happened, someone's own
@@ -227,7 +229,7 @@ export async function recordEvent(
   client: Client,
   userId: string,
   objectId: string,
-  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "GOAL_MILESTONE_ADDED" | "GOAL_MILESTONE_DELETED" | "TODO_COMPLETED" | "TODO_REOPENED" | "DOCUMENT_EXPIRING_SOON">,
+  eventType: Extract<ObjectEventType, "ITEM_CREATED" | "GOAL_COMPLETED" | "GOAL_MILESTONE_COMPLETED" | "GOAL_MILESTONE_REOPENED" | "GOAL_MILESTONE_ADDED" | "GOAL_MILESTONE_DELETED" | "TODO_COMPLETED" | "TODO_REOPENED" | "DOCUMENT_EXPIRING_SOON">,
   label?: string,
   newValue?: string,
   source: "USER" | "SYSTEM" = "USER",
@@ -388,6 +390,8 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return { title: "Document is expiring soon", detail: event.newValue ? `Expires ${formatDate(event.newValue, prefs.locale)}` : null };
     case "GOAL_MILESTONE_COMPLETED":
       return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed", detail: milestoneProgressText(event.newValue) };
+    case "GOAL_MILESTONE_REOPENED":
+      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" is reopened` : "Milestone reopened", detail: milestoneProgressText(event.newValue) };
     case "GOAL_MILESTONE_ADDED": {
       const name = event.fieldLabel ?? "Milestone";
       const due = event.newValue ? `Due ${formatDate(event.newValue, prefs.locale)}` : null;

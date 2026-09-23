@@ -404,6 +404,7 @@ enum ObjectEventType {
   TODO_COMPLETED
   TODO_REOPENED
   GOAL_MILESTONE_COMPLETED
+  GOAL_MILESTONE_REOPENED // the opposite of GOAL_MILESTONE_COMPLETED -- unchecking a milestone, not merely the absence of a completed event
   GOAL_MILESTONE_ADDED    // KD-051: a milestone's own History, so it shows up in its goal's Kinesis Link peek too
   GOAL_MILESTONE_UPDATED  // one row per changed attribute (name/value/dueDate), same shape as FIELD_CHANGED but scoped to a milestone
   GOAL_MILESTONE_DELETED
