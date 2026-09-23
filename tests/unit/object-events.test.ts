@@ -223,6 +223,21 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
       });
     });
 
+    describe("category (fieldKey \"category\", shared by Finance and Person)", () => {
+      it("reads as \"Category Changed\" rather than the generic lowercase phrasing", () => {
+        const line = describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "category", fieldLabel: "Category", oldValue: "Savings", newValue: "Investment" }));
+        expect(line).toEqual({
+          title: "Category Changed", detail: "From Savings · To Investment",
+          change: { from: "Savings", to: "Investment", direction: "flat" },
+        });
+      });
+
+      it("still falls back to \"set\"/\"removed\" when there's nothing to diff on one side", () => {
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "category", fieldLabel: "Category", oldValue: null, newValue: "Savings" }))).toEqual({ title: "Category set", detail: "To Savings" });
+        expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldKey: "category", fieldLabel: "Category", oldValue: "Savings", newValue: null }))).toEqual({ title: "Category removed", detail: "Was Savings" });
+      });
+    });
+
     describe("change.direction, for a renderer laying the two sides out as a diff", () => {
       it("reads down for a numeric decrease, up for a numeric increase", () => {
         expect(describeObjectEvent(event({ eventType: "FIELD_CHANGED", fieldLabel: "Count", oldValue: "10", newValue: "3" })).change).toEqual({ from: "10", to: "3", direction: "down" });

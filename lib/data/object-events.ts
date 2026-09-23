@@ -435,6 +435,13 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
  * the generic column name "Amount" -- set at write time so this renderer
  * can read "Savings Increased"/"Decreased" the same way a balance actually
  * moving reads to the owner, formatted as money rather than a bare number.
+ *
+ * `category` gets its own title too ("Category Changed" rather than the
+ * generic "Category changed") -- shared, deliberately, by both Finance's
+ * own `category` column and Person's, the only two named fields that ever
+ * write this literal `fieldKey`; a category is never a magnitude, so
+ * `direction` stays "flat" the same way `numericDirection` would already
+ * resolve it for non-numeric text.
  */
 function describeFieldChange(event: ObjectEvent, prefs: Pick<FormatPreferences, "locale" | "currency">): ObjectEventDescription {
   if (event.fieldKey === "amount" && event.fieldLabel && event.oldValue !== null && event.newValue !== null) {
@@ -445,6 +452,9 @@ function describeFieldChange(event: ObjectEvent, prefs: Pick<FormatPreferences, 
     const from = money(previous);
     const to = money(next);
     return { title: `${event.fieldLabel} ${direction}`, detail: `From ${from} · To ${to}`, change: { from, to, direction: next > previous ? "up" : "down" } };
+  }
+  if (event.fieldKey === "category" && event.oldValue !== null && event.newValue !== null) {
+    return { title: "Category Changed", detail: `From ${event.oldValue} · To ${event.newValue}`, change: { from: event.oldValue, to: event.newValue, direction: "flat" } };
   }
   const label = event.fieldLabel ?? "A field";
   if (event.oldValue === null) return { title: `${label} set`, detail: `To ${event.newValue}` };
