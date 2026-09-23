@@ -451,7 +451,7 @@ never automatic drift, so none of them need one.
 | History | none — HIGH, NORMAL and LOW all appear, unscored |
 | Recent Activity (Dashboard) | none — **not a Surface Score consumer, out of scope for this ticket.** Keeps showing every event, newest-first, exactly as it does today; recording all recent changes in order is its whole job, and priority scoring doesn't belong there. |
 | Kinesis Link animated peek | score >= 50 |
-| Attention | **not** this threshold, should not be effected |
+| Attention | **not** this threshold, should not be affected |
 
 ### 5. Kinesis Link animated peek — concrete rule
 
