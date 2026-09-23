@@ -103,7 +103,7 @@ Two, not one:
    calculator built on top of it are each one small, composable domain
    function, living in one place with a single source of truth — not
    duplicated per consumer, and not written just for the Kinesis Link
-   peek or Dashboard. Anything that later wants "is this event worth
+   peek. Anything that later wants "is this event worth
    surfacing" — a notification, an API, Timeline, something not built
    yet — calls the same function rather than re-implementing the
    policy. This ticket builds that function; it does not decide who
@@ -257,7 +257,7 @@ has its own event type). Completing or reviving a goal are genuinely
 notable, low-frequency moments. Archiving and deferring are quieter,
 more administrative, and can happen in a batch (a cleanup pass
 archiving several stale goals in one sitting) — scoring those HIGH
-would flood the peek/Dashboard's single-best-pick surfaces with
+would flood the peek's single-best-pick surface with
 competing archival noise the same way unconditional Finance balance
 scoring did before the magnitude dead zone, just from bulk human
 action instead of automatic system writes. It also cuts against
@@ -408,9 +408,10 @@ Finance items, recording an `ObjectEvent` for that just like a manual
 change (shipped ahead of this ticket). A daily accrual might move a
 balance by a few cents: an unconditional "Balance/Amount change = HIGH"
 means that tick scores HIGH(70) + same-day freshness(+30) = 100 on its
-own, clearing every destination threshold including Dashboard (>=80) —
-flooding "meaningful changes" with routine accrual noise on every
-account, every day.
+own, comfortably clearing the peek's >=50 threshold before Kinesis Link
+relevance or magnitude are even added — winning the single best-pick
+slot on every linked card, every day, and flooding it with routine
+accrual noise instead of an actually meaningful change.
 
 So for the two rows marked ¹ above specifically, magnitude **gates the
 base tier**, evaluated before the rest of Surface Score:
@@ -451,8 +452,8 @@ never automatic drift, so none of them need one.
 | Surface | Threshold |
 |---|---|
 | History | none — HIGH, NORMAL and LOW all appear, unscored |
+| Recent Activity (Dashboard) | none — **not a Surface Score consumer, out of scope for this ticket.** Keeps showing every event, newest-first, exactly as it does today; recording all recent changes in order is its whole job, and priority scoring doesn't belong there. |
 | Kinesis Link animated peek | score >= 50 |
-| Dashboard "meaningful changes" | score >= 80 |
 | Attention | **not** this threshold, should not be effected |
 
 ### 5. Kinesis Link animated peek — concrete rule
@@ -522,8 +523,7 @@ Related to                 +0
 Total                     50
 ```
 
-Barely eligible for a card peek (score exactly at the >= 50 threshold),
-nowhere near Dashboard-worthy (>= 80).
+Barely eligible for a card peek (score exactly at the >= 50 threshold).
 
 **Daily interest accrual, today, on a depended-upon savings account:**
 
@@ -539,15 +539,20 @@ Surface Score                                             90
 ```
 
 Without the dead zone this would have started from HIGH(70) and scored
-120. With it, 90 still clears both the peek (>=50) and Dashboard (>=80)
-thresholds here — but only because it's fresh *and* depended-upon.
-Strip either of those away (the same accrual on an account nothing
-depends on) and it drops to 40+30+0+0 = 70: clears the peek, misses
-Dashboard. That's the dead zone doing its job — the automatic tick no
-longer qualifies as "meaningful" on its own tier alone; something else
-(a real dependency, good timing) has to carry it the rest of the way.
-A genuinely large same-day swing on the same account still starts from
-HIGH and clears every threshold easily, as the first example above
+120 — clearing the peek's >=50 threshold on the base tier alone, before
+freshness or relevance even factor in. With the dead zone, this
+particular tick still clears the peek at 90, but only because it's
+fresh *and* depended-upon. Strip both of those away (the same accrual,
+on an account nothing depends on, outside the freshness window) and it
+drops to 40+0+0+0 = 40: below the peek's own >=50 threshold, so it
+doesn't clear at all. That's the dead zone doing its job — the
+automatic tick no longer qualifies as "meaningful" on its own tier
+alone; something else (a real dependency, good timing) has to carry it
+the rest of the way. Without the dead zone, that same stripped-down
+tick would still score a flat HIGH(70), clearing the peek regardless of
+freshness or relevance — exactly the routine noise the dead zone exists
+to prevent. A genuinely large same-day swing on the same account still
+starts from HIGH and clears the peek easily, as the first example above
 shows.
 
 ## Phase 5 — Change Awareness (unscheduled)
