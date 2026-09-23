@@ -189,11 +189,19 @@ frequency) stays unconditional, since none of them drift on their own.
 
 #### Goal
 
+Status is one `status` column with four values (Active, Revisit Later,
+Finished, Archived) — not a boolean `archived` flag the way Documents
+and Custom Items work. Moving *to* "Finished" already writes its own
+dedicated event (`GOAL_COMPLETED`), not a generic `STATUS_CHANGED` row
+— every other transition between the four values is `STATUS_CHANGED`,
+and not all of them deserve the same weight:
+
 | Change | Significance |
 |---|---|
-| Status changed | HIGH |
-| Completed | HIGH |
-| Reopened | HIGH |
+| Completed (-> Finished) | HIGH |
+| Reopened (any status -> Active) | HIGH |
+| Moved to Revisit Later | NORMAL |
+| Archived | NORMAL |
 | Target date changed | HIGH |
 | Milestone added | NORMAL |
 | Milestone updated | LOW |
@@ -202,16 +210,45 @@ frequency) stays unconditional, since none of them drift on their own.
 | Measurable target added | HIGH |
 | Measurable target updated (target value or current value) | HIGH |
 
+**Completed and Reopened are HIGH; Revisit Later and Archived are
+NORMAL, deliberately not the same tier**, even though three of the
+four are just `STATUS_CHANGED` rows underneath (only Completed already
+has its own event type). Completing or reviving a goal are genuinely
+notable, low-frequency moments. Archiving and deferring are quieter,
+more administrative, and can happen in a batch (a cleanup pass
+archiving several stale goals in one sitting) — scoring those HIGH
+would flood the peek/Dashboard's single-best-pick surfaces with
+competing archival noise the same way unconditional Finance balance
+scoring did before the magnitude dead zone, just from bulk human
+action instead of automatic system writes. It also cuts against
+KD-015's own stated principle to avoid framing inactivity negatively —
+an Archived goal doesn't need a HIGH spotlight moment.
+
 Implementation note: "Milestone added/updated/completed/deleted" map
 directly onto the `GOAL_MILESTONE_ADDED`/`UPDATED`/`COMPLETED`/`DELETED`
-event types. "Goal reopened" does **not** currently have a dedicated
-event type the way "Goal completed" does (`GOAL_COMPLETED`) — moving a
-goal *out* of "Finished" back to another status is today just a generic
-`STATUS_CHANGED` row. The classifier can special-case this (`STATUS_CHANGED`
-where `oldValue === "Finished"` scores HIGH like a reopen; every other
-`STATUS_CHANGED` transition falls through to a lower default) without a
-new event type or migration — flagged here so it isn't missed during
-implementation, not proposing a schema change.
+event types, and Completed maps onto the existing `GOAL_COMPLETED`
+type — none of those three need any new classifier logic, their event
+type alone already says HIGH/NORMAL/LOW as listed above. Reopened,
+Revisit Later, and Archived are the three that stay generic
+`STATUS_CHANGED` rows and need the classifier to inspect the value:
+
+```text
+eventType === "GOAL_COMPLETED"                        -> HIGH
+eventType === "STATUS_CHANGED":
+  newValue === "Active" && oldValue !== "Active"       -> HIGH   (Reopened)
+  newValue === "Revisit Later"                         -> NORMAL
+  newValue === "Archived"                              -> NORMAL
+```
+
+No new event type or migration needed for any of this. "Reopened"
+deliberately checks *any* prior status, not just `oldValue ===
+"Finished"` — Goals can move Archived -> Active or Revisit Later ->
+Active directly, and both should count as a reopen the same as
+un-finishing one. Whether Reopened is worth its **own dedicated event
+type** purely for nicer History/peek copy (the way `GOAL_COMPLETED`
+already exists) rather than staying this classifier-side
+`STATUS_CHANGED` special case is a separate, still-undecided question
+— see Open Questions.
 
 #### Kinesis Link relationship type
 
@@ -511,11 +548,13 @@ deterministic approach has been tried and found wanting, not before.
   decided in KD-048's original text — needs deciding here.
 * **Should "Goal reopened" get its own event type** (`GOAL_REOPENED`,
   mirroring `GOAL_COMPLETED`), **or stay a classifier-side special case**
-  on `STATUS_CHANGED`'s `oldValue`? Either works for scoring; a
-  dedicated type would also let History/the Kinesis Link peek render it
-  with its own copy instead of a generic "Status changed" line, the way
-  `GOAL_COMPLETED` already does for the opposite transition — worth
-  deciding at implementation time rather than here.
+  on `STATUS_CHANGED`'s values? Either works for scoring — the
+  significance is settled (HIGH, any prior status back to Active) —
+  this is purely about whether it's also worth nicer, dedicated
+  History/peek copy instead of a generic "Status changed" line, the
+  way `GOAL_COMPLETED` already gets for the opposite transition.
+  Genuinely undecided, not leaning either way yet — worth deciding at
+  implementation time rather than here.
 * **Magnitude thresholds and the freshness/relevance point values are
   the stated v1 defaults, explicitly called out as tunable later** — no
   further decision needed before implementation, just noting they are
