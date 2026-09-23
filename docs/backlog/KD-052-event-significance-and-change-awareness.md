@@ -520,7 +520,7 @@ Related to                 +0
 Total                     60
 ```
 
-Barely eligible for a card peek 
+Clears the card peek threshold with some room to spare (60 vs >= 50).
 
 **Daily interest accrual, today, on a depended-upon savings account:**
 
