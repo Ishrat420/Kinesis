@@ -81,10 +81,10 @@ different kind of surface and will be planned separately as part of KD-015.
   progress snapshot). Both are usable inputs to the classifier below
   with no further schema work.
 * **No "last viewed" concept exists anywhere** — no column, no table,
-  nothing tracks when an account last opened a given record. This
-  blocks the one Attention-facing idea KD-048 raised ("this changed
-  since you last looked"), and is explicitly out of scope for the
-  Surface Score below (see "Attention" in the destination thresholds).
+  nothing tracks when an account last opened a given record. This is
+  explicitly **out of scope for this ticket** — see "Deferred to a
+  future ticket" under Open Questions — not something Phase 4's
+  Surface Score depends on or blocks on.
 
 ## Phase 4 — Significance & surfacing (v1 design accepted)
 
@@ -582,13 +582,6 @@ deterministic approach has been tried and found wanting, not before.
 
 ## Open questions
 
-* **Where does "last viewed" tracking actually belong?** New table
-  keyed by `(userId, objectId)`, or something narrower? Which views
-  write it, and at what cost (a write on every detail-page load, across
-  every module, is a real amount of new traffic)? Still blocks Attention
-  using this scoring work at all — Attention deliberately does **not**
-  consume the Surface Score thresholds above and needs its own
-  algorithm once this exists.
 * **How does Phase 5's per-domain regression classifier relate to
   Phase 4's `classifyEventSignificance`?** Same function extended with
   polarity, two independent classifiers consulted together, or a
@@ -626,6 +619,15 @@ deterministic approach has been tried and found wanting, not before.
   combination — should drive its significance. That needs more thought
   than a quick table lookup and is being left for a future ticket
   rather than guessed at here.
+* **"Last viewed" tracking.** No column, no table, nothing tracks when
+  an account last opened a given record today. This would need a new
+  table keyed by `(userId, objectId)` or something narrower, a decision
+  on which views actually write it, and it adds a write on every
+  detail-page load across every module — a real amount of new traffic,
+  not a read-time classification like everything else in this ticket.
+  It's what would eventually let Attention distinguish "significant"
+  from "significant *and unseen by this user*," but that's its own
+  design problem — considered later on, not the scope for this ticket.
 
 ## Related
 
