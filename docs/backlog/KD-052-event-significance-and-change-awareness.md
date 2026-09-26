@@ -61,10 +61,22 @@ different kind of surface and will be planned separately as part of KD-015.
   diff" / per-type relationship icon work) already renders a single
   qualifying event nicely once one is chosen — Phase 4's job is
   *picking which one*, not building anywhere new to show it.
-  `lib/data/kinesis-links.ts`'s `getKinesisLinkRecentEvents` already
-  does the batched, single-most-recent-event lookup per linked object;
-  the Surface Score pass below is a filter/ranking step in front of
-  that query, not a new query shape.
+  **Correction from an earlier draft of this ticket:** it used to claim
+  `getKinesisLinkRecentEvents` (`lib/data/kinesis-links.ts:404-423`)
+  already does a "batched, single-most-recent-event lookup" that the
+  Surface Score pass could simply sit "in front of," as a filter/
+  ranking step, "not a new query shape." **That claim was checked
+  against the actual code and is wrong.** The query uses Prisma's
+  `distinct: ["objectId"]` combined with `orderBy: occurredAt: "desc"`
+  — for each linked object, the database keeps only the single newest
+  row and discards every other row *before the query even returns*.
+  There is no candidate set left for Surface Score to rank by the time
+  JavaScript sees the data — recency alone already picked the winner in
+  SQL. The Selection algorithm below ("get recent events, score them,
+  pick the highest, newest only as a tiebreak") genuinely cannot run
+  against this query as it exists today; see the implementation note
+  under "5. Kinesis Link animated peek" for what the query actually
+  needs to become.
 * **`describeObjectEvent` (`lib/data/object-events.ts`) is the one
   place that already knows every event type's shape** — a natural home
   for `classifyEventSignificance` to live *alongside*, the same way
@@ -561,6 +573,33 @@ through five events — the card briefly reveals the single best current
 change, then returns to the live preview, exactly as the existing peek
 animation already works (`KinesisLinkCard.tsx`'s `useHistorySneakPeek`);
 this ticket changes *which* event is picked, not the animation itself.
+
+**Implementation note: this requires a real query-shape change to
+`getKinesisLinkRecentEvents`, not just code sitting in front of it —
+see the corrected "What already exists" bullet above.** Today's query
+narrows to one row per linked object via Prisma's `distinct: ["objectId"]`
++ `orderBy: occurredAt: "desc"`, decided entirely in SQL before any
+scoring can run. That has to become:
+
+```text
+1. Drop `distinct`. Fetch every event per linked object within the
+   90-day eligibility window instead of a single pre-selected row
+   (with a sane per-object cap too, so one unusually chatty object
+   can't blow up the query).
+2. Group the results by objectId in application code.
+3. Within each group: classify -> gate (IGNORE excluded, LOW skipped)
+   -> score the remainder -> apply the destination's threshold ->
+   pick the highest score, newest as tiebreak (per the Selection
+   algorithm above).
+4. Return one winning event per objectId, same shape the function
+   returns today -- callers (KinesisLinkCard.tsx etc.) don't need to
+   change.
+```
+
+Still one query, still no schema or migration change — but it fetches
+a bounded *candidate set* per object instead of a single winner chosen
+by recency, which is what actually lets Surface Score do any ranking
+at all.
 
 ### Worked examples
 
