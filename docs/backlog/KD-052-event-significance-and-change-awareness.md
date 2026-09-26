@@ -278,8 +278,7 @@ frequency) stays unconditional, since none of them drift on their own.
 | Document number | NORMAL |
 | Country | NORMAL |
 | Link | IGNORE |
-| Kinesis Links (typed) | HIGH |
-| Custom Kinesis Links | NORMAL |
+| Kinesis Link changed | Per the universal Kinesis Link relationship type table below — not a Document-specific rule |
 | **Document entering its reminder window** (automatic, system-detected — already implemented as `DOCUMENT_EXPIRING_SOON`) | **HIGH** |
 | Archived (Active -> Archived) | HIGH |
 | Restored (Archived -> Active) | HIGH |
@@ -291,6 +290,17 @@ written, not just for Documents. This matches Goal's own Archived tier
 below (also HIGH, for its own reasoning specific to Goals and their
 Kinesis Links) — the two modules land on the same significance for
 different underlying reasons, not a coincidence worth flagging further.
+
+**Correction from an earlier draft of this ticket:** this table used to
+carry its own "Kinesis Links (typed) = HIGH / Custom Kinesis Links =
+NORMAL" rows, flattening every system relationship type into one tier.
+That directly contradicted the universal Kinesis Link relationship type
+table below (e.g. `Related to` is LOW there, `Supports`/`Alongside` are
+NORMAL, not HIGH) — the same event getting two different answers
+depending which table was consulted. Fixed to match the pattern Todo's
+section already established: no module re-decides link significance on
+its own, every `RELATIONSHIP_*` event goes through the one universal
+table regardless of which module it's attached to.
 
 #### Goal
 
