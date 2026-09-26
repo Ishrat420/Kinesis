@@ -109,6 +109,43 @@ Two, not one:
    policy. This ticket builds that function; it does not decide who
    ends up calling it, or how.
 
+   Concretely, that means five small named functions rather than one
+   monolith, each independently unit-testable:
+
+   ```text
+   classifyEventSignificance(event)               -> "high" | "normal" | "low" | "ignore"
+   calculateFreshnessScore(event, now)             -> number
+   calculateKinesisLinkRelevance(event, linkType)   -> number
+   calculateChangeMagnitude(event)                 -> number
+   calculateEventSurfaceScore(event, now, linkType) -> number   (thin composer over the four above)
+   ```
+
+   `calculateEventSurfaceScore` is the only one that composes the
+   others — it is not a fifth independent scoring rule, just the small
+   entry point that adds base significance + freshness + relevance +
+   magnitude together and is what callers actually invoke. Two notes
+   on the pieces themselves:
+
+   * **The magnitude dead zone means `classifyEventSignificance` and
+     `calculateChangeMagnitude` cannot compute the percentage change
+     independently of each other.** The dead zone (see "Magnitude"
+     below) isn't just a score bonus — it downgrades Balance/Amount's
+     *base tier* from HIGH to NORMAL below ~2% change, which means
+     `classifyEventSignificance` needs that same percentage number
+     `calculateChangeMagnitude` computes for its own `+0`-to-`+15`
+     bonus. Both should call one small shared helper (e.g.
+     `calculatePercentChange(event)`) rather than each computing the
+     percentage separately — duplicating that math risks the two
+     drifting out of sync later, and the gate has to be evaluated
+     *before* scoring, not folded into the score itself.
+   * **`calculateKinesisLinkRelevance`'s `event` parameter is unused
+     by the spec as written.** Relevance is driven purely by
+     `linkType` per the table below — nothing here varies it by
+     eventType or field. Kept in the signature for room to extend
+     later (e.g. relevance differing by event type), but as specified
+     today it wouldn't be read — worth a comment at the call site so
+     it doesn't look like a bug.
+
 ### 1. Base significance
 
 `classifyEventSignificance(event): "high" | "normal" | "low" | "ignore"`
@@ -354,6 +391,12 @@ Surface Score
 + Magnitude
 ```
 
+`calculateEventSurfaceScore` (see Design principles above) is this
+formula's thin composer — it doesn't recompute anything itself, just
+adds together what `classifyEventSignificance`, `calculateFreshnessScore`,
+`calculateKinesisLinkRelevance`, and `calculateChangeMagnitude` each
+already returned.
+
 Not every event needs all four components — Freshness and Kinesis Link
 relevance apply wherever the event has an age and is being viewed
 through a link; Magnitude only applies where Kinesis understands the
@@ -427,6 +470,13 @@ individually-uninteresting changes; every other HIGH row (interest
 rate, monthly payment, frequency, expiry date, milestone completed,
 etc.) is written by a deliberate action or a real boundary crossing,
 never automatic drift, so none of them need one.
+
+Implementation note: this is the one place `classifyEventSignificance`
+and `calculateChangeMagnitude` (see Design principles above) need the
+same number — the percentage change. Both should call one small shared
+helper (e.g. `calculatePercentChange(event)`) rather than computing it
+twice, and the gate above has to run *before* the rest of Surface Score
+is calculated, not as part of the magnitude score itself.
 
 ### 3. Selection algorithm
 
