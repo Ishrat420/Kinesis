@@ -478,6 +478,21 @@ helper (e.g. `calculatePercentChange(event)`) rather than computing it
 twice, and the gate above has to run *before* the rest of Surface Score
 is calculated, not as part of the magnitude score itself.
 
+**Edge case: `oldValue` of `0` or `null`.** `(new-old)/old` is
+undefined at zero — a Finance item created at balance 0 and then
+funded would otherwise divide by zero. `calculatePercentChange` should
+treat a `0`/`null` `oldValue` as automatically the maximal magnitude
+bucket (`>25%`) rather than computing a real percentage: going from
+nothing to a real value is never a dead-zone tick, so the base tier
+should stay HIGH unconditionally, the same outcome a huge percentage
+would have produced anyway. **One exception: `0 -> 0` is not a real
+change and should not be treated as maximal** — if `newValue` also
+equals `0` (or equals `oldValue` generally), there's nothing to score
+in the first place. In practice this case likely never reaches the
+classifier at all (a no-op diff shouldn't produce a `FIELD_CHANGED`
+event to begin with), but `calculatePercentChange` should guard it
+explicitly rather than rely on that upstream assumption always holding.
+
 ### 3. Selection algorithm
 
 ```text
