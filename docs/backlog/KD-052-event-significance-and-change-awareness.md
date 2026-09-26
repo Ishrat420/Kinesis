@@ -352,8 +352,9 @@ types, and Goal-level Completed maps onto the existing `GOAL_COMPLETED`
 type — none of those five need any new classifier logic, their event
 type alone already says HIGH/NORMAL/LOW as listed above
 (`GOAL_MILESTONE_REOPENED` is already implemented and always HIGH,
-unconditionally). Goal-level status changes are simpler than the table
-above might suggest, now that every value lands on HIGH:
+unconditionally). For *significance* alone, Goal-level status changes
+don't strictly need any new event type — every value lands on HIGH
+regardless:
 
 ```text
 eventType === "GOAL_COMPLETED"     -> HIGH
@@ -362,17 +363,29 @@ eventType === "STATUS_CHANGED"     -> HIGH   (unconditional — every Goal
                                                no value inspection needed)
 ```
 
-No new event type or migration needed for any of this — significance no
-longer depends on *which* status a Goal moved to or from, only that it
-moved. That said, "Reopened" (any status -> Active) is still worth
-distinguishing at the *rendering* layer even though it no longer
-matters for scoring: Goals can move Archived -> Active or Revisit Later
--> Active directly, and both read naturally as "reopened" rather than a
-generic "Status changed" line. Whether Reopened is worth its **own dedicated event
-type** purely for nicer History/peek copy (the way `GOAL_COMPLETED`
-already exists) rather than staying this classifier-side
-`STATUS_CHANGED` special case is a separate, still-undecided question
-— see Open Questions.
+**Decided (previously an open question): add a dedicated
+`GOAL_REOPENED` event type**, mirroring `GOAL_COMPLETED`'s existing
+carve-out from generic `STATUS_CHANGED`. Not for scoring — Reopened is
+already HIGH either way — but for the same reason `GOAL_COMPLETED`
+already exists: nicer, dedicated History/peek copy ("Goal reopened")
+instead of a generic "Status changed" line, and cleaner event
+semantics for anything reading the history later. Goals can move
+Archived -> Active or Revisit Later -> Active directly, and both should
+write `GOAL_REOPENED` the same way un-finishing one does. Once
+implemented, the pseudocode becomes:
+
+```text
+eventType === "GOAL_COMPLETED"   -> HIGH
+eventType === "GOAL_REOPENED"    -> HIGH
+eventType === "STATUS_CHANGED"   -> HIGH   (unconditional — only Revisit
+                                              Later / Archived still take
+                                              this generic path)
+```
+
+This is a decided design choice, **not yet implemented** — it needs the
+same schema migration + `recordEvent` + `describeObjectEvent` wiring
+already used for `GOAL_MILESTONE_REOPENED` this session, applied to the
+Goal-level transition instead of the Milestone-level one.
 
 #### Todo
 
@@ -702,7 +715,7 @@ shows.
 Still deterministic, still unscheduled and unscoped beyond KD-048's
 original one-paragraph mention. Unaffected by this update — Surface
 Score is a *volume/relevance* ranking, not a *good/bad* judgment, and
-this stays independent of it (see Open Questions):
+this stays independent of it:
 
 * **Per-domain regression detection** — e.g. "insurance expires earlier
   than before," a metric trending the wrong way. This is a step beyond
@@ -711,11 +724,23 @@ this stays independent of it (see Open Questions):
   fact — a date moving earlier is a regression for an expiry, an
   improvement for a savings target. That polarity knowledge is
   domain-specific and would need its own classifier layered on top of
-  the event stream (and on top of, or alongside, `classifyEventSignificance`
-  — their relationship needs deciding, see Open Questions), not
-  something the event itself can encode generically. This is a
-  deterministic classifier, same spirit as everything else in this
-  ticket — no model involved.
+  the event stream, not something the event itself can encode
+  generically. This is a deterministic classifier, same spirit as
+  everything else in this ticket — no model involved.
+
+**Decided (previously an open question): Phase 5's regression
+classifier stays a fully separate function from `classifyEventSignificance`,
+not merged or extended with polarity.** They answer orthogonal
+questions — significance asks "how meaningful was this event?", Change
+Awareness asks "was this good, bad, or neutral for this specific
+field?" — and the two vary independently: a savings balance increase is
+HIGH *and* positive, a debt balance increase is HIGH *and* negative, a
+name change is LOW *and* neutral. Significance doesn't predict polarity,
+so folding polarity into `classifyEventSignificance` would just be
+adding an unrelated concern to a function that's supposed to do one
+thing. Phase 5, whenever it's scheduled, calls `classifyEventSignificance`
+as an input alongside its own polarity classifier — two small
+functions consulted together, not one merged one.
 
 **AI is deliberately out of this ticket entirely, not just deprioritized
 within it.** AI-narrated summaries used to be bundled into this phase;
@@ -729,24 +754,19 @@ deterministic approach has been tried and found wanting, not before.
 
 ## Open questions
 
-* **How does Phase 5's per-domain regression classifier relate to
-  Phase 4's `classifyEventSignificance`?** Same function extended with
-  polarity, two independent classifiers consulted together, or a
-  Phase 5 concept that doesn't need Phase 4 to exist first at all? Not
-  decided in KD-048's original text — needs deciding here.
-* **Should "Goal reopened" get its own event type** (`GOAL_REOPENED`,
-  mirroring `GOAL_COMPLETED`), **or stay a classifier-side special case**
-  on `STATUS_CHANGED`'s values? Either works for scoring — the
-  significance is settled (HIGH, any prior status back to Active) —
-  this is purely about whether it's also worth nicer, dedicated
-  History/peek copy instead of a generic "Status changed" line, the
-  way `GOAL_COMPLETED` already gets for the opposite transition.
-  Genuinely undecided, not leaning either way yet — worth deciding at
-  implementation time rather than here.
+Two of this section's original three questions are now resolved rather
+than carried forward — see "Phase 5 — Change Awareness" above for the
+`classifyEventSignificance` relationship (kept as two separate
+functions) and "Goal" above for `GOAL_REOPENED` (decided: add it). What
+remains genuinely open:
+
 * **Magnitude thresholds and the freshness/relevance point values are
-  the stated v1 defaults, explicitly called out as tunable later** — no
-  further decision needed before implementation, just noting they are
-  not meant to be treated as final forever.
+  the stated v1 defaults, explicitly called out as tunable later** —
+  reconfirmed, not just carried forward by default: these are empirical
+  product-policy numbers, better tuned against real dogfooding data
+  than over-designed in advance. No further decision needed before
+  implementation, just noting they are not meant to be treated as final
+  forever.
 
 **Deferred to a future ticket, not yet planned:**
 
