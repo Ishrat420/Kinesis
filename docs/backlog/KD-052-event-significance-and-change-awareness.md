@@ -127,7 +127,7 @@ Two, not one:
    ```text
    classifyEventSignificance(event)               -> "high" | "normal" | "low" | "ignore"
    calculateFreshnessScore(event, now)             -> number
-   calculateKinesisLinkRelevance(event, linkType)   -> number
+   calculateKinesisLinkRelevance(linkType)          -> number
    calculateChangeMagnitude(event)                 -> number
    calculateEventSurfaceScore(event, now, linkType) -> number   (thin composer over the four above)
    ```
@@ -150,13 +150,18 @@ Two, not one:
      percentage separately — duplicating that math risks the two
      drifting out of sync later, and the gate has to be evaluated
      *before* scoring, not folded into the score itself.
-   * **`calculateKinesisLinkRelevance`'s `event` parameter is unused
-     by the spec as written.** Relevance is driven purely by
-     `linkType` per the table below — nothing here varies it by
-     eventType or field. Kept in the signature for room to extend
-     later (e.g. relevance differing by event type), but as specified
-     today it wouldn't be read — worth a comment at the call site so
-     it doesn't look like a bug.
+   * **`calculateKinesisLinkRelevance` takes only `linkType`, not
+     `event`.** An earlier draft of this ticket kept an unused `event`
+     parameter "for room to extend later" — reconsidered: relevance is
+     driven purely by `linkType` per the table below, nothing today
+     varies it by eventType or field, and an unused parameter is more
+     lint noise (an unused-parameter warning, a `_event` rename, or a
+     disable comment) than it's worth carrying speculatively. If a
+     concrete need for event-varying relevance shows up later, adding
+     a second parameter to a small pure function is a cheap, low-risk
+     change at that point — same as how `recordEvent`'s own signature
+     has grown twice already this session, each time for an actual
+     need, not in advance of one.
 
 ### 1. Base significance
 
