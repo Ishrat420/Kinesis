@@ -1,6 +1,6 @@
 # KD-052 — Event Significance, Surfacing & Change Awareness
 
-**Status:** Accepted
+**Status:** In Progress
 **Priority:** Low
 **Tags:** Architecture, UX / UI, Data Model
 
@@ -99,6 +99,57 @@ different kind of surface and will be planned separately as part of KD-015.
   Surface Score depends on or blocks on.
 
 ## Phase 4 — Significance & surfacing (v1 design accepted)
+
+**Implemented.** `classifyEventSignificance` and `calculatePercentChange`
+live in `lib/data/object-events.ts`; `calculateFreshnessScore`,
+`calculateKinesisLinkRelevance`, `calculateChangeMagnitude`, and
+`calculateEventSurfaceScore` in the new `lib/data/surface-score.ts`.
+`getKinesisLinkRecentEvents` (`lib/data/kinesis-links.ts`) is rewritten
+per the query-shape correction above, and its three call sites
+(Documents/Goals/Custom Items detail pages) now pass each linked
+object's relationship type alongside its id. `getObjectEvents`
+(`lib/data/object-event-history.ts`) now excludes IGNORE-tier events;
+`getRecentActivity` is untouched, as decided. Tests:
+`tests/unit/significance.test.ts`, `tests/unit/surface-score.test.ts`,
+and a rewritten `tests/integration/kinesis-links/recent-events.test.ts`.
+
+Three small decisions came up during implementation that this doc
+didn't already settle, resolved in code and noted here rather than
+left silent:
+
+* **Person's `name` field is LOW, not the NORMAL this doc stated as
+  interim.** `classifyEventSignificance` is driven by `eventType` +
+  `fieldKey` alone (this doc's own stated design), with no way to see
+  which module wrote a `FIELD_CHANGED` event — so it cannot treat one
+  module's `name` differently from another's. Every other module
+  writing this literal key (Document, Finance, Todo, Custom Item)
+  already means LOW; Person's own interim NORMAL would have required
+  module-awareness this function doesn't have and this doc never asked
+  for, so `name` was aligned with the existing universal convention
+  instead. Person's own `icon`/`color` are unaffected -- neither
+  collides with another module's fieldKey, so both still get the
+  NORMAL ad-hoc default as written. Custom Item's `dueDate` (also
+  colliding with Todo's own HIGH `dueDate`) genuinely needs to differ
+  by module — the classifier does check `objectType` for that one key
+  specifically, since NORMAL vs HIGH there is a real, intended
+  difference this doc already asked for, not an accident of a shared
+  literal key.
+* **`ITEM_DELETED` gets a NORMAL interim default.** Not addressed by
+  any table in this ticket -- an omission surfaced only while writing
+  the classifier's dispatch, not a decision made in advance. NORMAL is
+  the same default this doc already uses everywhere else it doesn't
+  have a specific answer.
+* **Goal's `unit` field is folded into the same HIGH tier as target
+  value/current value.** The Goal table names "target value or current
+  value" for Measurable target updated but doesn't mention `unit`
+  explicitly, even though it's a third, closely related attribute of
+  the same measurable target. Treated as HIGH by association rather
+  than left to its own undocumented default.
+
+`GOAL_REOPENED` (decided in the Goal section above, under "Open
+questions") is **not** implemented as part of this pass -- it's a
+separate schema/write-path change, not part of Phase 4's classifier or
+scoring work, and stays its own follow-up.
 
 ### Design principles
 

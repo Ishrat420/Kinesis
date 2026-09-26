@@ -1,3 +1,4 @@
+import type { ObjectRelationshipType } from "@prisma/client";
 import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
 import { KINESIS_LINK_TARGET_TYPES, kinesisLinkTargetOrder, type KinesisLinkOption, type KinesisLinkTargetType } from "@/lib/custom-fields/types";
@@ -7,6 +8,7 @@ import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { formatDateInput } from "@/lib/dates";
 import { displayNumber } from "@/lib/goals/format";
 import { describeObjectEvent, type ObjectEventDescription } from "./object-events";
+import { calculateEventSurfaceScore } from "./surface-score";
 
 /** One configured preview field, already resolved and formatted, ready to render. */
 export type KinesisLinkPreviewStat = { label: string; kind: DisplayKind; value: string };
@@ -390,34 +392,103 @@ export async function getKinesisLinkPreviews(objectIds: string[]): Promise<Recor
 export type KinesisLinkRecentEvent = ObjectEventDescription & { occurredAt: string };
 
 /**
- * The single most recent `ObjectEvent` for each of a batch of linked
- * objects, in one query -- Prisma's own `distinct` maps to Postgres's
- * `DISTINCT ON` for this connector, so this is exactly as batched and
- * narrow as `getKinesisLinkPreviews` above (ADR-013), not one query per
- * card. `orderBy` names `objectId` first only because Prisma requires the
- * `distinct` field(s) to lead the sort; `occurredAt desc` is what actually
- * picks the row kept for each id.
- *
- * An id with no key in the returned record has no history at all yet --
- * its card shows no sneak peek rather than an empty one.
+ * One linked object this function is asked to consider, and the type of the
+ * Kinesis Link reaching it -- `linkType` is `null` for an object reached
+ * only through a legacy template-defined Kinesis Link field (KD-050) rather
+ * than a real `ObjectRelationship`; there's no relationship type to look up
+ * there, so it gets no relevance boost (`calculateKinesisLinkRelevance`
+ * already treats `null` that way).
  */
-export async function getKinesisLinkRecentEvents(objectIds: string[]): Promise<Record<string, KinesisLinkRecentEvent>> {
-  if (!objectIds.length) return {};
+export type KinesisLinkRecentEventTarget = { objectId: string; linkType: ObjectRelationshipType | null };
+
+/** A sane per-object bound on how many recent candidate events `getKinesisLinkRecentEvents` scores, so one unusually chatty linked object can't blow up the query. */
+const RECENT_EVENTS_PER_OBJECT_CAP = 50;
+
+/** KD-052's own 90-day eligibility window -- matches `calculateEventSurfaceScore`'s own cutoff, fetched here as well so the query doesn't pull events that could never qualify anyway. */
+const RECENT_EVENTS_WINDOW_DAYS = 90;
+
+/** KD-052's Kinesis Link animated peek threshold -- the only Surface Score consumer this ticket wires up. */
+const PEEK_SURFACE_SCORE_THRESHOLD = 50;
+
+/**
+ * The highest-scoring recent `ObjectEvent` for each of a batch of linked
+ * objects (KD-052 Phase 4) -- classify -> gate (IGNORE excluded, LOW
+ * skipped) -> score -> threshold -> pick the highest Surface Score, newest
+ * as a tiebreak, per event stream. **Not** a single-most-recent-row lookup
+ * (an earlier version of this function was, via Prisma's `distinct`, which
+ * left no candidate set for Surface Score to rank at all -- see KD-052's
+ * corrected "What already exists" bullet) -- this fetches every event
+ * within the 90-day eligibility window per linked object instead, still one
+ * query, still batched the same way `getKinesisLinkPreviews` above is
+ * (ADR-013).
+ *
+ * An id with no key in the returned record has no history at all yet, or
+ * nothing recent enough clears the peek's own threshold -- its card shows
+ * no sneak peek rather than an empty one, same as before.
+ */
+export async function getKinesisLinkRecentEvents(targets: KinesisLinkRecentEventTarget[]): Promise<Record<string, KinesisLinkRecentEvent>> {
+  if (!targets.length) return {};
+
+  const objectIds = [...new Set(targets.map((target) => target.objectId))];
+  // A `Map`, not a plain merge -- the last entry for a given id wins if it's
+  // somehow named more than once (an object reachable both through a real
+  // Kinesis Link and a legacy template field, say), which is an acceptable,
+  // uncommon edge case rather than one worth extra plumbing to resolve.
+  const linkTypeByObjectId = new Map(targets.map((target) => [target.objectId, target.linkType]));
 
   const user = await requireKinesisUser();
-  const [events, prefs] = await Promise.all([
+  // `getToday()`, not `new Date()` directly -- the same "now" reference
+  // `getKinesisLinkPreviews` above already reads, and the one integration
+  // tests already know how to mock deterministically (see other callers of
+  // `lib/format/server`'s `getToday`), so scores here don't drift as real
+  // wall-clock time passes between when a test's fixture dates were chosen
+  // and when the test actually runs.
+  const now = await getToday();
+  const windowStart = new Date(now.getTime() - RECENT_EVENTS_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const [events, prefs, objects] = await Promise.all([
     prisma.objectEvent.findMany({
-      where: { objectId: { in: objectIds }, userId: user.id },
-      distinct: ["objectId"],
+      where: { objectId: { in: objectIds }, userId: user.id, occurredAt: { gte: windowStart } },
+      // `objectId` first only so each linked object's own events arrive
+      // grouped together; `occurredAt desc` within that is what lets the
+      // per-object cap below keep the newest ones and the scoring loop
+      // find the newest tie-break candidate first.
       orderBy: [{ objectId: "asc" }, { occurredAt: "desc" }],
     }),
     getFormatPreferences(),
+    prisma.object.findMany({ where: { id: { in: objectIds } }, select: { id: true, type: true } }),
   ]);
+  const objectTypeById = new Map(objects.map((object) => [object.id, object.type]));
+
+  const candidatesByObjectId = new Map<string, typeof events>();
+  for (const event of events) {
+    const candidates = candidatesByObjectId.get(event.objectId);
+    if (!candidates) candidatesByObjectId.set(event.objectId, [event]);
+    else if (candidates.length < RECENT_EVENTS_PER_OBJECT_CAP) candidates.push(event);
+  }
 
   const result: Record<string, KinesisLinkRecentEvent> = {};
-  for (const event of events) {
-    const { title, detail, change } = describeObjectEvent(event, prefs);
-    result[event.objectId] = { title, detail, change, occurredAt: event.occurredAt.toISOString() };
+  for (const [objectId, candidates] of candidatesByObjectId) {
+    const objectType = objectTypeById.get(objectId);
+    if (!objectType) continue;
+    const linkType = linkTypeByObjectId.get(objectId) ?? null;
+
+    // `candidates` is already newest-first, so keeping the winner only on a
+    // *strictly* higher score (never `>=`) means a tie keeps whichever one
+    // was found first -- the newest -- without a separate date comparison.
+    let winner: (typeof candidates)[number] | null = null;
+    let winnerScore = -Infinity;
+    for (const candidate of candidates) {
+      const score = calculateEventSurfaceScore({ ...candidate, objectType }, now, linkType);
+      if (score === null || score < PEEK_SURFACE_SCORE_THRESHOLD) continue;
+      if (score > winnerScore) {
+        winner = candidate;
+        winnerScore = score;
+      }
+    }
+    if (!winner) continue;
+
+    const { title, detail, change } = describeObjectEvent(winner, prefs);
+    result[objectId] = { title, detail, change, occurredAt: winner.occurredAt.toISOString() };
   }
   return result;
 }

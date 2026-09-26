@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { requireKinesisUser } from "@/lib/auth";
-import { describeObjectEvent } from "./object-events";
+import { classifyEventSignificance, describeObjectEvent } from "./object-events";
 import { locateObject, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 import { getFormatPreferences } from "@/lib/format/server";
 
@@ -22,8 +22,14 @@ export type ObjectEventEntry = {
 };
 
 /**
- * An Object's own history, newest first (KD-048 Phase 1) -- unfiltered and
- * unscored for now (no `classifyEventSignificance` yet; Phase 4).
+ * An Object's own history, newest first (KD-048 Phase 1) -- unscored
+ * (HIGH/NORMAL/LOW all appear the same way, no ranking), but not entirely
+ * unfiltered any more: KD-052 Phase 4's IGNORE tier (a Document's Reminder
+ * lead time, Issue date, or raw Link -- fields nobody needs a History line
+ * for) is excluded here, the one place this ticket actually changes
+ * existing behavior rather than just adding a new consumer. `getRecentActivity`
+ * below stays fully unfiltered on purpose -- it is explicitly not a Surface
+ * Score consumer (KD-052's own "Destination thresholds").
  */
 export async function getObjectEvents(objectId: string): Promise<ObjectEventEntry[]> {
   const user = await requireKinesisUser();
@@ -31,10 +37,13 @@ export async function getObjectEvents(objectId: string): Promise<ObjectEventEntr
     prisma.objectEvent.findMany({
       where: { objectId, userId: user.id },
       orderBy: { occurredAt: "desc" },
+      include: { object: { select: { type: true } } },
     }),
     getFormatPreferences(),
   ]);
-  return events.map((event) => ({ id: event.id, ...describeObjectEvent(event, prefs), occurredAt: event.occurredAt }));
+  return events
+    .filter((event) => classifyEventSignificance({ ...event, objectType: event.object.type }) !== "ignore")
+    .map((event) => ({ id: event.id, ...describeObjectEvent(event, prefs), occurredAt: event.occurredAt }));
 }
 
 /** One `getRecentActivity` row -- an `ObjectEvent`'s own title/detail, plus where it happened. */

@@ -31,7 +31,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
   const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
   // Only the targets actually linked here need a sneak peek, unlike
   // `previews` above which also has to cover the picker's own candidates.
-  const recentEvents = await getKinesisLinkRecentEvents(kinesisLinks.map((link) => link.target.objectId));
+  const recentEvents = await getKinesisLinkRecentEvents(kinesisLinks.map((link) => ({ objectId: link.target.objectId, linkType: link.type })));
 
   return <ModuleContent><DocumentDetailRecord document={{
     id: document.id, name: document.name, type: document.type, status: document.status, archived: document.archived,

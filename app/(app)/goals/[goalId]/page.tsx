@@ -52,7 +52,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
   const previews = await getKinesisLinkPreviews(linkOptions.map((option) => option.objectId));
   // Only the targets actually linked here need a sneak peek, unlike
   // `previews` above which also has to cover the picker's own candidates.
-  const recentEvents = await getKinesisLinkRecentEvents(kinesisLinks.map((link) => link.target.objectId));
+  const recentEvents = await getKinesisLinkRecentEvents(kinesisLinks.map((link) => ({ objectId: link.target.objectId, linkType: link.type })));
 
   return <ModuleContent>
     <div className="flex flex-wrap items-center justify-between gap-4"><div><BackLink href="/goals">All goals</BackLink><div className="mt-3"><Breadcrumbs items={[{ label: "Goals", href: "/goals" }, { label: goal.name }]} /></div></div><div className="flex gap-3"><GoalStatusSelect key={goal.status} status={goal.status} action={statusAction} /><form action={deleteGoalAction.bind(null, goal.id)}><button className="flex h-11 items-center gap-2 rounded-xl border-[1.5px] border-red-200 bg-white px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50"><Trash2 className="h-4 w-4"/> Delete</button></form></div></div>

@@ -174,11 +174,10 @@ KD-051-relationship-connection-history
 
 ## ✓ Accepted
 
-KD-052-event-significance-and-change-awareness
-
 ## 🚧 In Progress
 
 KD-023-universal-object-connection
+KD-052-event-significance-and-change-awareness
 
 ## Accepted — Needs Planning
 

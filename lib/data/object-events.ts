@@ -1,4 +1,4 @@
-import type { ObjectEvent, ObjectEventType, ObjectRelationshipType, Prisma } from "@prisma/client";
+import type { KinesisObjectType, ObjectEvent, ObjectEventType, ObjectRelationshipType, Prisma } from "@prisma/client";
 import type { prisma } from "./prisma";
 import { kinesisLinkLabel, relationshipIconKey, type RelationshipIconKey } from "@/lib/objects/relationship-labels";
 import { formatDate } from "@/lib/dates";
@@ -464,4 +464,140 @@ function describeFieldChange(event: ObjectEvent, prefs: Pick<FormatPreferences, 
     detail: `From ${event.oldValue} · To ${event.newValue}`,
     change: { from: event.oldValue, to: event.newValue, direction: numericDirection(event.oldValue, event.newValue) },
   };
+}
+
+/** KD-052 Phase 4 -- `classifyEventSignificance`'s own four-tier scale. */
+export type Significance = "high" | "normal" | "low" | "ignore";
+
+/**
+ * The minimal shape `classifyEventSignificance` needs: every `ObjectEvent`
+ * column it reads, plus one piece of context the event row itself doesn't
+ * carry -- which module wrote it. Needed only to disambiguate the two
+ * fieldKeys that mean genuinely different things depending on the module;
+ * see the doc comment on `classifyEventSignificance` itself below.
+ */
+export type ClassifiableEvent = Pick<
+  ObjectEvent,
+  "eventType" | "fieldKey" | "oldValue" | "newValue" | "newRelationshipType" | "oldRelationshipType"
+> & { objectType: KinesisObjectType };
+
+/**
+ * KD-052's magnitude dead zone needs the same percentage-change number
+ * `classifyEventSignificance` (for the base-tier gate) and
+ * `calculateChangeMagnitude` (`lib/data/surface-score.ts`, for the score
+ * bonus) both depend on -- shared here rather than each computing it
+ * separately, so the two can't drift out of sync. `oldValue` of `0`/`null`
+ * is treated as automatically the maximal magnitude (going from nothing to
+ * a real value is never a dead-zone tick), except `0 -> 0`, which is not a
+ * real change and has nothing to score in the first place.
+ */
+export function calculatePercentChange(event: { oldValue: string | null; newValue: string | null }): number {
+  const previous = event.oldValue !== null ? Number(event.oldValue) : 0;
+  const next = event.newValue !== null ? Number(event.newValue) : 0;
+  if (previous === 0) return next === 0 ? 0 : Infinity;
+  return Math.abs((next - previous) / previous) * 100;
+}
+
+/** Finance's `amount` field only -- the magnitude dead zone (KD-052): under ~2% change downgrades HIGH to NORMAL regardless of the significance table. */
+function classifyAmountChange(event: { oldValue: string | null; newValue: string | null }): Significance {
+  return calculatePercentChange(event) < 2 ? "normal" : "high";
+}
+
+/** The `RELATIONSHIP_ADDED`/`REMOVED` significance table (KD-052) -- driven purely by the link's own canonical type, forward or inverse reading alike (both directions of the same enum value always land on the same tier). */
+function classifyRelationshipType(type: ObjectRelationshipType | null): Significance {
+  switch (type) {
+    case "BLOCKS":
+    case "DEPENDS_ON":
+      return "high";
+    case "RELATES_TO":
+      return "low";
+    case "SUPPORTS":
+    case "ALONGSIDE":
+    case "CUSTOM":
+    default:
+      return "normal";
+  }
+}
+
+/** IGNORE stops immediately -- never shown, not even in plain History (KD-052). */
+const IGNORED_FIELD_KEYS = new Set(["prompt", "issueDate", "link"]);
+const LOW_FIELD_KEYS = new Set(["notes"]);
+const NORMAL_FIELD_KEYS = new Set(["category", "documentNumber", "country", "startDate", "endDate", "icon", "color"]);
+const HIGH_FIELD_KEYS = new Set(["expiryDate", "rate", "monthlyContribution", "frequency", "targetDate", "targetValue", "currentValue", "unit"]);
+
+/**
+ * The `FIELD_CHANGED` significance table (KD-052), keyed by `fieldKey`.
+ * Two keys need `objectType` to disambiguate, since the same literal key
+ * means something different depending on the module and `FIELD_CHANGED`'s
+ * own stored fields don't say which one wrote it:
+ *
+ * - `dueDate` is HIGH for Todo, NORMAL (interim) for a Custom Item.
+ * - `name` is LOW unconditionally, overriding KD-052's own stated "Person's
+ *   name = NORMAL (interim)": every other module that writes this literal
+ *   key (Document, Finance, Todo, Custom Item) already means LOW by it, and
+ *   nothing about a Person's own name makes it a different kind of change
+ *   -- `classifyEventSignificance` has no way to treat one module's `name`
+ *   differently from another's without also distinguishing by module for
+ *   every other shared key, which the ticket never asked for. Person's own
+ *   `icon`/`color` still get the NORMAL ad-hoc default below; neither
+ *   collides with another module's convention.
+ *
+ * Anything not named here (an ad-hoc `ObjectField`'s own opaque id, or a
+ * Custom Module template field) falls through to the NORMAL default KD-052
+ * states for "a field I don't recognize."
+ */
+function classifyFieldChanged(event: ClassifiableEvent): Significance {
+  const { fieldKey, objectType } = event;
+  if (fieldKey === null) return "normal";
+  if (fieldKey === "name") return "low";
+  if (fieldKey === "dueDate") return objectType === "TODO" ? "high" : "normal";
+  if (fieldKey === "amount") return classifyAmountChange(event);
+  if (IGNORED_FIELD_KEYS.has(fieldKey)) return "ignore";
+  if (HIGH_FIELD_KEYS.has(fieldKey)) return "high";
+  if (LOW_FIELD_KEYS.has(fieldKey)) return "low";
+  if (NORMAL_FIELD_KEYS.has(fieldKey)) return "normal";
+  return "normal";
+}
+
+/**
+ * KD-052 Phase 4 -- how meaningful is this event, on its own, regardless of
+ * where (or whether) it's shown? A small, pure, read-time function, not a
+ * stored column, mirroring `isGoalOverdue`'s pure-function-over-stored-facts
+ * pattern (ADR-010). Lives alongside `describeObjectEvent` rather than
+ * folded into it -- a consumer that only wants "is this worth surfacing"
+ * shouldn't have to call through the renderer to get it.
+ *
+ * `ITEM_DELETED` has no row in KD-052's tables at all -- an omission, not a
+ * decision -- so it gets the same NORMAL interim default the ticket already
+ * uses everywhere else it doesn't have a specific answer yet.
+ */
+export function classifyEventSignificance(event: ClassifiableEvent): Significance {
+  switch (event.eventType) {
+    case "ITEM_CREATED":
+    case "GOAL_MILESTONE_UPDATED":
+      return "low";
+    case "GOAL_MILESTONE_ADDED":
+    case "GOAL_MILESTONE_DELETED":
+      return "normal";
+    case "GOAL_MILESTONE_COMPLETED":
+    case "GOAL_MILESTONE_REOPENED":
+    case "GOAL_COMPLETED":
+    case "DOCUMENT_EXPIRING_SOON":
+    case "ITEM_ARCHIVED":
+    case "ITEM_RESTORED":
+    case "TODO_COMPLETED":
+    case "TODO_REOPENED":
+    case "STATUS_CHANGED":
+    case "RELATIONSHIP_CHANGED":
+      return "high";
+    case "RELATIONSHIP_ADDED":
+      return classifyRelationshipType(event.newRelationshipType);
+    case "RELATIONSHIP_REMOVED":
+      return classifyRelationshipType(event.oldRelationshipType);
+    case "FIELD_CHANGED":
+      return classifyFieldChanged(event);
+    case "ITEM_DELETED":
+    default:
+      return "normal";
+  }
 }

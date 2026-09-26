@@ -28,11 +28,13 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
   // unlike `previews` above which also has to cover the picker's own
   // candidates: the item's own Kinesis Links, plus any template Kinesis
   // Link field's own targets (a separate set of cards ReadView renders too).
-  const linkedObjectIds = [
-    ...kinesisLinks.map((link) => link.target.objectId),
-    ...item.templateFields.flatMap((field) => field.targetObjectIds ?? []),
+  const linkedTargets = [
+    ...kinesisLinks.map((link) => ({ objectId: link.target.objectId, linkType: link.type })),
+    // Template-defined Kinesis Link fields (KD-050) have no `ObjectRelationship`
+    // and so no relationship type to score relevance by -- `linkType: null`.
+    ...item.templateFields.flatMap((field) => (field.targetObjectIds ?? []).map((objectId) => ({ objectId, linkType: null }))),
   ];
-  const recentEvents = await getKinesisLinkRecentEvents(linkedObjectIds);
+  const recentEvents = await getKinesisLinkRecentEvents(linkedTargets);
   return <ModuleContent width="standard">
     <CustomItemDetailRecord
       moduleId={moduleId}
