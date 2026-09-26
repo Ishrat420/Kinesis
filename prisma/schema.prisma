@@ -410,6 +410,7 @@ enum ObjectEventType {
   GOAL_MILESTONE_DELETED
   DOCUMENT_EXPIRING_SOON  // fires instead of a generic STATUS_CHANGED specifically for the -> "Expiring soon" transition, same as GOAL_COMPLETED does for "Finished"
   GOAL_COMPLETED
+  GOAL_REOPENED           // KD-052: the opposite of GOAL_COMPLETED -- any prior status moving back to Active, fires instead of a generic STATUS_CHANGED the same way GOAL_COMPLETED does for "Finished"
   ITEM_CREATED
   ITEM_DELETED
 }

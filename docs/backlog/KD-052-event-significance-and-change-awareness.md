@@ -147,9 +147,11 @@ left silent:
   than left to its own undocumented default.
 
 `GOAL_REOPENED` (decided in the Goal section above, under "Open
-questions") is **not** implemented as part of this pass -- it's a
-separate schema/write-path change, not part of Phase 4's classifier or
-scoring work, and stays its own follow-up.
+questions") is **now implemented too**, as its own follow-up pass --
+schema, migration (`20261018000000_goal_reopened_event`),
+`recordEvent`/`describeObjectEvent` wiring, and
+`updateGoalStatusAction`'s own carve-out, mirroring `GOAL_COMPLETED`'s.
+See the Goal section above for the classifier's updated pseudocode.
 
 ### Design principles
 
@@ -404,31 +406,22 @@ system write; revisit if it turns out to be noisy in practice.
 Implementation note: "Milestone added/updated/completed/reopened/deleted"
 map directly onto the
 `GOAL_MILESTONE_ADDED`/`UPDATED`/`COMPLETED`/`REOPENED`/`DELETED` event
-types, and Goal-level Completed maps onto the existing `GOAL_COMPLETED`
-type — none of those five need any new classifier logic, their event
-type alone already says HIGH/NORMAL/LOW as listed above
-(`GOAL_MILESTONE_REOPENED` is already implemented and always HIGH,
-unconditionally). For *significance* alone, Goal-level status changes
-don't strictly need any new event type — every value lands on HIGH
-regardless:
+types, and Goal-level Completed/Reopened map onto `GOAL_COMPLETED`/
+`GOAL_REOPENED` — none of those six need any new classifier logic,
+their event type alone already says HIGH/NORMAL/LOW as listed above
+(`GOAL_MILESTONE_REOPENED` and `GOAL_REOPENED` are both already
+implemented and always HIGH, unconditionally).
 
-```text
-eventType === "GOAL_COMPLETED"     -> HIGH
-eventType === "STATUS_CHANGED"     -> HIGH   (unconditional — every Goal
-                                               status transition is HIGH,
-                                               no value inspection needed)
-```
-
-**Decided (previously an open question): add a dedicated
-`GOAL_REOPENED` event type**, mirroring `GOAL_COMPLETED`'s existing
-carve-out from generic `STATUS_CHANGED`. Not for scoring — Reopened is
-already HIGH either way — but for the same reason `GOAL_COMPLETED`
-already exists: nicer, dedicated History/peek copy ("Goal reopened")
-instead of a generic "Status changed" line, and cleaner event
-semantics for anything reading the history later. Goals can move
-Archived -> Active or Revisit Later -> Active directly, and both should
-write `GOAL_REOPENED` the same way un-finishing one does. Once
-implemented, the pseudocode becomes:
+**Implemented: `GOAL_REOPENED` is its own dedicated event type**,
+mirroring `GOAL_COMPLETED`'s existing carve-out from generic
+`STATUS_CHANGED` — `updateGoalStatusAction` (`app/(app)/goals/actions.ts`)
+now writes it whenever the new status is Active and the goal wasn't
+already Active, the same way it already special-cased "Finished" into
+`GOAL_COMPLETED`. Not for scoring — Reopened was already HIGH either
+way — but for the same reason `GOAL_COMPLETED` already exists: nicer,
+dedicated History/peek copy ("Goal reopened") instead of a generic
+"Status changed" line, and cleaner event semantics for anything reading
+the history later. The classifier's pseudocode is now:
 
 ```text
 eventType === "GOAL_COMPLETED"   -> HIGH
@@ -437,11 +430,6 @@ eventType === "STATUS_CHANGED"   -> HIGH   (unconditional — only Revisit
                                               Later / Archived still take
                                               this generic path)
 ```
-
-This is a decided design choice, **not yet implemented** — it needs the
-same schema migration + `recordEvent` + `describeObjectEvent` wiring
-already used for `GOAL_MILESTONE_REOPENED` this session, applied to the
-Goal-level transition instead of the Milestone-level one.
 
 #### Todo
 

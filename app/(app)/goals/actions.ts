@@ -74,10 +74,12 @@ export async function updateGoalStatusAction(id: string, _previousState: GoalAct
     if (!goal) return;
     const result = await tx.goal.updateMany({ where: { id, userId: user.id }, data: { status } });
     if (result.count === 0 || goal.status === status) return;
-    // "Finished" is a named moment (GOAL_COMPLETED) worth its own line in
-    // History, not just another status transition -- every other status
-    // change is generic STATUS_CHANGED.
+    // "Finished" and "reopened" (any prior status -> Active) are each a
+    // named moment worth their own line in History (GOAL_COMPLETED /
+    // GOAL_REOPENED, KD-052), not just another status transition -- every
+    // other status change is generic STATUS_CHANGED.
     if (status === "Finished") await recordEvent(tx, user.id, goal.objectId, "GOAL_COMPLETED");
+    else if (status === "Active") await recordEvent(tx, user.id, goal.objectId, "GOAL_REOPENED");
     else await recordStatusChanged(tx, user.id, goal.objectId, goal.status, status);
   });
   refresh(id);

@@ -132,6 +132,10 @@ describe("classifyEventSignificance: KD-052 Phase 4's base significance table", 
       expect(classifyEventSignificance(goal({ eventType: "GOAL_COMPLETED", fieldKey: null }))).toBe("high");
     });
 
+    it("GOAL_REOPENED is HIGH -- its own dedicated event type now, not just the generic STATUS_CHANGED special case", () => {
+      expect(classifyEventSignificance(goal({ eventType: "GOAL_REOPENED", fieldKey: null }))).toBe("high");
+    });
+
     it("every STATUS_CHANGED transition is unconditionally HIGH -- Reopened, Revisit Later, and Archived alike, no value inspection", () => {
       expect(classifyEventSignificance(goal({ eventType: "STATUS_CHANGED", fieldKey: "status", oldValue: "Archived", newValue: "Active" }))).toBe("high");
       expect(classifyEventSignificance(goal({ eventType: "STATUS_CHANGED", fieldKey: "status", oldValue: "Active", newValue: "Revisit Later" }))).toBe("high");

@@ -102,6 +102,10 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: "GOAL_COMPLETED" }))).toEqual({ title: "Goal completed", detail: null });
   });
 
+  it("renders GOAL_REOPENED as a plain, fixed title (KD-052) -- the counterpart to GOAL_COMPLETED", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_REOPENED" }))).toEqual({ title: "Goal reopened", detail: null });
+  });
+
   it("renders DOCUMENT_EXPIRING_SOON with its own fixed title, the expiry date as its detail when one was recorded", () => {
     expect(describeObjectEvent(event({ eventType: "DOCUMENT_EXPIRING_SOON" }))).toEqual({ title: "Document is expiring soon", detail: null });
     expect(describeObjectEvent(event({ eventType: "DOCUMENT_EXPIRING_SOON", newValue: "2030-06-01" }))).toEqual({

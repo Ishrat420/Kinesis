@@ -61,6 +61,14 @@ describe.sequential("a Goal's own history (KD-048)", () => {
     await expect(eventsOn(objectId)).resolves.toMatchObject([{ eventType: "GOAL_COMPLETED" }]);
   });
 
+  it("updateGoalStatusAction records GOAL_REOPENED when moving back to Active from any prior status (KD-052)", async () => {
+    const objectId = await makeGoal("goal-reopen", { status: "Archived" });
+
+    await updateGoalStatusAction("goal-reopen", {}, form({ status: "Active" }));
+
+    await expect(eventsOn(objectId)).resolves.toMatchObject([{ eventType: "GOAL_REOPENED" }]);
+  });
+
   it("updateGoalStatusAction records a generic STATUS_CHANGED for any other transition", async () => {
     const objectId = await makeGoal("goal-revisit", { status: "Active" });
 
