@@ -188,6 +188,8 @@ because of what it's attached to, not despite being "just a creation."
 | A custom field added or updated on a system module (Document, Goal, Todo, a Custom Item's own ad-hoc fields, Custom Module template fields — including Currency/Percent-formatted ones) | NORMAL |
 | ...where that custom field is itself a Kinesis Link using a recognized system relationship (Supports, Blocks, Depends on, etc.) | Per the Kinesis Link relationship type table below instead — not this row |
 | ...where that custom field is itself a Kinesis Link with a CUSTOM (free-text) type | NORMAL either way (matches "Any other custom Kinesis Link" below) |
+| **Person's own named fields** (`name`, `icon`, `color`) — **interim, until Person gets its own proper classification** | NORMAL |
+| **Custom Item's own fixed `name`/`dueDate` fields** (the literal-keyed ones, not the ad-hoc extras above) — **interim, pending the user-configurable-priority ticket below** | NORMAL |
 
 Closes the other gap the coverage audit flagged: every table below is
 an exhaustive list of *named* fields, but a large share of real
@@ -200,6 +202,27 @@ LOW (a real value changed, worth more than a cosmetic Notes edit) and
 not HIGH (no way to know a given custom field is actually important
 without letting the owner say so, which doesn't exist yet — see
 "Deferred to a future ticket" under Open Questions).
+
+The last two rows aren't really "ad-hoc" in the dynamic-fieldKey sense
+this section is otherwise about — `Person.name`/`icon`/`color` and
+`CustomItem.name`/`dueDate` are ordinary fixed, literal-keyed
+`FIELD_CHANGED` events, the same shape as every other module's own
+table below. They're placed here anyway because they share the exact
+same underlying situation: no specific classification rule has been
+written for them yet, and NORMAL is this ticket's stated default for
+that situation everywhere else. Both are explicitly **interim, not a
+final answer**:
+
+* **Person/Relationships is an entirely unclassified module for now.**
+  It never got its own table this session the way Todo did, and
+  deserves one later rather than a hasty pass now — see "Deferred to a
+  future ticket" below.
+* **Custom Item's `dueDate` is genuinely ambiguous** — Todo's own
+  `dueDate` is HIGH, but a Custom Item due date might not carry the
+  same weight, and there's no way to know without asking the owner.
+  That's fine: it's the same problem the "user-configurable priority"
+  ticket already exists to solve (see below), so `dueDate` folds into
+  that scope rather than needing its own bespoke rule invented now.
 
 #### Finance — Asset / Liability
 
@@ -370,6 +393,14 @@ formula below for that, a related but separate idea: it means a
 meaningful change to an object is more relevant to surface when
 *another* object actually depends on it, not that `DEPENDS_ON` itself
 is more important everywhere it appears.
+
+This table is the full story for `RELATIONSHIP_ADDED`/`REMOVED` — look
+up the link's type, done. `RELATIONSHIP_CHANGED` (a retype, carrying
+both an old and new type on one event row) does **not** use this table
+directly: which type should drive it is real, undecided design work,
+deferred below. Until that's designed, `RELATIONSHIP_CHANGED` has its
+own unconditional interim rule instead — see "Deferred to a future
+ticket" under Open Questions.
 
 ### 2. Surface Score
 
@@ -677,7 +708,18 @@ deterministic approach has been tried and found wanting, not before.
   important than that default is a real feature idea, but a whole
   customization surface of its own (where would that control live, does
   it apply per-field or per-instance, how does it interact with the
-  fixed tables above). Not designed, not scoped, not planned yet.
+  fixed tables above). This scope explicitly includes Custom Item's own
+  `dueDate` field (genuinely ambiguous — Todo's own `dueDate` is HIGH,
+  a Custom Item's might not carry the same weight, and there's no way
+  to know without asking the owner), so `dueDate` doesn't need its own
+  bespoke rule invented now; it inherits the NORMAL interim above until
+  this ships. Not designed, not scoped, not planned yet.
+* **Person/Relationships module classification.** Entirely unclassified
+  in this ticket — no table of its own the way every other module got
+  one this session (Todo included). Interim: its named fields (`name`,
+  `icon`, `color`) fall back to the same NORMAL default as the ad-hoc
+  fields above (see that section). A proper pass — likely its own table,
+  mirroring Todo's — is left for later rather than guessed at here.
 * **Broader planning for what to do with Relationship significance.**
   The Kinesis Link relationship type table above covers the common
   case, but doesn't resolve everything: `RELATIONSHIP_CHANGED` (a link
@@ -685,7 +727,14 @@ deterministic approach has been tried and found wanting, not before.
   same event row, and this ticket doesn't say which one — or some
   combination — should drive its significance. That needs more thought
   than a quick table lookup and is being left for a future ticket
-  rather than guessed at here.
+  rather than guessed at here. **Interim rule, so the classifier isn't
+  blocked in the meantime: `RELATIONSHIP_CHANGED` is unconditionally
+  HIGH**, regardless of the old or new type involved. A retype is a
+  rarer, more deliberate action than a routine add/remove, so erring
+  toward surfacing it — even a technically cosmetic retype between two
+  otherwise-quiet types — is the safer failure mode than erring toward
+  silence while the real design (which type should actually drive it)
+  gets worked out properly.
 * **"Last viewed" tracking.** No column, no table, nothing tracks when
   an account last opened a given record today. This would need a new
   table keyed by `(userId, objectId)` or something narrower, a decision
