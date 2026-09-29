@@ -102,6 +102,11 @@ const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, F
  * swap of the content only, never the card itself, so nothing here
  * spins or carousels.
  *
+ * The peek keeps `option.name` visible above the diff -- the rest of the
+ * identifying chrome (icon, module label) swaps out, and a list of several
+ * linked objects peeking at once would otherwise show identical-looking
+ * diffs with no way to tell which target each belongs to.
+ *
  * The peek itself is a "big diff": `recentEvent.change`'s two sides laid
  * out as a single before -> after line, connected by `DiffConnector` below
  * -- a direction-tinted arrow for a magnitude change, a type-specific icon
@@ -157,6 +162,7 @@ export function KinesisLinkCard({ option, stats = [], label, recentEvent, classN
         </div>
         {recentEvent && (
           <div className={`col-start-1 row-start-1 min-w-0 self-center transition-all duration-500 ease-out ${peeking ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"}`}>
+            <span className="block truncate text-[13px] font-bold tracking-tight text-zinc-800">{option.name}</span>
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide" style={{ color }}>Latest change</span>
             {recentEvent.change ? (
               <>
