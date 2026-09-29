@@ -1,8 +1,14 @@
 # KD-052 — Event Significance, Surfacing & Change Awareness
 
-**Status:** In Progress
+**Status:** Planning Needed
 **Priority:** Low
 **Tags:** Architecture, UX / UI, Data Model
+
+**Phase 4 is fully implemented and shipped** (see its own section below
+for what changed, and ADR-016 for the decisions made along the way).
+This ticket moves back to Planning Needed for **Phase 5 only** — its
+design needs more thinking before implementation starts; see Phase 5's
+own section and Open Questions for where that stands.
 
 ## Summary
 
@@ -754,7 +760,7 @@ to prevent. A genuinely large same-day swing on the same account still
 starts from HIGH and clears the peek easily, as the first example above
 shows.
 
-## Phase 5 — Change Awareness (v1 design mostly accepted)
+## Phase 5 — Change Awareness (paused for more planning — see ticket Status above)
 
 **Per-domain regression detection** — e.g. "insurance expires earlier
 than before," a metric trending the wrong way. This is a step beyond a
@@ -780,11 +786,13 @@ thing. Phase 5 calls `classifyEventSignificance` as an input alongside
 its own polarity classifier — two small functions consulted together,
 not one merged one.
 
-**Below is a full design pass, mirroring Phase 4's — reviewed and
-mostly decided, not yet implemented.** One item remains genuinely open
-(Goal's Reopened polarity, which needs a write-path change before it
-can even be decided properly) — see "Open questions" at the end of
-this phase.
+**Below is a full design pass, mirroring Phase 4's — most of it
+reviewed and decided, but the ticket is intentionally paused here for
+more thinking before implementation starts** (moved back to Planning
+Needed — see Status at the top of this ticket). One item remains
+genuinely open regardless (Goal's Reopened polarity, which needs a
+write-path change before it can even be decided properly) — see "Open
+questions" at the end of this phase.
 
 ### Design principles
 
@@ -1067,3 +1075,7 @@ remains genuinely open:
   existing integration points Phase 4's scoring pass would filter for.
 * **Precedent:** ADR-010 — `isGoalOverdue`'s pure-function-over-stored-facts
   pattern, which `classifyEventSignificance` is designed to follow.
+* **Recorded in:** ADR-016 — consolidates the decisions made across
+  this ticket's Phase 4 (implemented) and Phase 5 (design snapshot,
+  paused for more planning) in one place, the same role ADR-010 and
+  ADR-013 play for their own tickets.

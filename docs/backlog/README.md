@@ -171,13 +171,13 @@ KD-017-turn-dashboard-into-decision-surface
 KD-041-search-visibility-for-archived-records
 KD-045-mobile-add-custom-module-to-dashboard
 KD-051-relationship-connection-history
+KD-052-event-significance-and-change-awareness
 
 ## ✓ Accepted
 
 ## 🚧 In Progress
 
 KD-023-universal-object-connection
-KD-052-event-significance-and-change-awareness
 
 ## Accepted — Needs Planning
 
