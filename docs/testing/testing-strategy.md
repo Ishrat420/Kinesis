@@ -153,6 +153,16 @@ A broader, per-module walkthrough (auth, documents, goals, finance, and
 every other module) run once before tagging a release, rather than
 scoped to one security-sensitive lifecycle the way the runbook above is.
 
+The Kinesis Link Surface Score (KD-052 Phase 4) walkthrough is:
+
+`tests/manual/kd052-surface-score-walkthrough.md`
+
+Nine seeded scenarios (`scripts/seed-kd052-qa-data.mjs`) covering the
+classification/freshness/relevance/magnitude rule matrix -- the peek's
+own scoring logic is the kind of "reads right once rendered" behaviour
+unit tests can't fully stand in for, the same reasoning behind the
+runbooks above.
+
 ## Current Testing Philosophy
 
 Use the cheapest appropriate testing layer:
