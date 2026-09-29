@@ -322,6 +322,30 @@ function milestoneProgressText(raw: string | null): string | null {
   return `${match[1]} of ${match[2]} milestones completed`;
 }
 
+/**
+ * `GOAL_MILESTONE_COMPLETED`/`REOPENED`'s own before/after diff, for the
+ * Kinesis Link peek's "big diff" view -- `newValue` only ever stores the
+ * progress snapshot *after* this toggle, but a single toggle
+ * (`toggleMilestoneAction`) always moves the completed count by exactly
+ * one, so the "before" state is safe to derive rather than needing its own
+ * stored column. `delta` is `-1` for Completed (one fewer was completed a
+ * moment ago) and `+1` for Reopened (one more was completed a moment ago).
+ * Returns `null` for a row with nothing to parse (written before progress
+ * tracking existed, or a malformed value) or where the derived count would
+ * fall outside `[0, total]` (defensive -- shouldn't happen given the write
+ * path, but a diff that doesn't add up is worse than no diff) -- either
+ * way, `describeObjectEvent` falls back to its plain title/detail line.
+ */
+function milestoneProgressChange(raw: string | null, delta: -1 | 1): { from: string; to: string } | null {
+  const match = raw?.match(/^(\d+)\/(\d+)$/);
+  if (!match) return null;
+  const completed = Number(match[1]);
+  const total = Number(match[2]);
+  const previousCompleted = completed + delta;
+  if (previousCompleted < 0 || previousCompleted > total) return null;
+  return { from: `${previousCompleted} of ${total} milestones completed`, to: `${completed} of ${total} milestones completed` };
+}
+
 /** The human label for one of `MilestoneFieldChange`'s attribute keys -- `GOAL_MILESTONE_UPDATED`'s own "which field" analogue to `FIELD_CHANGED`'s free-text `fieldLabel`. */
 function milestoneAttributeLabel(fieldKey: string | null): string {
   switch (fieldKey) {
@@ -390,10 +414,22 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return { title: "Goal reopened", detail: null };
     case "DOCUMENT_EXPIRING_SOON":
       return { title: "Document is expiring soon", detail: event.newValue ? `Expires ${formatDate(event.newValue, prefs.locale)}` : null };
-    case "GOAL_MILESTONE_COMPLETED":
-      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed", detail: milestoneProgressText(event.newValue) };
-    case "GOAL_MILESTONE_REOPENED":
-      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" is reopened` : "Milestone reopened", detail: milestoneProgressText(event.newValue) };
+    case "GOAL_MILESTONE_COMPLETED": {
+      const progress = milestoneProgressChange(event.newValue, -1);
+      return {
+        title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed",
+        detail: milestoneProgressText(event.newValue),
+        change: progress ? { from: progress.from, to: progress.to, direction: "up" } : undefined,
+      };
+    }
+    case "GOAL_MILESTONE_REOPENED": {
+      const progress = milestoneProgressChange(event.newValue, 1);
+      return {
+        title: event.fieldLabel ? `Milestone "${event.fieldLabel}" is reopened` : "Milestone reopened",
+        detail: milestoneProgressText(event.newValue),
+        change: progress ? { from: progress.from, to: progress.to, direction: "down" } : undefined,
+      };
+    }
     case "GOAL_MILESTONE_ADDED": {
       const name = event.fieldLabel ?? "Milestone";
       const due = event.newValue ? `Due ${formatDate(event.newValue, prefs.locale)}` : null;

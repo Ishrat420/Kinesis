@@ -121,7 +121,19 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
   it("renders GOAL_MILESTONE_COMPLETED's progress snapshot as its detail line, when one was recorded", () => {
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved", newValue: "3/5" }))).toEqual({
       title: 'Milestone "Deposit saved" completed', detail: "3 of 5 milestones completed",
+      change: { from: "2 of 5 milestones completed", to: "3 of 5 milestones completed", direction: "up" },
     });
+  });
+
+  it("renders GOAL_MILESTONE_COMPLETED's `change` as a big-diff, one fewer milestone before this one completed", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", newValue: "1/3" }))).toMatchObject({
+      change: { from: "0 of 3 milestones completed", to: "1 of 3 milestones completed", direction: "up" },
+    });
+  });
+
+  it("omits `change` for GOAL_MILESTONE_COMPLETED when there's nothing to derive it from", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", newValue: null })).change).toBeUndefined();
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", newValue: "not-a-progress-string" })).change).toBeUndefined();
   });
 
   it("renders GOAL_MILESTONE_REOPENED naming the milestone and its progress snapshot, generically otherwise", () => {
@@ -129,7 +141,13 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: null }))).toEqual({ title: "Milestone reopened", detail: null });
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Deposit saved", newValue: "0/5" }))).toEqual({
       title: 'Milestone "Deposit saved" is reopened', detail: "0 of 5 milestones completed",
+      change: { from: "1 of 5 milestones completed", to: "0 of 5 milestones completed", direction: "down" },
     });
+  });
+
+  it("omits `change` for GOAL_MILESTONE_REOPENED when the derived prior count would fall outside 0..total", () => {
+    // Uncompleting the last milestone of a 3-milestone goal: previous count would be 4, over the total -- shouldn't happen given the write path, but the renderer stays defensive rather than showing a diff that doesn't add up.
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", newValue: "3/3" })).change).toBeUndefined();
   });
 
   it("renders GOAL_MILESTONE_ADDED naming the milestone, with its due date when one was set", () => {
