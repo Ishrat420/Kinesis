@@ -31,13 +31,12 @@ is renumbered Phase 5 here. Two phases remain in scope for this ticket:
 * **Phase 5 — Change Awareness (regression detection).** A layer
   beyond a raw diff: knowing whether a change is a *regression* for
   that specific field (an expiry moving earlier is bad). Deterministic,
-  same spirit as Phase 4. **Now has a first full design pass below**,
-  mirroring Phase 4's own structure — proposed, not yet accepted, and
-  with several fields' polarity genuinely still open (see Phase 5's own
-  Open Questions). AI-narrated summaries, which used to be bundled into
-  this phase under its old KD-048 numbering, are explicitly **not**
-  part of this ticket at all anymore — see the note at the end of
-  Phase 5.
+  same spirit as Phase 4. **Now has a full design pass below**,
+  mirroring Phase 4's own structure — mostly decided, one item still
+  open (see Phase 5's own Open Questions), not yet implemented.
+  AI-narrated summaries, which used to be bundled into this phase under
+  its old KD-048 numbering, are explicitly **not** part of this ticket
+  at all anymore — see the note at the end of Phase 5.
 
 **KD-048's original Phase 5 (Timeline / Year in Review) is deliberately
 not part of this ticket at all** — not renumbered, not touched, fully
@@ -755,7 +754,7 @@ to prevent. A genuinely large same-day swing on the same account still
 starts from HIGH and clears the peek easily, as the first example above
 shows.
 
-## Phase 5 — Change Awareness (v1 design proposed, not yet accepted)
+## Phase 5 — Change Awareness (v1 design mostly accepted)
 
 **Per-domain regression detection** — e.g. "insurance expires earlier
 than before," a metric trending the wrong way. This is a step beyond a
@@ -781,12 +780,11 @@ thing. Phase 5 calls `classifyEventSignificance` as an input alongside
 its own polarity classifier — two small functions consulted together,
 not one merged one.
 
-**Below is a first full design pass, mirroring Phase 4's — not yet
-implemented, and not yet fully decided either.** Several fields below
-genuinely can't be classified with what's stored today (marked ⚠️
-below and listed again under "Open questions"); the table gives its
-best-effort default for those anyway, clearly flagged, rather than
-leaving a silent gap.
+**Below is a full design pass, mirroring Phase 4's — reviewed and
+mostly decided, not yet implemented.** One item remains genuinely open
+(Goal's Reopened polarity, which needs a write-path change before it
+can even be decided properly) — see "Open questions" at the end of
+this phase.
 
 ### Design principles
 
@@ -829,27 +827,22 @@ consulted separately per the decided note above.
 
 | Change | Polarity |
 |---|---|
-| ⚠️ `amount` (Balance/Amount) increases or decreases | Depends on `kind` — see below |
-| ⚠️ `rate` (interest rate) increases or decreases | Depends on `kind` — see below |
+| `amount` (Balance/Amount) increases | Improvement |
+| `amount` (Balance/Amount) decreases | Regression |
+| `rate` (interest rate) increases | Improvement |
+| `rate` (interest rate) decreases | Regression |
 | `monthlyContribution`, `category`, `name`, `notes`, `frequency`, `startDate`, `endDate` | Neutral |
 
-`amount` and `rate` are the two fields in this whole ticket whose
-polarity depends on something *classifyEventSignificance never needed*
-— the item's own `kind` (asset/liability/income/expense), which isn't
-stored on the `ObjectEvent` row at all today:
-
-```text
-amount increasing:  asset/income = improvement,  liability/expense = regression
-amount decreasing:  asset/income = regression,   liability/expense = improvement
-rate increasing:    asset = improvement (more interest earned),
-                     liability = regression (costs more)
-rate decreasing:    asset = regression,           liability = improvement
-```
-
-This needs `kind` available at classification time — either a live
-join back to `FinanceItem.kind` (cheap, `kind` is effectively
-immutable once set) or a snapshot of it on the event row itself. Not
-decided here — see Open Questions.
+**Decided: `amount`/`rate` polarity does not depend on `kind`** (asset/
+liability/income/expense) at all — an increase is always Improvement,
+a decrease is always Regression, the same way Phase 4's own magnitude
+math (`calculatePercentChange`, the dead zone) already treats every
+`kind` identically. No new data needed at classification time — plain
+`numericDirection` (up/down) on `oldValue`/`newValue` is enough, same
+inputs `classifyEventSignificance` already has. This also means the
+`kind`-availability question from the first draft (live join vs.
+snapshot on the event row) doesn't need answering at all — it only
+existed because that first draft assumed a kind-dependent rule.
 
 #### Goal
 
@@ -858,26 +851,27 @@ decided here — see Open Questions.
 | Completed (`GOAL_COMPLETED`) | Improvement |
 | Milestone completed | Improvement |
 | Milestone reopened (uncompleted) | Regression |
-| ⚠️ `currentValue`/`targetValue` change | Neutral (see below — no stored signal for goal direction) |
-| ⚠️ `targetDate` moves earlier/later | Neutral (see below — genuinely ambiguous) |
+| `currentValue`/`targetValue` change | Neutral |
+| `targetDate` moves earlier/later | Neutral |
 | Reopened (`GOAL_REOPENED`), Archived, Revisit Later | Neutral |
 | Milestone added/deleted | Neutral |
 
-Two real gaps here, not glossed over:
+Two decided NEUTRALs, not oversights:
 
 * **`currentValue`/`targetValue` has no stored notion of "which
   direction is good."** A "Save $30k" goal and a "Pay off $30k debt"
   goal use the exact same `targetValue`/`currentValue` shape — nothing
   on `Goal` records whether progress means the number going up or
-  down. Defaults to NEUTRAL until (if ever) a goal-direction concept
-  gets designed — not guessed at here.
-* **`targetDate` moving earlier or later is genuinely debatable**, not
+  down. **Decided: NEUTRAL for now** — inventing a goal-direction
+  concept to unlock this is a real feature idea, but its own future
+  decision, not something to guess at here.
+* **`targetDate` moving earlier or later was genuinely debatable**, not
   settled by this ticket's own earlier illustrative wording ("a
   savings target moving earlier is good") — that line was this
-  ticket's own example prose, not a considered decision, and "less
-  time to reach a target" reads at least as plausibly as a regression
-  as an improvement. Defaults to NEUTRAL rather than picking a side
-  without deciding it properly — see Open Questions.
+  ticket's own example prose, not a considered decision. **Decided:
+  NEUTRAL** — "less time to reach a target" reads at least as
+  plausibly as a regression as an improvement, so this stays
+  unclassified rather than picking a side.
 
 #### Todo
 
@@ -887,8 +881,16 @@ Two real gaps here, not glossed over:
 | Reopened (`TODO_REOPENED`) | Regression |
 | Due date moves later | Improvement |
 | Due date moves earlier | Regression |
-| ⚠️ Status changed (To Do <-> Waiting) | Neutral (see Open Questions) |
+| Status changed (To Do <-> Waiting) | Neutral |
 | Notes, title | Neutral |
+
+**Decided: Status changed stays Neutral, on purpose.** A Todo's own
+status already reads as grey (To Do), yellow (Waiting), or green
+(Done) wherever it's shown — that color *is* the polarity signal, from
+the Kinesis Link's own UI, not something Change Awareness needs to
+duplicate. Adding a second, separate improvement/regression judgment
+on top of a status the owner can already see color-coded would be
+redundant, not additive.
 
 #### Kinesis Link relationship type
 
@@ -905,9 +907,8 @@ Proposed, not decided: a `polarity` field alongside `ObjectEventDescription.chan
 existing `direction` (`"up"/"down"/"flat"`) — parallel concepts,
 `direction` is a plain numeric read, `polarity` is "was that actually
 good." History and the Kinesis Link peek would consume it to tint or
-icon a change semantically (a debt balance going "up" numerically but
-`regression`) rather than only numerically. **Not** wired into Surface
-Score — already decided above, orthogonal to significance.
+icon a change semantically rather than only numerically. **Not** wired
+into Surface Score — already decided above, orthogonal to significance.
 
 ### Worked examples
 
@@ -917,16 +918,17 @@ Expiry date: 2027-01-01 -> 2026-10-01
 ```
 Regression — the field moved earlier.
 
-**A liability's balance increasing $500:**
+**A Finance item's amount increasing $500, regardless of kind:**
 ```text
-kind: liability, amount: $10,000 -> $10,500
+amount: $10,000 -> $10,500
 ```
-Regression — a liability's balance increasing is a regression,
-opposite of the same change on an asset.
+Improvement — an increase is always Improvement, a decrease always
+Regression, the same way whether this is an asset, liability, income,
+or expense item.
 
-**A goal's current value increasing $1,000 (no direction concept exists yet):**
+**A goal's current value increasing $1,000 (no direction concept exists):**
 ```text
-kind: (none stored), currentValue: $12,000 -> $13,000
+currentValue: $12,000 -> $13,000
 ```
 Neutral — cannot tell if this goal is being saved up or paid down.
 
@@ -938,30 +940,30 @@ Regression — a new blocker appeared on this object.
 
 ### Open questions
 
-* **Does Finance's `amount`/`rate` polarity get `kind` via a live join,
-  or a snapshot stored on the event row?** A live join is cheap since
-  `kind` is effectively fixed once set, but it does mean
-  `classifyChangePolarity` can no longer be a pure function of the
-  event row alone — the same shape of question Phase 4 already hit
-  once (Custom Item's `dueDate` needing `objectType`), just one level
-  deeper (needing a *sibling table's* column, not just the object's
-  own type).
-* **Should Goal ever get a stored "direction" concept** (save up to a
-  target vs pay down to a target vs reduce toward a target), unlocking
-  `currentValue`/`targetValue` polarity? A real feature idea, but a
-  schema/UX decision of its own — not something to guess at inside
-  this classifier.
-* **Is `targetDate` moving earlier an improvement, a regression, or
-  genuinely neutral for a Goal?** Flagged above as debatable; this
-  ticket defaults to NEUTRAL until it's actually decided rather than
-  inheriting an old illustrative example uncritically.
-* **Is Todo's Status changed (To Do <-> Waiting) worth a polarity at
-  all**, or is "waiting" neither better nor worse than "to do" — just
-  different? Defaults to NEUTRAL.
-* **Does a Goal's own Reopened deserve Improvement rather than
-  Neutral?** Un-completing a Finished goal reads differently from
-  resuming an Archived one — bundled as Neutral here for simplicity,
-  not because they're obviously the same.
+Four of this section's original five questions are now decided — see
+the Finance and Goal sections above for `amount`/`rate` (no `kind`
+dependency after all), `currentValue`/`targetValue` and `targetDate`
+(both NEUTRAL), and the Todo section above for Status changed (NEUTRAL
+— the status's own color already carries the signal). What remains:
+
+* **Does a Goal's own Reopened deserve a different polarity than
+  Archived/Revisit Later's Neutral, specifically for the case where the
+  prior status was Finished?** The concern: un-completing a *Finished*
+  goal (going back from "done" to "active") plausibly reads as a
+  regression — you were done, now you're not — whereas resuming a goal
+  that was merely Archived or Revisit Later (never finished at all)
+  reads more like ordinary re-engagement, arguably Neutral. Right now
+  `GOAL_REOPENED` fires identically for both cases and doesn't even
+  carry which prior status it came from — `updateGoalStatusAction`
+  calls `recordEvent(tx, user.id, goal.objectId, "GOAL_REOPENED")` with
+  no `oldValue` (unlike generic `STATUS_CHANGED`, which does store
+  one). So today, distinguishing "reopened from Finished" from
+  "reopened from Archived/Revisit Later" isn't just a classifier
+  question — it would need a write-path change first, to actually
+  capture which status a `GOAL_REOPENED` event came from. Bundled as
+  Neutral here for now since that data isn't even captured, not because
+  the distinction is unimportant — worth a real decision once (if) that
+  data exists.
 
 **AI is deliberately out of this ticket entirely, not just deprioritized
 within it.** AI-narrated summaries used to be bundled into this phase;
