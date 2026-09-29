@@ -30,13 +30,14 @@ is renumbered Phase 5 here. Two phases remain in scope for this ticket:
   it. Not yet implemented.
 * **Phase 5 — Change Awareness (regression detection).** A layer
   beyond a raw diff: knowing whether a change is a *regression* for
-  that specific field (an expiry moving earlier is bad; a savings
-  target moving earlier is good). Still deterministic, still
-  unscheduled and unscoped beyond the one paragraph below — this
-  ticket update does not touch it beyond the renumbering. AI-narrated
-  summaries, which used to be bundled into this phase under its old
-  KD-048 numbering, are explicitly **not** part of this ticket at all
-  anymore — see the note at the end of Phase 5.
+  that specific field (an expiry moving earlier is bad). Deterministic,
+  same spirit as Phase 4. **Now has a first full design pass below**,
+  mirroring Phase 4's own structure — proposed, not yet accepted, and
+  with several fields' polarity genuinely still open (see Phase 5's own
+  Open Questions). AI-narrated summaries, which used to be bundled into
+  this phase under its old KD-048 numbering, are explicitly **not**
+  part of this ticket at all anymore — see the note at the end of
+  Phase 5.
 
 **KD-048's original Phase 5 (Timeline / Year in Review) is deliberately
 not part of this ticket at all** — not renumbered, not touched, fully
@@ -754,23 +755,17 @@ to prevent. A genuinely large same-day swing on the same account still
 starts from HIGH and clears the peek easily, as the first example above
 shows.
 
-## Phase 5 — Change Awareness (unscheduled)
+## Phase 5 — Change Awareness (v1 design proposed, not yet accepted)
 
-Still deterministic, still unscheduled and unscoped beyond KD-048's
-original one-paragraph mention. Unaffected by this update — Surface
-Score is a *volume/relevance* ranking, not a *good/bad* judgment, and
-this stays independent of it:
-
-* **Per-domain regression detection** — e.g. "insurance expires earlier
-  than before," a metric trending the wrong way. This is a step beyond
-  a raw diff or even significance scoring: it requires knowing, *per
-  field*, whether the new value is worse or better for that specific
-  fact — a date moving earlier is a regression for an expiry, an
-  improvement for a savings target. That polarity knowledge is
-  domain-specific and would need its own classifier layered on top of
-  the event stream, not something the event itself can encode
-  generically. This is a deterministic classifier, same spirit as
-  everything else in this ticket — no model involved.
+**Per-domain regression detection** — e.g. "insurance expires earlier
+than before," a metric trending the wrong way. This is a step beyond a
+raw diff or even significance scoring: it requires knowing, *per
+field*, whether the new value is worse or better for that specific
+fact — a date moving earlier is a regression for an expiry. That
+polarity knowledge is domain-specific and needs its own classifier
+layered on top of the event stream, not something the event itself can
+encode generically. Deterministic, same spirit as everything else in
+this ticket — no model involved.
 
 **Decided (previously an open question): Phase 5's regression
 classifier stays a fully separate function from `classifyEventSignificance`,
@@ -782,9 +777,191 @@ HIGH *and* positive, a debt balance increase is HIGH *and* negative, a
 name change is LOW *and* neutral. Significance doesn't predict polarity,
 so folding polarity into `classifyEventSignificance` would just be
 adding an unrelated concern to a function that's supposed to do one
-thing. Phase 5, whenever it's scheduled, calls `classifyEventSignificance`
-as an input alongside its own polarity classifier — two small
-functions consulted together, not one merged one.
+thing. Phase 5 calls `classifyEventSignificance` as an input alongside
+its own polarity classifier — two small functions consulted together,
+not one merged one.
+
+**Below is a first full design pass, mirroring Phase 4's — not yet
+implemented, and not yet fully decided either.** Several fields below
+genuinely can't be classified with what's stored today (marked ⚠️
+below and listed again under "Open questions"); the table gives its
+best-effort default for those anyway, clearly flagged, rather than
+leaving a silent gap.
+
+### Design principles
+
+Three, mirroring (and extending) Phase 4's two:
+
+1. **Deterministic and boring internally**, same as Phase 4 — every
+   polarity is reconstructable by hand from the event's own stored
+   fields plus the rules below.
+2. **Fully separate from `classifyEventSignificance`**, per the decided
+   note above — its own function, its own output, consulted alongside
+   significance rather than folded into it.
+3. **Conservative by default: NEUTRAL unless a field's direction is
+   genuinely unambiguous.** Getting polarity wrong is worse than not
+   showing it at all — a Change Awareness indicator that's sometimes
+   backwards would undermine trust in the whole feature faster than an
+   absent one. Where this ticket doesn't have enough information to
+   tell (Goal's own measurable target, see below), the honest answer is
+   NEUTRAL, not a guess.
+
+### 1. Polarity classification
+
+```text
+classifyChangePolarity(event): "improvement" | "regression" | "neutral"
+```
+
+A small, pure, read-time function, same shape as `classifyEventSignificance`
+— not a stored column, living alongside it (`lib/data/object-events.ts`),
+consulted separately per the decided note above.
+
+#### Document
+
+| Change | Polarity |
+|---|---|
+| Expiry date moves later | Improvement |
+| Expiry date moves earlier | Regression |
+| Document entering its reminder window (`DOCUMENT_EXPIRING_SOON`) | Regression |
+| Everything else (name, notes, document number, country) | Neutral |
+
+#### Finance — Asset / Liability, Income / Expense
+
+| Change | Polarity |
+|---|---|
+| ⚠️ `amount` (Balance/Amount) increases or decreases | Depends on `kind` — see below |
+| ⚠️ `rate` (interest rate) increases or decreases | Depends on `kind` — see below |
+| `monthlyContribution`, `category`, `name`, `notes`, `frequency`, `startDate`, `endDate` | Neutral |
+
+`amount` and `rate` are the two fields in this whole ticket whose
+polarity depends on something *classifyEventSignificance never needed*
+— the item's own `kind` (asset/liability/income/expense), which isn't
+stored on the `ObjectEvent` row at all today:
+
+```text
+amount increasing:  asset/income = improvement,  liability/expense = regression
+amount decreasing:  asset/income = regression,   liability/expense = improvement
+rate increasing:    asset = improvement (more interest earned),
+                     liability = regression (costs more)
+rate decreasing:    asset = regression,           liability = improvement
+```
+
+This needs `kind` available at classification time — either a live
+join back to `FinanceItem.kind` (cheap, `kind` is effectively
+immutable once set) or a snapshot of it on the event row itself. Not
+decided here — see Open Questions.
+
+#### Goal
+
+| Change | Polarity |
+|---|---|
+| Completed (`GOAL_COMPLETED`) | Improvement |
+| Milestone completed | Improvement |
+| Milestone reopened (uncompleted) | Regression |
+| ⚠️ `currentValue`/`targetValue` change | Neutral (see below — no stored signal for goal direction) |
+| ⚠️ `targetDate` moves earlier/later | Neutral (see below — genuinely ambiguous) |
+| Reopened (`GOAL_REOPENED`), Archived, Revisit Later | Neutral |
+| Milestone added/deleted | Neutral |
+
+Two real gaps here, not glossed over:
+
+* **`currentValue`/`targetValue` has no stored notion of "which
+  direction is good."** A "Save $30k" goal and a "Pay off $30k debt"
+  goal use the exact same `targetValue`/`currentValue` shape — nothing
+  on `Goal` records whether progress means the number going up or
+  down. Defaults to NEUTRAL until (if ever) a goal-direction concept
+  gets designed — not guessed at here.
+* **`targetDate` moving earlier or later is genuinely debatable**, not
+  settled by this ticket's own earlier illustrative wording ("a
+  savings target moving earlier is good") — that line was this
+  ticket's own example prose, not a considered decision, and "less
+  time to reach a target" reads at least as plausibly as a regression
+  as an improvement. Defaults to NEUTRAL rather than picking a side
+  without deciding it properly — see Open Questions.
+
+#### Todo
+
+| Change | Polarity |
+|---|---|
+| Completed (`TODO_COMPLETED`) | Improvement |
+| Reopened (`TODO_REOPENED`) | Regression |
+| Due date moves later | Improvement |
+| Due date moves earlier | Regression |
+| ⚠️ Status changed (To Do <-> Waiting) | Neutral (see Open Questions) |
+| Notes, title | Neutral |
+
+#### Kinesis Link relationship type
+
+| Change | Polarity |
+|---|---|
+| `Blocks`/`Blocked by` added | Regression — a new blocker appeared |
+| `Blocks`/`Blocked by` removed | Improvement — a blocker cleared |
+| Every other type added/removed (Supports, Depends on, Related to, Alongside, Custom) | Neutral — no inherent direction |
+| `RELATIONSHIP_CHANGED` (retyped) | Neutral (interim — same "needs more planning" reasoning Phase 4's own significance table gives this event type) |
+
+### 2. Where this surfaces
+
+Proposed, not decided: a `polarity` field alongside `ObjectEventDescription.change`'s
+existing `direction` (`"up"/"down"/"flat"`) — parallel concepts,
+`direction` is a plain numeric read, `polarity` is "was that actually
+good." History and the Kinesis Link peek would consume it to tint or
+icon a change semantically (a debt balance going "up" numerically but
+`regression`) rather than only numerically. **Not** wired into Surface
+Score — already decided above, orthogonal to significance.
+
+### Worked examples
+
+**Document expiry pulled back three months:**
+```text
+Expiry date: 2027-01-01 -> 2026-10-01
+```
+Regression — the field moved earlier.
+
+**A liability's balance increasing $500:**
+```text
+kind: liability, amount: $10,000 -> $10,500
+```
+Regression — a liability's balance increasing is a regression,
+opposite of the same change on an asset.
+
+**A goal's current value increasing $1,000 (no direction concept exists yet):**
+```text
+kind: (none stored), currentValue: $12,000 -> $13,000
+```
+Neutral — cannot tell if this goal is being saved up or paid down.
+
+**A "Blocks" link added:**
+```text
+RELATIONSHIP_ADDED, type: BLOCKS
+```
+Regression — a new blocker appeared on this object.
+
+### Open questions
+
+* **Does Finance's `amount`/`rate` polarity get `kind` via a live join,
+  or a snapshot stored on the event row?** A live join is cheap since
+  `kind` is effectively fixed once set, but it does mean
+  `classifyChangePolarity` can no longer be a pure function of the
+  event row alone — the same shape of question Phase 4 already hit
+  once (Custom Item's `dueDate` needing `objectType`), just one level
+  deeper (needing a *sibling table's* column, not just the object's
+  own type).
+* **Should Goal ever get a stored "direction" concept** (save up to a
+  target vs pay down to a target vs reduce toward a target), unlocking
+  `currentValue`/`targetValue` polarity? A real feature idea, but a
+  schema/UX decision of its own — not something to guess at inside
+  this classifier.
+* **Is `targetDate` moving earlier an improvement, a regression, or
+  genuinely neutral for a Goal?** Flagged above as debatable; this
+  ticket defaults to NEUTRAL until it's actually decided rather than
+  inheriting an old illustrative example uncritically.
+* **Is Todo's Status changed (To Do <-> Waiting) worth a polarity at
+  all**, or is "waiting" neither better nor worse than "to do" — just
+  different? Defaults to NEUTRAL.
+* **Does a Goal's own Reopened deserve Improvement rather than
+  Neutral?** Un-completing a Finished goal reads differently from
+  resuming an Archived one — bundled as Neutral here for simplicity,
+  not because they're obviously the same.
 
 **AI is deliberately out of this ticket entirely, not just deprioritized
 within it.** AI-narrated summaries used to be bundled into this phase;
