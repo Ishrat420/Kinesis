@@ -113,9 +113,13 @@ const BUILT_IN_ICONS = { DOCUMENT: FileText, GOAL: Target, PERSON: UsersRound, F
  * for a relationship's own added/removed, a struck-through "from" and muted
  * "to" for removed specifically. A retype gets a caption line naming the
  * target underneath, since its two labels alone don't say what they're
- * labeling. Not every event has a clean two-sided `change` at all (a
- * created or archived moment has nothing to diff) -- that case falls back
- * to the same title/detail line every other History surface shows.
+ * labeling. `change.kind === "milestone"` inverts that layout entirely:
+ * "milestone X completed" (`caption`) is the headline there, and the "1 of
+ * 3 -> 2 of 3" progress count is the secondary line underneath it, not the
+ * other way around -- the count is real but not the point. Not every event
+ * has a clean two-sided `change` at all (a created or archived moment has
+ * nothing to diff) -- that case falls back to the same title/detail line
+ * every other History surface shows.
  */
 export function KinesisLinkCard({ option, stats = [], label, recentEvent, className = "" }: { option: LinkableObject; stats?: KinesisLinkPreviewStat[]; label?: string; recentEvent?: KinesisLinkRecentEvent; className?: string }) {
   const color = option.color ?? "#52525b";
@@ -164,7 +168,16 @@ export function KinesisLinkCard({ option, stats = [], label, recentEvent, classN
           <div className={`col-start-1 row-start-1 min-w-0 self-center transition-all duration-500 ease-out ${peeking ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"}`}>
             <span className="block truncate text-[13px] font-bold tracking-tight text-zinc-800">{option.name}</span>
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide" style={{ color }}>Latest change</span>
-            {recentEvent.change ? (
+            {recentEvent.change?.kind === "milestone" ? (
+              <>
+                <p className="break-words text-base font-bold tracking-tight text-zinc-900">{recentEvent.change.caption}</p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
+                  <span className="break-words text-xs font-medium text-zinc-400">{recentEvent.change.from}</span>
+                  <DiffConnector change={recentEvent.change} />
+                  <span className="break-words text-xs font-semibold text-zinc-500">{recentEvent.change.to}</span>
+                </div>
+              </>
+            ) : recentEvent.change ? (
               <>
                 <div className="flex flex-wrap items-baseline gap-2.5">
                   <span className={`break-words text-base font-medium ${recentEvent.change.action === "removed" ? "text-zinc-400 line-through" : "text-zinc-400"}`}>{recentEvent.change.from}</span>

@@ -88,22 +88,23 @@ from plain History too, not just the peek.
 **Setup:** Goal with 3 milestones (2 completed), the second one completed 3
 days ago, linked via Depends on.
 **Score:** 70 (HIGH) + 30 (fresh, <=14d) + 20 (Depends on) = **120**.
-**Expect:** Peek shows the big diff "1 of 3 milestones completed -> **2 of
-3 milestones completed**" with a green up-arrow connector, a caption line
-underneath reading `Milestone "Second" completed`, and **QA6 Milestone
-Completed** still named above it. (This is the exact screenshot report that
-prompted this fixture, the peek-identity fix above, and the caption fix
-below -- all three render together correctly here: which Goal, which
-milestone, that it was completed, and the diff itself.)
+**Expect:** Peek shows **QA6 Milestone Completed** named above it, then the
+headline `Milestone "Second" completed` in bold, with the progress count
+"1 of 3 milestones completed -> 2 of 3 milestones completed" underneath in
+smaller, muted text alongside a green up-arrow connector -- the milestone
+event is the big element; the count is secondary. (This is the exact
+screenshot report that prompted this fixture and the two follow-up fixes
+above: object identity, which milestone and that it was completed, and now
+which one of those two facts is the headline.)
 
 ### QA7 -- Milestone reopened: big-diff peek, amber down-arrow
 
 **Setup:** Goal with 3 milestones (1 completed), the second one reopened
 (uncompleted) 6 days ago, linked via Alongside.
 **Score:** 70 (HIGH) + 30 (fresh, <=14d) + 10 (Alongside) = **110**.
-**Expect:** Peek shows "2 of 3 milestones completed -> **1 of 3 milestones
-completed**" with an amber down-arrow connector and a caption underneath
-reading `Milestone "Second" is reopened`.
+**Expect:** Peek shows the headline `Milestone "Second" is reopened` in
+bold, with "2 of 3 milestones completed -> 1 of 3 milestones completed"
+underneath in smaller, muted text alongside an amber down-arrow connector.
 
 ### QA8a / QA8b -- Relevance alone decides eligibility
 

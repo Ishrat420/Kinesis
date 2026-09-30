@@ -121,7 +121,7 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
   it("renders GOAL_MILESTONE_COMPLETED's progress snapshot as its detail line, when one was recorded", () => {
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved", newValue: "3/5" }))).toEqual({
       title: 'Milestone "Deposit saved" completed', detail: "3 of 5 milestones completed",
-      change: { from: "2 of 5 milestones completed", to: "3 of 5 milestones completed", direction: "up", caption: 'Milestone "Deposit saved" completed' },
+      change: { from: "2 of 5 milestones completed", to: "3 of 5 milestones completed", direction: "up", kind: "milestone", caption: 'Milestone "Deposit saved" completed' },
     });
   });
 
@@ -146,7 +146,7 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: null }))).toEqual({ title: "Milestone reopened", detail: null });
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Deposit saved", newValue: "0/5" }))).toEqual({
       title: 'Milestone "Deposit saved" is reopened', detail: "0 of 5 milestones completed",
-      change: { from: "1 of 5 milestones completed", to: "0 of 5 milestones completed", direction: "down", caption: 'Milestone "Deposit saved" is reopened' },
+      change: { from: "1 of 5 milestones completed", to: "0 of 5 milestones completed", direction: "down", kind: "milestone", caption: 'Milestone "Deposit saved" is reopened' },
     });
   });
 

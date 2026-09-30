@@ -297,6 +297,13 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  * `title` itself is gone in a renderer showing the "big diff" view) -- both
  * cases where `change` fully replaces `title`, so whatever `title` alone
  * would have said needs a home inside `change` too.
+ *
+ * `kind: "milestone"` (the same two events) marks the *opposite* emphasis
+ * from every other `change`: the progress count is real, but secondary --
+ * "milestone X was completed" is the headline, not "1 of 3 -> 2 of 3." A
+ * renderer honoring this flips which one it renders big/bold vs. small/muted,
+ * rather than always treating `to` as the big element the way a magnitude
+ * or relationship diff does.
  */
 export type ObjectEventDescription = {
   title: string;
@@ -305,7 +312,7 @@ export type ObjectEventDescription = {
     from: string;
     to: string;
     direction: "up" | "down" | "flat";
-    kind?: "relationship";
+    kind?: "relationship" | "milestone";
     action?: "added" | "removed" | "changed";
     icon?: RelationshipIconKey;
     caption?: string;
@@ -432,8 +439,12 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
         // inside `change` too, or it silently disappears the moment a diff
         // exists -- the two progress counts alone read as a bare count
         // moving, not as "this milestone was completed." Same reason
-        // RELATIONSHIP_CHANGED's own caption names its target.
-        change: progress ? { from: progress.from, to: progress.to, direction: "up", caption: title } : undefined,
+        // RELATIONSHIP_CHANGED's own caption names its target. `kind:
+        // "milestone"` tells a renderer to give `caption` the big/bold
+        // treatment and the progress count the small one -- the reverse of
+        // every other `change` -- since "milestone completed" is the
+        // headline here, not the count.
+        change: progress ? { from: progress.from, to: progress.to, direction: "up", kind: "milestone", caption: title } : undefined,
       };
     }
     case "GOAL_MILESTONE_REOPENED": {
@@ -442,7 +453,7 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return {
         title,
         detail: milestoneProgressText(event.newValue),
-        change: progress ? { from: progress.from, to: progress.to, direction: "down", caption: title } : undefined,
+        change: progress ? { from: progress.from, to: progress.to, direction: "down", kind: "milestone", caption: title } : undefined,
       };
     }
     case "GOAL_MILESTONE_ADDED": {
