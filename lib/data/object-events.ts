@@ -292,10 +292,11 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  * renderer falls back to a neutral one instead. `caption` names something
  * the `from`/`to` pair alone doesn't say: a retype's own target (the two
  * type labels don't say what they're between), or `GOAL_MILESTONE_COMPLETED`/
- * `REOPENED`'s own milestone name (the two progress counts don't say which
- * milestone moved them) -- both cases where `change` fully replaces `title`
- * in a renderer showing the "big diff" view, so whatever `title` alone would
- * have named needs a home inside `change` too.
+ * `REOPENED`'s own `title` repeated verbatim (the two progress counts alone
+ * read as a bare number moving, not as "milestone X was completed," and
+ * `title` itself is gone in a renderer showing the "big diff" view) -- both
+ * cases where `change` fully replaces `title`, so whatever `title` alone
+ * would have said needs a home inside `change` too.
  */
 export type ObjectEventDescription = {
   title: string;
@@ -420,25 +421,28 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return { title: "Document is expiring soon", detail: event.newValue ? `Expires ${formatDate(event.newValue, prefs.locale)}` : null };
     case "GOAL_MILESTONE_COMPLETED": {
       const progress = milestoneProgressChange(event.newValue, -1);
+      const title = event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed";
       return {
-        title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed",
+        title,
         detail: milestoneProgressText(event.newValue),
-        // `caption`, not `title` -- the Kinesis Link peek's "big diff" view
-        // (KinesisLinkCard) renders `change` in place of `title`/`detail`
-        // when `change` is set, so the milestone's own name needs a home
-        // inside `change` too or it silently disappears the moment a diff
-        // exists, the same reason RELATIONSHIP_CHANGED's own caption names
-        // its target: the two progress counts alone don't say which
-        // milestone moved them.
-        change: progress ? { from: progress.from, to: progress.to, direction: "up", caption: event.fieldLabel ? `Milestone "${event.fieldLabel}"` : undefined } : undefined,
+        // `caption` repeats `title` verbatim -- the Kinesis Link peek's
+        // "big diff" view (KinesisLinkCard) renders `change` in place of
+        // `title`/`detail` when `change` is set, so the actual event (a
+        // milestone was *completed*, not just which one) needs a home
+        // inside `change` too, or it silently disappears the moment a diff
+        // exists -- the two progress counts alone read as a bare count
+        // moving, not as "this milestone was completed." Same reason
+        // RELATIONSHIP_CHANGED's own caption names its target.
+        change: progress ? { from: progress.from, to: progress.to, direction: "up", caption: title } : undefined,
       };
     }
     case "GOAL_MILESTONE_REOPENED": {
       const progress = milestoneProgressChange(event.newValue, 1);
+      const title = event.fieldLabel ? `Milestone "${event.fieldLabel}" is reopened` : "Milestone reopened";
       return {
-        title: event.fieldLabel ? `Milestone "${event.fieldLabel}" is reopened` : "Milestone reopened",
+        title,
         detail: milestoneProgressText(event.newValue),
-        change: progress ? { from: progress.from, to: progress.to, direction: "down", caption: event.fieldLabel ? `Milestone "${event.fieldLabel}"` : undefined } : undefined,
+        change: progress ? { from: progress.from, to: progress.to, direction: "down", caption: title } : undefined,
       };
     }
     case "GOAL_MILESTONE_ADDED": {

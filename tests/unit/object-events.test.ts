@@ -121,7 +121,7 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
   it("renders GOAL_MILESTONE_COMPLETED's progress snapshot as its detail line, when one was recorded", () => {
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved", newValue: "3/5" }))).toEqual({
       title: 'Milestone "Deposit saved" completed', detail: "3 of 5 milestones completed",
-      change: { from: "2 of 5 milestones completed", to: "3 of 5 milestones completed", direction: "up", caption: 'Milestone "Deposit saved"' },
+      change: { from: "2 of 5 milestones completed", to: "3 of 5 milestones completed", direction: "up", caption: 'Milestone "Deposit saved" completed' },
     });
   });
 
@@ -131,9 +131,9 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     });
   });
 
-  it("captions GOAL_MILESTONE_COMPLETED's `change` with the milestone's own name, so it isn't lost once `change` replaces `title` in a big-diff view", () => {
-    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved", newValue: "1/3" })).change?.caption).toBe('Milestone "Deposit saved"');
-    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: null, newValue: "1/3" })).change?.caption).toBeUndefined();
+  it("captions GOAL_MILESTONE_COMPLETED's `change` with the full event (which milestone, and that it completed), so it isn't lost once `change` replaces `title` in a big-diff view", () => {
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Deposit saved", newValue: "1/3" })).change?.caption).toBe('Milestone "Deposit saved" completed');
+    expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: null, newValue: "1/3" })).change?.caption).toBe("Milestone completed");
   });
 
   it("omits `change` for GOAL_MILESTONE_COMPLETED when there's nothing to derive it from", () => {
@@ -146,7 +146,7 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: null }))).toEqual({ title: "Milestone reopened", detail: null });
     expect(describeObjectEvent(event({ eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Deposit saved", newValue: "0/5" }))).toEqual({
       title: 'Milestone "Deposit saved" is reopened', detail: "0 of 5 milestones completed",
-      change: { from: "1 of 5 milestones completed", to: "0 of 5 milestones completed", direction: "down", caption: 'Milestone "Deposit saved"' },
+      change: { from: "1 of 5 milestones completed", to: "0 of 5 milestones completed", direction: "down", caption: 'Milestone "Deposit saved" is reopened' },
     });
   });
 
