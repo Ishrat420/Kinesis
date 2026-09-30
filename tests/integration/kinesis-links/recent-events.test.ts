@@ -101,6 +101,28 @@ describe.sequential("getKinesisLinkRecentEvents", () => {
     expect(events["obj-milestone-goal"]).toMatchObject({ title: "Milestone added", detail: "Save deposit · Due 1 June 2030" });
   });
 
+  it("carries a milestone-completed event's `change` as a `kind: \"milestone\"` big-diff, headlined by the event itself rather than the progress count (KD-052)", async () => {
+    await seedObject("obj-milestone-completed", owner);
+    await prisma.objectEvent.create({ data: { id: "event-milestone-completed", userId: owner, objectId: "obj-milestone-completed", eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Save deposit", newValue: "2/3", source: "USER", occurredAt: at("2026-06-10") } });
+
+    const events = await getKinesisLinkRecentEvents([target("obj-milestone-completed")]);
+
+    expect(events["obj-milestone-completed"]).toMatchObject({
+      change: { from: "1 of 3 milestones completed", to: "2 of 3 milestones completed", direction: "up", kind: "milestone", caption: 'Milestone "Save deposit" completed' },
+    });
+  });
+
+  it("carries a milestone-reopened event's `change` the same way, direction down", async () => {
+    await seedObject("obj-milestone-reopened", owner);
+    await prisma.objectEvent.create({ data: { id: "event-milestone-reopened", userId: owner, objectId: "obj-milestone-reopened", eventType: "GOAL_MILESTONE_REOPENED", fieldLabel: "Save deposit", newValue: "1/3", source: "USER", occurredAt: at("2026-06-10") } });
+
+    const events = await getKinesisLinkRecentEvents([target("obj-milestone-reopened")]);
+
+    expect(events["obj-milestone-reopened"]).toMatchObject({
+      change: { from: "2 of 3 milestones completed", to: "1 of 3 milestones completed", direction: "down", kind: "milestone", caption: 'Milestone "Save deposit" is reopened' },
+    });
+  });
+
   it("omits `change` for an event with nothing to diff", async () => {
     await seedObject("obj-archived", owner);
     await prisma.objectEvent.create({ data: { id: "event-archived", userId: owner, objectId: "obj-archived", eventType: "ITEM_ARCHIVED", source: "USER", occurredAt: at("2026-06-10") } });
