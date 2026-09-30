@@ -32,6 +32,29 @@ used.
   saving. Notifications are date-sensitive, not time-sensitive, so once a day
   is enough.
 
+## PWA (in scope)
+
+Web Push requires Kinesis to be a proper installable PWA, which is part of
+this ticket. Already in place: `app/manifest.ts` and `appleWebApp` metadata in
+`app/layout.tsx`. Still needed:
+
+- **Service worker:** add `public/sw.js`, registered from the client app. It
+  handles `push` (shows the notification) and `notificationclick` (focuses an
+  open Kinesis window or opens `actionUrl`). It must be served uncached and
+  must not go through Clerk in `proxy.ts`; the current matcher already skips
+  `.js`, so keep it that way.
+- **iOS icon:** add `app/apple-icon.png`. Without it, the Home Screen icon
+  falls back to a screenshot.
+- **Install guidance:**
+  - iOS has no install prompt, so show "Share → Add to Home Screen"
+    instructions where push is enabled.
+  - Android and Chrome can use `beforeinstallprompt`.
+  - Detect installed mode with `display-mode: standalone`.
+- **Installed-app check:** verify on iOS and Android that sign-in (Clerk),
+  navigation and the status bar work when opened from the Home Screen.
+- **No offline support:** caching or offline mode is out of scope. The
+  service worker exists for push only.
+
 ## Considerations
 
 - **iOS:** push works only after Kinesis is added to the Home Screen from
@@ -45,8 +68,7 @@ used.
   hour.
 - **Dead subscriptions:** delete a subscription when the push service returns
   404 or 410.
-- **Implementation:** add a service worker (`public/sw.js`) and the
-  `web-push` package, with VAPID keys stored as environment variables. Add
+- **Implementation:** add the `web-push` package, with VAPID keys stored as environment variables. Add
   `worker-src 'self'` to the Content Security Policy in `next.config.ts`.
   Protect the cron route with a secret (`CRON_SECRET`). See the bundled Next.js
   guide at `node_modules/next/dist/docs/01-app/02-guides/progressive-web-apps.md`.
