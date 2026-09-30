@@ -43,8 +43,9 @@ this ticket. Already in place: `app/manifest.ts` and `appleWebApp` metadata in
   open Kinesis window or opens `actionUrl`). It must be served uncached and
   must not go through Clerk in `proxy.ts`; the current matcher already skips
   `.js`, so keep it that way.
-- **iOS icon:** add `app/apple-icon.png`. Without it, the Home Screen icon
-  falls back to a screenshot.
+- **iOS icon:** add `app/apple-icon.png` (180×180), resized from the current
+  favicon `app/icon.png`. Without it, the Home Screen icon falls back to a
+  screenshot.
 - **Install guidance:**
   - iOS has no install prompt, so show "Share → Add to Home Screen"
     instructions where push is enabled.
