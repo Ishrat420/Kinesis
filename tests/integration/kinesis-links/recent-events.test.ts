@@ -59,6 +59,16 @@ describe.sequential("getKinesisLinkRecentEvents", () => {
     await expect(getKinesisLinkRecentEvents([])).resolves.toEqual({});
   });
 
+  it("positive control: an ordinary significant event, well within the 90-day window, clears the threshold and surfaces", async () => {
+    // HIGH (70) + freshness, 5 days old (0-14d: +30) + Depends-on relevance (+20) = 120 -- nowhere near the score=50 threshold or the 90-day edge, so a failure here means basic surfacing itself is broken, not a boundary case.
+    await seedObject("obj-clear-surface", owner);
+    await prisma.objectEvent.create({ data: { id: "event-clear-surface", userId: owner, objectId: "obj-clear-surface", eventType: "STATUS_CHANGED", fieldKey: "status", fieldLabel: "Status", oldValue: "Active", newValue: "Finished", source: "USER", occurredAt: at("2026-06-10") } });
+
+    const events = await getKinesisLinkRecentEvents([{ objectId: "obj-clear-surface", linkType: "DEPENDS_ON" }]);
+
+    expect(events["obj-clear-surface"]).toMatchObject({ title: "Status changed" });
+  });
+
   it("picks the highest-scoring recent event, not just the most recent one", async () => {
     await seedObject("obj-a", owner);
     await prisma.objectEvent.createMany({ data: [
