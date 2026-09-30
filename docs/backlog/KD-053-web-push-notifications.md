@@ -24,7 +24,17 @@ used.
 
   Skip items already read in the app, and never re-push an item just because
   it is still unread.
-- **Respect settings.** If `remindersEnabled` is off, nothing is pushed.
+- **Respect settings.** If `notificationsEnabled` is off, the bell is hidden,
+  so nothing is pushed. Reminder settings (`remindersEnabled`, lead days) are
+  already applied by the engine, so push needs no extra check for them. The
+  bell and push must never diverge.
+- **No backlog flood.** When a user goes from zero subscribed devices to one
+  (first enable, or re-enabling after turning push off everywhere), record
+  every item currently on the bell as already pushed. Only items that appear
+  after that are pushed. This doesn't apply on deployment, or when a user
+  adds a further device.
+- **Tap marks read.** Opening Kinesis from a push marks that item as read on
+  the bell.
 - **Per-device toggle.** Settings gets a push on/off toggle for each device.
   A user can have several subscribed devices.
 - **Schedule.** Vercel Cron calls a protected route once a day (Hobby plan)
@@ -73,6 +83,16 @@ this ticket. Already in place: `app/manifest.ts` and `appleWebApp` metadata in
   `worker-src 'self'` to the Content Security Policy in `next.config.ts`.
   Protect the cron route with a secret (`CRON_SECRET`). See the bundled Next.js
   guide at `node_modules/next/dist/docs/01-app/02-guides/progressive-web-apps.md`.
+- **Environment variables:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+  `VAPID_SUBJECT` and `CRON_SECRET` are set in Vercel and never committed.
+  List them in `.env.example`.
+- **First-seen tracking:** building the bell list writes
+  `NotificationFirstSeen`. Check that the daily job writing it before the
+  user opens the app doesn't change the bell's ordering or which items show
+  as new.
+- **Running without a signed-in user:** the cron route has no Clerk session,
+  but `getAttentionRecords` pulls in sign-in and server-only code. Confirm
+  the user-ID-scoped path works there.
 - **Data model:** add a push subscription table (per user, per device) and a
   pushed-key record per user, which is deleted when its source record is
   deleted, the same way the `NotificationRead` markers are.
