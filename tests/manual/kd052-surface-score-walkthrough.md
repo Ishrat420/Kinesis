@@ -89,11 +89,12 @@ from plain History too, not just the peek.
 days ago, linked via Depends on.
 **Score:** 70 (HIGH) + 30 (fresh, <=14d) + 20 (Depends on) = **120**.
 **Expect:** Peek shows the big diff "1 of 3 milestones completed -> **2 of
-3 milestones completed**" with a green up-arrow connector, and **QA6
-Milestone Completed** still named above it. (This is the exact screenshot
-report that prompted both this fixture and the peek-identity fix above --
-confirms both the milestone big-diff itself and the object-name fix render
-together correctly.)
+3 milestones completed**" with a green up-arrow connector, a caption line
+underneath reading `Milestone "Second"`, and **QA6 Milestone Completed**
+still named above it. (This is the exact screenshot report that prompted
+this fixture, the peek-identity fix above, and the caption fix below -- all
+three render together correctly here: which Goal, which milestone, and the
+diff itself.)
 
 ### QA7 -- Milestone reopened: big-diff peek, amber down-arrow
 
@@ -101,7 +102,8 @@ together correctly.)
 (uncompleted) 6 days ago, linked via Alongside.
 **Score:** 70 (HIGH) + 30 (fresh, <=14d) + 10 (Alongside) = **110**.
 **Expect:** Peek shows "2 of 3 milestones completed -> **1 of 3 milestones
-completed**" with an amber down-arrow connector.
+completed**" with an amber down-arrow connector and a caption underneath
+reading `Milestone "Second"`.
 
 ### QA8a / QA8b -- Relevance alone decides eligibility
 

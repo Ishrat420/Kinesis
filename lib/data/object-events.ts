@@ -289,9 +289,13 @@ function resolveLabel(type: ObjectRelationshipType | null, value: string | null,
  * same plain "unlinked" glyph either way, since which type was removed
  * matters less than that it's gone. A retype (`action: "changed"`) crosses
  * two different types, so it has no single icon to name either, and a
- * renderer falls back to a neutral one instead. `caption` is set only for
- * that same retype case, naming the target the relationship's `from`/`to`
- * pair is between -- the two labels alone don't say what they're labeling.
+ * renderer falls back to a neutral one instead. `caption` names something
+ * the `from`/`to` pair alone doesn't say: a retype's own target (the two
+ * type labels don't say what they're between), or `GOAL_MILESTONE_COMPLETED`/
+ * `REOPENED`'s own milestone name (the two progress counts don't say which
+ * milestone moved them) -- both cases where `change` fully replaces `title`
+ * in a renderer showing the "big diff" view, so whatever `title` alone would
+ * have named needs a home inside `change` too.
  */
 export type ObjectEventDescription = {
   title: string;
@@ -419,7 +423,14 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return {
         title: event.fieldLabel ? `Milestone "${event.fieldLabel}" completed` : "Milestone completed",
         detail: milestoneProgressText(event.newValue),
-        change: progress ? { from: progress.from, to: progress.to, direction: "up" } : undefined,
+        // `caption`, not `title` -- the Kinesis Link peek's "big diff" view
+        // (KinesisLinkCard) renders `change` in place of `title`/`detail`
+        // when `change` is set, so the milestone's own name needs a home
+        // inside `change` too or it silently disappears the moment a diff
+        // exists, the same reason RELATIONSHIP_CHANGED's own caption names
+        // its target: the two progress counts alone don't say which
+        // milestone moved them.
+        change: progress ? { from: progress.from, to: progress.to, direction: "up", caption: event.fieldLabel ? `Milestone "${event.fieldLabel}"` : undefined } : undefined,
       };
     }
     case "GOAL_MILESTONE_REOPENED": {
@@ -427,7 +438,7 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return {
         title: event.fieldLabel ? `Milestone "${event.fieldLabel}" is reopened` : "Milestone reopened",
         detail: milestoneProgressText(event.newValue),
-        change: progress ? { from: progress.from, to: progress.to, direction: "down" } : undefined,
+        change: progress ? { from: progress.from, to: progress.to, direction: "down", caption: event.fieldLabel ? `Milestone "${event.fieldLabel}"` : undefined } : undefined,
       };
     }
     case "GOAL_MILESTONE_ADDED": {
