@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
 import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES, supportedTimeZones } from "@/lib/format/preferences";
 import { updateSettingsAction, type SettingsActionState } from "./actions";
+import { PushToggle } from "@/components/pwa/PushToggle";
 
 type Settings = {
   locale: string;
@@ -26,7 +27,7 @@ const SAMPLE_AMOUNT = 1234.5;
 
 const initialState: SettingsActionState = {};
 
-export function SettingsForm({ settings }: { settings: Settings }) {
+export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; pushPublicKey: string | null }) {
   const [state, action, pending] = useActionState(updateSettingsAction, initialState);
   const [locale, setLocale] = useState(settings.locale);
   const [currency, setCurrency] = useState(settings.currency);
@@ -91,6 +92,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <p className="mt-1 text-sm text-zinc-500">Decide when Kinesis should bring something to your attention.</p>
         <div className="mt-5 divide-y divide-zinc-100">
           <Toggle name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} icon={Bell} title="In-app notifications" description="Show updates and alerts in Kinesis." />
+          <PushToggle publicKey={pushPublicKey} inAppEnabled={settings.notificationsEnabled} />
           <Toggle name="remindersEnabled" defaultChecked={settings.remindersEnabled} icon={Clock3} title="Reminders" description="Get advance notice for upcoming dates." />
           <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
             <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about milestones</span><span className="mt-1 block text-zinc-500">How far ahead of a milestone&rsquo;s due date to start reminding you.</span></span>

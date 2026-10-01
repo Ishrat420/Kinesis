@@ -57,6 +57,21 @@ export function notificationKey(source: NotificationSource, id: string, type: No
 }
 
 /**
+ * The record a `notificationKey` names, read back out of the key -- for the
+ * one caller that only has the key: a tapped push (KD-053), which opens
+ * Kinesis with the key in the URL and nothing else. Null for anything that
+ * isn't a well-formed key, since the URL is untrusted input.
+ */
+export function parseNotificationKey(key: string): { source: NotificationSource; sourceId: string } | null {
+  const parts = key.split(":");
+  if (parts.length < 4) return null;
+  const source = parts[0] as NotificationSource;
+  if (!NOTIFICATION_SOURCES.includes(source)) return null;
+  const sourceId = parts.slice(1, -2).join(":");
+  return sourceId ? { source, sourceId } : null;
+}
+
+/**
  * What a notification is saying about something already past its deadline.
  *
  * Needs Attention only ever lists overdue things, so for the kinds it can

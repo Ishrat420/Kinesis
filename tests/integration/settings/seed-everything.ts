@@ -102,6 +102,15 @@ export async function seedEverything(userId: string, tag: string) {
       { id: `${tag}-firstseen-milestone`, itemKey: `milestone:${tag}-milestone:DUE_SOON:2030-01-01`, milestoneId: `${tag}-milestone`, userId },
     ],
   });
+  // And again for which of them have been pushed (KD-053).
+  await prisma.notificationPushed.createMany({
+    data: [
+      { id: `${tag}-pushed-doc`, itemKey: `document:${tag}-doc:EXPIRED:2030-01-01`, documentId: `${tag}-doc`, userId },
+    ],
+  });
+  await prisma.webPushSubscription.create({
+    data: { id: `${tag}-push-device`, endpoint: `https://push.example.test/${tag}`, p256dh: "p256dh", auth: "auth", userId },
+  });
 
   await object("finance", "FINANCE_ITEM", "Salary");
   await prisma.financeItem.create({

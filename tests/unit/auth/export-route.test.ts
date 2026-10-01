@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
       financeItem: { findMany: findMany() }, customModule: { findMany: findMany() }, template: { findMany: findMany() },
       todo: { findMany: findMany() }, attentionDismissal: { findMany: findMany() },
       notificationRead: { findMany: findMany() }, notificationFirstSeen: { findMany: findMany() },
+      notificationPushed: { findMany: findMany() }, webPushSubscription: { findMany: findMany() },
       securityEvent: { findMany: findMany(), create: vi.fn().mockResolvedValue({}) },
     },
   };
@@ -52,6 +53,10 @@ describe("settings export isolation", () => {
     expect(mocks.prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "owner-id" },
       omit: { clerkUserId: true },
+    }));
+    // A device's push keys are credentials, not the owner's data (KD-053).
+    expect(mocks.prisma.webPushSubscription.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      omit: { p256dh: true, auth: true },
     }));
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(mocks.prisma.securityEvent.create).toHaveBeenCalledWith({ data: { event: "DATA_EXPORT_COMPLETED", userId: "owner-id" } });

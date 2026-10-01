@@ -1,6 +1,6 @@
 # KD-053 — Web Push Notifications for Bell Items
 
-**Status:** Accepted
+**Status:** In Progress
 **Priority:** High
 **Tags:** Architecture / Data Model / Integration
 

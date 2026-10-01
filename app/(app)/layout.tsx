@@ -3,6 +3,7 @@ import { Topbar } from "@/components/navigation/Topbar";
 import { FormatProvider } from "@/lib/format/context";
 import { getFormatPreferences } from "@/lib/format/server";
 import { PAGE_PADDING } from "@/lib/layout/responsive";
+import { PwaClient } from "@/components/pwa/PwaClient";
 
 /**
  * The Kinesis application shell.
@@ -30,6 +31,8 @@ export default async function AppLayout({ children, modal }: { children: React.R
         </div>
 
         {modal}
+
+        <PwaClient />
       </FormatProvider>
     </main>
   );

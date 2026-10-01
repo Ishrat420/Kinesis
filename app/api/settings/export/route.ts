@@ -6,7 +6,7 @@ export async function GET() {
   if (verification !== true) return verification;
   const kinesisUser = await requireKinesisUser();
   const userId = kinesisUser.id;
-  const [user, settings, relationshipMapVersion, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, securityEvents] = await Promise.all([
+  const [user, settings, relationshipMapVersion, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, notificationPushes, pushSubscriptions, securityEvents] = await Promise.all([
     prisma.user.findMany({ where: { id: userId }, omit: { clerkUserId: true } }),
     prisma.userSettings.findMany({ where: { userId } }),
     prisma.relationshipMapVersion.findMany({ where: { userId } }),
@@ -40,11 +40,15 @@ export async function GET() {
     prisma.attentionDismissal.findMany({ where: { userId } }),
     prisma.notificationRead.findMany({ where: { userId } }),
     prisma.notificationFirstSeen.findMany({ where: { userId } }),
+    prisma.notificationPushed.findMany({ where: { userId } }),
+    // Which devices have push on (KD-053), without the keys each device's
+    // pushes are encrypted to: they're credentials, not the owner's data.
+    prisma.webPushSubscription.findMany({ where: { userId }, omit: { p256dh: true, auth: true } }),
     prisma.securityEvent.findMany({ where: { userId } }),
   ]);
   await prisma.securityEvent.create({ data: { event: "DATA_EXPORT_COMPLETED", userId } });
   const exportedAt = new Date().toISOString();
-  return new Response(JSON.stringify({ exportedAt, user, settings, relationshipMapVersion, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, securityEvents }, null, 2), {
+  return new Response(JSON.stringify({ exportedAt, user, settings, relationshipMapVersion, objects, objectFields, fieldLinks, objectRelationships, objectEvents, documents, documentTypes, goals, goalUnits, people, relationships, financeItems, customModules, templates, todos, attentionDismissals, notificationReads, notificationFirstSeens, notificationPushes, pushSubscriptions, securityEvents }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="kinesis-export-${exportedAt.slice(0, 10)}.json"`, "Cache-Control": "no-store" },
   });
 }

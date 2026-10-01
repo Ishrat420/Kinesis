@@ -19,6 +19,8 @@ model User {
   documents           Document[]
   notificationReads   NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
+  pushSubscriptions      WebPushSubscription[]
   documentTypes       DocumentType[]
   goals               Goal[]
   people              Person[]
@@ -132,6 +134,7 @@ model Document {
   linkLabel           String               @default("Link")
   notificationReads   NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
   dismissals          AttentionDismissal[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -229,6 +232,7 @@ model Goal {
   relationshipLinks     RelationshipGoal[]
   notificationReads     NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -513,6 +517,7 @@ model RelationshipImportantDate {
   selfPerson     Person?        @relation(fields: [selfPersonId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
   attentionDismissals AttentionDismissal[]
 
   @@index([relationshipId, date])
@@ -572,6 +577,7 @@ model Milestone {
   goal          Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
 
   @@index([goalId, position])
 }
@@ -626,6 +632,7 @@ model CustomItem {
   object        Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
   notificationReads NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
   dismissals    AttentionDismissal[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
@@ -788,6 +795,7 @@ model Todo {
 
   notificationReads NotificationRead[]
   notificationFirstSeens NotificationFirstSeen[]
+  notificationPushes     NotificationPushed[]
   dismissals    AttentionDismissal[]
 
   createdAt DateTime @default(now())
@@ -881,6 +889,64 @@ model NotificationFirstSeen {
   @@index([customItemId])
   @@index([todoId])
   @@index([goalId])
+}
+
+/**
+ * Which notifications have already been sent to the owner's devices as a Web
+ * Push (KD-053), so the daily run pushes each one once rather than every day
+ * it stays unread. Keyed on the same itemKey as `NotificationRead`, so a
+ * reminder and the overdue notice after it are separate pushes, and a moved
+ * deadline is a new one.
+ * Same shape as `NotificationRead` and `NotificationFirstSeen` for the same
+ * reason: one nullable FK per notification source, purely so deleting the
+ * record takes its pushed marker with it.
+ */
+model NotificationPushed {
+  id                 String                     @id
+  itemKey            String
+  documentId         String?
+  milestoneId        String?
+  relationshipDateId String?
+  customItemId       String?
+  todoId             String?
+  goalId             String?
+  userId             String
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document           Document?                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  milestone          Milestone?                 @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  relationshipDate   RelationshipImportantDate? @relation(fields: [relationshipDateId], references: [id], onDelete: Cascade)
+  customItem         CustomItem?                @relation(fields: [customItemId], references: [id], onDelete: Cascade)
+  todo               Todo?                      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  goal               Goal?                      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  pushedAt           DateTime                   @default(now())
+
+  @@unique([userId, itemKey])
+  @@index([documentId])
+  @@index([milestoneId])
+  @@index([relationshipDateId])
+  @@index([customItemId])
+  @@index([todoId])
+  @@index([goalId])
+}
+
+/**
+ * One browser or installed app that has turned push on (KD-053). A row
+ * existing is what "push is on for this device" means; turning it off
+ * deletes the row. `endpoint` is the push service URL the browser handed
+ * out, unique per device; `p256dh` and `auth` are the keys the payload is
+ * encrypted to.
+ */
+model WebPushSubscription {
+  id        String   @id
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model AttentionDismissal {

@@ -21,6 +21,8 @@ const contentSecurityPolicy = [
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
   "connect-src 'self'",
+  // The push service worker, public/sw.js (KD-053).
+  "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -3,11 +3,14 @@ import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
 const isApiRoute = createRouteMatcher(["/api(.*)", "/trpc(.*)"]);
+// Called by Vercel Cron, which has no Clerk session: each route under here
+// authenticates the request itself with CRON_SECRET.
+const isCronRoute = createRouteMatcher(["/api/cron(.*)"]);
 const frontendApiProxyEnabled = process.env.CLERK_FRONTEND_API_PROXY_ENABLED === "true";
 
 export default clerkMiddleware(
   async (auth, request) => {
-    if (isPublicRoute(request)) return;
+    if (isPublicRoute(request) || isCronRoute(request)) return;
 
     const { userId } = await auth();
     if (!userId) {
