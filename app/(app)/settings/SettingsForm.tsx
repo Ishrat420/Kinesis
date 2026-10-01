@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { startTransition, useActionState, useMemo, useState } from "react";
 import { Bell, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
@@ -46,7 +46,19 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
   }, [locale, timeZone]);
 
   return (
-    <form action={action} className="space-y-6">
+    // Submitted by hand rather than through `action={action}`: React resets a
+    // form after its action runs, and a reset puts each controlled <select>
+    // back on its first option (no option is ever marked default) -- the
+    // time zone silently became Africa/Abidjan on the next save. Without the
+    // reset, the form simply keeps the values that were just saved.
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        startTransition(() => action(data));
+      }}
+      className="space-y-6"
+    >
       <section id="regional" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h2 className="text-lg font-semibold">Region &amp; formatting</h2>
         <p className="mt-1 text-sm text-zinc-500">Set how Kinesis writes dates and amounts everywhere in the app.</p>
@@ -168,5 +180,5 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
 }
 
 function Toggle({ name, defaultChecked, onChange, icon: Icon, title, description }: { name: string; defaultChecked: boolean; onChange?: (checked: boolean) => void; icon: React.ElementType; title: string; description: string }) {
-  return <label className="flex cursor-pointer items-center justify-between gap-5 py-4"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100"><Icon className="h-4 w-4" /></span><span className="text-sm"><span className="font-medium text-zinc-800">{title}</span><span className="mt-1 block text-zinc-500">{description}</span></span></span><input name={name} type="checkbox" defaultChecked={defaultChecked} onChange={(event) => onChange?.(event.target.checked)} className="h-5 w-5 accent-zinc-950" /></label>;
+  return <label className="flex cursor-pointer items-center justify-between gap-5 py-4"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100"><Icon className="h-4 w-4" /></span><span className="text-sm"><span className="font-medium text-zinc-800">{title}</span><span className="mt-1 block text-zinc-500">{description}</span></span></span><input name={name} type="checkbox" defaultChecked={defaultChecked} onChange={(event) => onChange?.(event.target.checked)} className="h-5 w-5 shrink-0 accent-zinc-950" /></label>;
 }

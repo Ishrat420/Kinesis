@@ -22,8 +22,9 @@ type Status = "checking" | "unconfigured" | "needs-home-screen" | "unsupported" 
  * than waiting for "Save settings": turning push on needs the browser's
  * permission prompt, which only appears in direct response to a tap.
  *
- * Lives inside SettingsForm's notifications section, so the checkbox has no
- * `name` and is never submitted with the form.
+ * Lives inside SettingsForm's notifications section, but isn't part of that
+ * form: `form=""` detaches the checkbox, so it is never submitted with it, and
+ * a reset of the form can never set it back to unchecked while push stays on.
  */
 export function PushToggle({ publicKey, inAppEnabled }: { publicKey: string | null; inAppEnabled: boolean }) {
   const [status, setStatus] = useState<Status>("checking");
@@ -127,11 +128,12 @@ export function PushToggle({ publicKey, inAppEnabled }: { publicKey: string | nu
         </span>
         <input
           type="checkbox"
+          form=""
           checked={status === "on"}
           disabled={!canToggle || busy}
           onChange={(event) => toggle(event.target.checked)}
           aria-label="Push notifications on this device"
-          className="h-5 w-5 accent-zinc-950 disabled:opacity-40"
+          className="h-5 w-5 shrink-0 accent-zinc-950 disabled:opacity-40"
         />
       </label>
       {note && <p className="mt-3 text-xs text-zinc-500">{note}</p>}
