@@ -83,18 +83,23 @@ describe("the application shell", () => {
 });
 
 describe("mobile navigation", () => {
-  const topbar = sources.get(join("components", "navigation", "Topbar.tsx")) ?? "";
+  const shell = sources.get(join("app", "(app)", "layout.tsx")) ?? "";
+  const tabBar = sources.get(join("components", "navigation", "MobileTabBar.tsx")) ?? "";
   const sidebar = sources.get(join("components", "navigation", "Sidebar.tsx")) ?? "";
 
-  it("reaches the drawer only where the sidebar is hidden", () => {
-    expect(topbar).toContain("MobileNavDrawer");
-    expect(topbar).toContain("md:hidden");
+  it("shows the tab bar only where the sidebar is hidden", () => {
+    expect(tabBar).toContain("md:hidden");
     expect(sidebar).toContain("hidden");
     expect(sidebar).toContain("md:block");
   });
 
-  it("gives the drawer the sidebar's own navigation rather than a copy of it", () => {
-    expect(topbar).toContain("<SidebarNav />");
+  it("gives the More sheet the sidebar's own navigation rather than a copy of it", () => {
+    expect(shell).toContain("<SidebarNav withOverview={false} />");
+  });
+
+  it("leaves room at the bottom of every page for the tab bar", () => {
+    expect(shell).toContain("pb-(--tab-bar-clearance)");
+    expect(shell).toContain("md:pb-8");
   });
 });
 
@@ -110,7 +115,7 @@ describe("mobile navigation", () => {
  * shrink -- and `inset-0` alone is neither.
  */
 describe("overlays opened from the top bar", () => {
-  const mounted = ["MobileNavDrawer.tsx", "NotificationBell.tsx"];
+  const mounted = ["NotificationBell.tsx"];
 
   it.each(mounted)("%s does not trust inset-0 to mean the viewport", (file) => {
     const source = sources.get(join("components", "navigation", file)) ?? "";
@@ -121,12 +126,6 @@ describe("overlays opened from the top bar", () => {
     // other way out, and leaves no `inset-0` here to find.
     const insetOverlays = source.match(/className="fixed inset-0[^"]*"/g) ?? [];
     if (insetOverlays.length) expect(source).toContain("createPortal");
-  });
-
-  it("keeps the drawer's overlay in document.body", () => {
-    const drawer = sources.get(join("components", "navigation", "MobileNavDrawer.tsx")) ?? "";
-    expect(drawer).toContain("createPortal");
-    expect(drawer).toContain("document.body");
   });
 
   it("still has a backdrop filter on the bar, which is what makes this necessary", () => {

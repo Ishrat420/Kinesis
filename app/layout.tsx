@@ -20,6 +20,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#09090b",
+  // Lets env(safe-area-inset-bottom) report the iPhone home indicator, which
+  // the phone tab bar (KD-054) sits clear of.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

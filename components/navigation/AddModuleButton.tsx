@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check, Plus, X } from "lucide-react";
 import { createCustomModuleAction, type CreateModuleState } from "@/app/(app)/custom-modules/actions";
@@ -15,7 +16,7 @@ export function AddModuleButton({ templates }: { templates: { id: string; name: 
   const [open, setOpen] = useState(false);
 
   return <>
-    <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
+    <button type="button" data-sheet-dismiss onClick={() => setOpen(true)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-zinc-500 transition duration-200 hover:bg-zinc-100 hover:text-zinc-950">
       <Plus className="h-[18px] w-[18px]" /><span className="font-medium">Add Module</span>
     </button>
     {/* Mounted only while open, not just hidden: this button lives in the
@@ -23,7 +24,10 @@ export function AddModuleButton({ templates }: { templates: { id: string; name: 
         from a previous create would otherwise sit there forever with nothing
         to reset it. Mounting a fresh instance each time is what guarantees
         the next open starts from a clean, unsubmitted form. */}
-    {open && <CreateModuleModal templates={templates} onClose={() => setOpen(false)} />}
+    {/* Portaled: on a phone this button sits in the More sheet, whose slide
+        transform would otherwise become the containing block for the
+        dialog's `fixed inset-0` and shrink it to the sheet. */}
+    {open && createPortal(<CreateModuleModal templates={templates} onClose={() => setOpen(false)} />, document.body)}
   </>;
 }
 

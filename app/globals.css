@@ -3,6 +3,13 @@
 :root {
   --background: #f7f8fb;
   --foreground: #18181b;
+
+  /* The phone tab bar (KD-054): its height, how far it floats above the
+     bottom edge -- clear of the iPhone home indicator where there is one --
+     and the padding a page needs so its last row isn't hidden under it. */
+  --tab-bar-height: 68px;
+  --tab-bar-offset: max(1rem, env(safe-area-inset-bottom));
+  --tab-bar-clearance: calc(var(--tab-bar-height) + var(--tab-bar-offset) + 2rem);
 }
 
 @theme inline {
@@ -164,4 +171,18 @@ html {
   .map-icon {
     @apply flex h-9 w-9 items-center justify-center border-zinc-100 text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900;
   }
+}
+
+/* The phone tab bar steps out of the way while someone is typing: with the
+   on-screen keyboard up it would only float over the field and eat what
+   little screen is left. Keyed on a focused text field, which is what raises
+   the keyboard, so no script has to guess at the keyboard itself. */
+[data-tab-bar] {
+  transition: translate 300ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms ease;
+}
+
+:root:has(:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"]), select, textarea, [contenteditable="true"]):focus) [data-tab-bar] {
+  translate: 0 calc(100% + var(--tab-bar-offset));
+  opacity: 0;
+  pointer-events: none;
 }

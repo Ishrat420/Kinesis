@@ -57,11 +57,17 @@ export function SidebarBrand() {
   );
 }
 
-export async function SidebarNav() {
+/**
+ * The navigation list, shared by the desktop sidebar and the phone's More
+ * sheet (KD-054) so the two can't drift apart. The sheet leaves out Overview:
+ * its entries are the phone tab bar's own tabs.
+ */
+export async function SidebarNav({ withOverview = true }: { withOverview?: boolean }) {
   const [customModules, templates] = await Promise.all([getCustomModules(), getTemplateOptions()]);
 
   return (
     <nav aria-label="Main navigation" className="flex flex-col gap-5 text-sm">
+      {withOverview && <>
       {/*
         Overview holds the places you go to decide what to do next — the
         Dashboard, the To-Dos, the Calendar. ADR-009 is explicit that modules
@@ -73,6 +79,7 @@ export async function SidebarNav() {
         <SidebarNavLink href="/todos" label="To-Dos" icon={<ListTodo className="h-[18px] w-[18px]" />} />
         <SidebarNavLink href="/calendar" label="Calendar" icon={<Calendar className="h-[18px] w-[18px]" />} />
       </NavSection>
+      </>}
 
       {/*
         Adding a module is an action on this list, so its control closes the

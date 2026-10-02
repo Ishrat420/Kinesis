@@ -1,4 +1,5 @@
-import { Sidebar } from "@/components/navigation/Sidebar";
+import { Sidebar, SidebarNav } from "@/components/navigation/Sidebar";
+import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { Topbar } from "@/components/navigation/Topbar";
 import { FormatProvider } from "@/lib/format/context";
 import { getFormatPreferences } from "@/lib/format/server";
@@ -27,8 +28,14 @@ export default async function AppLayout({ children, modal }: { children: React.R
         <div className="flex">
           <Sidebar />
 
-          <section className={`min-w-0 flex-1 py-8 ${PAGE_PADDING}`}>{children}</section>
+          {/* On a phone the bottom padding clears the floating tab bar, so a
+              page's last row is never left underneath it. */}
+          <section className={`min-w-0 flex-1 pt-8 pb-(--tab-bar-clearance) md:pb-8 ${PAGE_PADDING}`}>{children}</section>
         </div>
+
+        <MobileTabBar>
+          <SidebarNav withOverview={false} />
+        </MobileTabBar>
 
         {modal}
 

@@ -12,6 +12,7 @@ import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { CaptureDetailsDialog } from "./CaptureDetailsDialog";
 import { CaptureConfirmation } from "./CaptureConfirmation";
 import { searchAction } from "./search-actions";
+import { FOCUS_CAPTURE_EVENT } from "@/lib/capture/focus";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 /** How long to let someone keep typing before a search actually runs. */
@@ -104,8 +105,14 @@ export function CommandBar() {
         inputRef.current?.blur();
       }
     }
+    // The phone tab bar's + (KD-054) lands here, in the same box.
+    const focusForCapture = () => inputRef.current?.focus();
     window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
+    window.addEventListener(FOCUS_CAPTURE_EVENT, focusForCapture);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      window.removeEventListener(FOCUS_CAPTURE_EVENT, focusForCapture);
+    };
   }, []);
 
   /**

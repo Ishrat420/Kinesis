@@ -1,6 +1,6 @@
 # KD-054 — Mobile Bottom Tab Bar
 
-**Status:** Accepted
+**Status:** In Progress
 **Priority:** High
 **Tags:** UX / UI
 
@@ -16,10 +16,12 @@ sidebar as it is.
 |---|---|
 | Home | Dashboard |
 | To-dos | To-dos |
-| **+** (centre, raised) | Quick capture |
+| **+** (centre) | Quick capture |
 | Calendar | Calendar |
 | More | The More sheet (below) |
 
+- A floating, frosted pill above the bottom edge (the approved mock-up), with
+  a soft highlight that slides to the current tab.
 - Each tab is an icon with a small label underneath.
 - Monochrome, matching the app: the current tab is a black, filled icon with
   a dark label; the others are grey. No colour.
@@ -40,8 +42,8 @@ sidebar as it is.
 
 - Opens the existing quick capture (today the top search box's "type
   something to capture" flow). It doesn't add a second capture mechanism.
-- The exact behaviour still needs deciding. One option is opening a focused
-  capture sheet; the other is focusing the existing box.
+- Decided: **+** focuses the existing box in the top bar, so the keyboard comes
+  up straight away and search and create work exactly as they do now.
 
 ## Considerations
 
