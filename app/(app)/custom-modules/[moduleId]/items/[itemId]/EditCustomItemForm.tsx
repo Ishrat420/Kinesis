@@ -75,7 +75,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
       iconStyle={{ backgroundColor: `color-mix(in srgb, ${moduleColor} 10%, white)` }}
       actions={<>{!editing && <button type="button" onClick={() => setEditing(true)} className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50"><Pencil className="h-4 w-4" />Edit</button>}{deleteAction}</>}
     />
-    <section className="mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="mt-6 sm:mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
         ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
         : <ReadView item={item} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}

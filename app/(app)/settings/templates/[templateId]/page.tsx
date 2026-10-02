@@ -20,7 +20,7 @@ export default async function TemplateDetailPage({ params }: { params: Promise<{
       actions={<><CloneTemplateButton templateId={template.id} templateName={template.name} /><DeleteTemplateButton templateId={template.id} templateName={template.name} locked={template.inUse || template.isStarter} lockReason={template.isStarter ? "Your starter template can't be deleted." : "This template is in use, so it can't be deleted."} /></>}
     />
 
-    <div className="mt-8">
+    <div className="mt-6 sm:mt-8">
       <TemplateDetailForm
         templateId={template.id}
         name={template.name}

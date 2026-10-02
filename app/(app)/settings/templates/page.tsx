@@ -16,13 +16,13 @@ export default async function TemplatesPage() {
     />
 
     {!templates.length ? (
-      <div className="mt-10 rounded-[28px] border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
+      <div className="mt-6 sm:mt-10 rounded-[28px] border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-700"><LayoutTemplate className="h-7 w-7" /></span>
         <h2 className="mt-5 text-xl font-semibold">No templates yet.</h2>
         <p className="mt-2 text-zinc-500">Create one to give a module a starting shape.</p>
       </div>
     ) : (
-      <div className="mt-8 space-y-3">
+      <div className="mt-6 sm:mt-8 space-y-3">
         {templates.map((template) => (
           <Link
             key={template.id}

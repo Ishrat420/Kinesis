@@ -69,7 +69,7 @@ export function FinanceDashboard({ items }: { items: FinanceItem[] }) {
       actions={<button onClick={() => setModal("choose")} className="flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgb(0,0,0,0.16)] transition hover:-translate-y-0.5 hover:bg-zinc-800"><Plus className="h-[18px] w-[18px]"/>Add</button>}
     />
 
-    <section className="mt-9 overflow-hidden rounded-[28px] bg-zinc-950 p-6 text-white shadow-[0_18px_50px_rgb(0,0,0,0.12)] sm:p-8">
+    <section className="mt-6 sm:mt-9 overflow-hidden rounded-[28px] bg-zinc-950 p-6 text-white shadow-[0_18px_50px_rgb(0,0,0,0.12)] sm:p-8">
       <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end"><div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400"><Landmark className="h-4 w-4"/>Net worth</div><p className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">{money(totals.netWorth)}</p><p className="mt-3 text-sm text-zinc-400">The difference between everything you own and owe.</p></div><div className="grid grid-cols-2 gap-3"><DarkStat label="Total assets" value={totals.assets}/><DarkStat label="Total liabilities" value={totals.liabilities}/></div></div>
     </section>
 

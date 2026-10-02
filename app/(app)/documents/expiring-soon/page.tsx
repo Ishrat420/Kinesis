@@ -99,7 +99,7 @@ export default async function ExpiringDocumentsPage() {
         description="A document appears in Upcoming when its reminder period begins."
       />
 
-      <div className="mt-9 space-y-5">
+      <div className="mt-6 sm:mt-9 space-y-5">
         <DocumentSection title="Upcoming" documents={upcoming} today={today} locale={locale} />
         <DocumentSection title="Expired" documents={expired} today={today} locale={locale} expired />
       </div>

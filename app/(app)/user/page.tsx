@@ -16,7 +16,7 @@ export default async function UserPage() {
       title="Personal profile"
       description={`Choose how Kinesis addresses you, ${getUserDisplayName(user)}.`}
     />
-    <section className="mt-8 flex flex-wrap items-center justify-between gap-5 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="mt-6 sm:mt-8 flex flex-wrap items-center justify-between gap-5 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <div className="flex min-w-0 items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element -- Clerk provides the authenticated user's remote image URL. */}
         <img src={account.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />

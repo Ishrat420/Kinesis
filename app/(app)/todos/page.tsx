@@ -37,7 +37,7 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
 
       {/* Three across at every width, as on Documents: stacked on a phone,
           they were a screen of scrolling before the list. */}
-      <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="mt-6 sm:mt-8 grid grid-cols-3 gap-3 sm:gap-4">
         <StatCard title="Captured" value={summary.total} />
         <StatCard title="Still open" value={summary.open} />
         <StatCard title="Done" value={summary.done} />

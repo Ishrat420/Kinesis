@@ -42,8 +42,14 @@ export function ModuleHeader({
 
       {breadcrumbs?.length ? <div className="mb-3"><Breadcrumbs items={breadcrumbs} /></div> : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-5">
-        <div className="flex min-w-0 items-start gap-4">
+      {/*
+        The actions share the title's row whenever they fit, and wrap to just
+        under the title when they don't, with the description always beneath
+        both. On a phone that keeps the button off a row of its own; on a
+        wider screen it is the same title-and-actions row as before.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:items-start sm:gap-5">
+        <div className="flex min-w-0 items-center gap-4 sm:items-start">
           {icon && (
             <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${iconClassName}`} style={iconStyle}>
               {icon}
@@ -58,15 +64,20 @@ export function ModuleHeader({
             <h1 className={`${eyebrow ? "mt-2 " : ""}text-[30px] font-semibold leading-tight tracking-tight sm:text-[38px] sm:leading-none`}>
               {title}
             </h1>
-
-            {description && (
-              <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-500">{description}</p>
-            )}
           </div>
         </div>
 
         {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
       </div>
+
+      {/* Smaller and tighter on a phone, where it otherwise ran to three
+          lines. From sm up it sits where it always did: under the title, past
+          the icon, 12px below the title itself. The row above is as tall as
+          the 48px icon or buttons when there are any, 10px taller than the
+          title alone, so the gap shrinks by that much to make up for it. */}
+      {description && (
+        <p className={`mt-2 max-w-2xl text-sm leading-6 text-zinc-500 sm:text-base sm:leading-7 ${icon || actions ? "sm:mt-0.5" : "sm:mt-3"} ${icon ? "sm:ml-16" : ""}`}>{description}</p>
+      )}
     </header>
   );
 }
