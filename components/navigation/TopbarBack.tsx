@@ -32,9 +32,12 @@ export function TopbarBack() {
       type="button"
       aria-label="Back"
       onClick={() => (trail.previous === parent ? router.back() : router.push(parent))}
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200/80 bg-white text-zinc-600 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-950 md:hidden"
+      // A bare chevron flush with the edge, the way native iOS apps draw it,
+      // rather than another boxed button beside the search. Narrow to look
+      // at; the touch rule in globals.css still gives it a 44px target.
+      className="-ml-1.5 flex h-11 w-7 shrink-0 items-center justify-center text-zinc-900 md:hidden"
     >
-      <ChevronLeft className="h-5 w-5" />
+      <ChevronLeft className="h-7 w-7" strokeWidth={2} />
     </button>
   );
 }
