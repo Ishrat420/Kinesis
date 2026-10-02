@@ -92,6 +92,30 @@ html {
   }
 }
 
+/* Tap targets on touch screens. The small icon-only buttons (complete,
+   reschedule, edit, dismiss, close, ...) are 32-36px, under the 44px a finger
+   reliably hits. Each one's tappable area grows to at least 44x44 through an
+   invisible ::after, so nothing moves or looks different, and anything
+   already 44px or larger is untouched (the inset is never positive).
+
+   Icon-only controls here always carry an aria-label, which is what this keys
+   on. In the base layer, so a control's own `absolute`/`fixed` positioning
+   still wins over the `relative` set here. Opt one out with
+   data-tap-target="none". */
+@layer base {
+  @media (pointer: coarse) {
+    :where(button, a, summary, [role="button"])[aria-label]:not([data-tap-target="none"]) {
+      position: relative;
+    }
+
+    :where(button, a, summary, [role="button"])[aria-label]:not([data-tap-target="none"])::after {
+      content: "";
+      position: absolute;
+      inset: min(0px, calc((100% - 44px) / 2));
+    }
+  }
+}
+
 /* iPhone Safari zooms the whole page in on any field whose text is under 16px
    as soon as it's tapped, and stays zoomed. On touch screens every text
    field is at least 16px, so tapping one never zooms. Unlayered, so it beats
