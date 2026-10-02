@@ -35,7 +35,9 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
         actions={<AddTodoButton linkOptions={linkOptions} />}
       />
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      {/* Three across at every width, as on Documents: stacked on a phone,
+          they were a screen of scrolling before the list. */}
+      <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
         <StatCard title="Captured" value={summary.total} />
         <StatCard title="Still open" value={summary.open} />
         <StatCard title="Done" value={summary.done} />
@@ -48,9 +50,9 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
 
 function StatCard({ title, value }: { title: string; value: number }) {
   return (
-    <div className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-      <p className="text-sm font-semibold text-zinc-500">{title}</p>
-      <p className="mt-4 text-[38px] font-semibold leading-none tracking-tight">{value}</p>
+    <div className="rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:rounded-3xl sm:p-5">
+      <p className="text-xs font-semibold text-zinc-500 sm:text-sm">{title}</p>
+      <p className="mt-2 text-2xl font-semibold leading-none tracking-tight sm:mt-4 sm:text-[38px]">{value}</p>
     </div>
   );
 }
