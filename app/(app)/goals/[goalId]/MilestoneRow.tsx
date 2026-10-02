@@ -7,6 +7,7 @@ import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/d
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import type { GoalActionState } from "../actions";
 import { DueDateField } from "./GoalAddForms";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
 const initialState: GoalActionState = {};
@@ -108,8 +109,8 @@ export function MilestoneRow({ milestone, hasTarget, unit, goalTargetDate, toggl
       <summary aria-label="Milestone actions" className="list-none rounded-lg p-2 text-zinc-400 hover:bg-white hover:text-zinc-700"><Ellipsis className="h-5 w-5" /></summary>
       <div className="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-zinc-200 bg-white p-1.5 text-sm shadow-lg">
         <button type="button" onClick={() => setEditing(true)} className="w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50">Edit milestone</button>
-        <form action={duplicateAction}><button className="w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50">Duplicate</button></form>
-        <form action={deleteAction}><button className="w-full rounded-lg px-3 py-2 text-left text-red-600 hover:bg-red-50">Delete</button></form>
+        <form action={duplicateAction}><SubmitButton className="w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-50">Duplicate</SubmitButton></form>
+        <form action={deleteAction}><SubmitButton className="w-full rounded-lg px-3 py-2 text-left text-red-600 hover:bg-red-50">Delete</SubmitButton></form>
       </div>
     </details>
   </div>;

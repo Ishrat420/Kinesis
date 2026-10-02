@@ -8,6 +8,7 @@ import { Modal } from "@/components/overlay/Modal";
 import { MEASURE_REMOVAL_CONSEQUENCE } from "@/lib/goals/measure";
 import type { GoalActionState } from "../actions";
 import { TEXT_LIMIT } from "@/lib/validation/field-limits";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
 const initialState: GoalActionState = {};
@@ -159,8 +160,8 @@ export function MilestoneDueDateForm({ action, removeAction, dueDate, goalTarget
 
   return <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
     <input name="dueDate" type="date" max={latestDueDate} aria-label="Milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} defaultValue={dueDate ? formatDateInput(dueDate) : ""} className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-xs outline-none focus:border-violet-400" />
-    <button className="h-9 rounded-lg bg-zinc-900 px-3 text-xs font-semibold text-white">Save date</button>
-    {dueDate && <button formAction={removeAction} className="h-9 px-2 text-xs font-semibold text-red-500">Remove</button>}
+    <SubmitButton formAction={formAction} className="h-9 rounded-lg bg-zinc-900 px-3 text-xs font-semibold text-white">Save date</SubmitButton>
+    {dueDate && <SubmitButton formAction={removeAction} className="h-9 px-2 text-xs font-semibold text-red-500">Remove</SubmitButton>}
     <button type="button" onClick={() => setEditing(false)} className="h-9 px-2 text-xs font-medium text-zinc-500">Cancel</button>
     {state.error && <p role="alert" className="w-full text-xs font-medium text-red-600">{state.error}</p>}
   </form>;
@@ -271,7 +272,7 @@ function MeasurableTargetFields({ action, removeAction, units, targetValue, curr
           <form action={removeFormAction} className="mt-7 flex flex-wrap justify-end gap-3">
             <input type="hidden" name="confirmed" value="true" />
             <button type="button" onClick={() => setConfirming(false)} className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Cancel</button>
-            <button className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Remove</button>
+            <SubmitButton className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Remove</SubmitButton>
           </form>
         </Modal>
       )}

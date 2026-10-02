@@ -19,6 +19,7 @@ import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { freshestStamp } from "@/lib/actions/concurrency";
 import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
+import { keepFormValues } from "@/components/ui/keep-form-values";
 
 const initialState: CustomItemState = {};
 const EMPTY_VALUE = "—";
@@ -160,7 +161,7 @@ function EditForm({ moduleId, item, updatedAt, linkOptions, previews, addKinesis
 
   useEffect(() => { if (state.saved && state.updatedAt) { router.refresh(); onSaved(state.updatedAt); } }, [state.saved, state.updatedAt, router, onSaved]);
 
-  return <form action={formAction} className="space-y-5">
+  return <form action={formAction} ref={keepFormValues} className="space-y-5">
     <input type="hidden" name="updatedAt" value={updatedAt} />
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
     {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} previews={previews} /></div>}

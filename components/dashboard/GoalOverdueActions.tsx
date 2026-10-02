@@ -6,6 +6,7 @@ import { formatDateInput } from "@/lib/dates";
 import { GOAL_STATUSES } from "@/lib/goals/format";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
 import { InlineDatePicker } from "./InlineDatePicker";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 const initialActionState: { error?: string } = {};
 
@@ -34,7 +35,7 @@ export function GoalOverdueActions({ targetDate, updateTargetDate, updateStatus 
     return <form action={dateAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <InlineDatePicker name="targetDate" defaultValue={formatDateInput(targetDate)} ariaLabel="New due date" />
-        <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
+        <SubmitButton className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</SubmitButton>
         <button type="button" onClick={() => setEditing(null)} aria-label="Cancel" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
       </div>
       {dateState.error && <p role="alert" className="text-xs font-medium text-red-600">{dateState.error}</p>}
@@ -50,7 +51,7 @@ export function GoalOverdueActions({ targetDate, updateTargetDate, updateStatus 
           </select>
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
         </div>
-        <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
+        <SubmitButton className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</SubmitButton>
         <button type="button" onClick={() => setEditing(null)} aria-label="Cancel" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
       </div>
       {statusState.error && <p role="alert" className="text-xs font-medium text-red-600">{statusState.error}</p>}

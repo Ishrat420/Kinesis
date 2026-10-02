@@ -12,6 +12,7 @@ import { CaptureDetailsDialog } from "@/components/capture/CaptureDetailsDialog"
 import { InlineDatePicker } from "@/components/dashboard/InlineDatePicker";
 import { useToday } from "@/lib/format/context";
 import { deleteTodoAction, setTodoStatusAction, updateTodoDueDateAction, type TodoActionState } from "./actions";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 const initialRescheduleState: TodoActionState = {};
 
@@ -247,7 +248,7 @@ function TodoRescheduleForm({ todoId, dueDate, onDone }: { todoId: string; dueDa
     <form action={formAction} onClick={(event) => event.stopPropagation()} className="relative flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <InlineDatePicker name="dueDate" defaultValue={dueDate ? formatDateInput(dueDate) : ""} ariaLabel="New due date" />
-        <button className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</button>
+        <SubmitButton className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</SubmitButton>
         <button type="button" onClick={onDone} aria-label="Cancel reschedule" className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"><X className="h-4 w-4" /></button>
       </div>
       {state.error && <p role="alert" className="text-xs font-medium text-red-600">{state.error}</p>}

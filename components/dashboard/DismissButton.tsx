@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { dismissAttentionItem } from "@/app/actions";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 /**
  * The one Dismiss control shared by Needs Attention and Upcoming & Due --
@@ -22,14 +23,13 @@ import { ICON_ACTION_CLASS } from "./icon-action-styles";
 export function DismissButton({ itemKey, onDismissed }: { itemKey: string; onDismissed?: () => void }) {
   return (
     <form action={dismissAttentionItem.bind(null, itemKey)} onSubmit={onDismissed}>
-      <button
-        type="submit"
+      <SubmitButton
         aria-label="Dismiss"
         title="Dismiss"
         className={`${ICON_ACTION_CLASS} hover:bg-red-50 hover:text-red-600`}
       >
         <X className="h-4 w-4" />
-      </button>
+      </SubmitButton>
     </form>
   );
 }

@@ -9,6 +9,7 @@ import type { TemplateFieldInput } from "@/lib/templates/parse";
 import { FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import { freshestStamp } from "@/lib/actions/concurrency";
 import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
+import { keepFormValues } from "@/components/ui/keep-form-values";
 
 const initialState: TemplateActionState = {};
 
@@ -39,7 +40,7 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
   }, [state.saved]);
 
   return (
-    <form action={formAction} className="space-y-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <form action={formAction} ref={keepFormValues} className="space-y-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <input type="hidden" name="updatedAt" value={currentUpdatedAt} />
       <div>
         <label htmlFor="template-name" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Name <span className="font-bold text-red-500">*</span></label>

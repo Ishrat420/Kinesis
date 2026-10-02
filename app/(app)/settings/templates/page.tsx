@@ -3,6 +3,7 @@ import { Box, ChevronRight, LayoutGrid, LayoutTemplate, Plus } from "lucide-reac
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { getTemplates } from "@/lib/data/templates";
 import { createTemplateAction } from "./actions";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 
 export default async function TemplatesPage() {
   const templates = await getTemplates();
@@ -11,7 +12,7 @@ export default async function TemplatesPage() {
     <ModuleHeader
       title="Templates"
       description="Reusable field structures a module can start new objects from."
-      actions={<form action={createTemplateAction}><button className="inline-flex h-11 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-black"><Plus className="h-4 w-4" /> New template</button></form>}
+      actions={<form action={createTemplateAction}><SubmitButton className="inline-flex h-11 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-black"><Plus className="h-4 w-4" /> New template</SubmitButton></form>}
     />
 
     {!templates.length ? (

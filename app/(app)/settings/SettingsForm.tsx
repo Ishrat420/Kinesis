@@ -1,12 +1,13 @@
 "use client";
 
-import { startTransition, useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { Bell, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
 import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES, supportedTimeZones } from "@/lib/format/preferences";
 import { updateSettingsAction, type SettingsActionState } from "./actions";
 import { PushToggle } from "@/components/pwa/PushToggle";
+import { keepFormValues } from "@/components/ui/keep-form-values";
 
 type Settings = {
   locale: string;
@@ -46,19 +47,10 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
   }, [locale, timeZone]);
 
   return (
-    // Submitted by hand rather than through `action={action}`: React resets a
-    // form after its action runs, and a reset puts each controlled <select>
-    // back on its first option (no option is ever marked default) -- the
-    // time zone silently became Africa/Abidjan on the next save. Without the
-    // reset, the form simply keeps the values that were just saved.
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        const data = new FormData(event.currentTarget);
-        startTransition(() => action(data));
-      }}
-      className="space-y-6"
-    >
+    // keepFormValues: without it, React's reset after saving put each
+    // controlled <select> back on its first option, and the time zone
+    // silently became Africa/Abidjan on the next save.
+    <form action={action} ref={keepFormValues} className="space-y-6">
       <section id="regional" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h2 className="text-lg font-semibold">Region &amp; formatting</h2>
         <p className="mt-1 text-sm text-zinc-500">Set how Kinesis writes dates and amounts everywhere in the app.</p>
