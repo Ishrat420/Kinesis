@@ -112,12 +112,13 @@ export async function ReminderList({ items }: { items: UpcomingItem[] }) {
       <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-zinc-100 px-1.5 text-xs font-bold tabular-nums text-zinc-600">{items.length}</span>
     </div>
     <div className="min-h-0 flex-1 sm:overflow-y-auto sm:pr-2">
-      {items.length ? <PhoneListLimit total={items.length}><div className="space-y-1">{items.map((item, index) => {
+      {items.length ? <PhoneListLimit total={items.length}><div className="sm:space-y-1">{items.map((item, index) => {
         const timing = item.kind === "document" ? formatExpiry(item.date, today) : item.kind === "milestone" || item.kind === "todo" || item.kind === "custom" || item.kind === "goal" ? formatDeadline(item.date, today) : formatFutureDate(item.date, today);
         // On a phone the actions sit under the text, lined up with it, so the
         // title and date get the row's whole width and the title can wrap to
-        // two lines; from sm up they sit to the right as before.
-        return <div key={item.id} className={`flex flex-col gap-1.5 py-1.5 sm:flex-row sm:items-center sm:gap-4 ${index >= PHONE_LIST_LIMIT ? BEYOND_PHONE_LIMIT_CLASS : ""}`}>
+        // two lines; from sm up they sit to the right as before. A hairline
+        // between rows on a phone, where a row now spans several lines.
+        return <div key={item.id} className={`flex flex-col gap-1.5 border-t border-zinc-100 py-3 first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:gap-4 sm:border-t-0 sm:py-1.5 sm:first:pt-1.5 ${index >= PHONE_LIST_LIMIT ? BEYOND_PHONE_LIMIT_CLASS : ""}`}>
           <Link href={item.href} className="grid min-w-0 flex-1 grid-cols-[40px_1fr] items-center gap-3 rounded-xl transition hover:bg-zinc-50 sm:grid-cols-[44px_1fr] sm:gap-4">
             <UpcomingIcon item={item} />
             <div className="min-w-0"><p className="line-clamp-2 break-words font-medium text-zinc-800 sm:line-clamp-1">{item.title}</p><p className="text-sm text-zinc-500">{formatDate(item.date, locale)} · {timing}</p></div>

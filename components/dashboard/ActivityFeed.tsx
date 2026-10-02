@@ -43,12 +43,14 @@ export async function ActivityFeed({ activity }: { activity: RecentActivityItem[
       </div>
 
       <div className="min-h-0 flex-1 sm:overflow-y-auto sm:pr-2">
-        {activity.length ? <PhoneListLimit total={activity.length}><div className="space-y-4">{activity.map((item, index) => {
+        {activity.length ? <PhoneListLimit total={activity.length}><div className="sm:space-y-4">{activity.map((item, index) => {
           const BuiltInIcon = OBJECT_TYPE_ICONS[item.objectType] ?? Package;
           return (
             <Link
               key={item.id} href={item.href}
-              className={`-m-1 grid grid-cols-[40px_1fr_auto] items-center gap-3 rounded-xl p-1 transition hover:bg-zinc-50 sm:grid-cols-[44px_1fr_auto] sm:gap-4 ${index >= PHONE_LIST_LIMIT ? BEYOND_PHONE_LIMIT_CLASS : ""}`}
+              // A hairline between rows on a phone, where a row can now run
+              // to several lines; spaced apart without one from sm up.
+              className={`grid grid-cols-[40px_1fr_auto] items-center gap-3 border-t border-zinc-100 py-3 transition first:border-t-0 first:pt-0 hover:bg-zinc-50 sm:-m-1 sm:grid-cols-[44px_1fr_auto] sm:gap-4 sm:rounded-xl sm:border-t-0 sm:p-1 sm:first:pt-1 ${index >= PHONE_LIST_LIMIT ? BEYOND_PHONE_LIMIT_CLASS : ""}`}
             >
               <div className={activityBadgeClass}>
                 {item.icon ? <CustomModuleIcon name={item.icon} className={activityIconClass} /> : <BuiltInIcon className={activityIconClass} />}
