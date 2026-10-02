@@ -14,6 +14,7 @@ import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { Modal } from "@/components/overlay/Modal";
 import { ResolveActions } from "./ResolveActions";
 import { GoalOverdueActions } from "./GoalOverdueActions";
+import { STAT_TILE_BODY_CLASS, STAT_TILE_CLASS, STAT_TILE_HEADER_CLASS, STAT_TILE_ICON_BOX_CLASS, STAT_TILE_ICON_CLASS, STAT_TILE_LABEL_CLASS, STAT_TILE_SEE_ALL_CLASS, STAT_TILE_TITLE_CLASS, STAT_TILE_VALUE_CLASS } from "./stat-tile-styles";
 
 // Documents' and To-Dos' own module icons; a milestone belongs to a Goal, so
 // it borrows Goals' icon rather than To-Dos' -- ListTodo previously did
@@ -47,10 +48,11 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const visible = items.filter((item) => !dismissed.includes(item.key));
   return <>
-    <button type="button" onClick={() => setOpen(true)} className="group rounded-3xl border border-zinc-200/80 bg-white p-5 text-left shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_16px_45px_rgb(0,0,0,0.08)]">
-      <div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-50"><Flag className="h-[18px] w-[18px] text-zinc-700" /></div><p className="text-sm font-semibold text-zinc-700">Needs attention</p></div>
-      <div className="mt-6"><p className="text-[38px] font-semibold leading-none tracking-tight">{visible.length}</p><p className="mt-2 text-sm text-zinc-500">items overdue</p></div>
-      <p className="mt-6 text-sm font-medium text-zinc-500 transition group-hover:text-zinc-900">See all →</p>
+    {/* Across the top of the phone's two-column grid; one tile among five from md up. */}
+    <button type="button" onClick={() => setOpen(true)} className={`${STAT_TILE_CLASS} col-span-2 text-left md:col-span-1`}>
+      <div className={STAT_TILE_HEADER_CLASS}><div className={`${STAT_TILE_ICON_BOX_CLASS} bg-amber-50`}><Flag className={STAT_TILE_ICON_CLASS} /></div><p className={STAT_TILE_TITLE_CLASS}>Needs attention</p></div>
+      <div className={STAT_TILE_BODY_CLASS}><p className={STAT_TILE_VALUE_CLASS}>{visible.length}</p><p className={STAT_TILE_LABEL_CLASS}>items overdue</p></div>
+      <p className={STAT_TILE_SEE_ALL_CLASS}>See all →</p>
     </button>
     {open && <Modal labelledBy="attention-title" onClose={() => setOpen(false)} customHeader panelClassName="p-6 sm:max-w-2xl">
         <div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><BellRing className="h-5 w-5" /></span><h2 id="attention-title" className="text-2xl font-semibold">Needs attention</h2></div><p className="mt-3 text-sm text-zinc-500">Expired documents, and overdue milestones, to-dos and reminders.</p></div><button type="button" aria-label="Close" onClick={() => setOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5" /></button></div>
