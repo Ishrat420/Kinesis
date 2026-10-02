@@ -134,7 +134,7 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
           <section
             aria-label="Notifications"
             style={anchor ? { top: anchor.top, right: anchor.right } : undefined}
-            className={`fixed inset-x-3 top-20 ${Z_INDEX.overlay} max-h-[calc(100dvh-6rem)] overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgb(0,0,0,0.2)] sm:inset-x-auto sm:w-[420px]`}
+            className={`fixed inset-x-3 top-[calc(5rem+env(safe-area-inset-top))] ${Z_INDEX.overlay} max-h-[calc(100dvh-6rem-env(safe-area-inset-top))] overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgb(0,0,0,0.2)] sm:inset-x-auto sm:w-[420px]`}
           >
           <div className="flex items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4">
             <div><h2 className="font-semibold text-zinc-950">Notifications</h2><p className="mt-0.5 text-xs text-zinc-500">{unreadCount ? `${unreadCount} need your attention` : "You're all caught up"}</p></div>

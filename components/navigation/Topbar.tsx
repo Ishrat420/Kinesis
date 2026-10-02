@@ -13,7 +13,10 @@ export async function Topbar() {
   const { enabled: notificationsEnabled, notifications, unreadCount } = await getRecentNotifications();
 
   return (
-    <header className={`sticky top-0 ${Z_INDEX.chrome} h-[72px] border-b border-zinc-200/80 bg-white/90 backdrop-blur`}>
+    // In the installed app the page runs edge to edge (viewport-fit=cover, for
+    // the tab bar), so the status bar and Dynamic Island sit over the top of
+    // it. The bar grows by that inset and keeps its 72px row below it.
+    <header className={`sticky top-0 ${Z_INDEX.chrome} h-[calc(72px+env(safe-area-inset-top))] border-b border-zinc-200/80 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur`}>
       {/*
         Below md the bar is a plain row -- search, then actions -- so the search
         field takes whatever width is left instead of being squeezed between two
