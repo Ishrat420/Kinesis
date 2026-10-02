@@ -81,7 +81,7 @@ function TargetDateForm({ targetDate, earliestAllowed, action, onDone }: {
   useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <form autoComplete="off" spellCheck={false} action={formAction} className="flex flex-wrap items-center gap-2">
       <InlineDatePicker
         name="targetDate"
         defaultValue={targetDate ? formatDateInput(targetDate) : ""}

@@ -52,7 +52,7 @@ export function CreateGoalButton({ capture }: { capture?: CaptureParams }) {
           <button onClick={() => setOpen(false)} aria-label="Close dialog" className="shrink-0 rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900"><X className="h-5 w-5" /></button>
         </div>
 
-        <form action={formAction}>
+        <form autoComplete="off" spellCheck={false} action={formAction}>
           <div className="space-y-4 px-2.5 py-5 sm:px-5">
             {capture?.from && <input type="hidden" name={CAPTURE_SOURCE_PARAM} value={capture.from} />}
 
@@ -96,7 +96,7 @@ export function CreateGoalButton({ capture }: { capture?: CaptureParams }) {
               <label className={FIELD_LABEL_CLASS}>
                 Note <span className="font-normal text-zinc-400">optional</span>
               </label>
-              <textarea name="note" rows={3} maxLength={NOTES_LIMIT} placeholder="Why this matters, or a first thought…" className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`} />
+              <textarea spellCheck name="note" rows={3} maxLength={NOTES_LIMIT} placeholder="Why this matters, or a first thought…" className={`min-h-[92px] resize-y px-3.5 py-3 leading-relaxed ${FIELD_CLASS}`} />
             </div>
 
             {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}

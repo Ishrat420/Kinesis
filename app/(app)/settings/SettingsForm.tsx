@@ -50,7 +50,7 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
     // keepFormValues: without it, React's reset after saving put each
     // controlled <select> back on its first option, and the time zone
     // silently became Africa/Abidjan on the next save.
-    <form action={action} ref={keepFormValues} className="space-y-6">
+    <form autoComplete="off" spellCheck={false} action={action} ref={keepFormValues} className="space-y-6">
       <section id="regional" className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h2 className="text-lg font-semibold">Region &amp; formatting</h2>
         <p className="mt-1 text-sm text-zinc-500">Set how Kinesis writes dates and amounts everywhere in the app.</p>

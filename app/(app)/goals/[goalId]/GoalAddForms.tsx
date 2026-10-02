@@ -106,7 +106,7 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
   useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
 
   return (
-    <form action={formAction} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:p-5">
+    <form autoComplete="off" spellCheck={false} action={formAction} className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm font-semibold text-zinc-800">New milestone</p>
         <button type="button" onClick={onDone} aria-label="Cancel adding milestone" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700">
@@ -158,7 +158,7 @@ export function MilestoneDueDateForm({ action, removeAction, dueDate, goalTarget
 
   if (!editing) return <button type="button" onClick={() => setEditing(true)} className={`mt-1 inline-flex items-center gap-1.5 text-xs font-medium hover:text-violet-700 ${overdue ? "text-red-600" : "text-zinc-500"}`}><CalendarDays className="h-3.5 w-3.5" />{formatted ? `Due ${formatted} · Edit` : "Add due date"}</button>;
 
-  return <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
+  return <form autoComplete="off" spellCheck={false} action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
     <input name="dueDate" type="date" max={latestDueDate} aria-label="Milestone due date" title={latestDueDate ? "Must be before the goal target date" : undefined} defaultValue={dueDate ? formatDateInput(dueDate) : ""} className="h-9 rounded-lg border border-zinc-200 bg-white px-2 text-xs outline-none focus:border-violet-400" />
     <SubmitButton formAction={formAction} className="h-9 rounded-lg bg-zinc-900 px-3 text-xs font-semibold text-white">Save date</SubmitButton>
     {dueDate && <SubmitButton formAction={removeAction} className="h-9 px-2 text-xs font-semibold text-red-500">Remove</SubmitButton>}
@@ -248,7 +248,7 @@ function MeasurableTargetFields({ action, removeAction, units, targetValue, curr
 
   return (
     <>
-      <form action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
+      <form autoComplete="off" spellCheck={false} action={formAction} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 sm:grid-cols-3">
         <div className="flex items-center justify-between sm:col-span-3">
           <p className="text-sm font-semibold text-zinc-800">{hasTarget ? "Update measurable target" : "New measurable target"}</p>
           <button type="button" onClick={onDone} aria-label="Close measurable target form" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-zinc-700"><X className="h-4 w-4" /></button>
@@ -269,7 +269,7 @@ function MeasurableTargetFields({ action, removeAction, units, targetValue, curr
       {confirming && (
         <Modal title="Are you sure?" eyebrow="Remove measurable target" onClose={() => setConfirming(false)}>
           <p className="leading-7 text-zinc-600">{MEASURE_REMOVAL_CONSEQUENCE}</p>
-          <form action={removeFormAction} className="mt-7 flex flex-wrap justify-end gap-3">
+          <form autoComplete="off" spellCheck={false} action={removeFormAction} className="mt-7 flex flex-wrap justify-end gap-3">
             <input type="hidden" name="confirmed" value="true" />
             <button type="button" onClick={() => setConfirming(false)} className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Cancel</button>
             <SubmitButton className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700">Remove</SubmitButton>

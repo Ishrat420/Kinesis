@@ -12,7 +12,7 @@ export default async function TemplatesPage() {
     <ModuleHeader
       title="Templates"
       description="Reusable field structures a module can start new objects from."
-      actions={<form action={createTemplateAction}><SubmitButton className="inline-flex h-11 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-black"><Plus className="h-4 w-4" /> New template</SubmitButton></form>}
+      actions={<form autoComplete="off" spellCheck={false} action={createTemplateAction}><SubmitButton className="inline-flex h-11 items-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-black"><Plus className="h-4 w-4" /> New template</SubmitButton></form>}
     />
 
     {!templates.length ? (

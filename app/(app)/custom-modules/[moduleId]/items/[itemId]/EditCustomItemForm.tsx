@@ -161,7 +161,7 @@ function EditForm({ moduleId, item, updatedAt, linkOptions, previews, addKinesis
 
   useEffect(() => { if (state.saved && state.updatedAt) { router.refresh(); onSaved(state.updatedAt); } }, [state.saved, state.updatedAt, router, onSaved]);
 
-  return <form action={formAction} ref={keepFormValues} className="space-y-5">
+  return <form autoComplete="off" spellCheck={false} action={formAction} ref={keepFormValues} className="space-y-5">
     <input type="hidden" name="updatedAt" value={updatedAt} />
     <label className="block text-sm font-medium text-zinc-600">Name<input required name="name" maxLength={100} defaultValue={item.name} className="mt-1.5 h-11 w-full rounded-xl border border-zinc-200 px-3 text-zinc-950 outline-none focus:border-zinc-400" /></label>
     {item.templateFields.length > 0 && <div className="border-t border-zinc-100 pt-5"><TemplateFieldValues fields={item.templateFields} linkOptions={linkOptions} previews={previews} /></div>}

@@ -155,7 +155,7 @@ function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, 
 
   useEffect(() => { if (state.success && state.updatedAt) { router.refresh(); onSaved(state.updatedAt); } }, [state.success, state.updatedAt, router, onSaved]);
 
-  return <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6"><form action={formAction} ref={keepFormValues} className="space-y-5">
+  return <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6"><form autoComplete="off" spellCheck={false} action={formAction} ref={keepFormValues} className="space-y-5">
     <input type="hidden" name="updatedAt" value={updatedAt} />
     <div className="grid gap-3 sm:grid-cols-2"><Field label="Document name" name="name" value={document.name} required /><DocumentTypeSelect types={documentTypes} defaultValue={document.type} /></div>
     <div className="grid gap-3 sm:grid-cols-2">

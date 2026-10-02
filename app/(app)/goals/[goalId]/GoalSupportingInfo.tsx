@@ -142,7 +142,7 @@ function EditFields({ fields, linkOptions, previews, action, addKinesisLinkActio
   useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form autoComplete="off" spellCheck={false} action={formAction} className="space-y-5">
       <CustomFieldsEditor initialFields={fields} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />
       {state.error && <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>}
       <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5">

@@ -56,7 +56,7 @@ export function ResolveActions({ dueDate, onComplete, complete, reschedule }: {
   });
 
   if (rescheduling) {
-    return <form action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
+    return <form autoComplete="off" spellCheck={false} action={formAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <InlineDatePicker name="dueDate" defaultValue={formatDateInput(dueDate)} ariaLabel="New due date" />
         <SubmitButton className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</SubmitButton>

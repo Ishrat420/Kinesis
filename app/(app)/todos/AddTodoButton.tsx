@@ -103,7 +103,7 @@ export function AddTodoForm({
         </button>
       </div>
 
-      <form action={formAction}>
+      <form autoComplete="off" spellCheck={false} action={formAction}>
         <div className="space-y-4 px-2.5 py-5 sm:px-5">
           <div>
             <label htmlFor="todo-name" className={FIELD_LABEL_CLASS}>
@@ -191,7 +191,7 @@ export function AddTodoForm({
             <label className={FIELD_LABEL_CLASS}>
               Notes <span className="font-normal text-zinc-400">optional</span>
             </label>
-            <textarea
+            <textarea spellCheck
               name="notes"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}

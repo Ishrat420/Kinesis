@@ -64,7 +64,7 @@ export function ManualDocumentButton({ documentTypes, linkOptions, capture }: { 
               </button>
             </div>
 
-            <form action={formAction}>
+            <form autoComplete="off" spellCheck={false} action={formAction}>
               {capture?.from && <input type="hidden" name={CAPTURE_SOURCE_PARAM} value={capture.from} />}
               <div className="space-y-5 px-2.5 py-5 sm:px-5">
                 <Field label="Document name" name="name" placeholder="e.g. Australian passport" defaultValue={capture?.title} autoFocus />

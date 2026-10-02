@@ -83,7 +83,7 @@ function EditableField({ label, labelName, name, value, type = "text", multiline
     <div className="min-w-0 space-y-2">
       <EditableLabel name={labelName} initialValue={label} ariaLabel={`${label} field name`} />
       {multiline ? (
-        <textarea name={name} defaultValue={value} aria-label={label} rows={3} maxLength={maxLength} className={`${inputClass} min-h-[92px] resize-y py-3`} />
+        <textarea spellCheck name={name} defaultValue={value} aria-label={label} rows={3} maxLength={maxLength} className={`${inputClass} min-h-[92px] resize-y py-3`} />
       ) : type === "date" ? (
         <DateRowField name={name} label={label} value={value} onChange={onChange} />
       ) : (

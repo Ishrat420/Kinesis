@@ -77,7 +77,7 @@ export function NewItemButton({
             </button>
           </div>
 
-          <form action={formAction}>
+          <form autoComplete="off" spellCheck={false} action={formAction}>
             <div className="space-y-4 px-2.5 py-5 sm:px-5">
               <div>
                 <label htmlFor="new-item-name" className={FIELD_LABEL_CLASS}>

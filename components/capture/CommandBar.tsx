@@ -137,7 +137,7 @@ export function CommandBar() {
       <div className="flex h-[52px] items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition duration-200 focus-within:border-zinc-300 focus-within:shadow-[0_12px_40px_rgb(0,0,0,0.07)]">
         <Search className="h-[18px] w-[18px] shrink-0 text-zinc-400" aria-hidden="true" />
         <input
-          ref={inputRef} type="search" value={query} autoComplete="off"
+          ref={inputRef} type="search" value={query} autoComplete="off" spellCheck={false}
           onChange={(event) => { setQuery(event.target.value); setHighlighted(null); setError(undefined); }}
           onFocus={() => setIsFocused(true)}
           onBlur={() => window.setTimeout(() => setIsFocused(false), 150)}

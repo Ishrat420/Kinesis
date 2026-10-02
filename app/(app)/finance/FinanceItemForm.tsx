@@ -59,7 +59,7 @@ export function DeleteFinanceItem({ item, onCancel, onDeleted }: { item: Finance
   const [state, formAction, pending] = useActionState(() => deleteFinanceItemAction(item.id), initialState);
   useEffect(() => { if (state.saved) { router.refresh(); onDeleted(); } }, [state.saved, router, onDeleted]);
 
-  return <Modal title={`Delete ${item.name}?`} onClose={onCancel} panelClassName="sm:max-w-sm"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 className="h-5 w-5"/></div><p className="mt-5 text-sm leading-6 text-zinc-500">This will remove the item and immediately update your totals. This action cannot be undone.</p>{state.error && <p role="alert" className="mt-4 text-sm font-medium text-red-600">{state.error}</p>}<form action={formAction} className="mt-6 flex justify-end gap-3"><button type="button" onClick={onCancel} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold">Cancel</button><button disabled={pending} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-wait disabled:opacity-70">{pending ? "Deleting…" : "Delete item"}</button></form></Modal>;
+  return <Modal title={`Delete ${item.name}?`} onClose={onCancel} panelClassName="sm:max-w-sm"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 className="h-5 w-5"/></div><p className="mt-5 text-sm leading-6 text-zinc-500">This will remove the item and immediately update your totals. This action cannot be undone.</p>{state.error && <p role="alert" className="mt-4 text-sm font-medium text-red-600">{state.error}</p>}<form autoComplete="off" spellCheck={false} action={formAction} className="mt-6 flex justify-end gap-3"><button type="button" onClick={onCancel} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold">Cancel</button><button disabled={pending} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-wait disabled:opacity-70">{pending ? "Deleting…" : "Delete item"}</button></form></Modal>;
 }
 
 /** Rounded to cents for a number input's defaultValue -- the projection itself stays exact. */
@@ -151,7 +151,7 @@ export function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: 
   const health = liveItem ? getLiabilityHealth(liveItem, today) : undefined;
   const monthsToPayoff = liveItem ? getMonthsToPayoff(liveItem, today) : undefined;
 
-  return <form action={formAction} className="mt-6 space-y-4">
+  return <form autoComplete="off" spellCheck={false} action={formAction} className="mt-6 space-y-4">
     <Field label="Name *"><input name="name" required defaultValue={item?.name} placeholder={`e.g. ${kind === "asset" ? "Savings Account" : kind === "liability" ? "Credit Card" : kind === "income" ? "Salary" : "Living Expenses"}`} className={FIELD_CLASS}/></Field>
     <Field label={`${balance ? "Balance" : "Amount"} *`}><div className="relative"><span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">$</span><input name="amount" type="number" min="0" step="0.01" required value={amountInput} onChange={(event) => setAmountInput(event.target.value)} className={`${FIELD_CLASS} pl-8`}/></div></Field>
     {!recurring ? <>
@@ -167,7 +167,7 @@ export function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: 
       <Field label="Frequency *"><div className="relative"><select name="frequency" required defaultValue={item?.frequency || "Monthly"} className={`${FIELD_CLASS} appearance-none pr-9`}>{FINANCE_FREQUENCIES.map((value) => <option key={value}>{value}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"/></div></Field>
       <div className="grid grid-cols-2 gap-3"><Field label="Start date"><DateField name="startDate" value={startDateInput} onChange={setStartDateInput} ariaLabel="Start date"/></Field><Field label="End date"><DateField name="endDate" value={endDateInput} onChange={setEndDateInput} ariaLabel="End date"/></Field></div>
     </>}
-    <Field label="Notes"><textarea name="notes" rows={3} maxLength={NOTES_LIMIT} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
+    <Field label="Notes"><textarea spellCheck name="notes" rows={3} maxLength={NOTES_LIMIT} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
     {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
     <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : <><Check className="h-4 w-4" aria-hidden="true"/>{item ? "Save changes" : `Add ${kindLabels[kind]}`}</>}</button>
   </form>;

@@ -22,7 +22,7 @@ import { SubmitButton } from "@/components/ui/SubmitButton";
  */
 export function DismissButton({ itemKey, onDismissed }: { itemKey: string; onDismissed?: () => void }) {
   return (
-    <form action={dismissAttentionItem.bind(null, itemKey)} onSubmit={onDismissed}>
+    <form autoComplete="off" spellCheck={false} action={dismissAttentionItem.bind(null, itemKey)} onSubmit={onDismissed}>
       <SubmitButton
         aria-label="Dismiss"
         title="Dismiss"

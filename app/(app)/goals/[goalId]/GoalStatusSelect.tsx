@@ -32,7 +32,7 @@ export function GoalStatusSelect({
   const [state, formAction, pending] = useActionState(updateStatus, initialState);
 
   return (
-    <form action={formAction} ref={keepFormValues}>
+    <form autoComplete="off" spellCheck={false} action={formAction} ref={keepFormValues}>
       <div className="relative">
         <select
           name="status"

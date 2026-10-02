@@ -29,6 +29,8 @@ export function DocumentsList({ documents, locale }: { documents: Document[]; lo
             aria-label="Search documents"
             className="w-full bg-transparent text-sm text-zinc-950 outline-none placeholder:text-zinc-400"
             placeholder="Search documents..."
+            autoComplete="off"
+            spellCheck={false}
           />
         </div>
       </div>

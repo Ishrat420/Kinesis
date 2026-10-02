@@ -32,7 +32,7 @@ export function GoalOverdueActions({ targetDate, updateTargetDate, updateStatus 
   const [statusState, statusAction] = useActionState(updateStatus, initialActionState);
 
   if (editing === "date") {
-    return <form action={dateAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
+    return <form autoComplete="off" spellCheck={false} action={dateAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <InlineDatePicker name="targetDate" defaultValue={formatDateInput(targetDate)} ariaLabel="New due date" />
         <SubmitButton className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-black">Save</SubmitButton>
@@ -43,7 +43,7 @@ export function GoalOverdueActions({ targetDate, updateTargetDate, updateStatus 
   }
 
   if (editing === "status") {
-    return <form action={statusAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
+    return <form autoComplete="off" spellCheck={false} action={statusAction} onClick={(event) => event.stopPropagation()} className="flex shrink-0 flex-col items-end gap-1.5">
       <div className="flex items-center gap-1.5">
         <div className="relative">
           <select name="status" required autoFocus defaultValue="Active" aria-label="New status" className="h-9 appearance-none rounded-lg border-[1.5px] border-zinc-200 bg-white py-1 pl-2.5 pr-7 text-xs font-semibold text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15">

@@ -93,7 +93,7 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
 
   if (field.multiline) {
     return (
-      <textarea
+      <textarea spellCheck
         value={field.value}
         onChange={(event) => onChange({ value: event.target.value })}
         aria-label={field.label}
