@@ -12,14 +12,14 @@ const MAIN_SECTIONS = [
 /** Path prefixes that are only part of a longer URL, never a page themselves. */
 const NOT_PAGES = [/^\/goals\/milestones$/, /^\/custom-modules$/, /^\/custom-modules\/[^/]+\/items$/];
 
-/** Clerk's profile page owns everything under /user; the whole of it sits below Home. */
+/** Clerk's profile page owns everything under /user; the whole of it sits below Settings, as its own back link says. */
 const PROFILE = /^\/user(\/|$)/;
 
 export function parentPath(pathname: string | null | undefined): string | null {
   if (!pathname) return null;
   const path = pathname.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
   if (MAIN_SECTIONS.some((section) => section.test(path))) return null;
-  if (PROFILE.test(path)) return "/";
+  if (PROFILE.test(path)) return "/settings";
 
   let parent = path;
   do {

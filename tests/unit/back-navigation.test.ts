@@ -26,9 +26,9 @@ describe("parentPath", () => {
     expect(parentPath("/settings/templates")).toBe("/settings");
   });
 
-  it("sends the profile page home", () => {
-    expect(parentPath("/user")).toBe("/");
-    expect(parentPath("/user/security")).toBe("/");
+  it("sends the profile page to Settings, matching its desktop back link", () => {
+    expect(parentPath("/user")).toBe("/settings");
+    expect(parentPath("/user/security")).toBe("/settings");
   });
 
   it("ignores a trailing slash, query or hash", () => {
