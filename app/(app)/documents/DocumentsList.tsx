@@ -17,7 +17,7 @@ export function DocumentsList({ documents, locale }: { documents: Document[]; lo
     : documents;
 
   return (
-    <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold">All documents</h2>
 
@@ -41,9 +41,10 @@ export function DocumentsList({ documents, locale }: { documents: Document[]; lo
               href={`/documents/${document.id}`}
               /* The four columns need 432px of track and gap before the name
                  gets a single pixel -- more than the content column has beside
-                 the sidebar at md -- so the row stacks until lg, the same shape
-                 the goals list uses. */
-              className="grid items-center gap-4 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md lg:grid-cols-[44px_1fr_180px_160px]"
+                 the sidebar at md -- so until lg the row is the compact shape
+                 custom module items use: icon beside the name, then the date
+                 and status together on one line beneath. */
+              className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 rounded-2xl border border-zinc-200/80 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-50 hover:shadow-md lg:grid-cols-[44px_1fr_180px_160px] lg:gap-y-4"
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50">
                 <FileText className="h-[18px] w-[18px] text-zinc-700" />
@@ -54,13 +55,17 @@ export function DocumentsList({ documents, locale }: { documents: Document[]; lo
                 <p className="text-sm text-zinc-500">{document.type}</p>
               </div>
 
-              <p className="text-sm text-zinc-500">
-                {document.expiryDate ? formatDate(document.expiryDate, locale) : "No expiry"}
-              </p>
+              {/* One line until lg; from lg, `contents` puts both straight
+                  into their own columns of the row's grid. */}
+              <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 lg:contents">
+                <p className="text-sm text-zinc-500">
+                  {document.expiryDate ? formatDate(document.expiryDate, locale) : "No expiry"}
+                </p>
 
-              <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">
-                {document.status}
-              </span>
+                <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">
+                  {document.status}
+                </span>
+              </div>
             </Link>
           ))}
         </div>

@@ -37,7 +37,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         }
       />
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      {/* Three across at every width: stacked on a phone, they were a
+          screen of scrolling before the list. */}
+      <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
         <StatCard
           icon={FileText}
           title="Tracked documents"
@@ -70,16 +72,16 @@ function StatCard({
   value: number;
 }) {
   return (
-    <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:rounded-3xl sm:p-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-50">
+        <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-50 sm:flex">
           <Icon className="h-[18px] w-[18px] text-zinc-700" />
         </div>
 
-        <p className="text-sm font-semibold text-zinc-700">{title}</p>
+        <p className="text-xs font-semibold text-zinc-700 sm:text-sm">{title}</p>
       </div>
 
-      <p className="mt-6 text-[38px] font-semibold leading-none tracking-tight">
+      <p className="mt-2 text-2xl font-semibold leading-none tracking-tight sm:mt-6 sm:text-[38px]">
         {value}
       </p>
     </section>
