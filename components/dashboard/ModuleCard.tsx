@@ -39,24 +39,33 @@ export type ModuleCardProps = {
   };
 };
 
-const SHELL = "group relative h-full rounded-2xl border border-zinc-200/80 bg-white p-4 pb-10 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md";
+// On a phone, one row: badge, then the name and its detail, then the grip
+// (and remove) -- the shape custom module items use -- rather than a tall
+// card with the badge on a line of its own and room left for the arrow. The
+// placements below put each piece in its column; from sm up it is the card.
+const SHELL = "group relative h-full rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:grid max-sm:grid-cols-[40px_minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-3 sm:pb-10";
+const TOP_ROW = "flex items-start justify-between max-sm:contents";
+const BADGE_CELL = "max-sm:col-start-1 max-sm:row-start-1";
+const TEXT_CELL = "min-w-0 max-sm:col-start-2 max-sm:row-start-1 max-sm:mt-0";
+const CONTROLS_CELL = "max-sm:col-start-3 max-sm:row-start-1";
 const FOCUS_RING = "rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900";
 
 export function ModuleCard({ icon: Icon, tone, name, href, meta, detail, onRemove, gripHandlers }: ModuleCardProps) {
   const badge = (
     <span
-      className={`flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700 ${"className" in tone ? tone.className : ""}`}
+      className={`flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-700 ${BADGE_CELL} ${"className" in tone ? tone.className : ""}`}
       style={"color" in tone ? { backgroundColor: `color-mix(in srgb, ${tone.color} 10%, white)` } : undefined}
     >
       <Icon className="h-[18px] w-[18px]" />
     </span>
   );
   const grip = (
-    <span {...gripHandlers} aria-label={`Drag ${name}`} className="touch-none rounded-lg p-1.5">
+    <span {...gripHandlers} aria-label={`Drag ${name}`} className={`touch-none rounded-lg p-1.5 ${onRemove ? "" : CONTROLS_CELL}`}>
       <GripVertical className="h-5 w-5 cursor-grab text-zinc-300" />
     </span>
   );
-  const arrow = <span className="absolute bottom-4 right-4 text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700">→</span>;
+  // The whole card is the link, so on a phone the arrow only costs height.
+  const arrow = <span className="absolute bottom-4 right-4 text-zinc-300 transition group-hover:translate-x-0.5 group-hover:text-zinc-700 max-sm:hidden">→</span>;
   const text = (
     <>
       <p className="font-semibold text-zinc-900">{name}</p>
@@ -70,16 +79,16 @@ export function ModuleCard({ icon: Icon, tone, name, href, meta, detail, onRemov
   if (onRemove) {
     return (
       <div className={SHELL}>
-        <div className="flex items-start justify-between">
+        <div className={TOP_ROW}>
           {badge}
-          <div className="flex items-center gap-1">
+          <div className={`flex items-center gap-1 ${CONTROLS_CELL}`}>
             {grip}
             <button type="button" onClick={onRemove} aria-label={`Remove ${name} shortcut`} className="rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-950">
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
-        <Link href={href} className={`mt-4 block ${FOCUS_RING}`}>{text}</Link>
+        <Link href={href} className={`mt-4 block ${TEXT_CELL} ${FOCUS_RING}`}>{text}</Link>
         {arrow}
       </div>
     );
@@ -87,8 +96,8 @@ export function ModuleCard({ icon: Icon, tone, name, href, meta, detail, onRemov
 
   return (
     <Link href={href} className={`block ${SHELL} ${FOCUS_RING}`}>
-      <div className="flex items-start justify-between">{badge}{grip}</div>
-      <div className="mt-4">{text}</div>
+      <div className={TOP_ROW}>{badge}{grip}</div>
+      <div className={`mt-4 ${TEXT_CELL}`}>{text}</div>
       {arrow}
     </Link>
   );
