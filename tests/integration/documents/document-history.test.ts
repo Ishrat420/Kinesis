@@ -11,7 +11,7 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 
 import { prisma } from "@/lib/data/prisma";
 import { createDocumentAction, updateDocumentAction } from "@/app/(app)/documents/actions";
-import { getDocument } from "@/lib/data/documents";
+import { getDocument, getDocuments } from "@/lib/data/documents";
 import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
 import { formatDateInput } from "@/lib/dates";
 
@@ -125,6 +125,22 @@ describe.sequential("a Document's own history (KD-048)", () => {
     await getDocument("doc-lapsed");
 
     await expect(eventsOn(objectId)).resolves.toMatchObject([{ eventType: "STATUS_CHANGED", oldValue: "Active", newValue: "Expired", source: "SYSTEM" }]);
+  });
+
+  /**
+   * The Documents list showed whatever status was stored the last time each
+   * document's own page was opened, so a document that expired since read
+   * "Expiring soon" there while the dashboard said "expired".
+   */
+  it("getDocuments brings a lapsed status up to date, recording it once, as getDocument does", async () => {
+    const { objectId } = await makeDocument("doc-list-lapsed", { expiryDate: new Date("2020-01-01T00:00:00.000Z"), status: "Expiring soon" });
+
+    const listed = await getDocuments();
+    await getDocuments();
+
+    expect(listed.find((document) => document.id === "doc-list-lapsed")?.status).toBe("Expired");
+    await expect(prisma.document.findUniqueOrThrow({ where: { id: "doc-list-lapsed" } })).resolves.toMatchObject({ status: "Expired" });
+    await expect(eventsOn(objectId)).resolves.toMatchObject([{ eventType: "STATUS_CHANGED", oldValue: "Expiring soon", newValue: "Expired", source: "SYSTEM" }]);
   });
 
   it("getDocument records DOCUMENT_EXPIRING_SOON, not a generic STATUS_CHANGED, when a read finds the status has newly entered its reminder window", async () => {

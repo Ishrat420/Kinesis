@@ -114,6 +114,13 @@ describe.sequential("global search", () => {
    * narrow a search; it would only ever surface every document at once
    * whenever the person searched their own name.
    */
+  it("finds a document by its current status, not one stored before its expiry passed", async () => {
+    await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Licence", userId: owner } });
+    await prisma.document.create({ data: { id: "doc-1", name: "Licence", type: "Identity", status: "Expiring soon", owner: "Owner", userId: owner, objectId: "doc-obj", expiryDate: new Date("2020-01-01T00:00:00.000Z") } });
+
+    await expect(searchGlobalIndex("expired")).resolves.toEqual([expect.objectContaining({ id: "document:doc-1" })]);
+  });
+
   it("does not surface a document just because its owner field matches", async () => {
     await prisma.object.create({ data: { id: "doc-obj", type: "DOCUMENT", name: "Skincare", userId: owner } });
     await prisma.document.create({ data: { id: "doc-1", name: "Skincare", type: "Passport", status: "Active", owner: "Ishrat", userId: owner, objectId: "doc-obj" } });

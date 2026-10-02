@@ -38,7 +38,39 @@ export type DocumentInput = {
 
 export async function getDocuments() {
   const user = await requireKinesisUser();
+  await syncLapsedDocumentStatuses(user.id);
   return prisma.document.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } });
+}
+
+/**
+ * Brings every stored `status` up to date with today, recording each move in
+ * History exactly as `getDocument` does when it finds one that has lapsed.
+ *
+ * A status only changes on its own as days pass, and it used to be caught up
+ * only when that one document's own page was opened -- so the Documents list
+ * and search, which read the stored column, kept saying "Expiring soon" for a
+ * document the dashboard (which derives it) already called expired. One read
+ * of the owner's documents, and a write only for the ones that moved.
+ *
+ * Each write is conditional on the status it read, so two page loads racing
+ * past the same boundary record it once, not twice.
+ */
+export async function syncLapsedDocumentStatuses(userId: string) {
+  const today = await getToday();
+  const documents = await prisma.document.findMany({
+    where: { userId },
+    select: { id: true, objectId: true, status: true, expiryDate: true, prompt: true, archived: true },
+  });
+  const lapsed = documents
+    .map((document) => ({ ...document, current: getDocumentState(document, today).status }))
+    .filter((document) => document.current !== document.status);
+  if (!lapsed.length) return;
+  await prisma.$transaction(async (tx) => {
+    for (const document of lapsed) {
+      const { count } = await tx.document.updateMany({ where: { id: document.id, status: document.status }, data: { status: document.current } });
+      if (count) await recordDocumentStatusChange(tx, userId, document.objectId, document.status, document.current, document.expiryDate, "SYSTEM");
+    }
+  });
 }
 
 export async function getDocumentSummary() {

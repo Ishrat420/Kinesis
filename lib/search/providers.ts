@@ -6,6 +6,7 @@ import { getFormatPreferences } from "@/lib/format/server";
 import { formatMoney } from "@/lib/format/numbers";
 import { todoStatusLabel } from "@/lib/todos/status";
 import { getUserDisplayName } from "@/lib/data/user";
+import { syncLapsedDocumentStatuses } from "@/lib/data/documents";
 import { normalize, searchTerms } from "./rank";
 import { candidateWhere, matchesTerm, textColumn } from "./sql-match";
 
@@ -25,6 +26,10 @@ const documents: SearchProvider = {
     const terms = searchTerms(query);
     if (!terms.length) return [];
     const user = await requireKinesisUser();
+    // The stored status is matched below, so bring any that have lapsed since
+    // they were last read up to date first: searching "expired" should find a
+    // document that expired yesterday.
+    await syncLapsedDocumentStatuses(user.id);
 
     const where = candidateWhere(terms, [
       textColumn('"Document"."name"'),
