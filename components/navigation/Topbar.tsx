@@ -2,6 +2,7 @@ import { Settings, User } from "lucide-react";
 import { getRecentNotifications } from "@/lib/data/notifications";
 import { CommandBar } from "@/components/capture/CommandBar";
 import { NotificationBell } from "./NotificationBell";
+import { TopbarBack } from "./TopbarBack";
 import { UserButton } from "@clerk/nextjs";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
@@ -18,12 +19,14 @@ export async function Topbar() {
     // it. The bar grows by that inset and keeps its 72px row below it.
     <header className={`sticky top-0 ${Z_INDEX.chrome} h-[calc(72px+env(safe-area-inset-top))] border-b border-zinc-200/80 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur`}>
       {/*
-        Below md the bar is a plain row -- search, then actions -- so the search
+        Below md the bar is a plain row -- back (on inner pages), search, then actions -- so the search
         field takes whatever width is left instead of being squeezed between two
         fixed insets. Navigation on a phone is the bottom tab bar (KD-054). From md the search goes back to being absolutely centred
         across the full header, which is the desktop layout and must not change.
       */}
       <div className="relative flex h-full items-center gap-3 px-4 sm:px-8">
+        <TopbarBack />
+
         <div className="flex min-w-0 flex-1 md:absolute md:left-8 md:right-40 md:justify-center">
           <CommandBar />
         </div>
