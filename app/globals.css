@@ -51,6 +51,47 @@ body {
   background-color: #71717a;
 }
 
+/* Press feedback on touch screens. Tailwind's hover: styles only apply where
+   there's a mouse, so on a phone tapping a button or a card changed nothing
+   visually. While a finger is down, anything tappable shrinks slightly and
+   darkens instead, replacing iOS's grey tap flash. Desktop is untouched.
+
+   Only the innermost tappable element reacts: :active also matches every
+   ancestor, so without the :has() guard, tapping an action button inside a
+   card link would press the whole card too. Opt an element out with
+   data-press="none".
+
+   Unlayered on purpose, so it outranks a utility's transition timing: the
+   press lands instantly (a quick tap is over before a transition would show)
+   and eases back on release. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  --press-scale: 0.97;
+}
+
+@layer base {
+  @media (hover: none) {
+    :where(a[href], button, [role="button"], summary) {
+      transition: scale 150ms ease-out, filter 150ms ease-out;
+    }
+  }
+}
+
+@media (hover: none) {
+  :where(a[href], button, [role="button"], summary):not(:disabled, [aria-disabled="true"], [data-press="none"]):active:not(:has(:where(a[href], button, [role="button"], summary):active)) {
+    scale: var(--press-scale);
+    filter: brightness(0.94);
+    transition-duration: 0s;
+  }
+}
+
+/* Darken only, no movement, for anyone who has asked for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    --press-scale: 1;
+  }
+}
+
 @keyframes checkbox-pop {
   0% { transform: scale(0.55); }
   60% { transform: scale(1.15); }
