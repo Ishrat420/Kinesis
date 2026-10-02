@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { isRouteActive } from "@/lib/navigation/active-route";
 import { navItemClassName } from "./nav-item";
+import { NavPendingHint } from "./NavPendingHint";
 
 const CUSTOM_MODULE_MIME = "application/x-kinesis-custom-module";
 
@@ -27,6 +28,7 @@ export function DraggableCustomModuleLink({ id, name, icon }: { id: string; name
     >
       <CustomModuleIcon name={icon} className="h-[18px] w-[18px]" />
       <span className="min-w-0 truncate font-medium">{name}</span>
+      <NavPendingHint />
     </Link>
   );
 }

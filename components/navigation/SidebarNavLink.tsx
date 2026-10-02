@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isRouteActive } from "@/lib/navigation/active-route";
 import { navItemClassName } from "./nav-item";
+import { NavPendingHint } from "./NavPendingHint";
 
 /**
  * Sidebar entry that highlights itself when the current route belongs to it.
@@ -31,6 +32,7 @@ export function SidebarNavLink({
     >
       {icon}
       <span className="min-w-0 truncate font-medium">{label}</span>
+      <NavPendingHint />
     </Link>
   );
 }

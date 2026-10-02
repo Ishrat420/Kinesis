@@ -10,7 +10,8 @@ import { Z_INDEX } from "@/lib/layout/z-index";
  * Navigation for narrow screens, where the sidebar is hidden.
  *
  * The drawer receives the same navigation markup the sidebar renders, so both
- * breakpoints stay in step, and it closes itself whenever the route changes.
+ * breakpoints stay in step. It closes as soon as one of its links is tapped,
+ * and whenever the route changes.
  *
  * **The overlay renders into `document.body`, not where it is written.** The
  * button that opens it lives in the top bar, and the top bar carries
@@ -57,7 +58,26 @@ export function MobileNavDrawer({ children }: { children: React.ReactNode }) {
         <div role="dialog" aria-modal="true" aria-label="Navigation" className={`fixed inset-0 ${Z_INDEX.overlay} md:hidden`}>
           <div className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm" onClick={close} />
 
-          <div className="absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto bg-white px-5 py-5 shadow-2xl">
+          {/*
+            Closes the moment a link in it is tapped, rather than when the
+            route finally changes: the route only changes once the next page
+            has rendered, so the drawer used to sit open over the old page,
+            still marking it current, as though the tap hadn't registered.
+            Closing first lets the next page's loading state show at once.
+            Not for a click that opens a new tab or window.
+
+            onClick, not onClickCapture: closing unmounts the link, and doing
+            that in the capture phase skipped the link's own handler, so Next
+            never took the click and the browser fell back to a full reload.
+            Bubbling, the link has already started the navigation.
+          */}
+          <div
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              if ((event.target as HTMLElement).closest("a[href]")) close();
+            }}
+            className="absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto bg-white px-5 py-5 shadow-2xl"
+          >
             <div className="mb-5 flex justify-end">
               <button
                 type="button"
