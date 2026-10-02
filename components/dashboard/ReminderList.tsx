@@ -13,8 +13,12 @@ import { DismissButton } from "./DismissButton";
 import { CreateTodoFromDateButton } from "./CreateTodoFromDateButton";
 import { GoalOverdueActions } from "./GoalOverdueActions";
 import { ICON_ACTION_CLASS } from "./icon-action-styles";
+import { PhoneListLimit } from "./PhoneListLimit";
+import { BEYOND_PHONE_LIMIT_CLASS, PHONE_LIST_LIMIT } from "./phone-list-limit";
 const icons = { document: FileText, milestone: Flag, relationship: CalendarDays, todo: ListTodo, goal: Target };
-const upcomingBadgeClass = "flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50";
+// 40px on a phone, to leave the row's text more width; 44px from sm up.
+const upcomingBadgeClass = "flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 sm:h-11 sm:w-11";
+const upcomingIconClass = "h-[18px] w-[18px] text-zinc-700 sm:h-5 sm:w-5";
 
 /**
  * A milestone or to-do gets the same Complete/Reschedule controls Needs
@@ -84,9 +88,9 @@ function UpcomingActions({ item, todoLinkOptions }: { item: UpcomingItem; todoLi
  * still identifiable at a glance -- only the colour is uniform, not the icon.
  */
 function UpcomingIcon({ item }: { item: UpcomingItem }) {
-  if (item.kind === "custom") return <div className={upcomingBadgeClass}><CustomModuleIcon name={item.icon} className="h-5 w-5 text-zinc-700" /></div>;
+  if (item.kind === "custom") return <div className={upcomingBadgeClass}><CustomModuleIcon name={item.icon} className={upcomingIconClass} /></div>;
   const Icon = icons[item.kind];
-  return <div className={upcomingBadgeClass}><Icon className="h-5 w-5 text-zinc-700" /></div>;
+  return <div className={upcomingBadgeClass}><Icon className={upcomingIconClass} /></div>;
 }
 
 export async function ReminderList({ items }: { items: UpcomingItem[] }) {
@@ -99,22 +103,28 @@ export async function ReminderList({ items }: { items: UpcomingItem[] }) {
     getToday(),
     needsTodoLinkOptions ? getTodoLinkOptions() : Promise.resolve<ObjectLocation[]>([]),
   ]);
-  return <section className="flex h-[396px] flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+  // On a phone the card grows with its rows (the first few, then "Show
+  // all") rather than scrolling inside a page that scrolls; from sm up it
+  // keeps its fixed height and scroll box.
+  return <section className="flex flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:h-[396px]">
     <div className="mb-5 flex shrink-0 items-center gap-2">
       <h2 className="text-lg font-semibold">Upcoming &amp; Due</h2>
       <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-zinc-100 px-1.5 text-xs font-bold tabular-nums text-zinc-600">{items.length}</span>
     </div>
-    <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-      {items.length ? <div className="space-y-1">{items.map((item) => {
+    <div className="min-h-0 flex-1 sm:overflow-y-auto sm:pr-2">
+      {items.length ? <PhoneListLimit total={items.length}><div className="space-y-1">{items.map((item, index) => {
         const timing = item.kind === "document" ? formatExpiry(item.date, today) : item.kind === "milestone" || item.kind === "todo" || item.kind === "custom" || item.kind === "goal" ? formatDeadline(item.date, today) : formatFutureDate(item.date, today);
-        return <div key={item.id} className="flex items-center gap-4 py-1.5">
-          <Link href={item.href} className="grid min-w-0 flex-1 grid-cols-[44px_1fr] items-center gap-4 rounded-xl transition hover:bg-zinc-50">
+        // On a phone the actions sit under the text, lined up with it, so the
+        // title and date get the row's whole width and the title can wrap to
+        // two lines; from sm up they sit to the right as before.
+        return <div key={item.id} className={`flex flex-col gap-1.5 py-1.5 sm:flex-row sm:items-center sm:gap-4 ${index >= PHONE_LIST_LIMIT ? BEYOND_PHONE_LIMIT_CLASS : ""}`}>
+          <Link href={item.href} className="grid min-w-0 flex-1 grid-cols-[40px_1fr] items-center gap-3 rounded-xl transition hover:bg-zinc-50 sm:grid-cols-[44px_1fr] sm:gap-4">
             <UpcomingIcon item={item} />
-            <div className="min-w-0"><p className="truncate font-medium text-zinc-800">{item.title}</p><p className="text-sm text-zinc-500">{formatDate(item.date, locale)} · {timing}</p></div>
+            <div className="min-w-0"><p className="line-clamp-2 break-words font-medium text-zinc-800 sm:line-clamp-1">{item.title}</p><p className="text-sm text-zinc-500">{formatDate(item.date, locale)} · {timing}</p></div>
           </Link>
-          <UpcomingActions item={item} todoLinkOptions={todoLinkOptions} />
+          <div className="flex shrink-0 pl-[52px] sm:pl-0"><UpcomingActions item={item} todoLinkOptions={todoLinkOptions} /></div>
         </div>;
-      })}</div> : <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">Nothing is upcoming or overdue.</div>}
+      })}</div></PhoneListLimit> : <div className="flex h-full items-center justify-center py-8 text-center text-sm text-zinc-400 sm:py-0">Nothing is upcoming or overdue.</div>}
     </div>
   </section>;
 }

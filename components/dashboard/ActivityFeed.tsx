@@ -2,8 +2,10 @@ import Link from "next/link";
 import { FileText, Landmark, ListTodo, Package, Target, UsersRound, type LucideIcon } from "lucide-react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import type { RecentActivityItem } from "@/lib/data/object-event-history";
-import { formatActivityTime } from "@/lib/dates";
+import { formatActivityTime, formatActivityTimeShort } from "@/lib/dates";
 import { getFormatPreferences } from "@/lib/format/server";
+import { PhoneListLimit } from "./PhoneListLimit";
+import { BEYOND_PHONE_LIMIT_CLASS, PHONE_LIST_LIMIT } from "./phone-list-limit";
 
 /** Every built-in object type's own icon for the feed's badge -- a custom module's own item brings its own via `item.icon` instead (see `ObjectLocation`). */
 const OBJECT_TYPE_ICONS: Record<string, LucideIcon> = {
@@ -18,7 +20,9 @@ const OBJECT_TYPE_ICONS: Record<string, LucideIcon> = {
  * reading as one calm summary. A custom module's own item still shows its
  * own icon (via `CustomModuleIcon`), just not tinted with its module color.
  */
-const activityBadgeClass = "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50";
+const activityBadgeClass = "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200/80 bg-zinc-50 sm:h-11 sm:w-11";
+// 40px badge and 18px icon on a phone, to leave the text more width; 44px and 20px from sm up.
+const activityIconClass = "h-[18px] w-[18px] text-zinc-700 sm:h-5 sm:w-5";
 
 /**
  * The account's most recent changes across every object (KD-048 Phase 2),
@@ -30,31 +34,38 @@ const activityBadgeClass = "flex h-11 w-11 shrink-0 items-center justify-center 
 export async function ActivityFeed({ activity }: { activity: RecentActivityItem[] }) {
   const { locale } = await getFormatPreferences();
   return (
-    <section className="flex h-[396px] flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    // As Upcoming & Due: on a phone the card grows with its first few rows
+    // and "Show all" instead of scrolling inside the page; fixed height from sm.
+    <section className="flex flex-col rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:h-[396px]">
       <div className="mb-5 flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold">Recent activity</h2>
         <span className="text-sm text-zinc-400">Latest updates</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        {activity.length ? <div className="space-y-4">{activity.map((item) => {
+      <div className="min-h-0 flex-1 sm:overflow-y-auto sm:pr-2">
+        {activity.length ? <PhoneListLimit total={activity.length}><div className="space-y-4">{activity.map((item, index) => {
           const BuiltInIcon = OBJECT_TYPE_ICONS[item.objectType] ?? Package;
           return (
             <Link
               key={item.id} href={item.href}
-              className="-m-1 grid grid-cols-[44px_1fr_auto] items-center gap-4 rounded-xl p-1 transition hover:bg-zinc-50"
+              className={`-m-1 grid grid-cols-[40px_1fr_auto] items-center gap-3 rounded-xl p-1 transition hover:bg-zinc-50 sm:grid-cols-[44px_1fr_auto] sm:gap-4 ${index >= PHONE_LIST_LIMIT ? BEYOND_PHONE_LIMIT_CLASS : ""}`}
             >
               <div className={activityBadgeClass}>
-                {item.icon ? <CustomModuleIcon name={item.icon} className="h-5 w-5 text-zinc-700" /> : <BuiltInIcon className="h-5 w-5 text-zinc-700" />}
+                {item.icon ? <CustomModuleIcon name={item.icon} className={activityIconClass} /> : <BuiltInIcon className={activityIconClass} />}
               </div>
               <div className="min-w-0">
-                <p className="truncate font-medium text-zinc-800">{item.objectName}</p>
-                <p className="truncate text-sm text-zinc-500">{item.title}{item.detail ? `: ${item.detail}` : ""}</p>
+                {/* Up to two lines each on a phone instead of one cut short. */}
+                <p className="line-clamp-2 break-words font-medium text-zinc-800 sm:line-clamp-1">{item.objectName}</p>
+                <p className="line-clamp-2 break-words text-sm text-zinc-500 sm:line-clamp-1">{item.title}{item.detail ? `: ${item.detail}` : ""}</p>
               </div>
-              <time dateTime={item.occurredAt.toISOString()} className="shrink-0 text-sm text-zinc-500">{formatActivityTime(item.occurredAt, undefined, locale)}</time>
+              {/* "1h" on a phone, "1 hour ago" from sm up. */}
+              <time dateTime={item.occurredAt.toISOString()} className="shrink-0 text-sm text-zinc-500">
+                <span className="sm:hidden">{formatActivityTimeShort(item.occurredAt, undefined, locale)}</span>
+                <span className="hidden sm:inline">{formatActivityTime(item.occurredAt, undefined, locale)}</span>
+              </time>
             </Link>
           );
-        })}</div> : <div className="flex h-full items-center justify-center text-center text-sm text-zinc-400">Your latest changes will appear here.</div>}
+        })}</div></PhoneListLimit> : <div className="flex h-full items-center justify-center py-8 text-center text-sm text-zinc-400 sm:py-0">Your latest changes will appear here.</div>}
       </div>
     </section>
   );

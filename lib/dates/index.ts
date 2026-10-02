@@ -247,3 +247,19 @@ export function formatActivityTime(value: DateInput, now: DateInput = new Date()
   if (seconds < 7 * DAY_MS / 1000) return `${unit(Math.floor(seconds / (DAY_MS / 1000)), "day")} ago`;
   return formatDate(date, locale);
 }
+
+/**
+ * `formatActivityTime` for a narrow column: "now", "5m", "3h", "2d", and the
+ * date after a week -- the same steps, so the two never disagree on which
+ * bucket a moment falls in.
+ */
+export function formatActivityTimeShort(value: DateInput, now: DateInput = new Date(), locale = DEFAULT_LOCALE) {
+  const date = requiredDate(value);
+  const reference = requiredDate(now);
+  const seconds = Math.max(0, Math.floor((reference.getTime() - date.getTime()) / 1000));
+  if (seconds < 60) return "now";
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < DAY_MS / 1000) return `${Math.floor(seconds / 3_600)}h`;
+  if (seconds < 7 * DAY_MS / 1000) return `${Math.floor(seconds / (DAY_MS / 1000))}d`;
+  return formatDate(date, locale);
+}
