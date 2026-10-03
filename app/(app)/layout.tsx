@@ -5,6 +5,7 @@ import { FormatProvider } from "@/lib/format/context";
 import { getFormatPreferences } from "@/lib/format/server";
 import { PAGE_PADDING } from "@/lib/layout/responsive";
 import { PwaClient } from "@/components/pwa/PwaClient";
+import { PullToRefresh } from "@/components/pwa/PullToRefresh";
 
 /**
  * The Kinesis application shell.
@@ -40,6 +41,7 @@ export default async function AppLayout({ children, modal }: { children: React.R
         {modal}
 
         <PwaClient />
+        <PullToRefresh />
       </FormatProvider>
     </main>
   );

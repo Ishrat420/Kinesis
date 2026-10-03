@@ -83,3 +83,20 @@ the run. **Expected:** only the other device gets it.
 Block notifications for Kinesis in the device's settings, then open
 **Settings**. **Expected:** the row says notifications are blocked, and the
 toggle is disabled.
+
+### 9. App icon badge (iPhone, iOS 16.4+)
+
+With push on and some unread items on the bell, close Kinesis and look at
+its Home Screen icon. **Expected:** it shows the bell's unread count. Open
+Kinesis and mark one read. **Expected:** the icon's number drops by one
+straight away. Trigger the run with a new item. **Expected:** the icon
+updates while the app is closed. Turning **In-app notifications** off clears
+the number.
+
+### 10. Pull to refresh (installed app only)
+
+At the top of any page, pull down and let go. **Expected:** a small spinner
+slides out from under the top bar, spins while the page reloads its data,
+then slides back. A short pull, a pull from part way down the page, or a
+swipe on the tab bar or an open sheet does nothing. In Safari (not
+installed), Safari's own pull-to-refresh is unchanged.
