@@ -14,17 +14,22 @@ describe("which bell items the daily run pushes (KD-053)", () => {
 
 describe("a push mirrors its bell row", () => {
   it("uses the row's title and message, and opens its page with the key attached", () => {
-    const payload = toPushPayload({ key: "todo:t1:TODO_DUE:2030-01-05", documentName: "Renew rego", message: "Renew rego is due tomorrow", actionUrl: "/todos" });
+    const payload = toPushPayload({ key: "todo:t1:TODO_DUE:2030-01-05", documentName: "Renew rego", message: "Renew rego is due tomorrow", actionUrl: "/todos" }, 3);
     expect(payload).toEqual({
       title: "Renew rego",
       body: "Renew rego is due tomorrow",
       url: `/todos?${PUSH_OPEN_PARAM}=todo%3At1%3ATODO_DUE%3A2030-01-05`,
       tag: "todo:t1:TODO_DUE:2030-01-05",
+      badge: 3,
     });
   });
 
+  it("carries the bell's unread count for the Home Screen badge", () => {
+    expect(toPushPayload({ key: "k", documentName: "", message: "", actionUrl: "/" }, 7).badge).toBe(7);
+  });
+
   it("keeps a query string the page already had", () => {
-    const { url } = toPushPayload({ key: "k", documentName: "", message: "", actionUrl: "/goals/g1?tab=milestones" });
+    const { url } = toPushPayload({ key: "k", documentName: "", message: "", actionUrl: "/goals/g1?tab=milestones" }, 1);
     expect(url).toBe(`/goals/g1?tab=milestones&${PUSH_OPEN_PARAM}=k`);
   });
 });

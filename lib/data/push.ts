@@ -147,10 +147,13 @@ export async function runDailyPush(now = new Date()): Promise<DailyPushSummary> 
     // top of the device's notification list too.
     const toPush = selectNotificationsToPush(notifications, new Set(pushed.map((row) => row.itemKey))).reverse();
 
+    // The bell's own count, the same for every push in this run.
+    const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+
     let devices = owner.pushSubscriptions;
     for (const notification of toPush) {
       if (!devices.length) break;
-      const payload = toPushPayload(notification);
+      const payload = toPushPayload(notification, unreadCount);
       const outcomes = await Promise.all(devices.map((device) => sendPush(device, payload)));
 
       const gone = devices.filter((_, index) => outcomes[index] === "gone");

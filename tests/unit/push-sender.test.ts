@@ -27,7 +27,7 @@ const target = () => ({
   p256dh: deviceKeys.getPublicKey().toString("base64url"),
   auth: randomBytes(16).toString("base64url"),
 });
-const payload = { title: "Do new", body: "Do new is due tomorrow", url: "/todos", tag: "todo:new:TODO_DUE:2030-01-05" };
+const payload = { title: "Do new", body: "Do new is due tomorrow", url: "/todos", tag: "todo:new:TODO_DUE:2030-01-05", badge: 1 };
 
 beforeAll(async () => {
   server = createServer((request, response) => {

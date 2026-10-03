@@ -3,6 +3,7 @@ import { getRecentNotifications } from "@/lib/data/notifications";
 import { CommandBar } from "@/components/capture/CommandBar";
 import { NotificationBell } from "./NotificationBell";
 import { TopbarBack } from "./TopbarBack";
+import { AppBadge } from "@/components/pwa/AppBadge";
 import { UserButton } from "@clerk/nextjs";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
@@ -32,7 +33,8 @@ export async function Topbar() {
         </div>
 
         <div className="relative ml-auto flex shrink-0 items-center gap-3">
-          {notificationsEnabled && <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} />}
+          {/* With notifications off there's no bell, so no number on the app icon either. */}
+          {notificationsEnabled ? <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} /> : <AppBadge count={0} />}
 
           <UserButton appearance={{ elements: { avatarBox: "h-11 w-11 border border-zinc-200/80 shadow-sm" } }}>
             <UserButton.MenuItems>

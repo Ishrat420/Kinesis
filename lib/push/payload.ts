@@ -12,6 +12,8 @@ export type PushPayload = {
   body: string;
   url: string;
   tag: string;
+  /** The bell's unread count when this was sent, for the Home Screen icon's badge. */
+  badge: number;
 };
 
 /**
@@ -30,14 +32,16 @@ export function selectNotificationsToPush(notifications: DerivedNotification[], 
 /**
  * The bell row, as a push: its bold first line as the title, its message as
  * the body. `tag` is the notification key, so a device replaces rather than
- * stacks a repeat of the same notification.
+ * stacks a repeat of the same notification. `badge` sets the number on the
+ * installed app's icon, so it's right even while the app is closed.
  */
-export function toPushPayload(notification: Pick<DerivedNotification, "key" | "documentName" | "message" | "actionUrl">): PushPayload {
+export function toPushPayload(notification: Pick<DerivedNotification, "key" | "documentName" | "message" | "actionUrl">, unreadCount: number): PushPayload {
   return {
     title: notification.documentName,
     body: notification.message,
     url: withPushOpenParam(notification.actionUrl, notification.key),
     tag: notification.key,
+    badge: unreadCount,
   };
 }
 

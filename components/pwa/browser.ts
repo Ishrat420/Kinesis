@@ -61,3 +61,15 @@ export function subscribeToInstallPrompt(listener: () => void) {
     installPromptListeners.delete(listener);
   };
 }
+
+/**
+ * The number on the installed app's Home Screen icon (iOS 16.4+, and
+ * installed apps on desktop Chrome and Edge): the bell's unread count. Where
+ * the Badging API is missing, or the badge isn't allowed -- iOS shows it only
+ * once notifications are permitted -- it quietly does nothing.
+ */
+export function setAppBadge(count: number) {
+  const badging = navigator as Navigator & { setAppBadge?: (count?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+  if (!badging.setAppBadge || !badging.clearAppBadge) return;
+  (count > 0 ? badging.setAppBadge(count) : badging.clearAppBadge()).catch(() => {});
+}

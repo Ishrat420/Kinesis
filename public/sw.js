@@ -2,7 +2,7 @@
 // handler, no caching, no offline mode.
 //
 // Registered by components/pwa/PwaClient.tsx. Payloads come from
-// lib/push/payload.ts: { title, body, url, tag }.
+// lib/push/payload.ts: { title, body, url, tag, badge }.
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -22,15 +22,31 @@ self.addEventListener("push", (event) => {
     return;
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title || "Kinesis", {
-      body: payload.body,
-      tag: payload.tag,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { url: payload.url || "/" },
-    }),
+    Promise.all([
+      self.registration.showNotification(payload.title || "Kinesis", {
+        body: payload.body,
+        tag: payload.tag,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        data: { url: payload.url || "/" },
+      }),
+      setBadge(payload.badge),
+    ]),
   );
 });
+
+// The number on the installed app's icon: the bell's unread count, so it's
+// right even while the app is closed. Where the Badging API is missing, or
+// the badge isn't allowed, it simply doesn't show -- never a failed push.
+async function setBadge(count) {
+  if (typeof count !== "number" || !("setAppBadge" in self.navigator)) return;
+  try {
+    if (count > 0) await self.navigator.setAppBadge(count);
+    else await self.navigator.clearAppBadge();
+  } catch {
+    // Not permitted on this device.
+  }
+}
 
 // Opens the page the notification is about. The URL carries the
 // notification's key, which the app uses to mark it read on the bell.

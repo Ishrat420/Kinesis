@@ -75,6 +75,7 @@ describe.sequential("the daily push run", () => {
       body: expect.stringContaining("Do new"),
       url: `/todos?${PUSH_OPEN_PARAM}=${encodeURIComponent("todo:new:TODO_DUE:2030-01-05")}`,
       tag: "todo:new:TODO_DUE:2030-01-05",
+      badge: 1,
     });
 
     mocks.sendPush.mockClear();
@@ -106,6 +107,18 @@ describe.sequential("the daily push run", () => {
     await runDailyPush(day("2030-02-02"));
 
     expect(pushedTags()).toEqual(["document:doc:REMINDER_DUE:2030-02-01", "document:doc:EXPIRED:2030-02-01"]);
+  });
+
+  it("badges the app icon with the bell's whole unread count, not just what's new", async () => {
+    await todo("backlog", day("2020-01-01"));
+    await savePushSubscription(device("phone"), "Phone");
+    await todo("new", day("2030-01-05"));
+    await todo("read", day("2030-01-06"));
+    await prisma.notificationRead.create({ data: { id: "badge-read-marker", userId: owner, itemKey: "todo:read:TODO_DUE:2030-01-06", todoId: "read" } });
+
+    await runDailyPush(RUN_AT);
+    expect(pushedTags()).toEqual(["todo:new:TODO_DUE:2030-01-05"]);
+    expect(mocks.sendPush.mock.calls[0][1].badge).toBe(2);
   });
 
   it("skips anything already read in the app", async () => {
