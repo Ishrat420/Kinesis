@@ -25,7 +25,7 @@ function DocumentSection({
   const Icon = expired ? AlertTriangle : CalendarDays;
 
   return (
-    <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="rounded-3xl border border-zinc-200/80 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
       <div className="mb-5 flex items-center gap-3">
         {/*
           Amber for "Upcoming" rather than Documents' own blue: every row here
@@ -48,25 +48,31 @@ function DocumentSection({
           {documents.map((document) => {
             const expiry = getExpiryDetails(document.expiryDate, document.prompt, today);
             return (
+              // On a phone the date sits under the name instead of beside it,
+              // with how long is left next to it rather than after the type:
+              // side by side, the date squeezed the name and its countdown
+              // down to a few letters. From sm it's the one row as before.
               <Link
                 key={document.id}
                 href={`/documents/${document.id}`}
-                className="group flex items-center gap-4 py-4 first:pt-1 last:pb-0"
+                className="group flex items-center gap-3 py-4 first:pt-1 last:pb-0 sm:gap-4"
               >
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${expired ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}>
                   <FileText className="h-5 w-5" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{document.name}</p>
-                  <p className="mt-1 truncate text-sm text-zinc-500">{document.type} · {expiry.label}</p>
+                <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-4">
+                  <div className="min-w-0 sm:flex-1">
+                    <p className="truncate font-semibold">{document.name}</p>
+                    <p className="mt-0.5 truncate text-sm text-zinc-500 sm:mt-1">{document.type}<span className="hidden sm:inline"> · {expiry.label}</span></p>
+                  </div>
+                  <time
+                    className={`mt-1 block text-[13px] font-medium sm:mt-0 sm:shrink-0 sm:text-sm ${expired ? "text-rose-600" : "text-zinc-600"}`}
+                    dateTime={document.expiryDate!.toISOString()}
+                  >
+                    {formatDate(document.expiryDate!, locale)}<span className="sm:hidden"> · {expiry.label}</span>
+                  </time>
                 </div>
-                <time
-                  className={`shrink-0 text-sm font-medium ${expired ? "text-rose-600" : "text-zinc-600"}`}
-                  dateTime={document.expiryDate!.toISOString()}
-                >
-                  {formatDate(document.expiryDate!, locale)}
-                </time>
-                <span className="text-xl text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-700">→</span>
+                <span className="hidden text-xl text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-700 sm:inline">→</span>
               </Link>
             );
           })}
