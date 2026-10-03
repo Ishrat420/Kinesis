@@ -32,6 +32,14 @@ const DISMISS_VELOCITY = 0.5;
 export function MobileTabBar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [tapped, setTapped] = useState<{ tab: TabId; on: string } | null>(null);
+  // Forgotten as soon as the route changes, so it can't come back to life on
+  // a later visit to the same page: tap To-dos on Home, then come back to
+  // Home with the top bar's back, and To-dos would still have been current.
+  const [route, setRoute] = useState(pathname);
+  if (route !== pathname) {
+    setRoute(pathname);
+    setTapped(null);
+  }
   const [moreOpenedOn, setMoreOpenedOn] = useState<string | null>(null);
   const moreOpen = moreOpenedOn !== null && moreOpenedOn === pathname;
   const closeMore = () => setMoreOpenedOn(null);

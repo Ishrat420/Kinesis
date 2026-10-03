@@ -149,7 +149,7 @@ export function Modal({
           aria-label={ariaLabel}
           aria-describedby={descriptionId}
           tabIndex={-1}
-          className={`max-h-[100dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-7 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-lg sm:rounded-3xl sm:pb-7 ${panelClassName}`}
+          className={`max-h-[calc(100dvh-env(safe-area-inset-top))] w-full overflow-y-auto rounded-t-3xl bg-white p-7 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-2xl outline-none sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-lg sm:rounded-3xl sm:pb-7 ${panelClassName}`}
         >
           {!customHeader && title !== undefined && (
             <div className="mb-7 flex items-start justify-between gap-4">

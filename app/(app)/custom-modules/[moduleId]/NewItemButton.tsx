@@ -47,7 +47,7 @@ export function NewItemButton({
   const [state, formAction] = useActionState(createItem, initialState);
 
   return <>
-    {created && <div role="status" className={`fixed right-6 top-24 ${Z_INDEX.top} flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-700 shadow-lg`}><CheckCircle2 className="h-5 w-5"/> Item created</div>}
+    {created && <div role="status" className={`fixed right-6 top-[calc(6rem+env(safe-area-inset-top))] ${Z_INDEX.top} flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-700 shadow-lg`}><CheckCircle2 className="h-5 w-5"/> Item created</div>}
     <button type="button" onClick={() => setOpen(true)} className="inline-flex h-12 items-center gap-2 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5"><Plus className="h-4 w-4" /> New item</button>
     {open && (
       <Modal

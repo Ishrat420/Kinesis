@@ -109,11 +109,18 @@ export function PullToRefresh() {
   );
 }
 
-/** A touch inside a fixed layer, or inside a list already scrolled down, isn't a page pull. */
+/**
+ * A touch inside a fixed layer, inside a list already scrolled down, or on
+ * something that handles its own vertical drags -- the relationship map in
+ * pan mode, a dashboard card's drag handle, anything that turns off vertical
+ * panning with touch-action -- isn't a page pull.
+ */
 function startsInsideAnotherSurface(target: EventTarget | null) {
   for (let element = target instanceof Element ? target : null; element && element !== document.body; element = element.parentElement) {
     if (element.scrollTop > 0) return true;
-    if (getComputedStyle(element).position === "fixed") return true;
+    const style = getComputedStyle(element);
+    if (style.position === "fixed") return true;
+    if (!["auto", "manipulation"].includes(style.touchAction) && !style.touchAction.includes("pan-y")) return true;
   }
   return false;
 }

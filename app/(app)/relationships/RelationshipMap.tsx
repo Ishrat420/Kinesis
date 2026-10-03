@@ -346,7 +346,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
         </p>
       )}
 
-      <div className="relative flex h-[calc(100dvh-7rem)] min-h-[360px] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)] lg:h-[calc(100vh-290px)] lg:min-h-[620px]">
+      <div className="relative flex h-[calc(100dvh-7rem-env(safe-area-inset-top)-var(--tab-bar-height)-var(--tab-bar-offset))] min-h-[360px] md:h-[calc(100dvh-7rem)] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)] lg:h-[calc(100vh-290px)] lg:min-h-[620px]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#f7f8f7]">
           <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(#c9ccca_1px,transparent_1px)] [background-size:24px_24px]" />
           <div className="absolute left-5 top-5 z-20 flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white/90 p-1.5 shadow-sm backdrop-blur">

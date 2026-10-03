@@ -47,7 +47,7 @@ function CreateModuleModal({ templates, onClose }: { templates: { id: string; na
     if (state.moduleId) { onClose(); router.push(`/custom-modules/${state.moduleId}`); }
   }, [router, onClose, state.moduleId]);
 
-  return <div role="dialog" aria-modal="true" aria-labelledby="create-module-title" className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm`} onMouseDown={onClose}>
+  return <div role="dialog" aria-modal="true" aria-labelledby="create-module-title" className={`fixed inset-0 ${Z_INDEX.overlay} flex items-center justify-center bg-zinc-950/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-sm`} onMouseDown={onClose}>
     <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-white p-7 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
       <div className="flex items-start justify-between gap-4"><div><h2 id="create-module-title" className="text-2xl font-semibold tracking-tight">Create a custom module</h2><p className="mt-1 text-sm text-zinc-500">Make a new area for anything you want to keep track of.</p></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100"><X className="h-5 w-5" /></button></div>
       <form autoComplete="off" spellCheck={false} action={formAction} className="mt-7 space-y-5">
