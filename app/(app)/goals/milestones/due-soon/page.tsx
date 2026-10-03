@@ -36,7 +36,7 @@ function MilestoneSection({
   const Icon = overdue ? AlertTriangle : CalendarDays;
 
   return (
-    <section className="rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="rounded-3xl border border-zinc-200/80 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
       <div className="mb-5 flex items-center gap-3">
         <Icon className={`h-5 w-5 ${overdue ? "text-rose-600" : "text-zinc-500"}`} />
         <h2 className="text-lg font-semibold">{title}</h2>
@@ -48,29 +48,34 @@ function MilestoneSection({
       {milestones.length ? (
         <div className="divide-y divide-zinc-100">
           {milestones.map((milestone) => (
+            // On a phone the date sits under the name instead of beside it:
+            // side by side, the date kept its full width and squeezed the
+            // name and goal down to a few letters each. From sm it's one row.
             <Link
               key={milestone.id}
               href={`/goals/${milestone.goal.id}`}
-              className="group flex items-center gap-4 py-4 first:pt-1 last:pb-0"
+              className="group flex items-center gap-3 py-4 first:pt-1 last:pb-0 sm:gap-4"
             >
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${overdue ? "bg-rose-50 text-rose-700" : "bg-violet-50 text-violet-700"}`}>
                 <Target className="h-5 w-5" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{milestone.name}</p>
-                <p className="mt-1 truncate text-sm text-zinc-500">{milestone.goal.name}</p>
+              <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-4">
+                <div className="min-w-0 sm:flex-1">
+                  <p className="truncate font-semibold">{milestone.name}</p>
+                  <p className="mt-0.5 truncate text-sm text-zinc-500 sm:mt-1">{milestone.goal.name}</p>
+                </div>
+                {milestone.dueDate ? (
+                  <time
+                    className={`mt-1 block text-[13px] font-medium sm:mt-0 sm:shrink-0 sm:text-sm ${overdue ? "text-rose-600" : "text-zinc-600"}`}
+                    dateTime={milestone.dueDate.toISOString()}
+                  >
+                    {formatDate(milestone.dueDate, locale)} · {formatDeadline(milestone.dueDate, now)}
+                  </time>
+                ) : (
+                  <span className="mt-1 block text-[13px] text-zinc-400 sm:mt-0 sm:shrink-0 sm:text-sm">No due date</span>
+                )}
               </div>
-              {milestone.dueDate ? (
-                <time
-                  className={`shrink-0 text-sm font-medium ${overdue ? "text-rose-600" : "text-zinc-600"}`}
-                  dateTime={milestone.dueDate.toISOString()}
-                >
-                  {formatDate(milestone.dueDate, locale)} · {formatDeadline(milestone.dueDate, now)}
-                </time>
-              ) : (
-                <span className="shrink-0 text-sm text-zinc-400">No due date</span>
-              )}
-              <span className="text-xl text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-700">→</span>
+              <span className="hidden text-xl text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-700 sm:inline">→</span>
             </Link>
           ))}
         </div>
