@@ -15,6 +15,13 @@ import {
   Tablet, Telescope, TentTree, Terminal, Ticket, TrainFront, TreePine, Trophy,
   Tv, Umbrella, User, UserPlus, UserRound, UsersRound, Utensils, Venus,
   Volleyball, WalletCards, Watch, Waves, Wine, Wrench, Zap,
+  Archive, Backpack, Bath, BedDouble, Boxes, Brain, Bus, CalendarDays, CalendarHeart,
+  Car, Carrot, ChefHat, Coins, CreditCard, Dice5, Droplet, FaceSlightlySmiling,
+  Feather, Flame, Folder, Fuel, Handshake, Hourglass, IdCard, Lamp, Lock, Mic,
+  MicSignal, Moon, Newspaper, Paintbrush, PenLine, PenTool, PiggyBank, Plug,
+  Popcorn, Puzzle, Receipt, Recycle, Repeat, Ribbon, Ruler, Sailboat, Salad,
+  School, ShieldCheck, ShoppingCart, Shovel, Snowflake, SprayCan, Sprout, Store,
+  Sun, Target, Timer, TreePalm, TrendingUp, Truck, Warehouse, WashingMachine, Wifi,
 } from "lucide-react";
 
 export const CUSTOM_MODULE_ICONS = {
@@ -49,6 +56,26 @@ export const CUSTOM_MODULE_ICONS = {
   database: Database, development: GitBranch,
   gavel: Gavel, scale: Scale, analytics: ChartNoAxesCombined, done: CheckCheck,
   blocked: Ban, chat: MessageSquare, pinned: Pin,
+  // Everyday life admin, the kind of thing a custom module most often is.
+  car: Car, fuel: Fuel, bus: Bus, boat: Sailboat,
+  bills: Receipt, card: CreditCard, subscriptions: Repeat, insurance: ShieldCheck,
+  savings: PiggyBank, investing: TrendingUp, coins: Coins,
+  electricity: Plug, wifi: Wifi, gas: Flame, droplet: Droplet, bath: Bath, lamp: Lamp,
+  cleaning: SprayCan, laundry: WashingMachine, recycling: Recycle,
+  plants: Sprout, garden: Shovel,
+  groceries: ShoppingCart, vegetables: Carrot, recipes: ChefHat, salad: Salad,
+  night: Moon, sleep: BedDouble, mood: FaceSlightlySmiling, journal: PenLine, writing: Feather,
+  mind: Brain, sun: Sun,
+  timer: Timer, hourglass: Hourglass, target: Target,
+  school: School, backpack: Backpack,
+  store: Store, handshake: Handshake,
+  moving: Truck, storage: Boxes, warehouse: Warehouse, archive: Archive,
+  folder: Folder, identity: IdCard, lock: Lock,
+  podcast: MicSignal, microphone: Mic, popcorn: Popcorn, news: Newspaper,
+  painting: Paintbrush, design: PenTool, ruler: Ruler,
+  beach: TreePalm, winter: Snowflake,
+  puzzle: Puzzle, dice: Dice5,
+  events: CalendarHeart, calendar: CalendarDays, ribbon: Ribbon,
 } as const;
 
 export type CustomModuleIconName = keyof typeof CUSTOM_MODULE_ICONS;
