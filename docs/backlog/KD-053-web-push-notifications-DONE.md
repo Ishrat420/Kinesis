@@ -1,8 +1,19 @@
 # KD-053 — Web Push Notifications for Bell Items
 
-**Status:** In Progress
+**Status:** Done — pending Android test and production test
 **Priority:** High
 **Tags:** Architecture / Data Model / Integration
+
+## Pending
+
+- **Android test:** the installed app (sign-in, navigation, push) has only
+  been tested on iPhone.
+- **Production test:** `v1.3.0` isn't merged to `main` yet, and Vercel runs
+  the daily cron only on production. Before relying on it:
+  - set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and
+    `CRON_SECRET` for Production in Vercel;
+  - after the merge, confirm the first scheduled 20:00 UTC run delivers a
+    push.
 
 ## Summary
 
