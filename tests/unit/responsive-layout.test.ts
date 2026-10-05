@@ -193,7 +193,9 @@ describe("phone form controls", () => {
 
     expect(documentFields).toContain("grid-cols-1 gap-2 sm:grid-cols-");
     expect(customFields).toContain("grid-cols-1 items-start gap-2 transition-all sm:grid-cols-");
-    expect(templateValues).toContain("grid-cols-1 items-start gap-2 sm:grid-cols-");
+    // Template values stay stacked (label above a full-width control) at every width.
+    expect(templateValues).not.toContain("sm:grid-cols-");
+    expect(templateValues).toContain('<div className="mb-2 flex min-w-0 items-center gap-1.5');
     expect(templateEditor).toContain("grid-cols-1 items-center gap-2 md:grid-cols-");
   });
 
