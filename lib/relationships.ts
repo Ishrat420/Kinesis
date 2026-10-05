@@ -72,6 +72,28 @@ export function mapGeometry(people: readonly RelationshipPerson[]): PersonGeomet
   return people.map(({ id, x, y, size }) => ({ id, x, y, size }));
 }
 
+/** The bubble palette. The first, near-black, is the colour your own bubble starts in. */
+export const BUBBLE_COLORS = [
+  "#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866",
+  "#4d7a74", "#b98a94", "#7c5468", "#8a8f5c", "#4f5b66", "#a35d4a", "#8f7a3a", "#8c8a85",
+] as const;
+
+/**
+ * A new person's bubble colour: a random one nobody on the map is wearing.
+ *
+ * Random rather than the first free colour: recolouring each new person
+ * freed that first colour straight back up, so every addition after that
+ * arrived in the same one. Never your own near-black, which would make a new
+ * person look like you. Once the palette is used up, any of it will do.
+ */
+export function pickBubbleColor(takenColors: readonly string[], random: () => number = Math.random): string {
+  const choices = BUBBLE_COLORS.slice(1);
+  const taken = new Set(takenColors.map((color) => color.toLowerCase()));
+  const free = choices.filter((color) => !taken.has(color));
+  const pool = free.length ? free : choices;
+  return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
+}
+
 /**
  * Undoes every content edit since the last save -- the save bar's Discard.
  *

@@ -52,7 +52,7 @@ import { saveMapGeometry, saveRelationshipMap } from "./actions";
 import { PersonHistoryCard, RelationshipHistoryCard } from "./HistoryCard";
 import { NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { Z_INDEX } from "@/lib/layout/z-index";
-import { contentFingerprint, discardContentChanges, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
+import { BUBBLE_COLORS, contentFingerprint, discardContentChanges, pickBubbleColor, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
 type Selection = { kind: "person" | "relationship"; id: string } | null;
 type PendingConnection = { from: string; to: string; type: string };
@@ -68,22 +68,6 @@ const icons: Record<PersonIconName, React.ElementType> = {
   "building-complex": BuildingComplex, stethoscope: Stethoscope, "biceps-flexed": BicepsFlexed,
   "graduation-cap": GraduationCap, "gamepad-2": Gamepad2, "paw-print": PawPrint, "face-slightly-smiling": FaceSlightlySmiling,
 };
-const colors = [
-  "#292524", "#9a7063", "#c58e52", "#6f7f72", "#7686a7", "#9a6d83", "#aa7866",
-  "#4d7a74", "#b98a94", "#7c5468", "#8a8f5c", "#4f5b66", "#a35d4a", "#8f7a3a", "#8c8a85",
-];
-
-/**
- * A new person used to always land on the same hardcoded colour, so a map
- * with more than one addition needed a manual colour change every time just
- * to tell the bubbles apart. Picks the first palette colour nobody on the
- * map is wearing yet; once every colour is taken, cycles by position rather
- * than piling everyone back onto the first one.
- */
-function pickNextColor(existing: Person[]): string {
-  const used = new Set(existing.map((person) => person.color));
-  return colors.find((color) => !used.has(color)) ?? colors[existing.length % colors.length];
-}
 
 export function RelationshipMap({ goals, userDisplayName, initialData, initialVersion }: { goals: GoalOption[]; userDisplayName: string; initialData: RelationshipMapData; initialVersion: number }) {
   const startingPeople = initialData.people.length ? initialData.people : initialPeople.map((person) => ({ ...person, name: userDisplayName }));
@@ -305,7 +289,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
   function addPerson() {
     const id = crypto.randomUUID();
     justCreatedPersonIdRef.current = id;
-    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: pickNextColor(current), icon: "user", selfRelationship: emptySelfRelationship(), objectId: null }]);
+    setPeople((current) => [...current, { id, name: "New person", detail: "Relationship", x: 430 - offset.x / scale, y: 340 - offset.y / scale, size: 84, color: pickBubbleColor(current.map((person) => person.color)), icon: "user", selfRelationship: emptySelfRelationship(), objectId: null }]);
     setMultiSelection([]);
     setSelection({ kind: "person", id });
   }
@@ -504,7 +488,7 @@ function PersonInspector({ person, relationships, people, justCreatedPersonIdRef
     <div className="px-5 py-5">
       <div className="mb-5 flex items-center gap-3"><div style={{backgroundColor: person.color}} className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-md"><Icon className="h-6 w-6" /></div><div className="min-w-0"><input ref={nameInput} value={person.name} onChange={(e) => onChange({name:e.target.value})} className="w-full border-0 bg-transparent p-0 text-lg font-semibold outline-none"/><input value={person.detail} onChange={(e) => onChange({detail:e.target.value})} maxLength={TEXT_LIMIT} className="w-full border-0 bg-transparent p-0 text-xs text-zinc-400 outline-none"/></div></div>
       <InspectorLabel>Icon</InspectorLabel><div className="mb-5 grid grid-cols-6 gap-2">{(Object.keys(icons) as PersonIconName[]).map((name) => { const Choice = icons[name]; return <button key={name} onClick={() => onChange({icon:name})} className={`flex aspect-square items-center justify-center rounded-xl border ${person.icon === name ? "border-zinc-800 bg-zinc-900 text-white" : "border-zinc-200 text-zinc-400 hover:bg-zinc-50"}`}><Choice className="h-4 w-4" /></button>})}</div>
-      <InspectorLabel>Bubble colour</InspectorLabel><div className="mb-5 flex flex-wrap gap-2">{colors.map((color) => <button key={color} onClick={() => onChange({color})} style={{backgroundColor:color}} className={`h-7 w-7 rounded-full border-2 border-white shadow-sm ${person.color === color ? "outline outline-2 outline-offset-1 outline-zinc-700" : ""}`} aria-label={`Use ${color}`} />)}</div>
+      <InspectorLabel>Bubble colour</InspectorLabel><div className="mb-5 flex flex-wrap gap-2">{BUBBLE_COLORS.map((color) => <button key={color} onClick={() => onChange({color})} style={{backgroundColor:color}} className={`h-7 w-7 rounded-full border-2 border-white shadow-sm ${person.color === color ? "outline outline-2 outline-offset-1 outline-zinc-700" : ""}`} aria-label={`Use ${color}`} />)}<CustomBubbleColor color={person.color} onChange={(color) => onChange({ color })} /></div>
       <div className="mb-5"><div className="mb-2 flex items-center justify-between"><InspectorLabel>Bubble size</InspectorLabel><span className="text-[11px] font-medium text-zinc-400">{person.size}px</span></div><input type="range" min="64" max="148" value={person.size} onChange={(e) => onChange({size:Number(e.target.value)})} className="w-full accent-zinc-800" /></div>
       <div className="mb-3 flex items-center justify-between"><InspectorLabel>Connections</InspectorLabel><button onClick={onLink} className="flex items-center gap-1 text-[11px] font-semibold text-zinc-700"><Link2 className="h-3 w-3"/> Connect</button></div>
       <div className="space-y-2">{related.map((relationship) => { const otherId = relationship.from === person.id ? relationship.to : relationship.from; const other = people.find((p) => p.id === otherId); return <div key={relationship.id} className="flex items-center gap-2 rounded-xl bg-zinc-50 p-2.5"><span style={{backgroundColor:other?.color}} className="h-7 w-7 rounded-full"/><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{other?.name}</p><p className="text-[10px] text-zinc-400">{relationship.type}</p></div><button onClick={() => onRemoveRelationship(relationship.id)} className="text-zinc-300 hover:text-red-500" aria-label="Remove relationship"><X className="h-3.5 w-3.5"/></button></div>})}</div>
@@ -754,6 +738,26 @@ function FormActions({ onCancel }: { onCancel: () => void }) { return <div class
 function DeleteItemButton({ onClick }: { onClick: () => void }) { return <button type="button" onClick={onClick} className="absolute right-2.5 top-2.5 rounded-md p-1 text-zinc-300 opacity-0 transition hover:bg-white hover:text-red-500 group-hover:opacity-100 focus:opacity-100" aria-label="Delete item"><Trash2 className="h-3 w-3" /></button>; }
 function DetailItem({ title, detail, onDelete }: { title: string; detail: string; onDelete: () => void }) { return <div className="group relative rounded-xl bg-zinc-50 px-3 py-2.5 pr-9"><p className="text-[11px] font-semibold text-zinc-700">{title}</p><p className="mt-0.5 text-[10px] text-zinc-400">{detail}</p><DeleteItemButton onClick={onDelete} /></div>; }
 function EmptyDetail({ children }: { children: React.ReactNode }) { return <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2.5 text-[10px] leading-4 text-zinc-400">{children}</p>; }
+/**
+ * Any colour at all, beside the palette -- the same native picker as a custom
+ * module's colour. A dashed "+" until a colour outside the palette is chosen;
+ * then it wears that colour and shows as the selected swatch.
+ */
+function CustomBubbleColor({ color, onChange }: { color: string; onChange: (color: string) => void }) {
+  const custom = !(BUBBLE_COLORS as readonly string[]).includes(color.toLowerCase());
+  return (
+    <label
+      title="Custom colour"
+      style={custom ? { backgroundColor: color } : undefined}
+      className={`relative flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-full ${custom ? "border-2 border-white shadow-sm outline outline-2 outline-offset-1 outline-zinc-700" : "border-2 border-dashed border-zinc-300 text-zinc-400 transition-colors hover:border-zinc-400 hover:text-zinc-600"}`}
+    >
+      {!custom && <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+      <input type="color" value={color} onChange={(event) => onChange(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+      <span className="sr-only">Custom colour</span>
+    </label>
+  );
+}
+
 function PersonDot({ person }: { person?: Person }) { if (!person) return null; const Icon = icons[person.icon]; return <span style={{ backgroundColor: person.color }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"><Icon className="h-4 w-4" /></span>; }
 
 function InspectorLabel({ children }: { children: React.ReactNode }) { return <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-400">{children}</p>; }
