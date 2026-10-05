@@ -39,7 +39,7 @@ export const ICON_KEYWORDS = {
   cat: ["cats", "kitten", "pet"],
   coffee: ["cafe", "cafes", "espresso", "tea"],
   flower: ["flowers", "garden", "plants", "bloom"],
-  gem: ["jewellery", "jewelry", "valuables", "diamond", "precious"],
+  gem: ["jewellery", "jewelry", "ring", "rings", "engagement ring", "engagement", "diamond", "valuables", "precious"],
   globe: ["world", "countries", "international", "languages"],
   hammer: ["diy", "renovation", "building", "repairs", "construction"],
   headphones: ["music", "audio", "podcasts", "listening"],
@@ -195,4 +195,5 @@ export const ICON_KEYWORDS = {
   events: ["event", "dates", "anniversaries", "weddings", "special days", "occasions"],
   calendar: ["dates", "schedule", "planner", "appointments", "bookings"],
   ribbon: ["awareness", "charity", "cause", "donations", "fundraising"],
+  rings: ["ring", "rings", "wedding", "wedding rings", "engagement", "engagement ring", "marriage", "married", "proposal", "anniversary", "partner", "couple"],
 } as const satisfies Record<CustomModuleIconName, readonly string[]>;

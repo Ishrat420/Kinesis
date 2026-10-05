@@ -27,7 +27,11 @@ const { version } = require("lucide-react/package.json");
 // key: Component pairs from the CUSTOM_MODULE_ICONS object literal.
 const source = readFileSync(join(root, "lib/custom-modules/icons.tsx"), "utf8");
 const body = source.slice(source.indexOf("CUSTOM_MODULE_ICONS = {"), source.indexOf("} as const"));
-const icons = [...body.matchAll(/(\w+):\s*([A-Z]\w*)/g)].map(([, key, component]) => ({ key, component }));
+// Only pairs naming a real Lucide component, so a comment like "circles: Lucide
+// has no..." inside the object isn't mistaken for an icon.
+const icons = [...body.matchAll(/(\w+):\s*([A-Z]\w*)/g)]
+  .map(([, key, component]) => ({ key, component }))
+  .filter(({ component }) => typeof lucide[component] === "object" || typeof lucide[component] === "function");
 if (!icons.length) throw new Error("No icons found in lib/custom-modules/icons.tsx");
 
 const folder = mkdtempSync(join(tmpdir(), "lucide-tags-"));

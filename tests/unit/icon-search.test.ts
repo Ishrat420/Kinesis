@@ -18,6 +18,12 @@ describe("searchIcons", () => {
     expect(top("passport")).toEqual(["identity"]);
   });
 
+  it("finds rings for weddings and engagements", () => {
+    expect(top("Wedding rings")).toEqual(["rings"]);
+    expect(top("Engagement rings", 2)).toEqual(expect.arrayContaining(["rings", "gem"]));
+    expect(top("engagement", 2)).toEqual(expect.arrayContaining(["rings", "gem"]));
+  });
+
   it("finds an icon by Lucide's synonyms", () => {
     expect(top("vehicle", 3)).toContain("car");
     expect(top("tumble dryer")).toEqual(["laundry"]);
