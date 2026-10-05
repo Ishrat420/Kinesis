@@ -45,13 +45,14 @@ import {
 } from "react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
+import { UnsavedChangesBar } from "@/components/ui/UnsavedChangesBar";
 import { formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { saveMapGeometry, saveRelationshipMap } from "./actions";
 import { PersonHistoryCard, RelationshipHistoryCard } from "./HistoryCard";
 import { NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { Z_INDEX } from "@/lib/layout/z-index";
-import { contentFingerprint, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
+import { contentFingerprint, discardContentChanges, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
 
 type Selection = { kind: "person" | "relationship"; id: string } | null;
 type PendingConnection = { from: string; to: string; type: string };
@@ -120,7 +121,10 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveConflict, setSaveConflict] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [savedContent, setSavedContent] = useState(() => contentFingerprint({ people: startingPeople, relationships: initialData.relationships }));
+  // What the last save wrote, kept whole (not just its fingerprint) so the
+  // save bar's Discard has something to go back to.
+  const [savedSnapshot, setSavedSnapshot] = useState<RelationshipMapData>(() => ({ people: startingPeople, relationships: initialData.relationships }));
+  const savedContent = useMemo(() => contentFingerprint(savedSnapshot), [savedSnapshot]);
   const dirty = contentFingerprint({ people, relationships }) !== savedContent;
 
   // The freshest version known, not just the one the page loaded with (BUG-007):
@@ -134,7 +138,6 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
 
   function saveContent() {
     const snapshot = { people, relationships };
-    const fingerprint = contentFingerprint(snapshot);
     const expectedVersion = currentVersion;
     setSaveError(null);
     setSaveConflict(false);
@@ -148,15 +151,28 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
         const result = await saveRelationshipMap(snapshot, expectedVersion);
         if (result.error) { setSaveError(result.error); setSaveConflict(Boolean(result.conflict)); return; }
         if (result.version !== undefined) setSavedVersion(result.version);
-        // The snapshot's fingerprint, not the live one: anything edited while the
-        // save was in flight is still unsaved and must stay that way.
-        setSavedContent(fingerprint);
+        // The snapshot, not the live map: anything edited while the save was
+        // in flight is still unsaved and must stay that way.
+        setSavedSnapshot(snapshot);
         setSaved(true);
       } catch (error) {
         console.error("Failed to save the relationship map", error);
         setSaveError("The map could not be saved. Your changes are still here — try again.");
       }
     });
+  }
+
+  function discardChanges() {
+    const restored = discardContentChanges(savedSnapshot, { people, relationships });
+    setPeople(restored.people);
+    setRelationships(restored.relationships);
+    // Whatever was selected may be one of the things that just went away.
+    setSelection(null);
+    setMultiSelection([]);
+    setPendingConnection(null);
+    setLinkFrom(null);
+    setSaveError(null);
+    setSaveConflict(false);
   }
 
   // Only what actually moved is sent, so a typical drag is one UPDATE.
@@ -404,6 +420,8 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
           </div>
         </aside>
       </div>
+
+      <UnsavedChangesBar visible={dirty} saving={saving} onSave={saveContent} onDiscard={discardChanges} />
     </>
   );
 }

@@ -73,6 +73,22 @@ export function mapGeometry(people: readonly RelationshipPerson[]): PersonGeomet
 }
 
 /**
+ * Undoes every content edit since the last save -- the save bar's Discard.
+ *
+ * Geometry is kept from the live map, not the save: where a bubble sits is
+ * written on its own the moment a drag settles, so it's already saved, and
+ * Discard snapping bubbles back would undo something that wasn't pending.
+ * Someone deleted since the save comes back where they were saved.
+ */
+export function discardContentChanges(saved: RelationshipMapData, current: RelationshipMapData): RelationshipMapData {
+  const livePositions = new Map(mapGeometry(current.people).map((geometry) => [geometry.id, geometry]));
+  return {
+    people: saved.people.map((person) => ({ ...person, ...livePositions.get(person.id) })),
+    relationships: saved.relationships,
+  };
+}
+
+/**
  * Content is everything a save writes *except* geometry.
  *
  * The fingerprint drives the Save button's enabled state, so it is built from
