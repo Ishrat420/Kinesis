@@ -56,7 +56,7 @@ function DiffConnector({ change }: { change: NonNullable<KinesisLinkRecentEvent[
  * transition in the app should -- the loop simply never starts.
  */
 const PEEK_LOOP_MS = 8_000;
-const PEEK_HOLD_MS = 2_800;
+const PEEK_HOLD_MS = 5_000;
 
 /** Cycles a card's preview between its live content and a brief look at its most recent History entry, on a fixed loop -- purely presentational, so it lives here rather than in a shared hook nothing else needs. */
 function useHistorySneakPeek(enabled: boolean) {
