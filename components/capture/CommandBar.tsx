@@ -141,7 +141,7 @@ export function CommandBar() {
 
   return (
     <div className="relative w-full max-w-2xl">
-      <div className="flex h-[52px] items-center gap-3 rounded-2xl border border-zinc-200/80 bg-white px-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition duration-200 focus-within:border-zinc-300 focus-within:shadow-[0_12px_40px_rgb(0,0,0,0.07)]">
+      <div className="flex h-11 items-center gap-3 rounded-xl border border-transparent bg-zinc-100/80 px-3.5 transition duration-200 hover:bg-zinc-100 focus-within:border-zinc-200 focus-within:bg-white">
         <Search className="h-[18px] w-[18px] shrink-0 text-zinc-400" aria-hidden="true" />
         <input
           ref={inputRef} type="search" value={query} autoComplete="off" spellCheck={false}
@@ -165,10 +165,10 @@ export function CommandBar() {
           aria-activedescendant={isOpen ? (activeIndex < results.length ? `command-result-${activeIndex}` : `command-create-${activeIndex - results.length}`) : undefined}
         />
         {query ? <button type="button" onClick={() => { setQuery(""); setHighlighted(null); inputRef.current?.focus(); }} className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700" aria-label="Clear search"><X className="h-4 w-4" /></button>
-          : <div className="hidden items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-500 sm:flex"><Command className="h-3 w-3" aria-hidden="true" />K</div>}
+          : <div className="hidden items-center gap-1 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 sm:flex"><Command className="h-3 w-3" aria-hidden="true" />K</div>}
       </div>
 
-      {isOpen && <div id="command-bar-options" className={`absolute inset-x-0 top-[60px] ${Z_INDEX.banner} overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
+      {isOpen && <div id="command-bar-options" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
         {results.length ? <>
           <SectionLabel>Search results</SectionLabel>
           <ul aria-label="Search results" role="listbox">{results.map((result, index) => {
@@ -208,7 +208,7 @@ export function CommandBar() {
         })}</ul>
       </div>}
 
-      {error && <p role="alert" className={`absolute inset-x-0 top-[60px] ${Z_INDEX.banner} rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 shadow-lg`}>{error}</p>}
+      {error && <p role="alert" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 shadow-lg`}>{error}</p>}
 
       {/* Keyed on the capture, so a second one replaces the first outright
           rather than reusing the previous confirmation's dismissal timer. */}

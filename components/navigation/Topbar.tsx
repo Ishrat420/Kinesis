@@ -32,11 +32,11 @@ export async function Topbar() {
           <CommandBar />
         </div>
 
-        <div className="relative ml-auto flex shrink-0 items-center gap-3">
+        <div className="relative ml-auto flex shrink-0 items-center gap-2">
           {/* With notifications off there's no bell, so no number on the app icon either. */}
           {notificationsEnabled ? <NotificationBell notifications={notifications} initialUnreadCount={unreadCount} /> : <AppBadge count={0} />}
 
-          <UserButton appearance={{ elements: { avatarBox: "h-11 w-11 border border-zinc-200/80 shadow-sm" } }}>
+          <UserButton appearance={{ elements: { avatarBox: "h-9 w-9" } }}>
             <UserButton.MenuItems>
               <UserButton.Link label="Personal profile" labelIcon={<User className="h-4 w-4" />} href="/user" />
               <UserButton.Link label="Settings" labelIcon={<Settings className="h-4 w-4" />} href="/settings" />
