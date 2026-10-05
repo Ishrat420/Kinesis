@@ -6,7 +6,7 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 
 ## This project specifically
 
-Running Next.js 16.2.9 / React 19.2 — newer than most training data assumes. A few things already differ here from the pre-16 conventions you might expect, confirmed in this codebase:
+Running Next.js 16.3.8 / React 19.2 — newer than most training data assumes. A few things already differ here from the pre-16 conventions you might expect, confirmed in this codebase:
 
 - `proxy.ts` replaces `middleware.ts` (already migrated — there is no `middleware.ts` in this repo).
 - `params`, `searchParams`, `cookies()`, and `headers()` are async-only; there is no synchronous fallback.

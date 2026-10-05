@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Download, Smartphone } from "lucide-react";
+import { Check, Download, Smartphone } from "lucide-react";
+import { CHECKBOX_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 import {
   getInstallPrompt,
   isIos,
@@ -126,6 +127,7 @@ export function PushToggle({ publicKey, inAppEnabled }: { publicKey: string | nu
             <span className="mt-1 block text-zinc-500">Get each new bell notification on this device, once a day in the morning, even when Kinesis is closed.</span>
           </span>
         </span>
+        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
         <input
           type="checkbox"
           form=""
@@ -133,8 +135,10 @@ export function PushToggle({ publicKey, inAppEnabled }: { publicKey: string | nu
           disabled={!canToggle || busy}
           onChange={(event) => toggle(event.target.checked)}
           aria-label="Push notifications on this device"
-          className="h-5 w-5 shrink-0 accent-zinc-950 disabled:opacity-40"
+          className={CHECKBOX_INPUT_CLASS}
         />
+        <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
+        </span>
       </label>
       {note && <p className="mt-3 text-xs text-zinc-500">{note}</p>}
       {status === "on" && !inAppEnabled && <p className="mt-3 text-xs text-amber-700">In-app notifications are off, so nothing will be pushed until they&rsquo;re back on.</p>}

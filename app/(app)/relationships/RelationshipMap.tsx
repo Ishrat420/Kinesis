@@ -349,10 +349,7 @@ export function RelationshipMap({ goals, userDisplayName, initialData, initialVe
       <div className="relative flex h-[calc(100dvh-7rem-env(safe-area-inset-top)-var(--tab-bar-height)-var(--tab-bar-offset))] min-h-[360px] md:h-[calc(100dvh-7rem)] overflow-hidden rounded-[26px] border border-zinc-200 bg-white shadow-[0_16px_50px_rgba(24,24,27,0.06)] lg:h-[calc(100vh-290px)] lg:min-h-[620px]">
         <div className="relative min-w-0 flex-1 overflow-hidden bg-[#f7f8f7]">
           <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(#c9ccca_1px,transparent_1px)] [background-size:24px_24px]" />
-          <div className="absolute left-5 top-5 z-20 flex items-center gap-2 rounded-xl border border-zinc-200/80 bg-white/90 p-1.5 shadow-sm backdrop-blur">
-            <span className="px-2 text-xs font-semibold text-zinc-600">My constellation</span><ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
-          </div>
-          <p className="absolute left-3 right-3 top-16 z-20 text-center text-[10px] font-medium text-zinc-500 lg:hidden">Tap to select · drag a person to move · use Pan map to move the canvas</p>
+          {!linkFrom && <p className="absolute left-3 right-3 top-4 z-20 text-center text-[10px] font-medium text-zinc-500 lg:hidden">Tap to select · drag a person to move · use Pan map to move the canvas</p>}
           {linkFrom && <div className={`absolute left-1/2 top-5 ${Z_INDEX.chrome} -translate-x-1/2 rounded-2xl bg-zinc-900 px-5 py-3 text-white shadow-lg`}><div className="flex items-start gap-4"><div><p className="text-xs font-semibold">Connect {peopleById.get(linkFrom)?.name} to...</p><p className="mt-0.5 text-[10px] text-zinc-400">Select another person</p></div><button onClick={() => setLinkFrom(null)} aria-label="Cancel connection mode"><X className="h-3.5 w-3.5" /></button></div></div>}
           <div ref={canvas} onPointerDown={startPan} className={`absolute inset-0 cursor-grab active:cursor-grabbing ${touchPanMode ? "touch-none" : "touch-pan-y"}`}>
             <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: "0 0" }} className="absolute inset-0">

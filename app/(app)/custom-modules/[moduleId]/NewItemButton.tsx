@@ -71,7 +71,7 @@ export function NewItemButton({
               type="button"
               aria-label="Close"
               onClick={() => setOpen(false)}
-              className="shrink-0 rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900"
+              className="shrink-0 rounded-xl p-2 text-zinc-400 outline-none transition hover:bg-zinc-100 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-zinc-300"
             >
               <X className="h-5 w-5" />
             </button>

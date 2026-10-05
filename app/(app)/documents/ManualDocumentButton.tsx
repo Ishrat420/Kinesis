@@ -132,7 +132,6 @@ function ReminderField() {
           {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
         </select>
       </div>
-      <p className="mt-2 text-xs text-zinc-400">We&rsquo;ll notify you before the expiry date arrives.</p>
     </div>
   );
 }

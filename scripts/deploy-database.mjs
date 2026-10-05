@@ -28,7 +28,12 @@ const BASELINES = [
 // and its first use in one transaction, which cannot work. PostgreSQL rolls a
 // failed migration back whole, so nothing of it survives to clean up: the record
 // of the failure is all that blocks the corrected migration from applying.
-const SUPERSEDED_FAILURES = ["20260901000100_universal_object_identity"];
+//
+// 20261013000000_field_length_limits failed on databases baselined past
+// 20260831000000_person_self_notes without its column (see
+// 20261012500000_repair_person_self_notes, which now adds it first). It ran
+// as one implicit transaction, so the failed attempt left nothing behind.
+const SUPERSEDED_FAILURES = ["20260901000100_universal_object_identity", "20261013000000_field_length_limits"];
 
 // Three migrations were renamed after already being applied elsewhere, to fix
 // an ordering bug: they altered TemplateField/Template before the migration
