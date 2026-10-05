@@ -58,14 +58,22 @@ export function TemplateFieldValues({ fields, linkOptions, previews = {} }: { fi
   if (!values.length) return null;
 
   return (
-    <fieldset className="space-y-2">
+    <fieldset className="space-y-4">
       <legend className="sr-only">Template fields</legend>
       <input type="hidden" name={TEMPLATE_FIELD_VALUES_FORM_KEY} value={payload} />
-      {values.map((field) => (
-        <div key={field.templateFieldId} className="grid min-w-0 grid-cols-1 items-start gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="flex min-h-11 min-w-0 items-center gap-1.5 px-3 py-1">
-            {field.isDueDate && <Clock3 className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
-            <span className="min-w-0 break-words text-sm font-medium text-zinc-700">{field.label}</span>
+      {/*
+        Stacked -- label above a full-width control -- the same layout as the
+        Name field these always sit under, rather than a label/value split that
+        squeezed every input into half the form's width. A checkbox is the
+        exception: it reads as one row, label and toggle together.
+      */}
+      {values.map((field) => field.type === "CHECKBOX" ? (
+        <FieldValueInput key={field.templateFieldId} field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} previews={previews} />
+      ) : (
+        <div key={field.templateFieldId} className="min-w-0">
+          <div className="mb-2 flex min-w-0 items-center gap-1.5 text-sm font-semibold text-zinc-900">
+            {field.isDueDate && <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
+            <span className="min-w-0 break-words">{field.label}</span>
           </div>
           <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} previews={previews} />
         </div>
@@ -81,8 +89,11 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
 
   if (field.type === "CHECKBOX") {
     return (
-      <label className="flex h-11 items-center justify-end px-4">
-        <span className="sr-only">{field.label}</span>
+      <label className="flex h-[50px] cursor-pointer items-center justify-between gap-3 rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 transition hover:bg-zinc-50">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-zinc-900">
+          {field.isDueDate && <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
+          <span className="min-w-0 truncate">{field.label}</span>
+        </span>
         <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
           <input type="checkbox" checked={field.value === "true"} onChange={(event) => onChange({ value: String(event.target.checked) })} className={CHECKBOX_INPUT_CLASS} />
           <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
@@ -98,9 +109,9 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
         onChange={(event) => onChange({ value: event.target.value })}
         aria-label={field.label}
         placeholder="Notes"
-        rows={5}
+        rows={4}
         maxLength={NOTES_LIMIT}
-        className="w-full min-w-0 resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-base outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 sm:text-sm"
+        className="w-full min-w-0 resize-y rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 py-3 text-base outline-none transition placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-4 focus:ring-zinc-900/10 sm:text-sm"
       />
     );
   }
