@@ -53,8 +53,11 @@ export function ObjectHistory({ entries, fallbackCreatedAt, locale }: { entries:
             History
             <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">{rows.length}</span>
           </h2>
+          {/* Clamped, not `truncate`: a nowrap line is as wide as its whole
+              text to any grid sizing around it, and on a phone that pushed
+              the goal page past the viewport. */}
           {!open && (
-            <p className="mt-1 truncate text-sm text-zinc-500">
+            <p className="mt-1 line-clamp-1 break-words text-sm text-zinc-500">
               Last: {latest.title} · {formatDate(latest.occurredAt, locale)}
             </p>
           )}

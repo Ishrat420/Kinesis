@@ -143,6 +143,20 @@ describe("grid templates", () => {
     expect(tooWide).toEqual([]);
   });
 
+  it("keeps the goal page's column able to shrink below its content", () => {
+    // A grid with no template sizes its one implicit column to its widest
+    // content, so a single unbreakable line widened the page on a phone.
+    for (const file of ["page.tsx", "loading.tsx"]) {
+      const source = sources.get(join("app", "(app)", "goals", "[goalId]", file)) ?? "";
+      expect(source).toContain("grid grid-cols-1 gap-6 lg:grid-cols-");
+    }
+  });
+
+  it("does not let the collapsed History summary widen its page", () => {
+    const history = sources.get(join("components", "history", "ObjectHistory.tsx")) ?? "";
+    expect(history).toContain("line-clamp-1 break-words");
+  });
+
   it("finds the templates it is meant to be reading", () => {
     const templates = [...sources.values()].flatMap((source) => gridTemplates(source));
     expect(templates.length).toBeGreaterThan(5);
