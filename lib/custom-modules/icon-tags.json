@@ -1,0 +1,2188 @@
+{
+  "package": {
+    "lucide": "package",
+    "tags": [
+      "box",
+      "container",
+      "storage",
+      "sealed",
+      "delivery",
+      "undelivered",
+      "unopened",
+      "packed",
+      "archive",
+      "zip",
+      "module"
+    ]
+  },
+  "box": {
+    "lucide": "box",
+    "tags": [
+      "cube",
+      "package",
+      "container",
+      "storage",
+      "geometry",
+      "3d",
+      "isometric"
+    ]
+  },
+  "home": {
+    "lucide": "house",
+    "tags": [
+      "home",
+      "living",
+      "building",
+      "residence",
+      "architecture"
+    ]
+  },
+  "heart": {
+    "lucide": "folder-heart",
+    "tags": [
+      "directory",
+      "heart",
+      "favourite",
+      "bookmark",
+      "quick link"
+    ]
+  },
+  "book": {
+    "lucide": "book-open",
+    "tags": [
+      "reading",
+      "pages",
+      "booklet",
+      "magazine",
+      "leaflet",
+      "pamphlet",
+      "library",
+      "writing",
+      "written",
+      "writer",
+      "author",
+      "story",
+      "script",
+      "screenplay",
+      "fiction",
+      "novel",
+      "information",
+      "knowledge",
+      "education",
+      "high school"
+    ]
+  },
+  "palette": {
+    "lucide": "palette",
+    "tags": [
+      "colors",
+      "colours",
+      "theme",
+      "scheme",
+      "paint",
+      "watercolor",
+      "watercolour",
+      "artist"
+    ]
+  },
+  "fitness": {
+    "lucide": "dumbbell",
+    "tags": [
+      "barbell",
+      "weight",
+      "workout",
+      "gym"
+    ]
+  },
+  "travel": {
+    "lucide": "plane",
+    "tags": [
+      "plane",
+      "trip",
+      "airplane"
+    ]
+  },
+  "food": {
+    "lucide": "utensils",
+    "tags": [
+      "fork",
+      "knife",
+      "cutlery",
+      "flatware",
+      "tableware",
+      "silverware",
+      "food",
+      "restaurant",
+      "meal",
+      "breakfast",
+      "dinner",
+      "supper"
+    ]
+  },
+  "pet": {
+    "lucide": "paw-print",
+    "tags": [
+      "pets",
+      "vets",
+      "veterinarian",
+      "domesticated",
+      "cat",
+      "dog",
+      "bear"
+    ]
+  },
+  "wardrobe": {
+    "lucide": "shirt",
+    "tags": [
+      "t-shirt",
+      "shopping",
+      "store",
+      "clothing",
+      "clothes"
+    ]
+  },
+  "gifts": {
+    "lucide": "gift",
+    "tags": [
+      "present",
+      "box",
+      "birthday",
+      "party"
+    ]
+  },
+  "games": {
+    "lucide": "gamepad-2",
+    "tags": [
+      "console"
+    ]
+  },
+  "learning": {
+    "lucide": "graduation-cap",
+    "tags": [
+      "school",
+      "university",
+      "learn",
+      "study",
+      "mortarboard",
+      "education",
+      "ceremony",
+      "academic",
+      "hat",
+      "diploma",
+      "bachelor's",
+      "master's",
+      "doctorate"
+    ]
+  },
+  "work": {
+    "lucide": "briefcase-business",
+    "tags": [
+      "work",
+      "bag",
+      "baggage",
+      "folder",
+      "portfolio"
+    ]
+  },
+  "shopping": {
+    "lucide": "shopping-bag",
+    "tags": [
+      "ecommerce",
+      "cart",
+      "purchase",
+      "store"
+    ]
+  },
+  "nature": {
+    "lucide": "leaf",
+    "tags": [
+      "sustainability",
+      "nature",
+      "energy",
+      "plant",
+      "autumn"
+    ]
+  },
+  "tools": {
+    "lucide": "wrench",
+    "tags": [
+      "account",
+      "settings",
+      "spanner",
+      "diy",
+      "toolbox",
+      "build",
+      "construction"
+    ]
+  },
+  "sparkles": {
+    "lucide": "sparkles",
+    "tags": [
+      "stars",
+      "effect",
+      "filter",
+      "night",
+      "magic"
+    ]
+  },
+  "baby": {
+    "lucide": "baby",
+    "tags": [
+      "child",
+      "childproof",
+      "children"
+    ]
+  },
+  "bike": {
+    "lucide": "bike",
+    "tags": [
+      "bicycle",
+      "transport",
+      "trip"
+    ]
+  },
+  "building": {
+    "lucide": "building-complex",
+    "tags": [
+      "business",
+      "company",
+      "enterprise",
+      "skyscraper",
+      "organisation",
+      "organization",
+      "city"
+    ]
+  },
+  "camera": {
+    "lucide": "camera",
+    "tags": [
+      "photography",
+      "lens",
+      "focus",
+      "capture",
+      "shot",
+      "visual",
+      "image",
+      "device",
+      "equipment",
+      "photo",
+      "webcam",
+      "video"
+    ]
+  },
+  "cat": {
+    "lucide": "cat",
+    "tags": [
+      "animal",
+      "pet",
+      "kitten",
+      "feline"
+    ]
+  },
+  "coffee": {
+    "lucide": "coffee",
+    "tags": [
+      "drink",
+      "cup",
+      "mug",
+      "tea",
+      "cafe",
+      "hot",
+      "beverage"
+    ]
+  },
+  "flower": {
+    "lucide": "flower-2",
+    "tags": [
+      "sustainability",
+      "nature",
+      "plant"
+    ]
+  },
+  "gem": {
+    "lucide": "gem",
+    "tags": [
+      "diamond",
+      "crystal",
+      "ruby",
+      "jewellery",
+      "price",
+      "special",
+      "present",
+      "gift",
+      "ring",
+      "wedding",
+      "proposal",
+      "marriage",
+      "rubygems"
+    ]
+  },
+  "globe": {
+    "lucide": "earth",
+    "tags": [
+      "world",
+      "browser",
+      "language",
+      "translate",
+      "globe"
+    ]
+  },
+  "hammer": {
+    "lucide": "hammer",
+    "tags": [
+      "mallet",
+      "nails",
+      "diy",
+      "toolbox",
+      "build",
+      "construction"
+    ]
+  },
+  "headphones": {
+    "lucide": "headphones",
+    "tags": [
+      "music",
+      "audio",
+      "sound"
+    ]
+  },
+  "wellness": {
+    "lucide": "heart-pulse",
+    "tags": [
+      "heartbeat",
+      "pulse",
+      "health",
+      "medical",
+      "blood pressure",
+      "cardiac",
+      "systole",
+      "diastole"
+    ]
+  },
+  "keys": {
+    "lucide": "key-round",
+    "tags": [
+      "password",
+      "login",
+      "authentication",
+      "secure",
+      "unlock"
+    ]
+  },
+  "library": {
+    "lucide": "library",
+    "tags": [
+      "books",
+      "reading",
+      "written",
+      "authors",
+      "stories",
+      "fiction",
+      "novels",
+      "information",
+      "knowledge",
+      "education",
+      "high school",
+      "university",
+      "college",
+      "academy",
+      "learning",
+      "study",
+      "research",
+      "collection",
+      "vinyl",
+      "records"
+    ]
+  },
+  "music": {
+    "lucide": "music-2",
+    "tags": [
+      "quaver",
+      "eighth note",
+      "note"
+    ]
+  },
+  "star": {
+    "lucide": "star",
+    "tags": [
+      "bookmark",
+      "favorite",
+      "like",
+      "review",
+      "rating"
+    ]
+  },
+  "telescope": {
+    "lucide": "telescope",
+    "tags": [
+      "astronomy",
+      "space",
+      "discovery",
+      "exploration",
+      "explore",
+      "vision",
+      "perspective",
+      "focus",
+      "stargazing",
+      "observe",
+      "view"
+    ]
+  },
+  "camping": {
+    "lucide": "tent-tree",
+    "tags": [
+      "camping",
+      "campsite",
+      "holiday",
+      "retreat",
+      "nomadic",
+      "wilderness",
+      "outdoors"
+    ]
+  },
+  "outdoors": {
+    "lucide": "tree-pine",
+    "tags": [
+      "tree",
+      "pine",
+      "forest",
+      "park",
+      "nature"
+    ]
+  },
+  "trophy": {
+    "lucide": "trophy",
+    "tags": [
+      "prize",
+      "sports",
+      "winner",
+      "achievement",
+      "award",
+      "champion",
+      "celebration",
+      "victory",
+      "competition",
+      "tournament",
+      "leaderboard",
+      "ranking",
+      "success",
+      "reward",
+      "cup",
+      "first",
+      "gold"
+    ]
+  },
+  "umbrella": {
+    "lucide": "umbrella",
+    "tags": [
+      "rain",
+      "weather"
+    ]
+  },
+  "wallet": {
+    "lucide": "wallet-cards",
+    "tags": [
+      "wallet",
+      "cards",
+      "banking",
+      "cash",
+      "debit",
+      "transport",
+      "money",
+      "finance",
+      "pocket",
+      "credit",
+      "purchase",
+      "payment",
+      "shopping",
+      "retail",
+      "consumer",
+      "cc"
+    ]
+  },
+  "watch": {
+    "lucide": "watch",
+    "tags": [
+      "clock",
+      "time"
+    ]
+  },
+  "water": {
+    "lucide": "waves-horizontal",
+    "tags": [
+      "water",
+      "sea",
+      "sound",
+      "hertz",
+      "wavelength",
+      "vibrate",
+      "ocean",
+      "swimming",
+      "frequency"
+    ]
+  },
+  "activity": {
+    "lucide": "activity",
+    "tags": [
+      "pulse",
+      "action",
+      "motion",
+      "movement",
+      "exercise",
+      "fitness",
+      "healthcare",
+      "heart rate monitor",
+      "vital signs",
+      "vitals",
+      "emergency room",
+      "er",
+      "intensive care",
+      "hospital",
+      "defibrillator",
+      "earthquake",
+      "seismic",
+      "magnitude",
+      "richter scale",
+      "aftershock"
+    ]
+  },
+  "alarm": {
+    "lucide": "alarm-clock",
+    "tags": [
+      "morning"
+    ]
+  },
+  "apple": {
+    "lucide": "apple",
+    "tags": [
+      "fruit",
+      "food",
+      "healthy",
+      "snack",
+      "nutrition",
+      "fresh",
+      "produce",
+      "grocery",
+      "organic",
+      "harvest",
+      "vitamin",
+      "red",
+      "green",
+      "juicy",
+      "sweet",
+      "tart",
+      "bite",
+      "orchard",
+      "plant",
+      "core"
+    ]
+  },
+  "money": {
+    "lucide": "badge-dollar-sign",
+    "tags": [
+      "discount",
+      "offer",
+      "sale",
+      "voucher",
+      "tag",
+      "monetization",
+      "marketing",
+      "finance",
+      "financial",
+      "exchange",
+      "transaction",
+      "payment",
+      "usd",
+      "$"
+    ]
+  },
+  "drinks": {
+    "lucide": "beer",
+    "tags": [
+      "alcohol",
+      "bar",
+      "beverage",
+      "brewery",
+      "drink"
+    ]
+  },
+  "bird": {
+    "lucide": "bird",
+    "tags": [
+      "peace",
+      "freedom",
+      "wing",
+      "avian",
+      "tweet"
+    ]
+  },
+  "bone": {
+    "lucide": "bone",
+    "tags": [
+      "health",
+      "skeleton",
+      "skull",
+      "death",
+      "pets",
+      "dog"
+    ]
+  },
+  "robot": {
+    "lucide": "bot",
+    "tags": [
+      "robot",
+      "ai",
+      "chat",
+      "assistant"
+    ]
+  },
+  "celebrations": {
+    "lucide": "cake",
+    "tags": [
+      "birthday",
+      "birthdate",
+      "celebration",
+      "party",
+      "surprise",
+      "gateaux",
+      "dessert",
+      "fondant",
+      "icing sugar",
+      "sweet",
+      "baking"
+    ]
+  },
+  "calculator": {
+    "lucide": "calculator",
+    "tags": [
+      "count",
+      "calculating machine"
+    ]
+  },
+  "faith": {
+    "lucide": "church",
+    "tags": [
+      "temple",
+      "building"
+    ]
+  },
+  "weather": {
+    "lucide": "cloud-sun",
+    "tags": [
+      "weather",
+      "partly"
+    ]
+  },
+  "coding": {
+    "lucide": "code-xml",
+    "tags": [
+      "source",
+      "programming",
+      "html",
+      "xml"
+    ]
+  },
+  "compass": {
+    "lucide": "compass",
+    "tags": [
+      "direction",
+      "north",
+      "east",
+      "south",
+      "west",
+      "browser"
+    ]
+  },
+  "cooking": {
+    "lucide": "cooking-pot",
+    "tags": [
+      "pod",
+      "cooking",
+      "recipe",
+      "food",
+      "kitchen",
+      "chef",
+      "restaurant",
+      "dinner",
+      "lunch",
+      "breakfast",
+      "meal",
+      "eat"
+    ]
+  },
+  "crown": {
+    "lucide": "crown",
+    "tags": [
+      "diadem",
+      "tiara",
+      "circlet",
+      "corona",
+      "king",
+      "ruler",
+      "winner",
+      "favourite"
+    ]
+  },
+  "dog": {
+    "lucide": "dog",
+    "tags": [
+      "animal",
+      "pet",
+      "puppy",
+      "hound",
+      "canine"
+    ]
+  },
+  "drill": {
+    "lucide": "drill",
+    "tags": [
+      "power",
+      "bit",
+      "head",
+      "hole",
+      "diy",
+      "toolbox",
+      "build",
+      "construction"
+    ]
+  },
+  "factory": {
+    "lucide": "factory",
+    "tags": [
+      "building",
+      "business",
+      "energy",
+      "industry",
+      "manufacture",
+      "sector"
+    ]
+  },
+  "movies": {
+    "lucide": "film",
+    "tags": [
+      "movie",
+      "video",
+      "reel",
+      "camera",
+      "cinema",
+      "entertainment"
+    ]
+  },
+  "fish": {
+    "lucide": "fish",
+    "tags": [
+      "dish",
+      "restaurant",
+      "course",
+      "meal",
+      "seafood",
+      "pet",
+      "sea",
+      "marine"
+    ]
+  },
+  "science": {
+    "lucide": "flask-conical",
+    "tags": [
+      "beaker",
+      "erlenmeyer",
+      "lab",
+      "chemistry",
+      "experiment",
+      "test"
+    ]
+  },
+  "guitar": {
+    "lucide": "guitar",
+    "tags": [
+      "acoustic",
+      "instrument",
+      "strings",
+      "riff",
+      "rock",
+      "band",
+      "country",
+      "concert",
+      "performance",
+      "play",
+      "lead",
+      "loud",
+      "music",
+      "audio",
+      "sound",
+      "noise"
+    ]
+  },
+  "hospital": {
+    "lucide": "hospital",
+    "tags": [
+      "infirmary",
+      "sanatorium",
+      "healthcare",
+      "doctor",
+      "hospice",
+      "clinic",
+      "emergency room",
+      "ward",
+      "building",
+      "medical",
+      "vet"
+    ]
+  },
+  "laptop": {
+    "lucide": "laptop",
+    "tags": [
+      "computer",
+      "screen",
+      "remote"
+    ]
+  },
+  "ideas": {
+    "lucide": "lightbulb",
+    "tags": [
+      "idea",
+      "bright",
+      "lights"
+    ]
+  },
+  "maps": {
+    "lucide": "map",
+    "tags": [
+      "location",
+      "navigation",
+      "travel"
+    ]
+  },
+  "medal": {
+    "lucide": "medal",
+    "tags": [
+      "prize",
+      "sports",
+      "winner",
+      "trophy",
+      "award",
+      "achievement"
+    ]
+  },
+  "microscope": {
+    "lucide": "microscope",
+    "tags": [
+      "medical",
+      "education",
+      "science",
+      "imaging",
+      "research"
+    ]
+  },
+  "mountains": {
+    "lucide": "mountain",
+    "tags": [
+      "climb",
+      "hike",
+      "rock"
+    ]
+  },
+  "notebook": {
+    "lucide": "notebook-tabs",
+    "tags": [
+      "notepad",
+      "notes",
+      "people",
+      "family",
+      "friends",
+      "acquaintances",
+      "contacts",
+      "details",
+      "addresses",
+      "phone numbers",
+      "directory",
+      "listing",
+      "networking",
+      "alphabetical",
+      "a-z",
+      "organizer",
+      "organiser",
+      "planner",
+      "diary",
+      "stationery"
+    ]
+  },
+  "party": {
+    "lucide": "party-popper",
+    "tags": [
+      "emoji",
+      "congratulations",
+      "celebration",
+      "party",
+      "tada",
+      "🎉",
+      "🎊",
+      "excitement",
+      "exciting",
+      "excites",
+      "confetti"
+    ]
+  },
+  "medicine": {
+    "lucide": "pill",
+    "tags": [
+      "medicine",
+      "medication",
+      "drug",
+      "prescription",
+      "tablet",
+      "pharmacy"
+    ]
+  },
+  "pizza": {
+    "lucide": "pizza",
+    "tags": [
+      "pie",
+      "quiche",
+      "food"
+    ]
+  },
+  "rocket": {
+    "lucide": "rocket",
+    "tags": [
+      "release",
+      "boost",
+      "launch",
+      "space",
+      "version"
+    ]
+  },
+  "crafts": {
+    "lucide": "scissors",
+    "tags": [
+      "cut",
+      "snip",
+      "chop",
+      "stationery",
+      "crafts"
+    ]
+  },
+  "security": {
+    "lucide": "shield",
+    "tags": [
+      "cybersecurity",
+      "secure",
+      "safety",
+      "protection",
+      "guardian",
+      "armored",
+      "armoured",
+      "defense",
+      "defence",
+      "defender",
+      "block",
+      "threat",
+      "prevention",
+      "antivirus",
+      "vigilance",
+      "vigilant",
+      "detection",
+      "scan",
+      "find",
+      "strength"
+    ]
+  },
+  "furniture": {
+    "lucide": "sofa",
+    "tags": [
+      "armchair",
+      "furniture",
+      "leisure",
+      "lounge",
+      "loveseat",
+      "couch"
+    ]
+  },
+  "doctor": {
+    "lucide": "stethoscope",
+    "tags": [
+      "phonendoscope",
+      "medical",
+      "heart",
+      "lungs",
+      "sound"
+    ]
+  },
+  "tickets": {
+    "lucide": "ticket",
+    "tags": [
+      "entry",
+      "pass",
+      "voucher",
+      "event",
+      "concert",
+      "show",
+      "perforated",
+      "dashed"
+    ]
+  },
+  "train": {
+    "lucide": "train-front",
+    "tags": [
+      "railway",
+      "metro",
+      "subway",
+      "underground",
+      "high-speed",
+      "bullet",
+      "fast",
+      "track",
+      "line"
+    ]
+  },
+  "sports": {
+    "lucide": "volleyball",
+    "tags": [
+      "beach",
+      "sand",
+      "net",
+      "holiday",
+      "vacation",
+      "summer",
+      "soccer",
+      "football",
+      "futbol",
+      "kick",
+      "pitch",
+      "goal",
+      "score",
+      "bounce",
+      "leather",
+      "wool",
+      "yarn",
+      "knitting",
+      "sewing",
+      "thread"
+    ]
+  },
+  "wine": {
+    "lucide": "wine",
+    "tags": [
+      "alcohol",
+      "beverage",
+      "bar",
+      "drink",
+      "glass",
+      "sommelier",
+      "vineyard",
+      "winery"
+    ]
+  },
+  "energy": {
+    "lucide": "zap",
+    "tags": [
+      "flash",
+      "camera",
+      "lightning",
+      "electricity",
+      "energy",
+      "power",
+      "quick"
+    ]
+  },
+  "person": {
+    "lucide": "user",
+    "tags": [
+      "person",
+      "account",
+      "contact"
+    ]
+  },
+  "profile": {
+    "lucide": "user-round",
+    "tags": [
+      "person",
+      "account",
+      "contact"
+    ]
+  },
+  "people": {
+    "lucide": "users-round",
+    "tags": [
+      "group",
+      "people"
+    ]
+  },
+  "standing": {
+    "lucide": "person-standing",
+    "tags": [
+      "people",
+      "human",
+      "accessibility",
+      "stick figure"
+    ]
+  },
+  "accessibility": {
+    "lucide": "accessibility",
+    "tags": [
+      "disability",
+      "disabled",
+      "dda",
+      "wheelchair"
+    ]
+  },
+  "woman": {
+    "lucide": "venus",
+    "tags": [
+      "gender",
+      "sex",
+      "female",
+      "feminine",
+      "woman",
+      "girl"
+    ]
+  },
+  "man": {
+    "lucide": "mars",
+    "tags": [
+      "gender",
+      "sex",
+      "male",
+      "masculine",
+      "man",
+      "boy"
+    ]
+  },
+  "contacts": {
+    "lucide": "contact",
+    "tags": [
+      "user",
+      "person",
+      "family",
+      "friend",
+      "acquaintance",
+      "listing",
+      "networking"
+    ]
+  },
+  "community": {
+    "lucide": "user-plus",
+    "tags": [
+      "new",
+      "add",
+      "create",
+      "follow",
+      "subscribe"
+    ]
+  },
+  "strength": {
+    "lucide": "biceps-flexed",
+    "tags": [
+      "arm",
+      "muscle",
+      "strong",
+      "working out",
+      "athletic",
+      "toned",
+      "muscular",
+      "forelimb",
+      "curled"
+    ]
+  },
+  "walking": {
+    "lucide": "footprints",
+    "tags": [
+      "steps",
+      "walking",
+      "foot",
+      "feet",
+      "trail",
+      "shoe"
+    ]
+  },
+  "theatre": {
+    "lucide": "drama",
+    "tags": [
+      "drama",
+      "masks",
+      "theater",
+      "theatre",
+      "entertainment",
+      "show"
+    ]
+  },
+  "phone": {
+    "lucide": "smartphone",
+    "tags": [
+      "phone",
+      "cellphone",
+      "device",
+      "mobile",
+      "screen",
+      "display",
+      "touchscreen",
+      "portable",
+      "responsive"
+    ]
+  },
+  "tablet": {
+    "lucide": "tablet",
+    "tags": [
+      "device",
+      "mobile",
+      "screen",
+      "display",
+      "touchscreen",
+      "portable",
+      "responsive"
+    ]
+  },
+  "computer": {
+    "lucide": "monitor",
+    "tags": [
+      "tv",
+      "computer",
+      "desktop",
+      "screen",
+      "display",
+      "external display",
+      "screen sharing",
+      "virtual machine",
+      "vm"
+    ]
+  },
+  "keyboard": {
+    "lucide": "keyboard",
+    "tags": [
+      "layout",
+      "spell",
+      "settings",
+      "mouse"
+    ]
+  },
+  "mouse": {
+    "lucide": "mouse",
+    "tags": [
+      "device",
+      "scroll",
+      "click"
+    ]
+  },
+  "television": {
+    "lucide": "tv",
+    "tags": [
+      "television",
+      "stream",
+      "display",
+      "widescreen",
+      "high-definition",
+      "hd",
+      "1080p",
+      "4k",
+      "8k",
+      "smart",
+      "digital",
+      "video",
+      "entertainment",
+      "showtime",
+      "channels",
+      "terrestrial",
+      "satellite",
+      "cable",
+      "broadcast",
+      "live"
+    ]
+  },
+  "processor": {
+    "lucide": "cpu",
+    "tags": [
+      "processor",
+      "cores",
+      "technology",
+      "computer",
+      "chip",
+      "circuit",
+      "memory",
+      "ram",
+      "specs",
+      "gigahertz",
+      "ghz"
+    ]
+  },
+  "terminal": {
+    "lucide": "terminal",
+    "tags": [
+      "code",
+      "command line",
+      "prompt",
+      "shell"
+    ]
+  },
+  "code": {
+    "lucide": "code-xml",
+    "tags": [
+      "source",
+      "programming",
+      "html",
+      "xml"
+    ]
+  },
+  "braces": {
+    "lucide": "braces",
+    "tags": [
+      "json",
+      "code",
+      "token",
+      "curly brackets",
+      "data",
+      "{",
+      "}"
+    ]
+  },
+  "binary": {
+    "lucide": "binary",
+    "tags": [
+      "code",
+      "digits",
+      "computer",
+      "zero",
+      "one",
+      "boolean"
+    ]
+  },
+  "database": {
+    "lucide": "database",
+    "tags": [
+      "storage",
+      "memory",
+      "container",
+      "tin",
+      "pot",
+      "bytes",
+      "servers"
+    ]
+  },
+  "development": {
+    "lucide": "git-branch",
+    "tags": [
+      "code",
+      "version control",
+      "vcs",
+      "repository"
+    ]
+  },
+  "gavel": {
+    "lucide": "gavel",
+    "tags": [
+      "justice",
+      "law",
+      "court",
+      "judgment",
+      "legal",
+      "hands",
+      "penalty",
+      "decision",
+      "authority",
+      "hammer",
+      "mallet"
+    ]
+  },
+  "scale": {
+    "lucide": "scale",
+    "tags": [
+      "balance",
+      "legal",
+      "license",
+      "right",
+      "rule",
+      "law",
+      "justice",
+      "weight",
+      "measure",
+      "compare",
+      "judge",
+      "fair",
+      "ethics",
+      "decision"
+    ]
+  },
+  "analytics": {
+    "lucide": "chart-no-axes-combined",
+    "tags": [
+      "statistics",
+      "analytics",
+      "diagram",
+      "graph",
+      "trending up"
+    ]
+  },
+  "done": {
+    "lucide": "check-check",
+    "tags": [
+      "done",
+      "received",
+      "double",
+      "todo",
+      "tick",
+      "complete",
+      "task"
+    ]
+  },
+  "blocked": {
+    "lucide": "ban",
+    "tags": [
+      "cancel",
+      "no",
+      "stop",
+      "forbidden",
+      "prohibited",
+      "error",
+      "incorrect",
+      "mistake",
+      "wrong",
+      "failure",
+      "circle",
+      "slash",
+      "null",
+      "void"
+    ]
+  },
+  "chat": {
+    "lucide": "message-square",
+    "tags": [
+      "comment",
+      "chat",
+      "conversation",
+      "dialog",
+      "feedback",
+      "speech bubble"
+    ]
+  },
+  "pinned": {
+    "lucide": "pin",
+    "tags": [
+      "save",
+      "map",
+      "lock",
+      "fix"
+    ]
+  },
+  "car": {
+    "lucide": "car",
+    "tags": [
+      "vehicle",
+      "drive",
+      "trip",
+      "journey"
+    ]
+  },
+  "fuel": {
+    "lucide": "fuel",
+    "tags": [
+      "filling-station",
+      "gas",
+      "petrol",
+      "tank"
+    ]
+  },
+  "bus": {
+    "lucide": "bus",
+    "tags": [
+      "bus",
+      "vehicle",
+      "transport",
+      "trip"
+    ]
+  },
+  "boat": {
+    "lucide": "sailboat",
+    "tags": [
+      "ship",
+      "boat",
+      "harbor",
+      "harbour",
+      "dock"
+    ]
+  },
+  "bills": {
+    "lucide": "receipt",
+    "tags": [
+      "bill",
+      "voucher",
+      "slip",
+      "check",
+      "counterfoil",
+      "currency",
+      "dollar",
+      "usd",
+      "$"
+    ]
+  },
+  "card": {
+    "lucide": "credit-card",
+    "tags": [
+      "bank",
+      "purchase",
+      "payment",
+      "cc"
+    ]
+  },
+  "subscriptions": {
+    "lucide": "repeat",
+    "tags": [
+      "loop",
+      "arrows"
+    ]
+  },
+  "insurance": {
+    "lucide": "shield-check",
+    "tags": [
+      "cybersecurity",
+      "secured",
+      "safety",
+      "protection",
+      "protected",
+      "guardian",
+      "guarded",
+      "armored",
+      "armoured",
+      "defense",
+      "defence",
+      "defended",
+      "blocked",
+      "threat",
+      "prevention",
+      "prevented",
+      "antivirus",
+      "vigilance",
+      "vigilant",
+      "active"
+    ]
+  },
+  "savings": {
+    "lucide": "piggy-bank",
+    "tags": [
+      "money",
+      "savings"
+    ]
+  },
+  "investing": {
+    "lucide": "trending-up",
+    "tags": [
+      "statistics"
+    ]
+  },
+  "coins": {
+    "lucide": "coins",
+    "tags": [
+      "money",
+      "cash",
+      "finance",
+      "gamble"
+    ]
+  },
+  "electricity": {
+    "lucide": "plug",
+    "tags": [
+      "electricity",
+      "energy",
+      "electronics",
+      "socket",
+      "outlet",
+      "power",
+      "voltage",
+      "current",
+      "charger"
+    ]
+  },
+  "wifi": {
+    "lucide": "wifi",
+    "tags": [
+      "connection",
+      "signal",
+      "wireless"
+    ]
+  },
+  "gas": {
+    "lucide": "flame",
+    "tags": [
+      "heat",
+      "burn",
+      "light",
+      "glow",
+      "ignite",
+      "passion",
+      "ember",
+      "fire",
+      "lit",
+      "burning",
+      "spark",
+      "embers",
+      "smoke",
+      "firefighter",
+      "fireman",
+      "department",
+      "brigade",
+      "station",
+      "emergency"
+    ]
+  },
+  "droplet": {
+    "lucide": "droplet",
+    "tags": [
+      "water",
+      "weather",
+      "liquid",
+      "fluid",
+      "wet",
+      "moisture",
+      "damp",
+      "bead",
+      "globule"
+    ]
+  },
+  "bath": {
+    "lucide": "bath",
+    "tags": [
+      "amenities",
+      "services",
+      "bathroom",
+      "shower"
+    ]
+  },
+  "lamp": {
+    "lucide": "lamp",
+    "tags": [
+      "lighting",
+      "household",
+      "home",
+      "furniture"
+    ]
+  },
+  "cleaning": {
+    "lucide": "spray-can",
+    "tags": [
+      "paint",
+      "color",
+      "graffiti",
+      "decoration",
+      "aerosol",
+      "deodorant",
+      "shaving foam",
+      "air freshener"
+    ]
+  },
+  "laundry": {
+    "lucide": "washing-machine",
+    "tags": [
+      "tumble dryer",
+      "amenities",
+      "electronics",
+      "cycle",
+      "clothes",
+      "rinse",
+      "spin",
+      "drum"
+    ]
+  },
+  "recycling": {
+    "lucide": "recycle",
+    "tags": [
+      "sustainability",
+      "salvage",
+      "arrows"
+    ]
+  },
+  "plants": {
+    "lucide": "sprout",
+    "tags": [
+      "eco",
+      "green",
+      "growth",
+      "leaf",
+      "nature",
+      "plant",
+      "seed",
+      "spring",
+      "sustainability"
+    ]
+  },
+  "garden": {
+    "lucide": "shovel",
+    "tags": [
+      "dig",
+      "spade",
+      "treasure"
+    ]
+  },
+  "groceries": {
+    "lucide": "shopping-cart",
+    "tags": [
+      "trolley",
+      "cart",
+      "basket",
+      "e-commerce",
+      "store",
+      "purchase",
+      "products",
+      "items",
+      "ingredients"
+    ]
+  },
+  "vegetables": {
+    "lucide": "carrot",
+    "tags": [
+      "orange",
+      "healthy",
+      "nature",
+      "fresh",
+      "root",
+      "produce",
+      "organic",
+      "nutrition",
+      "vegetable",
+      "food",
+      "eat"
+    ]
+  },
+  "recipes": {
+    "lucide": "chef-hat",
+    "tags": [
+      "cooking",
+      "food",
+      "kitchen",
+      "restaurant"
+    ]
+  },
+  "salad": {
+    "lucide": "salad",
+    "tags": [
+      "food",
+      "vegetarian",
+      "dish",
+      "restaurant",
+      "course",
+      "meal",
+      "side",
+      "vegetables",
+      "health"
+    ]
+  },
+  "night": {
+    "lucide": "moon",
+    "tags": [
+      "dark",
+      "night"
+    ]
+  },
+  "sleep": {
+    "lucide": "bed-double",
+    "tags": [
+      "sleep",
+      "hotel",
+      "furniture"
+    ]
+  },
+  "mood": {
+    "lucide": "face-slightly-smiling",
+    "tags": [
+      "smile",
+      "happy",
+      "happiness",
+      "good",
+      "positive",
+      "friendly",
+      "patronizing",
+      "passive aggressive",
+      "ironic",
+      "emoji",
+      "emotion"
+    ]
+  },
+  "journal": {
+    "lucide": "pen-line",
+    "tags": [
+      "pencil",
+      "change",
+      "create",
+      "draw",
+      "writer",
+      "writing",
+      "biro",
+      "ink",
+      "marker",
+      "felt tip",
+      "stationery",
+      "artist"
+    ]
+  },
+  "writing": {
+    "lucide": "feather",
+    "tags": [
+      "quill",
+      "plume",
+      "writing",
+      "author",
+      "literature",
+      "poetry",
+      "manuscript",
+      "bird",
+      "plumage",
+      "lightweight",
+      "soft"
+    ]
+  },
+  "mind": {
+    "lucide": "brain",
+    "tags": [
+      "medical",
+      "mind",
+      "mental",
+      "intellect",
+      "cerebral",
+      "consciousness",
+      "genius",
+      "artificial intelligence",
+      "ai",
+      "think",
+      "thought",
+      "insight",
+      "intelligent",
+      "smart"
+    ]
+  },
+  "sun": {
+    "lucide": "sun",
+    "tags": [
+      "brightness",
+      "weather",
+      "light",
+      "summer"
+    ]
+  },
+  "timer": {
+    "lucide": "timer",
+    "tags": [
+      "time",
+      "timer",
+      "stopwatch"
+    ]
+  },
+  "hourglass": {
+    "lucide": "hourglass",
+    "tags": [
+      "timer",
+      "time",
+      "sandglass"
+    ]
+  },
+  "target": {
+    "lucide": "target",
+    "tags": [
+      "logo",
+      "bullseye",
+      "deadline",
+      "projects",
+      "overview",
+      "work",
+      "productivity"
+    ]
+  },
+  "school": {
+    "lucide": "school",
+    "tags": [
+      "building",
+      "education",
+      "childhood",
+      "university",
+      "learning",
+      "campus",
+      "scholar",
+      "student",
+      "lecture",
+      "degree",
+      "course",
+      "academia",
+      "study",
+      "knowledge",
+      "classroom",
+      "research",
+      "diploma",
+      "graduation",
+      "professor",
+      "tutorial"
+    ]
+  },
+  "backpack": {
+    "lucide": "backpack",
+    "tags": [
+      "bag",
+      "hiking",
+      "travel",
+      "camping",
+      "school",
+      "childhood"
+    ]
+  },
+  "store": {
+    "lucide": "store",
+    "tags": [
+      "shop",
+      "supermarket",
+      "stand",
+      "boutique",
+      "building"
+    ]
+  },
+  "handshake": {
+    "lucide": "handshake",
+    "tags": [
+      "agreement",
+      "partnership",
+      "deal",
+      "business",
+      "assistance",
+      "cooperation",
+      "friendship",
+      "union",
+      "terms"
+    ]
+  },
+  "moving": {
+    "lucide": "truck",
+    "tags": [
+      "delivery",
+      "van",
+      "shipping",
+      "haulage",
+      "lorry"
+    ]
+  },
+  "storage": {
+    "lucide": "boxes",
+    "tags": [
+      "cubes",
+      "packages",
+      "parts",
+      "group",
+      "units",
+      "collection",
+      "cluster",
+      "geometry"
+    ]
+  },
+  "warehouse": {
+    "lucide": "warehouse",
+    "tags": [
+      "storage",
+      "storehouse",
+      "depot",
+      "depository",
+      "repository",
+      "stockroom",
+      "logistics",
+      "building"
+    ]
+  },
+  "archive": {
+    "lucide": "archive",
+    "tags": [
+      "index",
+      "backup",
+      "box",
+      "storage",
+      "records"
+    ]
+  },
+  "folder": {
+    "lucide": "folder",
+    "tags": [
+      "directory"
+    ]
+  },
+  "identity": {
+    "lucide": "id-card",
+    "tags": [
+      "card",
+      "badge",
+      "identity",
+      "authentication",
+      "secure"
+    ]
+  },
+  "lock": {
+    "lucide": "lock",
+    "tags": [
+      "security",
+      "password",
+      "secure",
+      "admin"
+    ]
+  },
+  "podcast": {
+    "lucide": "mic-signal",
+    "tags": [
+      "podcast",
+      "audio",
+      "broadcast",
+      "signal",
+      "wireless",
+      "radio",
+      "airwaves",
+      "microphone",
+      "talk",
+      "voice",
+      "speech",
+      "stream",
+      "live",
+      "voice chat",
+      "push to talk",
+      "transmission"
+    ]
+  },
+  "microphone": {
+    "lucide": "mic",
+    "tags": [
+      "record",
+      "sound",
+      "listen",
+      "radio",
+      "podcast",
+      "microphone"
+    ]
+  },
+  "popcorn": {
+    "lucide": "popcorn",
+    "tags": [
+      "cinema",
+      "movies",
+      "films",
+      "salted",
+      "sweet",
+      "sugar",
+      "candy",
+      "snack"
+    ]
+  },
+  "news": {
+    "lucide": "newspaper",
+    "tags": [
+      "news",
+      "feed",
+      "home",
+      "magazine",
+      "article",
+      "headline"
+    ]
+  },
+  "painting": {
+    "lucide": "paintbrush",
+    "tags": [
+      "brush",
+      "paintbrush",
+      "design",
+      "color",
+      "colour",
+      "decoration",
+      "diy"
+    ]
+  },
+  "design": {
+    "lucide": "pen-tool",
+    "tags": [
+      "vector",
+      "drawing",
+      "path"
+    ]
+  },
+  "ruler": {
+    "lucide": "ruler",
+    "tags": [
+      "measurements",
+      "centimeters",
+      "cm",
+      "millimeters",
+      "mm",
+      "metre",
+      "foot",
+      "feet",
+      "inches",
+      "units",
+      "size",
+      "length",
+      "width",
+      "height",
+      "dimensions",
+      "depth",
+      "breadth",
+      "extent",
+      "stationery"
+    ]
+  },
+  "beach": {
+    "lucide": "tree-palm",
+    "tags": [
+      "vacation",
+      "leisure",
+      "island"
+    ]
+  },
+  "winter": {
+    "lucide": "snowflake",
+    "tags": [
+      "cold",
+      "weather",
+      "freeze",
+      "snow",
+      "winter"
+    ]
+  },
+  "puzzle": {
+    "lucide": "puzzle",
+    "tags": [
+      "component",
+      "module",
+      "part",
+      "piece"
+    ]
+  },
+  "dice": {
+    "lucide": "dice-5",
+    "tags": [
+      "dice",
+      "random",
+      "tabletop",
+      "5",
+      "board",
+      "game"
+    ]
+  },
+  "events": {
+    "lucide": "calendar-heart",
+    "tags": [
+      "date",
+      "month",
+      "year",
+      "event",
+      "heart",
+      "favourite",
+      "subscribe",
+      "valentines day"
+    ]
+  },
+  "calendar": {
+    "lucide": "calendar-days",
+    "tags": [
+      "date",
+      "month",
+      "year",
+      "event"
+    ]
+  },
+  "ribbon": {
+    "lucide": "ribbon",
+    "tags": [
+      "awareness",
+      "strip",
+      "band",
+      "tape",
+      "strap",
+      "cordon"
+    ]
+  }
+}
