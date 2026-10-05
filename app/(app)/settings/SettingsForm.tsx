@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Bell, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
+import { Bell, Check, ChevronDown, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
 import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES, supportedTimeZones } from "@/lib/format/preferences";
 import { updateSettingsAction, type SettingsActionState } from "./actions";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { keepFormValues } from "@/components/ui/keep-form-values";
+import { CHECKBOX_INPUT_CLASS, FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
 
 type Settings = {
   locale: string;
@@ -57,17 +58,17 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <label className="block">
             <span className="flex items-center gap-2 text-sm font-medium text-zinc-800"><Globe className="h-4 w-4" /> Region</span>
-            <select name="locale" value={locale} onChange={(event) => setLocale(event.target.value)} className="input mt-2 appearance-none">
+            <span className="relative mt-2 block"><select name="locale" value={locale} onChange={(event) => setLocale(event.target.value)} className={SELECT_CLASS}>
               {SUPPORTED_LOCALES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" /></span>
             <span className="mt-2 block text-xs text-zinc-500">Dates appear as <strong className="font-semibold text-zinc-700">{formatDate(SAMPLE_DATE, locale)}</strong></span>
           </label>
 
           <label className="block">
             <span className="flex items-center gap-2 text-sm font-medium text-zinc-800"><Coins className="h-4 w-4" /> Currency</span>
-            <select name="currency" value={currency} onChange={(event) => setCurrency(event.target.value)} className="input mt-2 appearance-none">
+            <span className="relative mt-2 block"><select name="currency" value={currency} onChange={(event) => setCurrency(event.target.value)} className={SELECT_CLASS}>
               {SUPPORTED_CURRENCIES.map((option) => <option key={option.value} value={option.value}>{option.value} · {option.label}</option>)}
-            </select>
+            </select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" /></span>
             <span className="mt-2 block text-xs text-zinc-500">Amounts appear as <strong className="font-semibold text-zinc-700">{formatMoney(SAMPLE_AMOUNT, locale, currency)}</strong></span>
           </label>
 
@@ -80,9 +81,9 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
           */}
           <label className="block sm:col-span-2">
             <span className="flex items-center gap-2 text-sm font-medium text-zinc-800"><MapPin className="h-4 w-4" /> Time zone</span>
-            <select name="timeZone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} className="input mt-2 appearance-none">
+            <span className="relative mt-2 block"><select name="timeZone" value={timeZone} onChange={(event) => setTimeZone(event.target.value)} className={SELECT_CLASS}>
               {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
-            </select>
+            </select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" /></span>
             <span className="mt-2 block text-xs text-zinc-500">
               Decides which day counts as today, so a to-do due today says so from midnight where you are.
               {zoneNow && <> It is currently <strong className="font-semibold text-zinc-700">{zoneNow}</strong> there.</>}
@@ -109,7 +110,7 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
                 step={1}
                 defaultValue={settings.milestoneReminderLeadDays}
                 aria-label="Days before a milestone's due date to start reminding"
-                className="input h-10 w-20 px-3 text-right"
+                className={LEAD_DAYS_INPUT_CLASS}
               />
               <span className="text-zinc-500">days before</span>
             </span>
@@ -125,7 +126,7 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
                 step={1}
                 defaultValue={settings.relationshipReminderLeadDays}
                 aria-label="Days before an important date to start reminding"
-                className="input h-10 w-20 px-3 text-right"
+                className={LEAD_DAYS_INPUT_CLASS}
               />
               <span className="text-zinc-500">days before</span>
             </span>
@@ -141,7 +142,7 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
                 step={1}
                 defaultValue={settings.customItemReminderLeadDays}
                 aria-label="Days before a custom item's due date to start reminding"
-                className="input h-10 w-20 px-3 text-right"
+                className={LEAD_DAYS_INPUT_CLASS}
               />
               <span className="text-zinc-500">days before</span>
             </span>
@@ -157,7 +158,7 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
                 step={1}
                 defaultValue={settings.todoReminderLeadDays}
                 aria-label="Days before a to-do's due date to start reminding"
-                className="input h-10 w-20 px-3 text-right"
+                className={LEAD_DAYS_INPUT_CLASS}
               />
               <span className="text-zinc-500">days before</span>
             </span>
@@ -171,6 +172,13 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
   );
 }
 
+/** The bordered field every redesigned create/edit form uses, with a chevron in place of the browser's arrow. */
+const SELECT_CLASS = `${FIELD_INPUT_CLASS} cursor-pointer appearance-none pr-11 text-zinc-900`;
+
+/** The same bordered field, sized down to a compact day count. */
+const LEAD_DAYS_INPUT_CLASS =
+  "h-11 w-24 rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-right text-base outline-none transition focus:border-zinc-900 focus:ring-4 focus:ring-zinc-900/10 sm:text-sm";
+
 function Toggle({ name, defaultChecked, onChange, icon: Icon, title, description }: { name: string; defaultChecked: boolean; onChange?: (checked: boolean) => void; icon: React.ElementType; title: string; description: string }) {
-  return <label className="flex cursor-pointer items-center justify-between gap-5 py-4"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100"><Icon className="h-4 w-4" /></span><span className="text-sm"><span className="font-medium text-zinc-800">{title}</span><span className="mt-1 block text-zinc-500">{description}</span></span></span><input name={name} type="checkbox" defaultChecked={defaultChecked} onChange={(event) => onChange?.(event.target.checked)} className="h-5 w-5 shrink-0 accent-zinc-950" /></label>;
+  return <label className="flex cursor-pointer items-center justify-between gap-5 py-4"><span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-100"><Icon className="h-4 w-4" /></span><span className="text-sm"><span className="font-medium text-zinc-800">{title}</span><span className="mt-1 block text-zinc-500">{description}</span></span></span><span className="relative flex h-5 w-5 shrink-0 items-center justify-center"><input name={name} type="checkbox" defaultChecked={defaultChecked} onChange={(event) => onChange?.(event.target.checked)} className={CHECKBOX_INPUT_CLASS} /><Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" /></span></label>;
 }
