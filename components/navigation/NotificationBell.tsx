@@ -117,9 +117,9 @@ export function NotificationBell({ notifications, initialUnreadCount }: { notifi
   return (
     <div ref={container} className="relative">
       <AppBadge count={unreadCount} />
-      <button type="button" aria-label={`${unreadCount} unread notifications`} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="relative flex h-10 min-w-10 items-center justify-center rounded-full px-2.5 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 aria-expanded:bg-zinc-100 aria-expanded:text-zinc-950">
+      <button type="button" aria-label={`${unreadCount} unread notifications`} aria-expanded={open} onClick={() => setOpen((value) => !value)} className="relative flex h-10 w-10 items-center justify-center rounded-full text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 aria-expanded:bg-zinc-100 aria-expanded:text-zinc-950">
         <Bell className="h-[18px] w-[18px]" />
-        {unreadCount > 0 && <span className="ml-1.5 rounded-full bg-zinc-900 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+        {unreadCount > 0 && <span className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </button>
 
       {/*
