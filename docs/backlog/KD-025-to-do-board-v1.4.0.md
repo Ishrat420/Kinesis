@@ -3,7 +3,7 @@
 **Status:** Accepted — Needs Planning  
 **Priority:** Medium  
 **Tags:** UX/UI, Post-MVP
-**Planned Release:** v1.3.0
+**Planned Release:** v1.4.0
 
 ## Summary
 

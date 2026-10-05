@@ -6,7 +6,7 @@ ticket's own doc was never updated to reflect. Two concrete gaps remain;
 see "What's left" below.
 **Priority:** High
 **Tags:** Architecture, UX/UI
-**Planned Release:** v1.3.0
+**Planned Release:** v1.4.0
 
 ## What's been done
 

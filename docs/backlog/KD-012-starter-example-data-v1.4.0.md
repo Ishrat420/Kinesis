@@ -3,7 +3,7 @@
 **Status:** Idea
 **Priority:** Medium
 **Tags:** UX / UI, Foundation Dependent
-**Planned Release:** v1.3.0
+**Planned Release:** v1.4.0
 
 ## Summary
 
