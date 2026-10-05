@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Check, Plus, Search, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import { createCustomModuleAction, type CreateModuleState } from "@/app/(app)/custom-modules/actions";
 import { CustomModuleIcon, type CustomModuleIconName } from "@/lib/custom-modules/icons";
 import { searchIcons } from "@/lib/custom-modules/icon-search";
@@ -37,17 +37,14 @@ function CreateModuleModal({ templates, onClose }: { templates: { id: string; na
   const [color, setColor] = useState(colors[0]);
   const [state, formAction, pending] = useActionState(createCustomModuleAction, initialState);
 
-  // The icon grid sorts itself by what's typed in its search box -- or, until
-  // anything is, by the module's name, so "Car maintenance" already has the
-  // car first before the search is touched. Nothing is hidden: matches come
-  // first, and the rest follow, faded.
+  // The module's name is the icon search: typing "Car maintenance" brings the
+  // car and its kin to the front of the grid as you go. Nothing is hidden --
+  // matches come first, best first, and the rest follow, faded.
   const [moduleName, setModuleName] = useState("");
-  const [iconQuery, setIconQuery] = useState("");
-  const query = iconQuery.trim() || moduleName;
-  const iconResults = useMemo(() => searchIcons(query), [query]);
+  const iconResults = useMemo(() => searchIcons(moduleName), [moduleName]);
   const searching = iconResults.some((result) => result.matched);
   const iconGrid = useRef<HTMLDivElement>(null);
-  useEffect(() => { iconGrid.current?.scrollTo({ top: 0 }); }, [query]);
+  useEffect(() => { iconGrid.current?.scrollTo({ top: 0 }); }, [moduleName]);
   const router = useRouter();
   // Defaults "Start from" to the one template Kinesis seeds for every owner
   // (lib/data/starter-template.ts), whatever it's since been renamed to --
@@ -67,17 +64,6 @@ function CreateModuleModal({ templates, onClose }: { templates: { id: string; na
         <label className="block text-sm font-semibold">Name<input name="name" required maxLength={60} autoFocus aria-invalid={state.field === "name"} aria-describedby={state.error ? "module-error" : undefined} placeholder="e.g. Skincare" onChange={(event) => setModuleName(event.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-violet-500" /></label>
         <fieldset>
           <legend className="text-sm font-semibold">Icon</legend>
-          <div className="mt-2 flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-3 focus-within:border-zinc-400">
-            <Search className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
-            {/* No name, so it's never submitted; Enter mustn't submit the form either. */}
-            <input
-              type="search" value={iconQuery} onChange={(event) => setIconQuery(event.target.value)}
-              onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
-              placeholder="Search icons, e.g. car, bills, dentist" aria-label="Search icons"
-              className="min-w-0 flex-1 bg-transparent text-sm font-normal outline-none placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {iconQuery && <button type="button" aria-label="Clear icon search" onClick={() => setIconQuery("")} className="rounded-md p-0.5 text-zinc-400 hover:text-zinc-700"><X className="h-3.5 w-3.5" /></button>}
-          </div>
           <div ref={iconGrid} className="mt-2 grid max-h-52 grid-cols-7 gap-2 overflow-y-auto pr-1">
             {iconResults.map(({ key: name, matched }) => <button key={name} type="button" title={name} aria-label={`${name} icon`} aria-pressed={icon === name} onClick={() => setIcon(name)} className={`flex aspect-square items-center justify-center rounded-xl border transition ${icon === name ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 text-zinc-500 hover:bg-zinc-50"} ${searching && !matched && icon !== name ? "opacity-35" : ""}`}><CustomModuleIcon name={name} className="h-5 w-5" /></button>)}
           </div>
