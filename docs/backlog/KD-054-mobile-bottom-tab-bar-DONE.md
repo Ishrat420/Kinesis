@@ -1,8 +1,15 @@
 # KD-054 — Mobile Bottom Tab Bar
 
-**Status:** In Progress
+**Status:** Done — pending Android test
 **Priority:** High
 **Tags:** UX / UI
+
+## Pending
+
+- **Android test:** the tab bar, the More sheet and the bottom spacing have
+  only been tested on iPhone.
+- **Swipe down to close the More sheet:** built, but not yet tried on a real
+  phone.
 
 ## Summary
 
