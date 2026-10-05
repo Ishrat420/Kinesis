@@ -15,7 +15,8 @@ import {
   Tablet, Telescope, TentTree, Terminal, Ticket, TrainFront, TreePine, Trophy,
   Tv, Umbrella, User, UserPlus, UserRound, UsersRound, Utensils, Venus,
   Volleyball, WalletCards, Watch, Waves, Wine, Wrench, Zap,
-  Archive, Backpack, Bath, Blend, BedDouble, Boxes, Brain, Bus, CalendarDays, CalendarHeart,
+  Archive, Backpack, Bath, Blend, HandHeart, Heart, HeartCrack, HeartHandshake,
+  Martini, MessageCircleHeart, Rose, BedDouble, Boxes, Brain, Bus, CalendarDays, CalendarHeart,
   Car, Carrot, ChefHat, Coins, CreditCard, Dice5, Droplet, FaceSlightlySmiling,
   Feather, Flame, Folder, Fuel, Handshake, Hourglass, IdCard, Lamp, Lock, Mic,
   MicSignal, Moon, Newspaper, Paintbrush, PenLine, PenTool, PiggyBank, Plug,
@@ -78,6 +79,9 @@ export const CUSTOM_MODULE_ICONS = {
   events: CalendarHeart, calendar: CalendarDays, ribbon: Ribbon,
   // Two interlocking circles: Lucide has no ring icon, and this reads as one.
   rings: Blend,
+  // Love and dating.
+  love: Heart, dating: MessageCircleHeart, partner: HeartHandshake, kindness: HandHeart,
+  rose: Rose, cocktails: Martini, heartbreak: HeartCrack,
 } as const;
 
 export type CustomModuleIconName = keyof typeof CUSTOM_MODULE_ICONS;

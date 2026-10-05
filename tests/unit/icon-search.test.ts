@@ -18,6 +18,15 @@ describe("searchIcons", () => {
     expect(top("passport")).toEqual(["identity"]);
   });
 
+  it("finds the heart icons for love and dating", () => {
+    expect(top("heart")).toEqual(["love"]);
+    expect(top("Love")).toEqual(["love"]);
+    expect(top("Dating")).toEqual(["dating"]);
+    expect(top("date night")).toEqual(["cocktails"]);
+    expect(top("breakup")).toEqual(["heartbreak"]);
+    expect(top("relationship", 3)).toContain("partner");
+  });
+
   it("finds rings for weddings and engagements", () => {
     expect(top("Wedding rings")).toEqual(["rings"]);
     expect(top("Engagement rings", 2)).toEqual(expect.arrayContaining(["rings", "gem"]));

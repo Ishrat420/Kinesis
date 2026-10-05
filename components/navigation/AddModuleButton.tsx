@@ -38,11 +38,22 @@ function CreateModuleModal({ templates, onClose }: { templates: { id: string; na
   const [state, formAction, pending] = useActionState(createCustomModuleAction, initialState);
 
   // The module's name is the icon search: typing "Car maintenance" brings the
-  // car and its kin to the front of the grid as you go. Nothing is hidden --
-  // matches come first, best first, and the rest follow, faded.
+  // car and its kin to the front of the grid as you go. Only the order
+  // changes -- every icon stays as choosable as ever, and choosing one is
+  // never undone by typing.
+  //
+  // An icon you've picked yourself rides at the front once the name changes
+  // again, so the reordering can't carry your choice out of sight (it looked
+  // as though typing had unselected it). It's pinned on the next keystroke
+  // rather than the moment it's tapped, so the grid doesn't jump under your
+  // finger.
   const [moduleName, setModuleName] = useState("");
-  const iconResults = useMemo(() => searchIcons(moduleName), [moduleName]);
-  const searching = iconResults.some((result) => result.matched);
+  const [chosen, setChosen] = useState<CustomModuleIconName | null>(null);
+  const [pinned, setPinned] = useState<CustomModuleIconName | null>(null);
+  const iconOrder = useMemo(() => {
+    const ranked = searchIcons(moduleName).map((result) => result.key);
+    return pinned ? [pinned, ...ranked.filter((name) => name !== pinned)] : ranked;
+  }, [moduleName, pinned]);
   const iconGrid = useRef<HTMLDivElement>(null);
   useEffect(() => { iconGrid.current?.scrollTo({ top: 0 }); }, [moduleName]);
   const router = useRouter();
@@ -61,11 +72,11 @@ function CreateModuleModal({ templates, onClose }: { templates: { id: string; na
     <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-white p-7 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
       <div className="flex items-start justify-between gap-4"><div><h2 id="create-module-title" className="text-2xl font-semibold tracking-tight">Create a custom module</h2><p className="mt-1 text-sm text-zinc-500">Make a new area for anything you want to keep track of.</p></div><button type="button" aria-label="Close" onClick={onClose} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-100"><X className="h-5 w-5" /></button></div>
       <form autoComplete="off" spellCheck={false} action={formAction} className="mt-7 space-y-5">
-        <label className="block text-sm font-semibold">Name<input name="name" required maxLength={60} autoFocus aria-invalid={state.field === "name"} aria-describedby={state.error ? "module-error" : undefined} placeholder="e.g. Skincare" onChange={(event) => setModuleName(event.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-violet-500" /></label>
+        <label className="block text-sm font-semibold">Name<input name="name" required maxLength={60} autoFocus aria-invalid={state.field === "name"} aria-describedby={state.error ? "module-error" : undefined} placeholder="e.g. Skincare" onChange={(event) => { setModuleName(event.target.value); setPinned(chosen); }} className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 px-4 font-normal outline-none focus:border-violet-500" /></label>
         <fieldset>
           <legend className="text-sm font-semibold">Icon</legend>
           <div ref={iconGrid} className="mt-2 grid max-h-52 grid-cols-7 gap-2 overflow-y-auto pr-1">
-            {iconResults.map(({ key: name, matched }) => <button key={name} type="button" title={name} aria-label={`${name} icon`} aria-pressed={icon === name} onClick={() => setIcon(name)} className={`flex aspect-square items-center justify-center rounded-xl border transition ${icon === name ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 text-zinc-500 hover:bg-zinc-50"} ${searching && !matched && icon !== name ? "opacity-35" : ""}`}><CustomModuleIcon name={name} className="h-5 w-5" /></button>)}
+            {iconOrder.map((name) => <button key={name} type="button" title={name} aria-label={`${name} icon`} aria-pressed={icon === name} onClick={() => { setIcon(name); setChosen(name); }} className={`flex aspect-square items-center justify-center rounded-xl border transition ${icon === name ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-200 text-zinc-500 hover:bg-zinc-50"}`}><CustomModuleIcon name={name} className="h-5 w-5" /></button>)}
           </div>
           <input type="hidden" name="icon" value={icon} /></fieldset>
         <fieldset><legend className="text-sm font-semibold">Colour</legend><div className="mt-2 flex flex-wrap items-center gap-2">{colors.map((swatch) => <button key={swatch} type="button" aria-label={`Select colour ${swatch}`} aria-pressed={color === swatch} onClick={() => setColor(swatch)} className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 ring-offset-2 transition hover:scale-105" style={{ backgroundColor: `color-mix(in srgb, ${swatch} 10%, white)`, color: swatch, boxShadow: color === swatch ? `0 0 0 2px white, 0 0 0 4px ${swatch}` : undefined }}>{color === swatch && <Check className="h-4 w-4" />}</button>)}<label className="relative h-9 w-9 overflow-hidden rounded-full border-2 border-dashed border-zinc-300" title="Custom colour"><input type="color" value={color} onChange={(event) => setColor(event.target.value)} className="absolute -inset-2 h-14 w-14 cursor-pointer opacity-20" /><span className="sr-only">Custom colour</span></label></div><input type="hidden" name="color" value={color} /></fieldset>

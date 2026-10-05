@@ -2209,5 +2209,103 @@
       "marriage",
       "rings"
     ]
+  },
+  "love": {
+    "lucide": "heart",
+    "tags": [
+      "like",
+      "love",
+      "emotion",
+      "suit",
+      "playing",
+      "cards"
+    ]
+  },
+  "dating": {
+    "lucide": "message-circle-heart",
+    "tags": [
+      "comment",
+      "chat",
+      "conversation",
+      "dialog",
+      "feedback",
+      "positive",
+      "like",
+      "love",
+      "interest",
+      "valentine",
+      "dating",
+      "date",
+      "speech bubble"
+    ]
+  },
+  "partner": {
+    "lucide": "heart-handshake",
+    "tags": [
+      "agreement",
+      "charity",
+      "help",
+      "deal",
+      "terms",
+      "emotion",
+      "together",
+      "handshake"
+    ]
+  },
+  "kindness": {
+    "lucide": "hand-heart",
+    "tags": [
+      "love",
+      "like",
+      "emotion"
+    ]
+  },
+  "rose": {
+    "lucide": "rose",
+    "tags": [
+      "roses",
+      "thorns",
+      "petals",
+      "plant",
+      "stem",
+      "leaves",
+      "spring",
+      "bloom",
+      "blossom",
+      "gardening",
+      "botanical",
+      "flora",
+      "florist",
+      "bouquet",
+      "bunch",
+      "gift",
+      "date",
+      "romance",
+      "romantic",
+      "valentines day"
+    ]
+  },
+  "cocktails": {
+    "lucide": "martini",
+    "tags": [
+      "cocktail",
+      "alcohol",
+      "beverage",
+      "bar",
+      "drink",
+      "glass",
+      "spirit",
+      "party",
+      "celebration",
+      "mixer"
+    ]
+  },
+  "heartbreak": {
+    "lucide": "heart-crack",
+    "tags": [
+      "heartbreak",
+      "sadness",
+      "emotion"
+    ]
   }
 }

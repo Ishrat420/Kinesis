@@ -31,7 +31,7 @@ const TAG: Tier = { exact: 45, prefix: 30, typo: 15, contains: 12 };
 /** Words in a module's name that say nothing about what it is. */
 const STOP_WORDS = new Set(["my", "the", "and", "of", "for", "to", "in", "on", "a", "an", "our", "with", "list", "tracker", "stuff", "things"]);
 
-type IndexedIcon = { key: CustomModuleIconName; terms: { words: string[]; tier: Tier }[] };
+type IndexedIcon = { key: CustomModuleIconName; lucide: string; terms: { words: string[]; tier: Tier }[] };
 
 function words(text: string) {
   return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -41,6 +41,7 @@ const INDEX: IndexedIcon[] = (Object.keys(CUSTOM_MODULE_ICONS) as CustomModuleIc
   const tags = (ICON_TAGS as Record<string, { lucide: string; tags: string[] } | undefined>)[key];
   return {
     key,
+    lucide: tags?.lucide ?? "",
     terms: [
       { words: [...words(key), ...words(tags?.lucide ?? "")], tier: NAME },
       { words: ICON_KEYWORDS[key].flatMap(words), tier: KEYWORD },
@@ -112,7 +113,10 @@ export function searchIcons(query: string): IconSearchResult[] {
   const scored = INDEX.map((icon, order) => ({
     key: icon.key,
     order,
-    score: tokens.reduce((total, token) => total + scoreToken(token, icon), 0),
+    // A nudge for the icon Lucide itself calls exactly that: "heart" is a
+    // name for both the favourites folder (its key, from before there was a
+    // plain heart) and the heart itself, and the heart should win.
+    score: tokens.reduce((total, token) => total + scoreToken(token, icon) + (token === icon.lucide ? 5 : 0), 0),
   }));
   // Best first; ties, and everything unmatched, keep the picker's usual order.
   scored.sort((a, b) => b.score - a.score || a.order - b.order);
