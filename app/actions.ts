@@ -107,9 +107,16 @@ export type KinesisLinkActionState = { error?: string };
 async function revalidateKinesisLinkEndpoints(objectIds: string[], userId: string) {
   const objects = await prisma.object.findMany({ where: { id: { in: objectIds }, userId }, select: objectLocationSelect });
   for (const location of locateObjects(objects)) revalidatePath(location.href);
-  // A Finance Item's location is the dashboard, but its own page (and the
-  // intercepted modal over it) lists its Kinesis Links too.
-  for (const object of objects) if (object.financeItem) revalidatePath(`/finance/${object.financeItem.id}`);
+  // A Finance Item's and a To-Do's location is their module's list, but each
+  // has its own page (and the intercepted modal over it) listing its Kinesis
+  // Links too -- and a To-Do's board row shows them as chips.
+  for (const object of objects) {
+    if (object.financeItem) revalidatePath(`/finance/${object.financeItem.id}`);
+    if (object.todo) {
+      revalidatePath("/todos");
+      revalidatePath(`/todos/${object.todo.id}`);
+    }
+  }
 }
 
 /**

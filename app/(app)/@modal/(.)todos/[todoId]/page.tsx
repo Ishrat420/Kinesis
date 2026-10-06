@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getTodo } from "@/lib/data/todos";
 import { getObjectEvents } from "@/lib/data/object-event-history";
+import { getKinesisLinkSection } from "@/lib/data/object-relationships";
+import { removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { TodoDetailView } from "@/app/(app)/todos/TodoDetail";
 
 /**
@@ -17,6 +19,10 @@ export default async function TodoModal({ params }: { params: Promise<{ todoId: 
 
   if (!todo) notFound();
 
-  const history = await getObjectEvents(todo.objectId);
-  return <TodoDetailView todo={todo} history={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))} asModal />;
+  const [history, kinesisLinks] = await Promise.all([getObjectEvents(todo.objectId), getKinesisLinkSection(todo.objectId)]);
+  return <TodoDetailView todo={todo} history={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))}
+    kinesisLinks={kinesisLinks}
+    updateKinesisLinkAction={updateKinesisLinkAction.bind(null, todo.objectId)}
+    removeKinesisLinkAction={removeKinesisLinkAction.bind(null, todo.objectId)} asModal
+  />;
 }

@@ -29,8 +29,15 @@ export type TodoRecord = {
   completedAt: Date | null;
   notes: string | null;
   createdAt: Date;
-  /** The objects this To-Do concerns, resolved to where each one lives. */
+  /** The objects this To-Do concerns, resolved to where each one lives -- its own links, the set its edit form manages. */
   links: ObjectLocation[];
+  /**
+   * Objects that link *to* this To-Do from their own side (a document's or
+   * goal's Kinesis Link field), not already among `links`. Shown alongside
+   * `links` wherever a To-Do's connections are listed, so a link reads from
+   * both ends; never fed to the edit form, which only owns `links`.
+   */
+  linkedFrom: ObjectLocation[];
   /** This To-Do's own Object identity -- for its detail page's History section (KD-048). */
   objectId: string;
 };
@@ -40,16 +47,21 @@ const todoSelect = {
   object: {
     select: {
       outgoingRelationships: { select: { targetObject: { select: objectLocationSelect } }, orderBy: { createdAt: "asc" } },
+      incomingRelationships: { select: { sourceObject: { select: objectLocationSelect } }, orderBy: { createdAt: "asc" } },
     },
   },
 } as const satisfies Prisma.TodoSelect;
 
 type TodoRow = Prisma.TodoGetPayload<{ select: typeof todoSelect }>;
 
-const toRecord = ({ object, ...todo }: TodoRow): TodoRecord => ({
-  ...todo,
-  links: locateObjects(object.outgoingRelationships.map((relationship) => relationship.targetObject)),
-});
+const toRecord = ({ object, ...todo }: TodoRow): TodoRecord => {
+  const links = locateObjects(object.outgoingRelationships.map((relationship) => relationship.targetObject));
+  const own = new Set(links.map((link) => link.objectId));
+  const incoming = locateObjects(object.incomingRelationships.map((relationship) => relationship.sourceObject)).filter((link) => !own.has(link.objectId));
+  // Two Kinesis Links of different types from the same object are one chip.
+  const linkedFrom = incoming.filter((link, index) => incoming.findIndex((other) => other.objectId === link.objectId) === index);
+  return { ...todo, links, linkedFrom };
+};
 
 /**
  * Ordering that answers "what should I look at first": still open before
@@ -206,15 +218,13 @@ export async function updateTodoDetails(id: string, { status, dueDate, notes, li
     }
 
     if (linkObjectIds !== undefined) {
-      // The *rows* are replaced rather than reconciled -- a To-Do concerns few
-      // enough things that working out the difference would cost more than
-      // rewriting them -- but the *history* still needs a real diff: naively
-      // recording every recreated row as a fresh RELATIONSHIP_ADDED would show
-      // a link that was never touched as removed and re-added at the same
-      // instant, which is exactly the noise this model exists to avoid.
+      // Only what actually changed is written: a link left alone keeps its row,
+      // so a relationship type changed from the To-Do's Kinesis Links section
+      // (anything other than the default "Relates to") survives the next edit
+      // here, and History records only real additions and removals.
       const existing = await transaction.objectRelationship.findMany({
         where: { userId: user.id, sourceObjectId: todo.objectId },
-        select: { targetObjectId: true, targetObject: { select: { name: true } } },
+        select: { targetObjectId: true, type: true, customLabel: true, targetObject: { select: { name: true } } },
       });
       const targets = [...new Set(linkObjectIds.filter(Boolean))];
       const nextIds = new Set(targets);
@@ -222,14 +232,18 @@ export async function updateTodoDetails(id: string, { status, dueDate, notes, li
       const removed = existing.filter((relationship) => !nextIds.has(relationship.targetObjectId));
       const addedIds = targets.filter((targetId) => !existingIds.has(targetId));
 
-      await transaction.objectRelationship.deleteMany({ where: { userId: user.id, sourceObjectId: todo.objectId } });
+      if (removed.length) {
+        await transaction.objectRelationship.deleteMany({
+          where: { userId: user.id, sourceObjectId: todo.objectId, targetObjectId: { in: removed.map((relationship) => relationship.targetObjectId) } },
+        });
+      }
       for (const relationship of removed) {
         await recordRelationshipRemoved(transaction, {
           userId: user.id,
           source: { objectId: todo.objectId, name: todo.name },
           target: { objectId: relationship.targetObjectId, name: relationship.targetObject.name },
-          type: CONCERNS,
-          customLabel: null,
+          type: relationship.type,
+          customLabel: relationship.customLabel,
         });
       }
       if (targets.length) {
@@ -239,7 +253,7 @@ export async function updateTodoDetails(id: string, { status, dueDate, notes, li
         const owned = await transaction.object.findMany({ where: { id: { in: targets }, userId: user.id }, select: { id: true, name: true } });
         if (owned.length !== targets.length) refuse("One of the linked items no longer exists.");
         await transaction.objectRelationship.createMany({
-          data: targets.map((targetObjectId) => ({
+          data: addedIds.map((targetObjectId) => ({
             userId: user.id, sourceObjectId: todo.objectId, targetObjectId,
             pairKey: objectPairKey(todo.objectId, targetObjectId), type: CONCERNS,
           })),

@@ -26,7 +26,7 @@ const GROUP_LABEL_CLASS: Record<TodoUrgencyGroup, string> = {
 };
 
 const inScope = (todo: TodoRecord, scope: TodoScope) =>
-  scope === "all" || (scope === "connected" ? todo.links.length > 0 : todo.links.length === 0);
+  scope === "all" || (scope === "connected" ? todo.links.length + todo.linkedFrom.length > 0 : todo.links.length + todo.linkedFrom.length === 0);
 
 export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; locale: string; scope: TodoScope }) {
   const [editing, setEditing] = useState<TodoRecord | null>(null);
@@ -195,7 +195,7 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
               <CalendarDays className="h-3 w-3" aria-hidden="true" />{formatDate(todo.dueDate, locale)} · {formatDeadline(todo.dueDate, today)}
             </span>
           )}
-          {todo.links.map((link) => (
+          {[...todo.links, ...todo.linkedFrom].map((link) => (
             <Link key={link.objectId} href={link.href} className="relative pointer-events-auto inline-flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200">
               <Link2 className="h-3 w-3" aria-hidden="true" />{link.name}
             </Link>
