@@ -5,24 +5,38 @@ import { Link2, Minus, Plus, X } from "lucide-react";
 import { DirectionField, TargetPicker } from "./KinesisLinks";
 import { CUSTOM_KINESIS_LINK_OPTION_VALUE, KINESIS_LINK_DIRECTION_OPTIONS } from "@/lib/objects/relationship-labels";
 import type { LinkableObject } from "@/lib/objects/locations";
+import type { KinesisLink } from "@/lib/data/object-relationships";
 
 const INPUT_CLASS = "h-[50px] w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition focus:border-zinc-900 focus:ring-4 focus:ring-zinc-900/10 sm:text-sm";
 
 type Pending = { key: number; direction: string; customLabel: string; targetObjectId: string };
 
 /**
- * Kinesis Links picked on a create form, before the record exists to link
- * from (a new Finance item's): each picked link waits in this list and is
- * submitted with the form, as one JSON field (`kinesisLinks`), to be created
- * alongside the record. The same relationship and target pickers as every
+ * A Finance item's Kinesis Links on its Add and Edit forms. Nothing here
+ * saves on its own: each picked link waits in this list and is submitted
+ * with the form, as one JSON field (`kinesisLinks`), to be created with the
+ * record's own save. The same relationship and target pickers as every
  * other "Add link".
+ *
+ * Editing, the record's `existing` links are listed too; removing one only
+ * marks it (`removedKinesisLinks`, its ids), so closing the form without
+ * saving leaves every link as it was.
  *
  * Like "Add custom field → Kinesis Link", a link chosen but not yet added
  * with "+" blocks the form's own submit, so it can't be silently left behind.
  */
-export function PendingKinesisLinks({ loadOptions }: { loadOptions: () => Promise<LinkableObject[]> }) {
-  const [options, setOptions] = useState<LinkableObject[] | null>(null);
+export function PendingKinesisLinks({ loadOptions, options: givenOptions, existing = [] }: {
+  /** Fetches the picker's choices on first render -- for a form opened where none were loaded (the Finance dashboard's Add). */
+  loadOptions?: () => Promise<LinkableObject[]>;
+  /** The picker's choices, already loaded by the page (an item's own page, excluding the item itself). */
+  options?: LinkableObject[];
+  existing?: KinesisLink[];
+}) {
+  const [loadedOptions, setOptions] = useState<LinkableObject[] | null>(null);
+  const options = givenOptions ?? loadedOptions;
   const [links, setLinks] = useState<Pending[]>([]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const kept = existing.filter((link) => !removedIds.includes(link.id));
   const [adding, setAdding] = useState(false);
   const [draftKey, setDraftKey] = useState(0);
   const [warning, setWarning] = useState<string | null>(null);
@@ -31,6 +45,7 @@ export function PendingKinesisLinks({ loadOptions }: { loadOptions: () => Promis
   const nextKey = useRef(0);
 
   useEffect(() => {
+    if (!loadOptions) return;
     let active = true;
     loadOptions().then((loaded) => { if (active) setOptions(loaded); }).catch(() => { if (active) setOptions([]); });
     return () => { active = false; };
@@ -76,25 +91,23 @@ export function PendingKinesisLinks({ loadOptions }: { loadOptions: () => Promis
   return (
     <div>
       <input type="hidden" name="kinesisLinks" value={JSON.stringify(links.map(({ direction, customLabel, targetObjectId }) => ({ direction, customLabel, targetObjectId })))} />
-      {links.length > 0 && (
+      {existing.length > 0 && <input type="hidden" name="removedKinesisLinks" value={JSON.stringify(removedIds)} />}
+      {kept.length + links.length > 0 && (
         <ul className="mb-2 space-y-2">
+          {kept.map((link) => (
+            <LinkRow key={link.id} relationship={link.label} name={link.target.name} module={link.target.module} onRemove={() => setRemovedIds((current) => [...current, link.id])} />
+          ))}
           {links.map((link) => {
             const { relationship, name, module } = describe(link);
-            return (
-              <li key={link.key} className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5">
-                <Link2 className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
-                <span className="min-w-0 flex-1 text-sm">
-                  <span className="mr-1.5 rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-bold text-zinc-700">{relationship}</span>
-                  <span className="font-semibold text-zinc-900">{name}</span>
-                  {module && <span className="text-zinc-400"> · {module}</span>}
-                </span>
-                <button type="button" onClick={() => setLinks((current) => current.filter((item) => item.key !== link.key))} aria-label={`Remove the link to ${name}`} className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-red-50 hover:text-red-600">
-                  <X className="h-4 w-4" />
-                </button>
-              </li>
-            );
+            return <LinkRow key={link.key} relationship={relationship} name={name} module={module} onRemove={() => setLinks((current) => current.filter((item) => item.key !== link.key))} />;
           })}
         </ul>
+      )}
+      {removedIds.length > 0 && (
+        <p className="mb-2 text-sm text-zinc-500">
+          {removedIds.length === 1 ? "1 link" : `${removedIds.length} links`} will be removed when you save.{" "}
+          <button type="button" onClick={() => setRemovedIds([])} className="font-semibold text-zinc-900 underline-offset-2 hover:underline">Undo</button>
+        </p>
       )}
       {adding ? (
         <div key={draftKey} ref={draftRef} className="grid gap-3 rounded-xl border-[1.5px] border-dashed border-zinc-300 bg-white p-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)_auto]">
@@ -116,5 +129,21 @@ export function PendingKinesisLinks({ loadOptions }: { loadOptions: () => Promis
         </button>
       )}
     </div>
+  );
+}
+
+function LinkRow({ relationship, name, module, onRemove }: { relationship: string; name: string; module: string; onRemove: () => void }) {
+  return (
+    <li className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5">
+      <Link2 className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+      <span className="min-w-0 flex-1 text-sm">
+        <span className="mr-1.5 rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-bold text-zinc-700">{relationship}</span>
+        <span className="font-semibold text-zinc-900">{name}</span>
+        {module && <span className="text-zinc-400"> · {module}</span>}
+      </span>
+      <button type="button" onClick={onRemove} aria-label={`Remove the link to ${name}`} className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-red-50 hover:text-red-600">
+        <X className="h-4 w-4" />
+      </button>
+    </li>
   );
 }

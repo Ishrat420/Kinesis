@@ -82,20 +82,20 @@ deletes the old rows; code in `lib/data/template-kinesis-links.ts`):
 
 The `FieldLink` table itself is left in place, empty, for a later cleanup.
 
-## Done in v1.5.0: adding a link from a Finance item
+## Done in v1.5.0: adding links from a Finance item's forms
 
-A Finance item's Kinesis Links section, once opened, now offers **Add link**
--- the same relationship and searchable target pickers as "Add custom field
-→ Kinesis Link", saving immediately (`AddKinesisLinkForm`). People
-deliberately don't get this: links to a person are still added from the
-other record's side, and the Person panel stays read-only.
-
-The **Add Asset / Liability / Income / Expense** form has a Kinesis Links
-field too (`PendingKinesisLinks`): picked links wait in a list and are
-created with the item, in the same transaction (`createPendingLinks`). A
-target chosen but not yet added with "+" blocks saving, as on "Add custom
-field → Kinesis Link". The Edit form doesn't show it -- an existing item
-links from its own page's section.
+A Finance item's links are added and removed on its **Add** and **Edit**
+forms (Asset / Liability / Income / Expense), not from its page in display
+mode -- that page's Kinesis Links section lists them (with change/remove on
+each card, as every record page) but has no "Add link". On the form
+(`PendingKinesisLinks`), picked links wait in a list, and on Edit the
+item's existing links are listed too, with remove; nothing is written until
+the form is saved, and then the item and its link changes are saved in one
+transaction (`saveFinanceItem` → `createPendingLinks`, plus removal of the
+links marked removed). A target chosen but not yet added with "+" blocks
+saving, as on "Add custom field → Kinesis Link". People deliberately don't
+get this: links to a person are still added from the other record's side,
+and the Person panel stays read-only.
 
 ## What's left
 

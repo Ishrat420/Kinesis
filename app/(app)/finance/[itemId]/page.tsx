@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getFinanceItem } from "@/lib/data/finance";
 import { getObjectEvents } from "@/lib/data/object-event-history";
 import { getKinesisLinkSection } from "@/lib/data/object-relationships";
-import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
+import { removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 import { FinanceItemDetailView } from "../FinanceItemDetail";
 
@@ -18,7 +18,6 @@ export default async function FinanceItemPage({ params }: { params: Promise<{ it
   return <FinanceItemDetailView item={item} history={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))}
     kinesisLinks={kinesisLinks}
     linkOptions={linkOptions}
-    addKinesisLinkAction={addKinesisLinkAction.bind(null, item.objectId)}
     updateKinesisLinkAction={updateKinesisLinkAction.bind(null, item.objectId)}
     removeKinesisLinkAction={removeKinesisLinkAction.bind(null, item.objectId)}
   />;

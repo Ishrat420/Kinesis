@@ -156,7 +156,7 @@ describe.sequential("the finance data layer", () => {
     });
   });
 
-  describe("Kinesis Links picked on the Add form", () => {
+  describe("Kinesis Links picked on the Add and Edit forms", () => {
     const stranger = "finance-links-stranger";
     const links = (entries: unknown) => JSON.stringify(entries);
 
@@ -184,7 +184,8 @@ describe.sequential("the finance data layer", () => {
 
       expect(result).toEqual({ saved: true });
       const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner, name: "House deposit" } });
-      const rows = await prisma.objectRelationship.findMany({ where: { userId: owner }, orderBy: { createdAt: "asc" } });
+      // By type: created in one transaction, the three share a createdAt.
+      const rows = await prisma.objectRelationship.findMany({ where: { userId: owner }, orderBy: { type: "asc" } });
       expect(rows).toMatchObject([
         { sourceObjectId: item.objectId, targetObjectId: "fl-goal-object", type: "SUPPORTS" },
         { sourceObjectId: "fl-goal-2-object", targetObjectId: item.objectId, type: "DEPENDS_ON" },
@@ -215,14 +216,56 @@ describe.sequential("the finance data layer", () => {
       await expect(prisma.financeItem.count({ where: { userId: owner } })).resolves.toBe(0);
     });
 
-    it("ignores links on an edit, which adds links from the item's own page instead", async () => {
+    it("adds and removes links on an edit, in either direction, recording both in History", async () => {
+      await saveFinanceItemAction("asset", null, {}, form({
+        name: "Savings", amount: "1",
+        kinesisLinks: links([
+          { direction: "SUPPORTS|forward", customLabel: "", targetObjectId: "fl-goal-object" },
+          { direction: "DEPENDS_ON|inverse", customLabel: "", targetObjectId: "fl-goal-2-object" },
+        ]),
+      }));
+      const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner } });
+      const kept = await prisma.objectRelationship.findFirstOrThrow({ where: { userId: owner, type: "SUPPORTS" } });
+      const removed = await prisma.objectRelationship.findFirstOrThrow({ where: { userId: owner, type: "DEPENDS_ON" } });
+
+      const result = await saveFinanceItemAction("asset", item.id, {}, form({
+        name: "Savings", amount: "2",
+        kinesisLinks: links([{ direction: "CUSTOM", customLabel: "Funded by", targetObjectId: "fl-goal-2-object" }]),
+        removedKinesisLinks: JSON.stringify([removed.id]),
+      }));
+
+      expect(result).toEqual({ saved: true });
+      const rows = await prisma.objectRelationship.findMany({ where: { userId: owner }, orderBy: { type: "asc" } });
+      expect(rows).toMatchObject([
+        { id: kept.id },
+        { sourceObjectId: item.objectId, targetObjectId: "fl-goal-2-object", type: "CUSTOM", customLabel: "Funded by" },
+      ]);
+      await expect(prisma.objectEvent.count({ where: { objectId: "fl-goal-2-object", eventType: "RELATIONSHIP_REMOVED" } })).resolves.toBe(1);
+      await expect(prisma.objectEvent.count({ where: { objectId: item.objectId, eventType: "RELATIONSHIP_REMOVED" } })).resolves.toBe(1);
+    });
+
+    it("leaves alone a removed id that isn't one of this item's links", async () => {
+      await saveFinanceItemAction("asset", null, {}, form({ name: "Savings", amount: "1" }));
+      await saveFinanceItemAction("asset", null, {}, form({ name: "Other", amount: "1", kinesisLinks: links([{ direction: "SUPPORTS|forward", customLabel: "", targetObjectId: "fl-goal-object" }]) }));
+      const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner, name: "Savings" } });
+      const other = await prisma.objectRelationship.findFirstOrThrow({ where: { userId: owner } });
+      await prisma.object.create({ data: { id: "fl-foreign-2-object", type: "GOAL", name: "Also not yours", userId: stranger } });
+      const foreign = await prisma.objectRelationship.create({ data: { userId: stranger, sourceObjectId: "fl-foreign-object", targetObjectId: "fl-foreign-2-object", type: "SUPPORTS", pairKey: "fl-foreign-pair" } });
+
+      const result = await saveFinanceItemAction("asset", item.id, {}, form({ name: "Savings", amount: "1", removedKinesisLinks: JSON.stringify([other.id, foreign.id]) }));
+
+      expect(result).toEqual({ saved: true });
+      await expect(prisma.objectRelationship.count({ where: { id: { in: [other.id, foreign.id] } } })).resolves.toBe(2);
+    });
+
+    it("refuses an unreadable list of removed links, changing nothing", async () => {
       await saveFinanceItemAction("asset", null, {}, form({ name: "Savings", amount: "1" }));
       const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner } });
 
-      const result = await saveFinanceItemAction("asset", item.id, {}, form({ name: "Savings", amount: "2", kinesisLinks: links([{ direction: "SUPPORTS|forward", customLabel: "", targetObjectId: "fl-goal-object" }]) }));
+      const result = await saveFinanceItemAction("asset", item.id, {}, form({ name: "Renamed", amount: "1", removedKinesisLinks: "[1, 2]" }));
 
-      expect(result).toEqual({ saved: true });
-      await expect(prisma.objectRelationship.count({ where: { userId: owner } })).resolves.toBe(0);
+      expect(result.error).toBeTruthy();
+      await expect(prisma.financeItem.findFirstOrThrow({ where: { id: item.id } })).resolves.toMatchObject({ name: "Savings" });
     });
   });
 });

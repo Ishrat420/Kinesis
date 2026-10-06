@@ -9,7 +9,6 @@ import { Modal } from "@/components/overlay/Modal";
 import { ObjectHistory, type ObjectHistoryEntry } from "@/components/history/ObjectHistory";
 import { KinesisLinksSection } from "@/components/kinesis-links/KinesisLinksSection";
 import type { KinesisLinkSection } from "@/lib/data/object-relationships";
-import type { KinesisLinkActionState } from "@/app/actions";
 import type { LinkableObject } from "@/lib/objects/locations";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { formatDate } from "@/lib/dates";
@@ -70,13 +69,12 @@ function FinanceItemFields({ item, today }: { item: FinanceItemDetail; today: Da
  * reached by clicking a row from the dashboard, so the URL still changes but
  * the dashboard stays mounted underneath).
  */
-export function FinanceItemDetailView({ item, history, kinesisLinks, linkOptions, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction, asModal = false }: {
+export function FinanceItemDetailView({ item, history, kinesisLinks, linkOptions, updateKinesisLinkAction, removeKinesisLinkAction, asModal = false }: {
   item: FinanceItemDetail;
   history: ObjectHistoryEntry[];
   kinesisLinks: KinesisLinkSection;
-  /** What this item can link to, for its Kinesis Links section's "Add link". */
+  /** What this item can link to, for its Edit form's "Add link". */
   linkOptions: LinkableObject[];
-  addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
   asModal?: boolean;
@@ -99,11 +97,11 @@ export function FinanceItemDetailView({ item, history, kinesisLinks, linkOptions
       </div>;
 
   const body = editing
-    ? <FinanceForm kind={item.kind} item={item} onSaved={() => setEditing(false)} today={today} />
+    ? <FinanceForm kind={item.kind} item={item} onSaved={() => setEditing(false)} today={today} kinesisLinks={kinesisLinks.links} linkOptions={linkOptions} />
     : <FinanceItemFields item={item} today={today} />;
 
   const records = !editing && <>
-    <div className="mt-5"><KinesisLinksSection section={kinesisLinks} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} addAction={addKinesisLinkAction} linkOptions={linkOptions} /></div>
+    <div className="mt-5"><KinesisLinksSection section={kinesisLinks} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} emptyHint="Nothing is linked yet. Add links by editing this item." /></div>
     <div className="mt-5"><ObjectHistory entries={history} fallbackCreatedAt={item.createdAt} locale={locale} /></div>
   </>;
 

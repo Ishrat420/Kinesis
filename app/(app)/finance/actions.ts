@@ -9,7 +9,7 @@ import { prisma } from "@/lib/data/prisma";
 import { requireKinesisUser } from "@/lib/auth";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { revalidateShell } from "@/lib/actions/revalidate";
-import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
+import { recordEvent, recordFieldChanges, recordRelationshipRemoved, type FieldChange } from "@/lib/data/object-events";
 import { formatDateInput } from "@/lib/dates";
 import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { createPendingLinks, type PendingKinesisLink } from "@/lib/data/template-kinesis-links";
@@ -81,7 +81,12 @@ function financeAmountLabel(kind: FinanceKind, category: string | null): string 
   return kind[0].toUpperCase() + kind.slice(1);
 }
 
-export async function saveFinanceItem(item: FinanceItem, links: PendingKinesisLink[] = []): Promise<FinanceActionState> {
+/**
+ * Saves a Finance item, and the Kinesis Link changes made on its form with
+ * it: `links` are added, and on an edit `removedLinkIds` (links touching
+ * this item, either way round) are removed -- all in the one transaction.
+ */
+export async function saveFinanceItem(item: FinanceItem, links: PendingKinesisLink[] = [], removedLinkIds: string[] = []): Promise<FinanceActionState> {
   const user = await requireKinesisUser();
   const error = validate(item);
   if (error) return { error };
@@ -116,11 +121,28 @@ export async function saveFinanceItem(item: FinanceItem, links: PendingKinesisLi
           oldValue: financeColumnValue(existing[key]), newValue: financeColumnValue(data[key]),
         }));
       await recordFieldChanges(tx, user.id, existing.objectId, changes);
+      if (removedLinkIds.length) {
+        const removed = await tx.objectRelationship.findMany({
+          where: { id: { in: removedLinkIds }, userId: user.id, OR: [{ sourceObjectId: existing.objectId }, { targetObjectId: existing.objectId }] },
+          include: { sourceObject: { select: { name: true } }, targetObject: { select: { name: true } } },
+        });
+        await tx.objectRelationship.deleteMany({ where: { id: { in: removed.map((link) => link.id) } } });
+        for (const link of removed) {
+          await recordRelationshipRemoved(tx, {
+            userId: user.id,
+            source: { objectId: link.sourceObjectId, name: link.sourceObject.name },
+            target: { objectId: link.targetObjectId, name: link.targetObject.name },
+            type: link.type,
+            customLabel: link.customLabel,
+          });
+        }
+      }
+      // Under its name as saved just now, so a rename and a new link in the
+      // same save read consistently in History.
+      await createPendingLinks(tx, user.id, { objectId: existing.objectId, name }, links);
     } else {
       const created = await tx.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });
       await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
-      // Links picked on the Add form; an existing item adds its links from
-      // its own page instead.
       await createPendingLinks(tx, user.id, { objectId: created.objectId, name }, links);
     }
   });
@@ -168,11 +190,11 @@ function financeItemFrom(kind: FinanceKind, existingId: string | null, formData:
   return item;
 }
 
-/** The most links one Add form will create at once -- far beyond real use, a bound on a hand-crafted payload. */
+/** The most links one save will add or remove at once -- far beyond real use, a bound on a hand-crafted payload. */
 const MAX_PENDING_LINKS = 50;
 
 /**
- * The Kinesis Links picked on the Add form: a JSON list of the relationship
+ * The Kinesis Links picked on the form: a JSON list of the relationship
  * picker's values (`direction`, `customLabel`) plus a target. Anything
  * malformed is refused rather than dropped, so a link is never silently lost.
  */
@@ -201,6 +223,16 @@ function pendingLinksFrom(formData: FormData): PendingKinesisLink[] | { error: s
   return links;
 }
 
+/** The ids of the existing links removed on the Edit form. Malformed is refused, like `pendingLinksFrom`. */
+function removedLinkIdsFrom(formData: FormData): string[] | { error: string } {
+  const raw = String(formData.get("removedKinesisLinks") ?? "").trim();
+  if (!raw) return [];
+  let ids: unknown;
+  try { ids = JSON.parse(raw); } catch { return { error: "The links on this form couldn't be read. Close it and try again." }; }
+  if (!Array.isArray(ids) || ids.length > MAX_PENDING_LINKS || !ids.every((id) => typeof id === "string" && id)) return { error: "The links on this form couldn't be read. Close it and try again." };
+  return ids;
+}
+
 /** What a new Finance item can link to, fetched when its Add form opens rather than on every Finance page load. */
 export async function financeLinkOptionsAction() {
   return getKinesisLinkOptions();
@@ -216,11 +248,13 @@ export async function financeLinkOptionsAction() {
  */
 export async function saveFinanceItemAction(kind: FinanceKind, existingId: string | null, _previousState: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   if (!isFinanceKind(kind)) return { error: "Choose a valid item type." };
-  // Links are only ever picked on the Add form (existingId null).
-  const links = existingId ? [] : pendingLinksFrom(formData);
+  const links = pendingLinksFrom(formData);
   if (!Array.isArray(links)) return links;
+  // Only an existing item has links to remove.
+  const removedLinkIds = existingId ? removedLinkIdsFrom(formData) : [];
+  if (!Array.isArray(removedLinkIds)) return removedLinkIds;
   try {
-    return await saveFinanceItem(financeItemFrom(kind, existingId, formData), links);
+    return await saveFinanceItem(financeItemFrom(kind, existingId, formData), links, removedLinkIds);
   } catch {
     return { error: SAVE_FAILED };
   }
