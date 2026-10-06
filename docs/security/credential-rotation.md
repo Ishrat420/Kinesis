@@ -8,15 +8,22 @@ Kinesis instance needs to be replaced.
 1. Create the replacement Clerk user.
 2. Verify the replacement user's email/account.
 3. Copy the replacement Clerk User ID.
-4. Update `KINESIS_OWNER_CLERK_USER_ID` in the affected Vercel environment.
-5. Redeploy the affected environment.
-6. Sign in as the replacement owner and verify Kinesis access.
-7. Verify the previous owner can no longer access Kinesis.
-8. Delete/revoke the previous Clerk user only after successful verification.
+4. Move the Kinesis account to it, against the affected environment's
+   database -- first as a dry run (no `--yes`), then for real:
+   `DATABASE_URL="..." npm run owner:rebind -- --from <old user_...> --to <new user_...> --yes`
+5. Update `KINESIS_OWNER_CLERK_USER_ID` in the affected Vercel environment.
+6. Redeploy the affected environment.
+7. Sign in as the replacement owner and verify Kinesis access and data.
+8. Verify the previous owner can no longer access Kinesis.
+9. Delete/revoke the previous Clerk user only after successful verification.
 
-> Changing the configured owner must not delete or transfer Kinesis
-> application data. Ownership behaviour should be verified before
-> removing the previous Clerk identity.
+> Sign-in never transfers an account by itself: a Clerk identity Kinesis
+> hasn't seen before always gets a new, empty account (v1.5.0 removed
+> automatic owner adoption, ahead of multi-user support). Step 4 is the
+> only way an account changes identity. If the replacement signed in
+> before step 4, `owner:rebind` removes the empty account it got, and
+> refuses if that account already holds data. Every rebind is recorded as
+> an `OWNER_REBOUND` security event on the account.
 
 
 ## Clerk Secret Key Rotation

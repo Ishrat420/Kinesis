@@ -73,19 +73,28 @@ fresh instance.
 The README documents the required server environment and recommends disabling
 public Clerk registration for this single-owner application. Unit tests cover
 missing configuration and mismatched identities. Database-backed integration
-tests additionally cover fresh-instance rejection and provisioning, migrated
-owners, owner rotation with retained data, ambiguous owners, and concurrent first
-requests.
+tests additionally cover fresh-instance rejection and provisioning, and
+concurrent first requests. Since v1.5.0 they also cover that sign-in never takes
+over an existing account (an unbound legacy row, another identity's account, or
+one of several), ahead of multi-user support.
 
 Status: Functionally resolved with unit and database-backed integration coverage.
 
 ### Resolved P1 — Deleted or replaced Clerk accounts left the instance locked
 
 The configured owner ID is now the authority for the single-owner binding. An
-operator can replace a deleted or inaccessible Clerk identity by changing
-`KINESIS_OWNER_CLERK_USER_ID` and restarting or redeploying all instances. On the
-replacement owner's first request, the transaction updates the existing local user
-record in place, preserving its generated ID and all related data.
+operator can replace a deleted or inaccessible Clerk identity with
+`npm run owner:rebind` (scripts/rebind-owner.mjs), which moves the existing local
+user record, with its generated ID and all related data, to the new identity in
+one transaction and records an `OWNER_REBOUND` security event; then changes
+`KINESIS_OWNER_CLERK_USER_ID` and redeploys.
+
+*Changed in v1.5.0:* this used to happen implicitly on the replacement owner's
+first sign-in, which adopted the existing account. That was removed because, once
+more than one person can sign in, the first new identity would take over the
+owner's data. A new identity now always gets a new, empty account; moving an
+account is only ever the explicit script, covered by
+`tests/integration/auth/rebind-owner.test.ts`.
 
 The recovery procedure and its security implications are documented in the README.
 A signature-verified Clerk webhook may still be useful for prompt profile syncing

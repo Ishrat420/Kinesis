@@ -66,45 +66,22 @@ export const requireKinesisUser = cache(async () => {
     return updated;
   }
 
+  // A Clerk identity Kinesis hasn't seen before always gets a new, empty
+  // account. It never takes over an existing account -- not even when that
+  // account is the only one, or has no Clerk identity bound yet. Moving an
+  // account to a different Clerk identity (owner rotation) is a deliberate
+  // operator step instead: `npm run owner:rebind` (scripts/rebind-owner.mjs).
   return prisma.$transaction(async (tx) => {
     // Serialize provisioning attempts for this Clerk identity. React's cache only
     // deduplicates work within one render/request, so two first requests can
-    // otherwise both observe an empty User table.
+    // otherwise both observe that no account exists yet.
     await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", clerkUserId);
 
     const concurrentlyMapped = await tx.user.findUnique({ where: { clerkUserId } });
     if (concurrentlyMapped) return concurrentlyMapped;
 
-    const existingUsers = await tx.user.findMany({ orderBy: { createdAt: "asc" }, take: 2 });
-    if (existingUsers.length > 1) {
-      throw new Error("This single-user Kinesis deployment contains multiple users.");
-    }
-
-    const existingOwner = existingUsers[0];
-    const owner = existingOwner
-      ? await tx.user.update({
-          where: { id: existingOwner.id },
-          data: { clerkUserId, firstName, lastName, email },
-        })
-      : await tx.user.create({ data: { clerkUserId, firstName, lastName, email } });
-
-    // Every owner ends up with at least this one template -- covers a true
-    // first-time signup and an owner identity rotation alike, and also
-    // backfills an owner who was already provisioned before this existed
-    // (ensureStarterTemplate is a no-op the moment any template exists).
-    await ensureStarterTemplate(tx, owner.id);
-
-    if (existingOwner) {
-      const previousDisplayName = existingOwner.preferredName?.trim() || existingOwner.firstName;
-      const nextDisplayName = owner.preferredName?.trim() || owner.firstName;
-      if (previousDisplayName !== nextDisplayName) {
-        await tx.document.updateMany({
-          where: { userId: owner.id, owner: { in: [previousDisplayName, "user"] } },
-          data: { owner: nextDisplayName },
-        });
-      }
-    }
-
-    return owner;
+    const created = await tx.user.create({ data: { clerkUserId, firstName, lastName, email } });
+    await ensureStarterTemplate(tx, created.id);
+    return created;
   });
 });

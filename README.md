@@ -158,9 +158,8 @@ and preview deployments that use Clerk development (`pk_test_...` /
 `sk_test_...`) keys. Only the exact lowercase value `true` enables proxying.
 
 Find the `user_...` value on the owner's Clerk dashboard profile. Only that exact
-Clerk identity can open the application or claim the existing Kinesis data. A
-different authenticated Clerk user is denied, including on a brand-new
-database. Keep public sign-up disabled in the Clerk dashboard unless it is needed
+Clerk identity can open the application. A different authenticated Clerk user
+is denied, including on a brand-new database. Keep public sign-up disabled in the Clerk dashboard unless it is needed
 for another application sharing the same Clerk instance.
 
 ### Replacing or recovering the owner account
@@ -168,10 +167,22 @@ for another application sharing the same Clerk instance.
 If the Clerk owner is deleted or must be replaced:
 
 1. Create or select the replacement user in Clerk and ensure it has a primary email.
-2. Change `KINESIS_OWNER_CLERK_USER_ID` to the replacement Clerk user ID in the
+2. Move the Kinesis account to the replacement identity, against the deployment's
+   database. Run it once without `--yes` first to see what it will do:
+
+   ```bash
+   DATABASE_URL="..." npm run owner:rebind -- --from user_old --to user_new --yes
+   ```
+
+3. Change `KINESIS_OWNER_CLERK_USER_ID` to the replacement Clerk user ID in the
    deployment environment, then redeploy or restart every application instance.
-3. Sign in as the replacement user. Kinesis atomically transfers the local owner
-   binding and preserves its generated ID and all existing owner data.
+4. Sign in as the replacement user and check your data is there.
+
+Signing in never moves an account on its own: a Clerk identity Kinesis hasn't
+seen before always gets a new, empty account. If the replacement signed in before
+step 2, it got one; `owner:rebind` removes it as long as it's still empty, and
+refuses otherwise. `--from unbound` claims the one account with no Clerk identity
+bound, for a database that predates Clerk sign-in.
 
 Changing this value grants complete access to the stored Kinesis data. Restrict
 permission to edit deployment environment variables, audit changes through the

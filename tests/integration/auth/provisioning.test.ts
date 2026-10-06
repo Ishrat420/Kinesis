@@ -51,52 +51,69 @@ describe.sequential("database-backed owner provisioning", () => {
     await expect(prisma.user.count()).resolves.toBe(1);
   });
 
-  it("binds a migrated unprovisioned owner without changing its generated ID", async () => {
-    const migrated = await prisma.user.create({
-      data: { firstName: "Legacy", lastName: "Owner", email: "legacy@example.com" },
+  // No owner adoption: a Clerk identity Kinesis hasn't seen always gets a
+  // fresh, empty account, whatever else is in the database. Moving an account
+  // to a new identity is scripts/rebind-owner.mjs's job (rebind-owner.test.ts).
+  it("never claims an account with no Clerk identity bound: the new identity gets its own", async () => {
+    const unbound = await prisma.user.create({
+      data: {
+        firstName: "Legacy", lastName: "Owner", email: "legacy@example.com",
+        objects: { create: { id: "unbound-goal-object", type: "GOAL", name: "Not yours" } },
+        goals: { create: { id: "unbound-goal", objectId: "unbound-goal-object", name: "Not yours" } },
+      },
     });
     authenticate("clerk_owner");
 
     const provisioned = await requireKinesisUser();
 
-    expect(provisioned).toMatchObject({ id: migrated.id, clerkUserId: "clerk_owner" });
-    await expect(prisma.user.count()).resolves.toBe(1);
+    expect(provisioned.id).not.toBe(unbound.id);
+    expect(provisioned.clerkUserId).toBe("clerk_owner");
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: unbound.id } })).resolves.toMatchObject({ clerkUserId: null });
+    await expect(prisma.goal.count({ where: { userId: provisioned.id } })).resolves.toBe(0);
   });
 
-  it("rotates the Clerk owner binding in place and preserves owned data", async () => {
+  it("never hands another identity's account, or its data, to a new identity", async () => {
     const existing = await prisma.user.create({
       data: {
-        clerkUserId: "clerk_deleted",
+        clerkUserId: "clerk_previous",
         firstName: "Old",
         lastName: "Owner",
         email: "old@example.com",
-        objects: { create: { id: "rotation-goal-object", type: "GOAL", name: "Keep me" } },
-        goals: { create: { id: "rotation-goal", objectId: "rotation-goal-object", name: "Keep me" } },
+        objects: { create: { id: "previous-goal-object", type: "GOAL", name: "Keep me" } },
+        goals: { create: { id: "previous-goal", objectId: "previous-goal-object", name: "Keep me" } },
       },
     });
     authenticate("clerk_replacement", "New");
 
-    const rotated = await requireKinesisUser();
+    const replacement = await requireKinesisUser();
 
-    expect(rotated).toMatchObject({ id: existing.id, clerkUserId: "clerk_replacement" });
-    await expect(prisma.goal.findUnique({ where: { id: "rotation-goal" } })).resolves.toMatchObject({
-      userId: existing.id,
-      name: "Keep me",
-    });
+    expect(replacement.id).not.toBe(existing.id);
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: existing.id } })).resolves.toMatchObject({ clerkUserId: "clerk_previous" });
+    await expect(prisma.goal.findUniqueOrThrow({ where: { id: "previous-goal" } })).resolves.toMatchObject({ userId: existing.id });
+    await expect(prisma.goal.count({ where: { userId: replacement.id } })).resolves.toBe(0);
   });
 
-  it("fails closed when a migrated database has ambiguous owners", async () => {
+  it("provisions a new identity alongside existing accounts instead of refusing", async () => {
     await prisma.user.createMany({
       data: [
         { firstName: "One", lastName: "Owner", email: "one@example.com" },
-        { firstName: "Two", lastName: "Owner", email: "two@example.com" },
+        { clerkUserId: "clerk_two", firstName: "Two", lastName: "Owner", email: "two@example.com" },
       ],
     });
     authenticate("clerk_owner");
 
-    await expect(requireKinesisUser()).rejects.toThrow("contains multiple users");
-    await expect(prisma.user.count()).resolves.toBe(2);
-    await expect(prisma.user.count({ where: { clerkUserId: { not: null } } })).resolves.toBe(0);
+    const provisioned = await requireKinesisUser();
+
+    expect(provisioned.clerkUserId).toBe("clerk_owner");
+    await expect(prisma.user.count()).resolves.toBe(3);
+  });
+
+  it("finds the same account again on a later sign-in", async () => {
+    authenticate("clerk_owner");
+    const first = await requireKinesisUser();
+    const again = await requireKinesisUser();
+    expect(again.id).toBe(first.id);
+    await expect(prisma.user.count()).resolves.toBe(1);
   });
 
   it("returns one local owner for real concurrent first requests", async () => {

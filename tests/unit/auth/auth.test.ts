@@ -169,28 +169,31 @@ describe("requireKinesisUser", () => {
     expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(tx!, owner.id);
   });
 
-  it("also ensures a starter template when rotating an existing owner onto a new Clerk identity", async () => {
+  it("creates a new account for a new identity rather than taking over an existing one", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
     const existingOwner = { id: "existing-owner", firstName: "Old", lastName: "Owner", email: "old@example.com", clerkUserId: "user_old", preferredName: null };
-    const rotatedOwner = { ...existingOwner, clerkUserId: "user_owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com" };
-    mocks.prisma.$transaction.mockImplementation((callback: (tx: object) => Promise<unknown>) => callback({
+    const created = { id: "new-owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com", clerkUserId: "user_owner", preferredName: null };
+    const tx = {
       $executeRawUnsafe: vi.fn(),
       user: {
         findUnique: vi.fn(async () => null),
         findMany: vi.fn(async () => [existingOwner]),
-        create: vi.fn(),
-        update: vi.fn(async () => rotatedOwner),
+        create: vi.fn(async () => created),
+        update: vi.fn(),
       },
       document: { updateMany: vi.fn() },
-    }));
+    };
+    mocks.prisma.$transaction.mockImplementation((callback: (client: object) => Promise<unknown>) => callback(tx));
     const requireKinesisUser = await loadSubject();
 
     const result = await requireKinesisUser();
 
-    expect(result).toBe(rotatedOwner);
-    // A rotation must never gain a *second* template just for rotating --
-    // ensureStarterTemplate's own no-op-when-any-exist guard is what makes
-    // this safe to call unconditionally rather than skip for this branch.
-    expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(expect.anything(), rotatedOwner.id);
+    // No owner adoption (v1.5.0): the existing account is never looked for,
+    // updated or rebound -- moving one is scripts/rebind-owner.mjs's job.
+    expect(result).toBe(created);
+    expect(tx.user.update).not.toHaveBeenCalled();
+    expect(tx.user.findMany).not.toHaveBeenCalled();
+    expect(tx.user.create).toHaveBeenCalledWith({ data: { clerkUserId: "user_owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com" } });
+    expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(expect.anything(), created.id);
   });
 });
