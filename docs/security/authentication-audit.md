@@ -80,6 +80,16 @@ one of several), ahead of multi-user support.
 
 Status: Functionally resolved with unit and database-backed integration coverage.
 
+*Changed in v1.5.0 (ADR-014):* the owner check is gone from `proxy.ts` and
+`requireKinesisUser`. Any signed-in Clerk user gets their own new, empty
+account, so the control that now keeps an arbitrary Clerk account out is
+**Clerk's Restricted sign-up mode** (accounts by invitation only), which must
+be on before v1.5.0 deploys. See `clerk-configuration.md`, Authorization.
+Such an account still can't claim or reach anyone else's data: no owner
+adoption, and every query is scoped and tested across two accounts.
+`KINESIS_OWNER_CLERK_USER_ID` now only marks the admin who may invite
+(`requireKinesisAdmin`).
+
 ### Resolved P1 — Deleted or replaced Clerk accounts left the instance locked
 
 The configured owner ID is now the authority for the single-owner binding. An

@@ -131,14 +131,18 @@ The reasoning in the original ADR still applies:
   never carries the previous person's notifications.
 * Per-account data export and "delete my data", each already tested against
   a second account.
+* The gate is open: `proxy.ts` and `requireKinesisUser` admit any signed-in
+  Clerk user, to their own account. `KINESIS_OWNER_CLERK_USER_ID` only marks
+  the admin (`isKinesisAdmin`, `requireKinesisAdmin` in `lib/auth.ts`).
 
-**Still to do before inviting anyone:**
+**Still to do (operator, per environment, before deploying):**
 
-* Open the gate: replace the single-owner check in `proxy.ts` and
-  `requireKinesisUser` with "any signed-in account", and keep
-  `KINESIS_OWNER_CLERK_USER_ID` only to mark the operator who may invite.
-* Turn on Clerk's Restricted sign-up mode and invite from the Clerk
-  dashboard. An in-app "Invite someone" screen for the operator can follow.
+* Turn on Clerk's Restricted sign-up mode, and review the instance's existing
+  users: everyone already in it can now sign in. Then invite from the Clerk
+  dashboard. See `docs/security/clerk-configuration.md`.
+
+**Later:** an in-app "Invite someone" screen for the admin, built on
+`requireKinesisAdmin`.
 
 ## Consequences
 

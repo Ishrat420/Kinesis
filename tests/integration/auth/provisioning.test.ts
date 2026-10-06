@@ -36,19 +36,31 @@ describe.sequential("database-backed owner provisioning", () => {
     await prisma.$disconnect();
   });
 
-  it("allows only the configured identity to provision a fresh instance", async () => {
+  // ADR-014: any signed-in identity gets its own account. Who can sign in is
+  // decided by Clerk's Restricted sign-up mode; KINESIS_OWNER_CLERK_USER_ID
+  // only marks the admin, and plays no part in getting in.
+  it("provisions an account for a signed-in identity that isn't the admin", async () => {
     process.env.KINESIS_OWNER_CLERK_USER_ID = "clerk_owner";
-    clerk.auth.mockResolvedValue({ userId: "clerk_intruder" });
-    clerk.currentUser.mockResolvedValue(owner("clerk_intruder"));
+    clerk.auth.mockResolvedValue({ userId: "clerk_invited" });
+    clerk.currentUser.mockResolvedValue(owner("clerk_invited", "Invited"));
 
-    await expect(requireKinesisUser()).rejects.toThrow("Unauthorized");
-    await expect(prisma.user.count()).resolves.toBe(0);
-
-    authenticate("clerk_owner");
     const provisioned = await requireKinesisUser();
 
-    expect(provisioned.clerkUserId).toBe("clerk_owner");
+    expect(provisioned.clerkUserId).toBe("clerk_invited");
     await expect(prisma.user.count()).resolves.toBe(1);
+  });
+
+  it("gives each signed-in person their own separate account", async () => {
+    process.env.KINESIS_OWNER_CLERK_USER_ID = "clerk_owner";
+    const accounts = [];
+    for (const id of ["clerk_owner", "clerk_invited_one", "clerk_invited_two"]) {
+      clerk.auth.mockResolvedValue({ userId: id });
+      clerk.currentUser.mockResolvedValue(owner(id));
+      accounts.push(await requireKinesisUser());
+    }
+
+    expect(new Set(accounts.map(({ id }) => id)).size).toBe(3);
+    expect(accounts.map(({ clerkUserId }) => clerkUserId)).toEqual(["clerk_owner", "clerk_invited_one", "clerk_invited_two"]);
   });
 
   // No owner adoption: a Clerk identity Kinesis hasn't seen always gets a

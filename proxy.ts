@@ -12,16 +12,15 @@ export default clerkMiddleware(
   async (auth, request) => {
     if (isPublicRoute(request) || isCronRoute(request)) return;
 
+    // Any signed-in Clerk user is let through: each gets their own private
+    // account (ADR-014). Who can sign in at all is decided in Clerk, which
+    // must run in Restricted sign-up mode so accounts exist only by
+    // invitation -- see docs/security/clerk-configuration.md.
     const { userId } = await auth();
     if (!userId) {
       if (!isApiRoute(request)) return NextResponse.redirect(new URL("/sign-in", request.url));
       return new NextResponse("Unauthorized", { status: 401 });
     }
-
-    const configuredOwner = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
-
-    if (!configuredOwner) return new NextResponse("Kinesis owner authentication is not configured.", { status: 503 });
-    if (userId !== configuredOwner) return new NextResponse("Forbidden", { status: 403 });
   },
   {
     frontendApiProxy: { enabled: frontendApiProxyEnabled },

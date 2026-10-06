@@ -1,6 +1,6 @@
 # Kinesis
 
-Kinesis is a single-owner personal life-admin application: Goals, Documents,
+Kinesis is a personal life-admin application, one private account per person: Goals, Documents,
 Finance, Relationships, Custom Modules, To-Dos, and a Calendar that pulls
 dated things from all of them, all built on top of a shared "Object"
 capability layer (custom fields, cross-record links, search, notifications)
@@ -135,9 +135,18 @@ docs/
 
 ## Authentication setup
 
-Kinesis is a single-owner application. Before starting or deploying it, create the
-owner in Clerk and configure the server-only owner ID alongside the standard Clerk
-keys:
+One Kinesis deployment can host many people, each with their own private
+account (ADR-014). Clerk decides who can sign in; Kinesis gives every signed-in
+person their own account, and nobody can see anyone else's data.
+
+**Before deploying, put the Clerk instance in Restricted sign-up mode**
+(Clerk Dashboard → Configure → Restrictions), so accounts exist only by
+invitation. Invite people from Clerk Dashboard → Users → Invitations. Every
+user already in the Clerk instance will be able to sign in, so review that
+list first. Details: `docs/security/clerk-configuration.md`.
+
+Configure the standard Clerk keys, plus the admin's Clerk user ID, the one
+person who may invite others:
 
 ```bash
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
@@ -157,10 +166,9 @@ Leave this variable unset (or set it to `false`) in local development
 and preview deployments that use Clerk development (`pk_test_...` /
 `sk_test_...`) keys. Only the exact lowercase value `true` enables proxying.
 
-Find the `user_...` value on the owner's Clerk dashboard profile. Only that exact
-Clerk identity can open the application. A different authenticated Clerk user
-is denied, including on a brand-new database. Keep public sign-up disabled in the Clerk dashboard unless it is needed
-for another application sharing the same Clerk instance.
+Find the `user_...` value on the admin's Clerk dashboard profile. It doesn't limit
+who can sign in (Restricted sign-up mode does that), and leaving it unset just means
+nobody can invite through Kinesis.
 
 ### Replacing or recovering the owner account
 
@@ -184,32 +192,25 @@ step 2, it got one; `owner:rebind` removes it as long as it's still empty, and
 refuses otherwise. `--from unbound` claims the one account with no Clerk identity
 bound, for a database that predates Clerk sign-in.
 
-Changing this value grants complete access to the stored Kinesis data. Restrict
-permission to edit deployment environment variables, audit changes through the
-hosting provider, and never expose `CLERK_SECRET_KEY` to the browser. The owner ID
-is read at request time, so all concurrently running instances must use the same
-value during a rotation.
+`owner:rebind` moves an account, with all its data, to another identity, so run it
+only against an identity you control, and restrict who can reach the production
+database. Changing `KINESIS_OWNER_CLERK_USER_ID` only changes who may invite; it
+grants no access to anyone's data. Never expose `CLERK_SECRET_KEY` to the browser.
 
 ### Product and data-model decision
 
-Kinesis is currently a **single-user product with a multi-user-capable schema**.
-This distinction is intentional:
+Kinesis is a **personal application that one deployment can host for many
+people** (ADR-014):
 
-- Product access remains limited to one pre-approved Clerk identity.
-- Public sign-up, a second user, invitations, organizations, and data sharing are
-  not supported yet.
-- Kinesis users have normal generated local IDs rather than a hardcoded
-  `"current"` ID.
-- Every top-level personal-data record remains associated with its owning Kinesis
-  user through `userId`, and reads and mutations must enforce that ownership.
-
-The configured `KINESIS_OWNER_CLERK_USER_ID` controls who may use and provision
-this deployment; it is deliberately separate from the generated local database ID.
-
-If additional users are supported later, that will be an explicit product change
-with provisioning and cross-user authorization tests. It must not be implemented
-by adding one Vercel environment variable per user or by removing ownership filters
-from database queries.
+- Every account is one person's own; nobody can see or change anyone else's data.
+  There is no sharing, collaboration, organization or team model.
+- Accounts exist only by invitation (Clerk Restricted sign-up mode), sent by the
+  admin named in `KINESIS_OWNER_CLERK_USER_ID`.
+- Every personal-data record is tied to its account through `userId`, and every
+  read and mutation enforces it. Any new data function must be added to the
+  two-account suites (`tests/integration/auth/cross-user.test.ts` and
+  `isolation-probe.test.ts`) before it's done.
+- Kinesis users have normal generated local IDs, separate from their Clerk IDs.
 
 ## Testing
 

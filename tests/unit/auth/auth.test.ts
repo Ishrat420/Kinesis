@@ -55,21 +55,21 @@ describe("requireKinesisUser", () => {
     return (await import("@/lib/auth")).requireKinesisUser;
   }
 
-  it("fails closed when the owner identity is not configured", async () => {
+  // ADR-014: any signed-in user gets their own account; the admin setting
+  // only marks who may invite.
+  it.each([
+    ["with no admin configured", undefined],
+    ["who isn't the admin", "user_owner"],
+  ])("loads the account of a signed-in user %s", async (_name, admin) => {
+    if (admin) process.env.KINESIS_OWNER_CLERK_USER_ID = admin;
+    const invited = { id: "invited-account", clerkUserId: "user_invited", firstName: "Kira", lastName: "Owner", email: "kira@example.com", preferredName: null };
+    mocks.auth.mockResolvedValue({ userId: "user_invited" });
+    mocks.currentUser.mockResolvedValue(clerkUser("user_invited"));
+    mocks.prisma.user.findUnique.mockResolvedValue(invited);
     const requireKinesisUser = await loadSubject();
 
-    await expect(requireKinesisUser()).rejects.toThrow("owner authentication is not configured");
-    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
-  });
-
-  it("rejects an authenticated Clerk user who is not the configured owner", async () => {
-    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
-    mocks.auth.mockResolvedValue({ userId: "user_intruder" });
-    mocks.currentUser.mockResolvedValue(clerkUser("user_intruder"));
-    const requireKinesisUser = await loadSubject();
-
-    await expect(requireKinesisUser()).rejects.toThrow("Unauthorized");
-    expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
+    await expect(requireKinesisUser()).resolves.toBe(invited);
+    expect(mocks.prisma.user.findUnique).toHaveBeenCalledWith({ where: { clerkUserId: "user_invited" } });
   });
 
   it("rejects expired or inconsistent Clerk sessions", async () => {
@@ -195,5 +195,46 @@ describe("requireKinesisUser", () => {
     expect(tx.user.findMany).not.toHaveBeenCalled();
     expect(tx.user.create).toHaveBeenCalledWith({ data: { clerkUserId: "user_owner", firstName: "Kira", lastName: "Owner", email: "kira@example.com" } });
     expect(mocks.ensureStarterTemplate).toHaveBeenCalledWith(expect.anything(), created.id);
+  });
+});
+
+describe("the admin (KINESIS_OWNER_CLERK_USER_ID)", () => {
+  const account = (clerkUserId: string) => ({ id: `${clerkUserId}-account`, clerkUserId, firstName: "Kira", lastName: "Owner", email: "kira@example.com", preferredName: null });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    delete process.env.KINESIS_OWNER_CLERK_USER_ID;
+  });
+
+  async function signInAs(clerkUserId: string) {
+    mocks.auth.mockResolvedValue({ userId: clerkUserId });
+    mocks.currentUser.mockResolvedValue(clerkUser(clerkUserId));
+    mocks.prisma.user.findUnique.mockResolvedValue(account(clerkUserId));
+    vi.resetModules();
+    return import("@/lib/auth");
+  }
+
+  it("is only the configured identity, and nobody when it isn't configured", async () => {
+    const { isKinesisAdmin } = await signInAs("user_owner");
+    expect(isKinesisAdmin("user_owner")).toBe(false);
+
+    process.env.KINESIS_OWNER_CLERK_USER_ID = " user_owner ";
+    expect(isKinesisAdmin("user_owner")).toBe(true);
+    expect(isKinesisAdmin("user_invited")).toBe(false);
+  });
+
+  it("lets the admin through requireKinesisAdmin", async () => {
+    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
+    const { requireKinesisAdmin } = await signInAs("user_owner");
+    await expect(requireKinesisAdmin()).resolves.toMatchObject({ clerkUserId: "user_owner" });
+  });
+
+  it.each([
+    ["someone who isn't the admin", "user_owner", "user_invited"],
+    ["anyone, when no admin is configured", undefined, "user_owner"],
+  ])("refuses %s in requireKinesisAdmin", async (_name, admin, signedIn) => {
+    if (admin) process.env.KINESIS_OWNER_CLERK_USER_ID = admin;
+    const { requireKinesisAdmin } = await signInAs(signedIn);
+    await expect(requireKinesisAdmin()).rejects.toThrow("Forbidden");
   });
 });

@@ -5,12 +5,20 @@ import { cache } from "react";
 import { prisma } from "@/lib/data/prisma";
 import { ensureStarterTemplate } from "@/lib/data/starter-template";
 
-function getConfiguredOwnerId() {
-  const ownerId = process.env.KINESIS_OWNER_CLERK_USER_ID?.trim();
-  if (!ownerId) {
-    throw new Error("Kinesis owner authentication is not configured.");
-  }
-  return ownerId;
+/**
+ * The deployment's one admin: the Clerk identity in KINESIS_OWNER_CLERK_USER_ID,
+ * the only person who may invite others (ADR-014). It doesn't decide who may
+ * sign in -- every signed-in user gets their own account -- and leaving it
+ * unset just means nobody is admin.
+ */
+function getAdminClerkUserId() {
+  return process.env.KINESIS_OWNER_CLERK_USER_ID?.trim() || null;
+}
+
+/** Whether this Clerk identity is the deployment's admin. */
+export function isKinesisAdmin(clerkUserId: string) {
+  const adminId = getAdminClerkUserId();
+  return adminId !== null && clerkUserId === adminId;
 }
 
 export const SENSITIVE_OPERATION_REVERIFICATION = {
@@ -39,10 +47,14 @@ export const getAuthenticatedClerkUser = cache(async () => {
   return clerkUser;
 });
 
+/**
+ * The signed-in person's own Kinesis account, created on their first sign-in.
+ * Anyone signed in to Clerk gets one; who can sign in is Clerk's call
+ * (Restricted sign-up mode, by invitation).
+ */
 export const requireKinesisUser = cache(async () => {
   const clerkUser = await getAuthenticatedClerkUser();
   const clerkUserId = clerkUser.id;
-  if (clerkUserId !== getConfiguredOwnerId()) throw new Error("Unauthorized");
 
   const email = clerkUser.primaryEmailAddress?.emailAddress.trim();
   if (!email) throw new Error("A primary email address is required for Kinesis.");
@@ -85,3 +97,10 @@ export const requireKinesisUser = cache(async () => {
     return created;
   });
 });
+
+/** requireKinesisUser, for actions only the admin may take (inviting people). Everyone else is refused. */
+export async function requireKinesisAdmin() {
+  const user = await requireKinesisUser();
+  if (!user.clerkUserId || !isKinesisAdmin(user.clerkUserId)) throw new Error("Forbidden");
+  return user;
+}

@@ -78,22 +78,17 @@ describe("authentication proxy", () => {
     expect(clerk.auth).not.toHaveBeenCalled();
   });
 
-  it("fails closed when owner configuration is missing", async () => {
-    clerk.auth.mockResolvedValue({ userId: "user_owner" });
-    const response = await invoke("/goals");
-    expect(response?.status).toBe(503);
-  });
-
-  it("rejects a signed-in user other than the configured owner", async () => {
-    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
-    clerk.auth.mockResolvedValue({ userId: "user_intruder" });
-    const response = await invoke("/goals");
-    expect(response?.status).toBe(403);
-  });
-
-  it("allows only the configured owner through", async () => {
-    process.env.KINESIS_OWNER_CLERK_USER_ID = "user_owner";
-    clerk.auth.mockResolvedValue({ userId: "user_owner" });
+  // ADR-014: any signed-in user gets through to their own account; who can
+  // sign in at all is Clerk's Restricted sign-up mode. The admin setting
+  // (KINESIS_OWNER_CLERK_USER_ID) plays no part in getting in.
+  it.each([
+    ["the admin", "user_owner", "user_owner"],
+    ["someone who isn't the admin", "user_owner", "user_invited"],
+    ["anyone, with no admin configured", undefined, "user_invited"],
+  ])("lets %s through", async (_name, admin, userId) => {
+    if (admin) process.env.KINESIS_OWNER_CLERK_USER_ID = admin;
+    clerk.auth.mockResolvedValue({ userId });
     await expect(invoke("/goals")).resolves.toBeUndefined();
+    await expect(invoke("/api/settings/export")).resolves.toBeUndefined();
   });
 });
