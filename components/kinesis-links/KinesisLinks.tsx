@@ -75,7 +75,8 @@ export function KinesisLinks({ links, previews, recentEvents = {}, updateAction,
         <details className="relative shrink-0">
           <summary aria-label={`Actions for the Kinesis Link to ${link.target.name}`} className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 [&::-webkit-details-marker]:hidden"><MoreHorizontal className="h-5 w-5" /></summary>
           <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg">
-            <button type="button" onClick={() => setEditingId(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Pencil className="h-4 w-4" /> Change relationship</button>
+            {/* A template field's link takes its relationship from the field (KD-023): removable, not retypeable. */}
+            {!link.fromTemplateField && <button type="button" onClick={() => setEditingId(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Pencil className="h-4 w-4" /> Change relationship</button>}
             <button type="button" onClick={() => removeAction(link.id)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /> Remove link</button>
           </div>
         </details>

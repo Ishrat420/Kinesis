@@ -67,11 +67,14 @@ describe.sequential("updateGoalFieldsAction", () => {
     ]));
     expect(result).toEqual({ saved: true });
 
+    // The link field is saved as a Kinesis Link named after it (KD-023), so
+    // the target shows it as a backlink; only the text field stays a field.
     const fields = await readFields(objectId);
-    expect(fields).toHaveLength(2);
+    expect(fields).toHaveLength(1);
     expect(fields[0]).toMatchObject({ label: "Why this goal", type: "TEXT", value: "Long-term health" });
-    expect(fields[1]).toMatchObject({ label: "Related goal", type: "KINESIS_LINK" });
-    expect(fields[1].links.map((link) => link.targetObjectId)).toEqual([targetObjectId]);
+    await expect(prisma.objectRelationship.findMany({ where: { sourceObjectId: objectId } })).resolves.toMatchObject([
+      { targetObjectId, type: "CUSTOM", customLabel: "Related goal", templateFieldId: null },
+    ]);
   });
 
   it("refuses to change an existing field's type, and leaves it untouched", async () => {
@@ -109,23 +112,22 @@ describe.sequential("updateGoalFieldsAction", () => {
       { label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [targetObjectId] },
     ]));
     const before = await readFields(objectId);
-    const linkField = before.find((field) => field.type === "KINESIS_LINK")!;
     const noteField = before.find((field) => field.type === "TEXT")!;
 
-    // The cascade this field would go through in the app: deleting the target
-    // object removes just that FieldLink row (see FieldLink's own onDelete),
-    // leaving the field itself in place with no targets.
+    // Deleting the target removes the Kinesis Link the field became (its
+    // cascade), so a stale tab still submitting that field with no targets
+    // must save cleanly rather than refuse.
     await prisma.object.delete({ where: { id: targetObjectId } });
 
     const result = await updateGoalFieldsAction(GOAL, {}, payload([
       { id: noteField.id, label: "Note", type: "TEXT", value: "Still here" },
-      { id: linkField.id, label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [] },
+      { id: "stale-link-field", label: "Related goal", type: "KINESIS_LINK", targetObjectIds: [] },
     ]));
     expect(result).toEqual({ saved: true });
 
     const after = await readFields(objectId);
-    expect(after.find((field) => field.id === noteField.id)).toMatchObject({ value: "Still here" });
-    expect(after.find((field) => field.id === linkField.id)?.links).toEqual([]);
+    expect(after).toEqual([expect.objectContaining({ id: noteField.id, value: "Still here" })]);
+    await expect(prisma.objectRelationship.count({ where: { sourceObjectId: objectId } })).resolves.toBe(0);
   });
 
   it("says so when the goal no longer exists, without writing anything", async () => {

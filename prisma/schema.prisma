@@ -306,7 +306,12 @@ model Object {
 /// instead lives in the DB only, as two partial unique indexes created by
 /// migration SQL (see 20261007000000_kinesis_link_custom_uniqueness):
 /// `(userId, pairKey, type) WHERE type != 'CUSTOM'` and
-/// `(userId, pairKey, customLabel) WHERE type = 'CUSTOM'`. Prisma's schema
+/// `(userId, pairKey, customLabel) WHERE type = 'CUSTOM'`. Since
+/// 20261021000000_template_kinesis_links the CUSTOM one also requires
+/// `templateFieldId IS NULL`, and template-owned links get their own:
+/// `(sourceObjectId, targetObjectId, templateFieldId) WHERE templateFieldId IS
+/// NOT NULL` -- one per item, target and field, so two items whose "Related"
+/// fields point at each other don't collide on the shared pairKey. Prisma's schema
 /// DSL has no way to express a partial index, so nothing here declares it --
 /// this comment is the only place it's written down on the Prisma side.
 model ObjectRelationship {
@@ -317,8 +322,19 @@ model ObjectRelationship {
   targetObject   Object                 @relation("RelationshipTarget", fields: [targetObjectId], references: [id], onDelete: Cascade)
   type           ObjectRelationshipType
   /// Set only when type = CUSTOM -- ad-hoc text typed fresh per relationship,
-  /// shown on both sides (no separate forward/inverse custom text yet).
+  /// shown on both sides (no separate forward/inverse custom text yet). For a
+  /// template-owned link (`templateFieldId` set) it is the template field's
+  /// own label, kept in step with it when the field is renamed.
   customLabel    String?
+  /// Set when this link is a custom item's value for one of its template's
+  /// Kinesis Link fields (e.g. the starter template's "Related"), rather than
+  /// a free-standing Kinesis Link. Such a row is always CUSTOM, from the item
+  /// to the target; the item's own page shows it inside that field, and the
+  /// target shows it as an ordinary backlink. Restrict, like
+  /// TemplateField.objectFields: a field is only removable once its template
+  /// is unused, so nothing should reference it by then.
+  templateFieldId String?
+  templateField   TemplateField?        @relation(fields: [templateFieldId], references: [id], onDelete: Restrict)
   pairKey        String
   userId         String
   user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -328,6 +344,7 @@ model ObjectRelationship {
   @@index([userId, pairKey, type])
   @@index([userId, sourceObjectId])
   @@index([userId, targetObjectId])
+  @@index([templateFieldId])
 }
 
 /// What happened to an Object (KD-048) -- a typed, append-only event stream
@@ -743,6 +760,10 @@ model TemplateField {
   // not a path this app is meant to exercise. Never populated for a
   // due-date row -- see `isDueDate` above.
   objectFields ObjectField[]
+  // Kinesis Link values for this field (KD-023): one ObjectRelationship per
+  // linked target, since template link values no longer live on
+  // ObjectField/FieldLink.
+  kinesisLinks ObjectRelationship[]
 
   @@index([templateId, position])
 }

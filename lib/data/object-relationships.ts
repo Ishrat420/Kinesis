@@ -16,6 +16,8 @@ export type KinesisLink = {
   label: string;
   /** The other Object this Kinesis Link points at. */
   target: ObjectLocation;
+  /** Whether this link is a custom item's value for a template Kinesis Link field (KD-023). Its type is the field's, so it can be removed but not retyped. */
+  fromTemplateField: boolean;
 };
 
 /**
@@ -28,7 +30,10 @@ export type KinesisLink = {
 export async function getKinesisLinks(objectId: string): Promise<KinesisLink[]> {
   const user = await requireKinesisUser();
   const relationships = await prisma.objectRelationship.findMany({
-    where: { userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
+    // A template field's links from this object are shown inside that field
+    // on its own page, so they're left out of its list here; the record they
+    // point at still lists them as backlinks (KD-023).
+    where: { userId: user.id, OR: [{ sourceObjectId: objectId, templateFieldId: null }, { targetObjectId: objectId }] },
     include: { sourceObject: { select: objectLocationSelect }, targetObject: { select: objectLocationSelect } },
     orderBy: { createdAt: "asc" },
   });
@@ -43,6 +48,7 @@ export async function getKinesisLinks(objectId: string): Promise<KinesisLink[]> 
       inverse,
       label: kinesisLinkLabel(relationship.type, relationship.customLabel, inverse),
       target,
+      fromTemplateField: relationship.templateFieldId !== null,
     }];
   });
 }

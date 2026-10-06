@@ -1,9 +1,10 @@
 ## KD-023 — Universal Object Connections & Backlinks
 
-**Status:** In Progress -- the core architecture below shipped, mostly
-under later, more specific tickets (KD-024, KD-049, KD-050) that this
-ticket's own doc was never updated to reflect. Two concrete gaps remain;
-see "What's left" below.
+**Status:** In Progress -- the core architecture shipped under KD-024,
+KD-049 and KD-050, and v1.5.0 closed the remaining *user-visible* gaps
+(backlinks on Finance Items, People and To-Dos; Kinesis Link fields moved
+into the shared graph). What's left is one recorded decision and two
+follow-ups; see "What's left" below.
 **Priority:** High
 **Tags:** Architecture, UX/UI
 **Planned Release:** v1.5.0
@@ -47,6 +48,40 @@ from other tickets' own claims:
   shared graph, not just the Kinesis Links UI, actually works as a
   general-purpose layer.
 
+## Done in v1.5.0: every Kinesis Link field is in the shared graph
+
+Two producers still wrote the old `ObjectField`/`FieldLink` storage, which
+nothing reads from the target's side, so their links never showed as
+backlinks:
+
+* **Template Kinesis Link fields** on custom items, including the starter
+  template's built-in "Related" field (KD-050 deliberately left these).
+* **Link fields picked on create forms** (new document / new custom item),
+  which KD-050 kept on the old storage because there's no record to link
+  from yet -- and which the read views then hid, so the link silently
+  disappeared from view.
+
+Both are now `ObjectRelationship` rows (migration
+`20261021000000_template_kinesis_links`, which converts existing data and
+deletes the old rows; code in `lib/data/template-kinesis-links.ts`):
+
+* A template field's targets are `CUSTOM` links from the item, labelled with
+  the field's name and tied to it by the new `ObjectRelationship.templateFieldId`.
+  The item's page shows them inside that field (and leaves them out of its
+  Kinesis Links list); the linked record shows them as backlinks. Renaming
+  the field relabels its links. They can be removed from either side but not
+  retyped, since their type comes from the field. Adding or removing one
+  records History on both records.
+* A link field picked on a create form becomes ordinary `CUSTOM` links
+  labelled with the field's name, as KD-050 did for existing ones.
+* Uniqueness: free-standing `CUSTOM` links stay unique per pair and label;
+  template-owned ones are unique per item, target and field, so two items
+  whose "Related" fields point at each other don't collide.
+* Tests: `tests/integration/kinesis-links/template-field-links.test.ts`,
+  including the migration's own SQL run against seeded old-style rows.
+
+The `FieldLink` table itself is left in place, empty, for a later cleanup.
+
 ## What's left
 
 * **Done in v1.5.0:** Finance Items and People now show their Kinesis
@@ -68,6 +103,9 @@ from other tickets' own claims:
   neither can ever see that link from their own side. 2 of this
   ticket's 5 minimum named types are missing the UI half of "every
   object can render both outgoing connections and incoming backlinks."
+* **Still to decide (narrowed):** Kinesis Link fields are settled (above).
+  What remains of the audit below is only the Relationships map's two
+  tables.
 * **The audit this ticket itself calls for was never done.** Its own
   text says: "identify overlapping semantics, define which
   relationships belong in the universal graph... stop introducing new

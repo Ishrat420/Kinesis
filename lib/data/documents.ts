@@ -7,6 +7,7 @@ import { connection } from "next/server";
 import { requireKinesisUser } from "@/lib/auth";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
 import { prepareCustomFields } from "@/lib/custom-fields/parse";
+import { createLinksFromFields, splitKinesisLinkFields } from "./template-kinesis-links";
 import { presentCustomFields } from "@/lib/custom-fields/present";
 import { deleteObjects, objectFor } from "./objects";
 import { refuse, refuseConflict } from "@/lib/actions/refusal";
@@ -243,7 +244,10 @@ export async function getDocument(id: string) {
 export async function createDocument(data: DocumentInput & { id?: string }) {
   const user = await getCurrentUser();
   const { customFields = [], ...document } = data;
-  const fields = prepareCustomFields(customFields);
+  // A Kinesis Link field picked while creating is saved as Kinesis Links
+  // (KD-023), so it shows on the document and on what it points at.
+  const { fields: plainFields, links } = splitKinesisLinkFields(customFields);
+  const fields = prepareCustomFields(plainFields);
   return prisma.$transaction(async (tx) => {
     const created = await tx.document.create({
       data: {
@@ -255,6 +259,7 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
       },
     });
     await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+    await createLinksFromFields(tx, user.id, { objectId: created.objectId, name: created.name }, links);
     return created;
   });
 }
@@ -317,11 +322,15 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
     // of the fields being written here. Deleting the old rows was what handed
     // back an already-read reminder every time a document was renamed.
     await transaction.objectField.deleteMany({ where: { objectId: owned.objectId } });
-    const newFields = prepareCustomFields(customFields);
+    // The edit form adds Kinesis Links on its own (KD-050); a link field in
+    // this payload is still saved as links, never as a field (KD-023).
+    const split = splitKinesisLinkFields(customFields);
+    const newFields = prepareCustomFields(split.fields);
     await transaction.object.update({
       where: { id: owned.objectId },
       data: { fields: { create: newFields } },
     });
+    await createLinksFromFields(transaction, user.id, { objectId: owned.objectId, name: document.name ?? owned.name }, split.links);
 
     // `archived` gets its own named event (ITEM_ARCHIVED/RESTORED), not a
     // generic FIELD_CHANGED line -- it already has one in the enum, shared

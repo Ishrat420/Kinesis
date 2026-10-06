@@ -199,3 +199,6 @@ For every ad-hoc `ObjectField` where `type = 'KINESIS_LINK'` and
 * **Leaves untouched:** `TemplateFieldValues.tsx` / `TemplateFieldsEditor.tsx`
   and template-defined Kinesis Link fields (including the starter
   template's "Related" field) — a separate, later decision if ever revisited.
+  *Revisited in v1.5.0 (KD-023):* template link values, and link fields
+  picked on create forms, are now `ObjectRelationship` rows too
+  (`20261021000000_template_kinesis_links`).

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+import { readTemplateFieldLinks } from "./template-kinesis-links";
 import { requireKinesisUser } from "@/lib/auth";
 import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import type { TemplateFieldInput } from "@/lib/templates/parse";
@@ -107,14 +108,20 @@ export async function getTemplateFieldSample(templateId: string) {
     where: { templateId, userId: user.id },
     orderBy: { createdAt: "desc" },
     select: {
+      id: true,
       customItem: { select: { dueDate: true } },
-      fields: { where: { templateFieldId: { not: null } }, select: { templateFieldId: true, value: true, links: { select: { id: true } } } },
+      fields: { where: { templateFieldId: { not: null } }, select: { templateFieldId: true, value: true } },
     },
   });
   if (!object) return null;
   const values: Record<string, { value: string; linkCount: number }> = {};
   for (const field of object.fields) {
-    values[field.templateFieldId as string] = { value: field.value, linkCount: field.links.length };
+    values[field.templateFieldId as string] = { value: field.value, linkCount: 0 };
+  }
+  // A Kinesis Link field's count is its links (KD-023), not an ObjectField row.
+  for (const [key, targets] of await readTemplateFieldLinks(prisma, [object.id])) {
+    const fieldId = key.slice(object.id.length + 1);
+    values[fieldId] = { value: "", linkCount: targets.length };
   }
   return { dueDate: object.customItem?.dueDate ? object.customItem.dueDate.toISOString().slice(0, 10) : "", values };
 }
@@ -200,6 +207,12 @@ export async function updateTemplate(templateId: string, name: string, fields: T
       const existingField = field.id ? existingById.get(field.id) : undefined;
       if (existingField) {
         await tx.templateField.update({ where: { id: existingField.id }, data: { label: field.label, type: field.type, position, numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
+        // A Kinesis Link field's links carry its name as their label
+        // (KD-023), so a rename relabels them -- on the items and on every
+        // record they point at.
+        if (field.type === "KINESIS_LINK") {
+          await tx.objectRelationship.updateMany({ where: { templateFieldId: existingField.id, customLabel: { not: field.label } }, data: { customLabel: field.label } });
+        }
       } else {
         await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       }

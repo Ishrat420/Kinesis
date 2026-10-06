@@ -191,7 +191,9 @@ export async function updateKinesisLinkAction(objectId: string, relationshipId: 
     where: { id: relationshipId, userId: user.id, OR: [{ sourceObjectId: objectId }, { targetObjectId: objectId }] },
     include: { sourceObject: { select: { name: true } }, targetObject: { select: { name: true } } },
   });
-  if (!relationship) return;
+  // A template field's link (KD-023) takes its relationship from the field;
+  // retyping it would cut it loose from the field that shows it.
+  if (!relationship || relationship.templateFieldId) return;
 
   const choice = readKinesisLinkChoice(formData);
   if (!choice) return;

@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
     customItem: { findFirst: vi.fn() },
     templateField: { findMany: vi.fn() },
     objectField: { findMany: vi.fn() },
+    // KD-023: a Kinesis Link field's targets are Kinesis Links.
+    objectRelationship: { findMany: vi.fn() },
   },
 }));
 
@@ -27,6 +29,7 @@ describe("getCustomItem template field merge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireKinesisUser.mockResolvedValue(owner);
+    mocks.prisma.objectRelationship.findMany.mockResolvedValue([]);
   });
 
   it("merges template fields with this object's stored values, in template order", async () => {
@@ -61,8 +64,9 @@ describe("getCustomItem template field merge", () => {
     mocks.prisma.templateField.findMany.mockResolvedValue([
       { id: "field-links", templateId: "template-1", label: "Kinesis Links", type: "KINESIS_LINK", position: 0, isDueDate: false },
     ]);
-    mocks.prisma.objectField.findMany.mockResolvedValue([
-      { id: "value-1", objectId: "object-1", templateFieldId: "field-links", label: "", type: "KINESIS_LINK", value: "", position: 0, links: [{ id: "link-1", fieldId: "value-1", targetObjectId: "goal-object-1", position: 0 }] },
+    mocks.prisma.objectField.findMany.mockResolvedValue([]);
+    mocks.prisma.objectRelationship.findMany.mockResolvedValue([
+      { sourceObjectId: "object-1", targetObjectId: "goal-object-1", templateFieldId: "field-links" },
     ]);
 
     const item = await getCustomItem("module-1", "item-1");

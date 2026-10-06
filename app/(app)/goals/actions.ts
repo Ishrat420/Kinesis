@@ -14,6 +14,7 @@ import { revalidateShell } from "@/lib/actions/revalidate";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
+import { createLinksFromFields, splitKinesisLinkFields } from "@/lib/data/template-kinesis-links";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { diffObjectFields, recordEvent, recordFieldChanges, recordMilestoneUpdated, recordStatusChanged, type FieldChange, type MilestoneFieldChange } from "@/lib/data/object-events";
 import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
@@ -397,10 +398,12 @@ export async function updateGoalFieldsAction(id: string, _previousState: GoalAct
   if (!form.ok) return { error: form.error };
   const unowned = await validateKinesisTargets(form.fields);
   if (unowned) return { error: unowned };
-  const fields = prepareCustomFields(form.fields);
+  // A link field in this payload is saved as Kinesis Links, never as a field (KD-023).
+  const split = splitKinesisLinkFields(form.fields);
+  const fields = prepareCustomFields(split.fields);
   try {
     await prisma.$transaction(async (tx) => {
-      const owned = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true } });
+      const owned = await tx.goal.findFirst({ where: { id, userId: user.id }, select: { objectId: true, name: true } });
       if (!owned) refuse("This goal no longer exists.");
       const existingFields = await tx.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true, label: true, value: true } });
       const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
@@ -415,6 +418,7 @@ export async function updateGoalFieldsAction(id: string, _previousState: GoalAct
 
       const changes = diffObjectFields(existingFields, fields);
       await recordFieldChanges(tx, user.id, owned.objectId, changes);
+      await createLinksFromFields(tx, user.id, { objectId: owned.objectId, name: owned.name }, split.links);
     });
   } catch (failure) {
     const refused = refusalOf(failure);

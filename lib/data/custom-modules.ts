@@ -4,6 +4,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { refuse } from "@/lib/actions/refusal";
 import { presentCustomFields } from "@/lib/custom-fields/present";
 import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
+import { readTemplateFieldLinks } from "./template-kinesis-links";
 
 /** A custom item's own fields, off the shared `ObjectField` table, in display order, with each field's Kinesis Link targets in the order they were added. */
 const itemFieldsInclude = {
@@ -51,9 +52,11 @@ export async function getCustomModule(id: string) {
  * old fixed Due Date input reads and writes.
  */
 async function getTemplateFieldValues(objectId: string, templateId: string, itemDueDate: Date | null): Promise<TemplateFieldValue[]> {
-  const [templateFields, values] = await Promise.all([
+  // A Kinesis Link field's targets are Kinesis Links (KD-023), not ObjectField rows.
+  const [templateFields, values, links] = await Promise.all([
     prisma.templateField.findMany({ where: { templateId }, orderBy: { position: "asc" } }),
-    prisma.objectField.findMany({ where: { objectId, templateFieldId: { not: null } }, include: { links: { orderBy: { position: "asc" } } } }),
+    prisma.objectField.findMany({ where: { objectId, templateFieldId: { not: null } } }),
+    readTemplateFieldLinks(prisma, [objectId]),
   ]);
   const valueByField = new Map(values.map((value) => [value.templateFieldId as string, value]));
   return templateFields.map((field) => {
@@ -77,8 +80,8 @@ async function getTemplateFieldValues(objectId: string, templateId: string, item
       isDueDate: false,
       multiline: field.multiline,
       numberFormat: field.numberFormat ?? undefined,
-      value: value?.value ?? "",
-      targetObjectIds: value ? value.links.map((link) => link.targetObjectId) : [],
+      value: field.type === "KINESIS_LINK" ? "" : value?.value ?? "",
+      targetObjectIds: field.type === "KINESIS_LINK" ? links.get(`${objectId}:${field.id}`) ?? [] : [],
     };
   });
 }

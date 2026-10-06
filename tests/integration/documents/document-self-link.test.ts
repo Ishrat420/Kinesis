@@ -62,7 +62,10 @@ describe.sequential("updateDocument: refuses linking a document to itself", () =
     }, document.updatedAt);
 
     expect(result.name).toBe("Passport");
-    const [field] = await prisma.objectField.findMany({ where: { objectId: "self-link-doc-object" }, include: { links: true } });
-    expect(field.links.map((link) => link.targetObjectId)).toEqual(["self-link-other-object"]);
+    // Saved as a Kinesis Link named after the field (KD-023), not a field.
+    await expect(prisma.objectField.count({ where: { objectId: "self-link-doc-object" } })).resolves.toBe(0);
+    await expect(prisma.objectRelationship.findMany({ where: { sourceObjectId: "self-link-doc-object" } })).resolves.toMatchObject([
+      { targetObjectId: "self-link-other-object", type: "CUSTOM", customLabel: "Related" },
+    ]);
   });
 });

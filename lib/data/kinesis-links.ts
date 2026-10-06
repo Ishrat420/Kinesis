@@ -9,6 +9,7 @@ import { formatDateInput } from "@/lib/dates";
 import { displayNumber } from "@/lib/goals/format";
 import { describeObjectEvent, type ObjectEventDescription } from "./object-events";
 import { calculateEventSurfaceScore } from "./surface-score";
+import { readTemplateFieldLinks } from "./template-kinesis-links";
 
 /** One configured preview field, already resolved and formatted, ready to render. */
 export type KinesisLinkPreviewStat = { label: string; kind: DisplayKind; value: string };
@@ -128,12 +129,16 @@ async function getCustomItemPreviews(objectIds: string[], userId: string, contex
     }
   }
 
-  const values = neededFieldIds.size
-    ? await prisma.objectField.findMany({
-        where: { objectId: { in: objects.map(({ id }) => id) }, templateFieldId: { in: [...neededFieldIds] } },
-        select: { objectId: true, templateFieldId: true, value: true, links: { select: { id: true } } },
-      })
-    : [];
+  const [values, linksByKey] = neededFieldIds.size
+    ? await Promise.all([
+        prisma.objectField.findMany({
+          where: { objectId: { in: objects.map(({ id }) => id) }, templateFieldId: { in: [...neededFieldIds] } },
+          select: { objectId: true, templateFieldId: true, value: true },
+        }),
+        // A Kinesis Link field's count is its links (KD-023), not an ObjectField row.
+        readTemplateFieldLinks(prisma, objects.map(({ id }) => id), [...neededFieldIds]),
+      ])
+    : [[], new Map<string, string[]>()];
   const valueByKey = new Map(values.map((value) => [`${value.objectId}:${value.templateFieldId}`, value]));
 
   for (const object of objects) {
@@ -155,7 +160,7 @@ async function getCustomItemPreviews(objectIds: string[], userId: string, contex
       const raw = field.isDueDate
         ? { value: toDateOnly(object.customItem?.dueDate ?? null) }
         : kind === "link-count"
-        ? { linkCount: valueByKey.get(`${object.id}:${field.id}`)?.links.length ?? 0 }
+        ? { linkCount: linksByKey.get(`${object.id}:${field.id}`)?.length ?? 0 }
         : { value: valueByKey.get(`${object.id}:${field.id}`)?.value ?? "" };
 
       const stat = buildStat(field.label, kind, raw, context);

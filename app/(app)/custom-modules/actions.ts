@@ -15,6 +15,7 @@ import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/acti
 import { parseDateOnly, formatDateInput } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
+import { createLinksFromFields, saveTemplateFieldLinks, splitKinesisLinkFields } from "@/lib/data/template-kinesis-links";
 import { checkLength, checkNumberMagnitude, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { getFormatPreferences } from "@/lib/format/server";
@@ -100,9 +101,12 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
         id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, dueDate,
         // Whatever the module is currently linked to, permanently, per KD-035
         // Decision 7 -- later relinking the module never reaches back to this item.
-        object: objectFor.customItem(name, user.id, prepareCustomFields(form.fields), ownedModule.templateId),
+        // A Kinesis Link field picked while creating is saved as Kinesis
+        // Links below (KD-023), not as a field.
+        object: objectFor.customItem(name, user.id, prepareCustomFields(splitKinesisLinkFields(form.fields).fields), ownedModule.templateId),
       } });
       await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+      await createLinksFromFields(tx, user.id, { objectId: created.objectId, name }, splitKinesisLinkFields(form.fields).links);
       if (ownedModule.templateId && templateValues.values.length) {
         await saveTemplateFieldValues(tx, user.id, created.objectId, ownedModule.templateId, templateValues.values, dueDateField?.id ?? null);
       }
@@ -136,7 +140,9 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
   // skipping the check.
   const expectedUpdatedAt = new Date(getValue(data, "updatedAt"));
   if (Number.isNaN(expectedUpdatedAt.getTime())) return { error: "This item could not be identified. Reload and try again." };
-  const fields = prepareCustomFields(form.fields);
+  // A link field in this payload is saved as Kinesis Links, never as a field (KD-023).
+  const split = splitKinesisLinkFields(form.fields);
+  const fields = prepareCustomFields(split.fields);
   let updatedAt: Date;
   try {
     updatedAt = await prisma.$transaction(async (tx) => {
@@ -199,6 +205,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     // one batched statement. The count here is always small.
     for (const field of fields) await tx.objectField.create({ data: { ...field, objectId: ownedItem.objectId } });
     await recordFieldChanges(tx, user.id, ownedItem.objectId, diffObjectFields(existingFields, fields));
+    await createLinksFromFields(tx, user.id, { objectId: ownedItem.objectId, name }, split.links);
 
     if (templateId && templateValues.values.length) {
       await saveTemplateFieldValues(tx, user.id, ownedItem.objectId, templateId, templateValues.values, dueDateField?.id ?? null);
@@ -269,12 +276,21 @@ async function saveTemplateFieldValues(
   // this costs nothing extra beyond the first call in the request).
   const prefs = await getFormatPreferences();
   const changes: FieldChange[] = [];
+  const item = await tx.object.findUniqueOrThrow({ where: { id: objectId }, select: { name: true } });
   for (const submitted of values) {
     if (submitted.templateFieldId === dueDateFieldId) continue;
     // Ignore a field id that isn't actually part of this item's template --
     // stale, or never legitimate. Nothing to write either way.
     const templateField = templateFields.get(submitted.templateFieldId);
     if (!templateField) continue;
+
+    // A Kinesis Link field's targets are Kinesis Links (KD-023), so the
+    // linked records show them as backlinks; each added or removed target is
+    // recorded in both records' History there, not as a field change here.
+    if (templateField.type === "KINESIS_LINK") {
+      await saveTemplateFieldLinks(tx, userId, { objectId, name: item.name }, templateField, submitted.targetObjectIds);
+      continue;
+    }
 
     // KD-043: same length/range limits as an ad-hoc field, keyed the same
     // way -- except TEXT here has two tiers, since only a template field can

@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
     // transaction client -- these calls are real once createCustomItemAction
     // runs, even though no test here asserts on them.
     objectEvent: { create: vi.fn(), createMany: vi.fn() },
+    // KD-023: Kinesis Link fields are saved as Kinesis Links.
+    object: { findUniqueOrThrow: vi.fn(async () => ({ name: "New item" })), findMany: vi.fn(async () => []) },
+    objectRelationship: { findMany: vi.fn(async () => []), createMany: vi.fn(async () => ({ count: 0 })), deleteMany: vi.fn() },
   },
   prisma: {
     customModule: { findFirst: vi.fn() },
