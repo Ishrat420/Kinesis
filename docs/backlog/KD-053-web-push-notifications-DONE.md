@@ -1,19 +1,21 @@
 # KD-053 — Web Push Notifications for Bell Items
 
-**Status:** Done — pending Android test and production test
+**Status:** Done — pending confirmation of a production cron run
 **Priority:** High
 **Tags:** Architecture / Data Model / Integration
 
 ## Pending
 
-- **Android test:** the installed app (sign-in, navigation, push) has only
-  been tested on iPhone.
-- **Production test:** `v1.3.0` isn't merged to `main` yet, and Vercel runs
-  the daily cron only on production. Before relying on it:
+- ~~**Android test:**~~ **Done (v1.5.0):** push tested on both an iPhone
+  and an Android device.
+- **Production test:** Vercel runs the daily cron only on production.
+  Before relying on it:
   - set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and
     `CRON_SECRET` for Production in Vercel;
-  - after the merge, confirm the first scheduled 20:00 UTC run delivers a
-    push.
+  - confirm a scheduled 20:00 UTC run succeeded: Vercel → Project →
+    Settings → Cron Jobs → View logs for `/api/cron/push-notifications`
+    should show a 200 with `{"configured":true,...}` (a 401 means
+    `CRON_SECRET` is missing, a 503 means the VAPID keys are).
 
 ## Summary
 
