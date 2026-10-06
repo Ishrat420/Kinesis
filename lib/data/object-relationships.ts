@@ -3,6 +3,7 @@ import { requireKinesisUser } from "@/lib/auth";
 import { prisma } from "./prisma";
 import { locateObject, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 import { kinesisLinkLabel } from "@/lib/objects/relationship-labels";
+import { getKinesisLinkPreviews, getKinesisLinkRecentEvents, type KinesisLinkPreviewStat, type KinesisLinkRecentEvent } from "./kinesis-links";
 
 /** One Kinesis Link, already resolved from the current Object's own side (KD-049). */
 export type KinesisLink = {
@@ -44,4 +45,27 @@ export async function getKinesisLinks(objectId: string): Promise<KinesisLink[]> 
       target,
     }];
   });
+}
+
+/** Everything a read-only "Kinesis Links" section needs to render an Object's links as full cards -- the links themselves plus each target's preview stats and sneak-peek event. */
+export type KinesisLinkSection = {
+  links: KinesisLink[];
+  previews: Record<string, KinesisLinkPreviewStat[]>;
+  recentEvents: Record<string, KinesisLinkRecentEvent>;
+};
+
+/**
+ * One call for pages that show an Object's Kinesis Links without also
+ * offering the "Add custom field -> Kinesis Link" picker (Finance Items,
+ * People) -- unlike Documents/Goals/Custom Items, there are no picker
+ * candidates to preview, so only the linked targets themselves are read.
+ */
+export async function getKinesisLinkSection(objectId: string): Promise<KinesisLinkSection> {
+  const links = await getKinesisLinks(objectId);
+  const targetIds = [...new Set(links.map((link) => link.target.objectId))];
+  const [previews, recentEvents] = await Promise.all([
+    getKinesisLinkPreviews(targetIds),
+    getKinesisLinkRecentEvents(links.map((link) => ({ objectId: link.target.objectId, linkType: link.type }))),
+  ]);
+  return { links, previews, recentEvents };
 }

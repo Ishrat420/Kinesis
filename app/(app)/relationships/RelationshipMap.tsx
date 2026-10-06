@@ -50,6 +50,7 @@ import { formatDate, formatDateInput } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { saveMapGeometry, saveRelationshipMap } from "./actions";
 import { PersonHistoryCard, RelationshipHistoryCard } from "./HistoryCard";
+import { PersonKinesisLinksCard } from "./KinesisLinksCard";
 import { NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { Z_INDEX } from "@/lib/layout/z-index";
 import { BUBBLE_COLORS, contentFingerprint, discardContentChanges, pickBubbleColor, emptySelfRelationship, hasRelationshipBetween, isPracticeCadence, isSelfPerson, mapGeometry, PRACTICE_CADENCES, toggleMultiSelect, type ConnectionPracticeEntry, type ImportantDateEntry, type PersonGeometry, type PersonIconName, type PracticeCadence, type ReflectionEntry, type RelationshipMapData, type RelationshipPerson as Person, type RelationshipRecord as Relationship, type SelfRelationship } from "@/lib/relationships";
@@ -513,6 +514,7 @@ function PersonInspector({ person, relationships, people, justCreatedPersonIdRef
       )}
 
       <button onClick={onDelete} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5"/>Remove person</button>
+      <PersonKinesisLinksCard objectId={person.objectId} />
       <PersonHistoryCard objectId={person.objectId} locale={locale} />
     </div>
   </div>;

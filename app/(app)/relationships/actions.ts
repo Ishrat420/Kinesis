@@ -19,6 +19,7 @@ import { revalidateShell } from "@/lib/actions/revalidate";
 import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 import { getObjectEvents } from "@/lib/data/object-event-history";
 import type { ObjectHistoryEntry } from "@/components/history/ObjectHistory";
+import { getKinesisLinks, type KinesisLink } from "@/lib/data/object-relationships";
 import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/actions/refusal";
 
 export type RelationshipMapState = { error?: string; savedAt?: number; conflict?: boolean; version?: number };
@@ -365,4 +366,17 @@ export async function getPersonHistoryAction(objectId: string): Promise<ObjectHi
   if (!owned) return [];
   const events = await getObjectEvents(objectId);
   return events.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }));
+}
+
+/**
+ * A Person's Kinesis Links -- every record linked to (or from) them through a
+ * Kinesis Link field -- fetched on demand for the inspector's collapsed
+ * Kinesis Links card, for the same one-query-per-inspected-person reason as
+ * `getPersonHistoryAction` above, with the same narrow ownership contract.
+ */
+export async function getPersonKinesisLinksAction(objectId: string): Promise<KinesisLink[]> {
+  const user = await requireKinesisUser();
+  const owned = await prisma.person.findFirst({ where: { objectId, userId: user.id }, select: { id: true } });
+  if (!owned) return [];
+  return getKinesisLinks(objectId);
 }

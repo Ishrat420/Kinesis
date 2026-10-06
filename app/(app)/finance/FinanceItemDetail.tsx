@@ -7,6 +7,8 @@ import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { ModuleContent } from "@/components/layout/ModuleContent";
 import { Modal } from "@/components/overlay/Modal";
 import { ObjectHistory, type ObjectHistoryEntry } from "@/components/history/ObjectHistory";
+import { KinesisLinksSection } from "@/components/kinesis-links/KinesisLinksSection";
+import type { KinesisLinkSection } from "@/lib/data/object-relationships";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { formatDate } from "@/lib/dates";
 import { type FinanceKind, getFinanceProjection, getLiabilityHealth, getMonthsToPayoff, getProjectedAmount } from "@/lib/finance";
@@ -57,7 +59,8 @@ function FinanceItemFields({ item, today }: { item: FinanceItemDetail; today: Da
 
 /**
  * A Finance Item's own detail view (KD-048) -- read fields, an inline edit
- * toggle reusing the dashboard's own `FinanceForm`, and its History section.
+ * toggle reusing the dashboard's own `FinanceForm`, its Kinesis Links (collapsed,
+ * since an account can be linked from many records) and its History section.
  * Rendered two ways from the same component: as the real page at
  * `/finance/[itemId]` (`asModal` false, the default -- reached directly, by
  * refresh, or by a shared link), and as the "big window" intercepted route
@@ -65,7 +68,14 @@ function FinanceItemFields({ item, today }: { item: FinanceItemDetail; today: Da
  * reached by clicking a row from the dashboard, so the URL still changes but
  * the dashboard stays mounted underneath).
  */
-export function FinanceItemDetailView({ item, history, asModal = false }: { item: FinanceItemDetail; history: ObjectHistoryEntry[]; asModal?: boolean }) {
+export function FinanceItemDetailView({ item, history, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction, asModal = false }: {
+  item: FinanceItemDetail;
+  history: ObjectHistoryEntry[];
+  kinesisLinks: KinesisLinkSection;
+  updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
+  removeKinesisLinkAction: (linkId: string) => Promise<void>;
+  asModal?: boolean;
+}) {
   const router = useRouter();
   const today = useToday();
   const { locale } = useFormatPreferences();
@@ -87,6 +97,11 @@ export function FinanceItemDetailView({ item, history, asModal = false }: { item
     ? <FinanceForm kind={item.kind} item={item} onSaved={() => setEditing(false)} today={today} />
     : <FinanceItemFields item={item} today={today} />;
 
+  const records = !editing && <>
+    <div className="mt-5"><KinesisLinksSection section={kinesisLinks} updateAction={updateKinesisLinkAction} removeAction={removeKinesisLinkAction} /></div>
+    <div className="mt-5"><ObjectHistory entries={history} fallbackCreatedAt={item.createdAt} locale={locale} /></div>
+  </>;
+
   const deleteModal = deleting && <DeleteFinanceItem item={item} onCancel={() => setDeleting(false)} onDeleted={() => router.push("/finance")} />;
 
   if (asModal) {
@@ -105,7 +120,7 @@ export function FinanceItemDetailView({ item, history, asModal = false }: { item
         </div>
         <div className="mt-5">{actions}</div>
         <div className="mt-6">{body}</div>
-        {!editing && <div className="mt-5"><ObjectHistory entries={history} fallbackCreatedAt={item.createdAt} locale={locale} /></div>}
+        {records}
       </Modal>
       {deleteModal}
     </>;
@@ -123,7 +138,7 @@ export function FinanceItemDetailView({ item, history, asModal = false }: { item
       actions={actions}
     />
     <div className="mt-6 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">{body}</div>
-    {!editing && <div className="mt-5"><ObjectHistory entries={history} fallbackCreatedAt={item.createdAt} locale={locale} /></div>}
+    {records}
     {deleteModal}
   </ModuleContent>;
 }

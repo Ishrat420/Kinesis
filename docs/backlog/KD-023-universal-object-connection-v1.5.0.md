@@ -49,8 +49,17 @@ from other tickets' own claims:
 
 ## What's left
 
-* **Finance Item and Person have no Connections UI on their own pages,
-  despite being valid link targets.** Confirmed by reading
+* **Done in v1.5.0:** Finance Items and People now show their Kinesis
+  Links in a collapsed-by-default **Kinesis Links** section, the same
+  pattern as History. Both are linked *to* far more than they link out (a
+  savings account can be named by many goals), so the list stays closed
+  until asked for and its closed state just says how many links there are
+  and which modules they come from. Finance item pages (and the modal over
+  the Finance dashboard) get the full cards with change/remove; the
+  Relationships map's Person inspector gets a compact, read-only card list,
+  loaded on demand like its History. The original gap, kept for the record:
+* ~~**Finance Item and Person have no Connections UI on their own pages,
+  despite being valid link targets.**~~ Confirmed by reading
   `app/(app)/finance/[itemId]/page.tsx` -- it loads History but never
   calls `getKinesisLinks`. Confirmed by reading the Relationships map's
   Person inspector -- it shows the separate Person-to-Person

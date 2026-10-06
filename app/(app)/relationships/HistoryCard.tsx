@@ -13,9 +13,11 @@ import type { ObjectHistoryEntry } from "@/components/history/ObjectHistory";
  * which had no equivalent box before. Collapsed so an inspector already
  * showing several sections doesn't grow further just to hold a rarely-opened
  * list; expanding it "pans out" in place via a CSS grid-row transition
- * rather than pushing content below it around unpredictably.
+ * rather than pushing content below it around unpredictably. Exported (with
+ * its icon and title overridable) so a Person's Kinesis Links card shares the
+ * exact same shell.
  */
-function HistoryShell({ count, children }: { count: number; children: React.ReactNode }) {
+export function InspectorDisclosure({ icon: Icon = Clock, title = "History", count, children }: { icon?: React.ElementType; title?: string; count: number; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-5 overflow-hidden rounded-2xl border border-zinc-200">
@@ -25,8 +27,8 @@ function HistoryShell({ count, children }: { count: number; children: React.Reac
         aria-expanded={open}
         className="flex w-full items-center gap-2 bg-[#f7f5f1] px-3.5 py-2.5 text-left hover:bg-zinc-100/70"
       >
-        <Clock className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
-        <span className="flex-1 text-xs font-semibold text-zinc-700">History</span>
+        <Icon className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+        <span className="flex-1 text-xs font-semibold text-zinc-700">{title}</span>
         {count > 0 && <span className="rounded-full bg-zinc-200/70 px-1.5 text-[10px] font-semibold text-zinc-500">{count}</span>}
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
@@ -75,11 +77,11 @@ export function PersonHistoryCard({ objectId, locale }: { objectId: string | nul
   if (!objectId) return null;
 
   return (
-    <HistoryShell count={entries.length}>
+    <InspectorDisclosure count={entries.length}>
       {entries.length === 0
         ? <p className="text-[11px] text-zinc-400">Nothing recorded yet.</p>
         : <div className="space-y-2.5">{entries.map((entry) => <HistoryRow key={entry.id} title={entry.title} detail={entry.detail} time={formatDate(entry.occurredAt, locale)} />)}</div>}
-    </HistoryShell>
+    </InspectorDisclosure>
   );
 }
 
@@ -92,11 +94,11 @@ export function PersonHistoryCard({ objectId, locale }: { objectId: string | nul
  */
 export function RelationshipHistoryCard({ createdAt, locale }: { createdAt: string; locale: string }) {
   return (
-    <HistoryShell count={1}>
+    <InspectorDisclosure count={1}>
       <HistoryRow title="Connected" time={formatDate(createdAt, locale)} />
       <p className="mt-3 border-t border-zinc-100 pt-2.5 text-[10px] leading-4 text-zinc-400">
         Edits to this connection aren&apos;t tracked yet, so this is all there is to show today.
       </p>
-    </HistoryShell>
+    </InspectorDisclosure>
   );
 }
