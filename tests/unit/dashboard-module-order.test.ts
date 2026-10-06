@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DASHBOARD_SYSTEM_MODULE_IDS, MAX_CUSTOM_DASHBOARD_MODULES, moveId, resolveDashboardOrder } from "@/lib/dashboard/module-order";
+import { addableCustomModules, DASHBOARD_SYSTEM_MODULE_IDS, MAX_CUSTOM_DASHBOARD_MODULES, moveId, resolveDashboardOrder } from "@/lib/dashboard/module-order";
 
 /**
  * The dashboard's Module Shortcuts grid used to hold its order in plain
@@ -79,5 +79,18 @@ describe("moveId", () => {
     const order = ["documents", "goals", "finance", "relationships"];
     moveId(order, "relationships", "goals");
     expect(order).toEqual(["documents", "goals", "finance", "relationships"]);
+  });
+});
+
+describe("addableCustomModules (KD-045)", () => {
+  const modules = [{ id: "car", name: "Car" }, { id: "pets", name: "Pets" }, { id: "home", name: "Home" }];
+
+  it("offers only the custom modules not already on the grid, keeping their order and details", () => {
+    expect(addableCustomModules(modules, ["documents", "goals", "pets", "finance", "relationships"])).toEqual([{ id: "car", name: "Car" }, { id: "home", name: "Home" }]);
+  });
+
+  it("offers nothing when every custom module is already on the grid, or none exist", () => {
+    expect(addableCustomModules(modules, ["car", "pets", "home"])).toEqual([]);
+    expect(addableCustomModules([], [...DASHBOARD_SYSTEM_MODULE_IDS])).toEqual([]);
   });
 });

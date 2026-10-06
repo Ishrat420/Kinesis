@@ -47,3 +47,13 @@ export function moveId(order: readonly string[], draggedId: string, targetId: st
   next.splice(targetIndex, 0, draggedId);
   return next;
 }
+
+/**
+ * The custom modules the phone's "Add a module" sheet offers (KD-045): those
+ * not already on the grid, in their own order. Generic over the module shape
+ * so the sheet can keep each one's icon, colour and item count.
+ */
+export function addableCustomModules<T extends { id: string }>(customModules: readonly T[], order: readonly string[]): T[] {
+  const onGrid = new Set(order);
+  return customModules.filter((module) => !onGrid.has(module.id));
+}

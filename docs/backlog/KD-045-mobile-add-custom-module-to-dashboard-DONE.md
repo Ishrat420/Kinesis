@@ -1,8 +1,32 @@
 # KD-045 — Add Custom Module to Dashboard on Mobile
 
-**Status:** Planning Needed  
-**Priority:** Medium  
+**Status:** Done
+**Priority:** Medium
 **Tags:** UX / UI
+**Planned Release:** v1.5.0
+
+## What shipped (v1.5.0)
+
+Option 3 below, **on phones only** (below the `md` breakpoint, where the
+sidebar is replaced by the tab bar). Desktop is unchanged: the faint "Drop a
+custom module here" hint and sidebar drag-and-drop work exactly as before.
+
+* On a phone the hint is replaced by an **"+ Add a module · N slots
+  available"** button. It opens a bottom sheet listing the custom modules
+  not yet on the dashboard, each with its icon, colour and item count.
+  Tapping one adds it and closes the sheet. It goes through the same
+  `addCustomModuleById` as the desktop drop, so the 2-module cap, duplicate
+  check and save are shared.
+* With nothing to offer (none made, or all already on the dashboard), the
+  sheet points to **More → Add Module** instead of showing an empty list.
+* When both slots are full, phones show "Dashboard full. Remove a module to
+  add another." instead of nothing.
+* The sheet is KD-054's More sheet (swipe down, tap outside or Escape to
+  close), moved out of `MobileTabBar.tsx` into
+  `components/overlay/BottomSheet.tsx` so both share it.
+* Decisions on the open questions: desktop drag-and-drop stays (it's the
+  only desktop path, by choice); the button shows only while a slot is free;
+  this shipped on its own rather than under KD-017, which is already Done.
 
 ## Summary
 

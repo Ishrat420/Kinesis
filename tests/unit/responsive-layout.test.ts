@@ -97,6 +97,15 @@ describe("mobile navigation", () => {
     expect(shell).toContain("<SidebarNav withOverview={false} />");
   });
 
+  it("adds dashboard modules by drag on desktop and by a tap-to-open sheet on phones (KD-045)", () => {
+    const shortcuts = sources.get(join("components", "dashboard", "ModuleShortcuts.tsx")) ?? "";
+    const sheet = sources.get(join("components", "overlay", "BottomSheet.tsx")) ?? "";
+    expect(shortcuts).toMatch(/hidden rounded-2xl border border-dashed[^"]*md:block">\s*Drop a custom module here/);
+    expect(shortcuts).toMatch(/onClick=\{\(\) => setAdding\(true\)\}[\s\S]*?md:hidden/);
+    expect(sheet).toContain("md:hidden");
+    expect(tabBar).toContain("<BottomSheet");
+  });
+
   it("leaves room at the bottom of every page for the tab bar", () => {
     expect(shell).toContain("pb-(--tab-bar-clearance)");
     expect(shell).toContain("md:pb-8");
