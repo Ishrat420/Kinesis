@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { ObjectRelationshipType, Prisma } from "@prisma/client";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { recordRelationshipAdded, recordRelationshipRemoved } from "./object-events";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
@@ -115,5 +115,31 @@ export async function createLinksFromFields(tx: Client, userId: string, source: 
       });
       if (created.count) await recordRelationshipAdded(tx, { userId, source, target: { objectId: target.id, name: target.name }, type: "CUSTOM", customLabel: label });
     }
+  }
+}
+
+/** One Kinesis Link picked on a create form, read back from the relationship picker: its type, which way it faces, and the target. */
+export type PendingKinesisLink = { targetObjectId: string; type: ObjectRelationshipType; inverse: boolean; customLabel: string | null };
+
+/**
+ * Creates the Kinesis Links picked on a create form (a new Finance item's),
+ * once the record itself exists. Targets must already be checked as the
+ * caller's own. A link that already exists between the same two records with
+ * the same type (or Custom label) is the same fact, and is left as it is.
+ */
+export async function createPendingLinks(tx: Client, userId: string, record: Endpoint, links: PendingKinesisLink[]) {
+  if (!links.length) return;
+  const targets = await tx.object.findMany({ where: { id: { in: links.map((link) => link.targetObjectId) }, userId }, select: { id: true, name: true } });
+  const nameOf = new Map(targets.map((target) => [target.id, target.name]));
+  for (const link of links) {
+    const name = nameOf.get(link.targetObjectId);
+    if (name === undefined || link.targetObjectId === record.objectId) continue;
+    const other = { objectId: link.targetObjectId, name };
+    const [source, target] = link.inverse ? [other, record] : [record, other];
+    const created = await tx.objectRelationship.createMany({
+      data: [{ userId, sourceObjectId: source.objectId, targetObjectId: target.objectId, type: link.type, customLabel: link.customLabel, pairKey: objectPairKey(source.objectId, target.objectId) }],
+      skipDuplicates: true,
+    });
+    if (created.count) await recordRelationshipAdded(tx, { userId, source, target, type: link.type, customLabel: link.customLabel });
   }
 }

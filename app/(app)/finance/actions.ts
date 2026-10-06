@@ -12,6 +12,9 @@ import { revalidateShell } from "@/lib/actions/revalidate";
 import { recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
 import { formatDateInput } from "@/lib/dates";
 import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
+import { createPendingLinks, type PendingKinesisLink } from "@/lib/data/template-kinesis-links";
+import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
+import { CUSTOM_KINESIS_LINK_OPTION_VALUE, parseKinesisLinkDirectionValue } from "@/lib/objects/relationship-labels";
 
 export type FinanceActionState = { error?: string; saved?: boolean };
 
@@ -78,10 +81,15 @@ function financeAmountLabel(kind: FinanceKind, category: string | null): string 
   return kind[0].toUpperCase() + kind.slice(1);
 }
 
-export async function saveFinanceItem(item: FinanceItem): Promise<FinanceActionState> {
+export async function saveFinanceItem(item: FinanceItem, links: PendingKinesisLink[] = []): Promise<FinanceActionState> {
   const user = await requireKinesisUser();
   const error = validate(item);
   if (error) return { error };
+  if (links.length) {
+    const targetIds = [...new Set(links.map((link) => link.targetObjectId))];
+    const owned = await prisma.object.count({ where: { id: { in: targetIds }, userId: user.id } });
+    if (owned !== targetIds.length) return { error: "One of the linked items no longer exists. Remove it and try again." };
+  }
   const name = item.name.trim();
   // KD-044: today becomes the new `balanceAsOf` on every save, not just one
   // that changes `amount` -- the amount the form submits is always the
@@ -111,6 +119,9 @@ export async function saveFinanceItem(item: FinanceItem): Promise<FinanceActionS
     } else {
       const created = await tx.financeItem.create({ data: { id: item.id, user: { connect: { id: user.id } }, ...data, object: objectFor.financeItem(name, user.id) } });
       await recordEvent(tx, user.id, created.objectId, "ITEM_CREATED");
+      // Links picked on the Add form; an existing item adds its links from
+      // its own page instead.
+      await createPendingLinks(tx, user.id, { objectId: created.objectId, name }, links);
     }
   });
   revalidateShell();
@@ -157,6 +168,44 @@ function financeItemFrom(kind: FinanceKind, existingId: string | null, formData:
   return item;
 }
 
+/** The most links one Add form will create at once -- far beyond real use, a bound on a hand-crafted payload. */
+const MAX_PENDING_LINKS = 50;
+
+/**
+ * The Kinesis Links picked on the Add form: a JSON list of the relationship
+ * picker's values (`direction`, `customLabel`) plus a target. Anything
+ * malformed is refused rather than dropped, so a link is never silently lost.
+ */
+function pendingLinksFrom(formData: FormData): PendingKinesisLink[] | { error: string } {
+  const raw = String(formData.get("kinesisLinks") ?? "").trim();
+  if (!raw) return [];
+  let entries: unknown;
+  try { entries = JSON.parse(raw); } catch { return { error: "The links on this form couldn't be read. Remove them and add them again." }; }
+  if (!Array.isArray(entries) || entries.length > MAX_PENDING_LINKS) return { error: "The links on this form couldn't be read. Remove them and add them again." };
+  const links: PendingKinesisLink[] = [];
+  for (const entry of entries) {
+    const { targetObjectId, direction, customLabel } = (entry ?? {}) as Record<string, unknown>;
+    if (typeof targetObjectId !== "string" || !targetObjectId || typeof direction !== "string") return { error: "Choose what each link points at." };
+    if (direction === CUSTOM_KINESIS_LINK_OPTION_VALUE) {
+      const label = typeof customLabel === "string" ? customLabel.trim() : "";
+      if (!label) return { error: "Type a label for each custom link." };
+      const lengthError = checkLength(label, TEXT_LIMIT, "a link's label");
+      if (lengthError) return { error: lengthError };
+      links.push({ targetObjectId, type: "CUSTOM", inverse: false, customLabel: label });
+    } else {
+      const parsed = parseKinesisLinkDirectionValue(direction);
+      if (!parsed) return { error: "Choose a valid relationship for each link." };
+      links.push({ targetObjectId, type: parsed.type, inverse: parsed.inverse, customLabel: null });
+    }
+  }
+  return links;
+}
+
+/** What a new Finance item can link to, fetched when its Add form opens rather than on every Finance page load. */
+export async function financeLinkOptionsAction() {
+  return getKinesisLinkOptions();
+}
+
 /**
  * The form's entry point, in the shape `useActionState` binds to.
  *
@@ -167,8 +216,11 @@ function financeItemFrom(kind: FinanceKind, existingId: string | null, formData:
  */
 export async function saveFinanceItemAction(kind: FinanceKind, existingId: string | null, _previousState: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   if (!isFinanceKind(kind)) return { error: "Choose a valid item type." };
+  // Links are only ever picked on the Add form (existingId null).
+  const links = existingId ? [] : pendingLinksFrom(formData);
+  if (!Array.isArray(links)) return links;
   try {
-    return await saveFinanceItem(financeItemFrom(kind, existingId, formData));
+    return await saveFinanceItem(financeItemFrom(kind, existingId, formData), links);
   } catch {
     return { error: SAVE_FAILED };
   }

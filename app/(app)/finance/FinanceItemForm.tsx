@@ -18,7 +18,8 @@ import {
 } from "@/lib/finance";
 import { formatDate, formatDateInput } from "@/lib/dates";
 import { NOTES_LIMIT } from "@/lib/validation/field-limits";
-import { deleteFinanceItemAction, saveFinanceItemAction, type FinanceActionState } from "@/app/(app)/finance/actions";
+import { deleteFinanceItemAction, financeLinkOptionsAction, saveFinanceItemAction, type FinanceActionState } from "@/app/(app)/finance/actions";
+import { PendingKinesisLinks } from "@/components/kinesis-links/PendingKinesisLinks";
 import { useFormatPreferences } from "@/lib/format/context";
 import { formatMoney } from "@/lib/format/numbers";
 import { Modal } from "@/components/overlay/Modal";
@@ -168,6 +169,9 @@ export function FinanceForm({ kind, item, onSaved, today }: { kind: Kind; item: 
       <div className="grid grid-cols-2 gap-3"><Field label="Start date"><DateField name="startDate" value={startDateInput} onChange={setStartDateInput} ariaLabel="Start date"/></Field><Field label="End date"><DateField name="endDate" value={endDateInput} onChange={setEndDateInput} ariaLabel="End date"/></Field></div>
     </>}
     <Field label="Notes"><textarea spellCheck name="notes" rows={3} maxLength={NOTES_LIMIT} defaultValue={item?.notes} placeholder="Optional details" className={`${FIELD_CLASS} min-h-[92px] resize-y py-3`}/></Field>
+    {/* Adding only: an existing item links from its own page's Kinesis Links section. */}
+    {/* Not <Field>: that's a <label>, and this holds several controls of its own. */}
+    {!item && <div><p className="mb-2 text-sm font-semibold text-zinc-900">Kinesis Links</p><PendingKinesisLinks loadOptions={financeLinkOptionsAction}/></div>}
     {error && <p role="alert" className="text-sm font-medium text-red-600">{error}</p>}
     <button type="submit" disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70">{saving ? "Saving…" : <><Check className="h-4 w-4" aria-hidden="true"/>{item ? "Save changes" : `Add ${kindLabels[kind]}`}</>}</button>
   </form>;

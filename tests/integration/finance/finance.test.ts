@@ -155,4 +155,74 @@ describe.sequential("the finance data layer", () => {
       await prisma.user.deleteMany({ where: { id: stranger } });
     });
   });
+
+  describe("Kinesis Links picked on the Add form", () => {
+    const stranger = "finance-links-stranger";
+    const links = (entries: unknown) => JSON.stringify(entries);
+
+    beforeEach(async () => {
+      for (const [id, name] of [["fl-goal", "Buy a house"], ["fl-goal-2", "Retire early"]]) {
+        await prisma.object.create({ data: { id: `${id}-object`, type: "GOAL", name, userId: owner } });
+        await prisma.goal.create({ data: { id, name, userId: owner, objectId: `${id}-object` } });
+      }
+      await prisma.user.deleteMany({ where: { id: stranger } });
+      await prisma.user.create({ data: { id: stranger, firstName: "Some", lastName: "Stranger", email: "finance-links-stranger@example.test" } });
+      await prisma.object.create({ data: { id: "fl-foreign-object", type: "GOAL", name: "Not yours", userId: stranger } });
+    });
+
+    afterAll(async () => { await prisma.user.deleteMany({ where: { id: stranger } }); });
+
+    it("creates the item and its links together, facing the way each was picked", async () => {
+      const result = await saveFinanceItemAction("asset", null, {}, form({
+        name: "House deposit", amount: "20000", category: "Cash",
+        kinesisLinks: links([
+          { direction: "SUPPORTS|forward", customLabel: "", targetObjectId: "fl-goal-object" },
+          { direction: "DEPENDS_ON|inverse", customLabel: "", targetObjectId: "fl-goal-2-object" },
+          { direction: "CUSTOM", customLabel: "Funded by", targetObjectId: "fl-goal-2-object" },
+        ]),
+      }));
+
+      expect(result).toEqual({ saved: true });
+      const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner, name: "House deposit" } });
+      const rows = await prisma.objectRelationship.findMany({ where: { userId: owner }, orderBy: { createdAt: "asc" } });
+      expect(rows).toMatchObject([
+        { sourceObjectId: item.objectId, targetObjectId: "fl-goal-object", type: "SUPPORTS" },
+        { sourceObjectId: "fl-goal-2-object", targetObjectId: item.objectId, type: "DEPENDS_ON" },
+        { sourceObjectId: item.objectId, targetObjectId: "fl-goal-2-object", type: "CUSTOM", customLabel: "Funded by" },
+      ]);
+      await expect(prisma.objectEvent.count({ where: { objectId: "fl-goal-object", eventType: "RELATIONSHIP_ADDED" } })).resolves.toBe(1);
+    });
+
+    it("refuses a link to another account's record, creating neither the item nor any link", async () => {
+      const result = await saveFinanceItemAction("asset", null, {}, form({
+        name: "Sneaky", amount: "1", kinesisLinks: links([{ direction: "SUPPORTS|forward", customLabel: "", targetObjectId: "fl-foreign-object" }]),
+      }));
+
+      expect(result.error).toBeTruthy();
+      await expect(prisma.financeItem.count({ where: { userId: owner } })).resolves.toBe(0);
+      await expect(prisma.objectRelationship.count({ where: { targetObjectId: "fl-foreign-object" } })).resolves.toBe(0);
+    });
+
+    it.each([
+      ["unreadable JSON", "{not json"],
+      ["an unknown relationship", links([{ direction: "OWNS|forward", customLabel: "", targetObjectId: "fl-goal-object" }])],
+      ["a custom link with no label", links([{ direction: "CUSTOM", customLabel: " ", targetObjectId: "fl-goal-object" }])],
+      ["a link with no target", links([{ direction: "SUPPORTS|forward", customLabel: "" }])],
+    ])("refuses %s rather than dropping the link", async (_name, payload) => {
+      const result = await saveFinanceItemAction("asset", null, {}, form({ name: "Savings", amount: "1", kinesisLinks: payload }));
+
+      expect(result.error).toBeTruthy();
+      await expect(prisma.financeItem.count({ where: { userId: owner } })).resolves.toBe(0);
+    });
+
+    it("ignores links on an edit, which adds links from the item's own page instead", async () => {
+      await saveFinanceItemAction("asset", null, {}, form({ name: "Savings", amount: "1" }));
+      const item = await prisma.financeItem.findFirstOrThrow({ where: { userId: owner } });
+
+      const result = await saveFinanceItemAction("asset", item.id, {}, form({ name: "Savings", amount: "2", kinesisLinks: links([{ direction: "SUPPORTS|forward", customLabel: "", targetObjectId: "fl-goal-object" }]) }));
+
+      expect(result).toEqual({ saved: true });
+      await expect(prisma.objectRelationship.count({ where: { userId: owner } })).resolves.toBe(0);
+    });
+  });
 });

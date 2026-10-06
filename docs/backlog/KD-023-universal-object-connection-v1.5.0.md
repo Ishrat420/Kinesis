@@ -90,6 +90,13 @@ A Finance item's Kinesis Links section, once opened, now offers **Add link**
 deliberately don't get this: links to a person are still added from the
 other record's side, and the Person panel stays read-only.
 
+The **Add Asset / Liability / Income / Expense** form has a Kinesis Links
+field too (`PendingKinesisLinks`): picked links wait in a list and are
+created with the item, in the same transaction (`createPendingLinks`). A
+target chosen but not yet added with "+" blocks saving, as on "Add custom
+field → Kinesis Link". The Edit form doesn't show it -- an existing item
+links from its own page's section.
+
 ## What's left
 
 * **Done in v1.5.0:** Finance Items and People now show their Kinesis
