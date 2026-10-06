@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { authenticateAs, ids, ownerState, resetAuthorizationDatabase } from "./fixture";
+import { authenticateAs, ids, ownerBMarkers, ownerState, resetAuthorizationDatabase } from "./fixture";
 import { prisma } from "@/lib/data/prisma";
 import { getDocument, updateDocument, deleteDocument, deleteUnusedDocumentType } from "@/lib/data/documents";
 import { getGoal } from "@/lib/data/goals";
@@ -11,6 +11,27 @@ import { createCustomItemAction, deleteCustomItemAction, deleteCustomModuleActio
 import { saveRelationshipMap } from "@/app/(app)/relationships/actions";
 import { getRelationshipMap } from "@/lib/data/relationships";
 import { emptySelfRelationship } from "@/lib/relationships";
+import { createTodoAction, deleteTodoAction, saveTodoDetailsAction, setTodoStatusAction, updateTodoDueDateAction, captureLinkOptionsAction } from "@/app/(app)/todos/actions";
+import { getTodo, getTodos } from "@/lib/data/todos";
+import { addKinesisLinkAction, dismissAttentionItem, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
+import { getKinesisLinks, getKinesisLinkSection } from "@/lib/data/object-relationships";
+import { getKinesisLinkOptions, getKinesisLinkPreviews, getKinesisLinkRecentEvents } from "@/lib/data/kinesis-links";
+import { updateDocumentAction } from "@/app/(app)/documents/actions";
+import { updateGoalFieldsAction } from "@/app/(app)/goals/actions";
+import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
+import { searchGlobalIndex } from "@/lib/search/engine";
+import { getCalendarItems } from "@/lib/data/calendar";
+import { collectNotifications } from "@/lib/data/notification-collection";
+import { markAllNotificationsRead } from "@/lib/data/notifications";
+import { getUpcomingAndDue } from "@/lib/data/upcoming";
+import { getNeedsAttention } from "@/lib/data/attention";
+import { dismissalKey, parseDismissalKey } from "@/lib/attention/dismissal";
+import { cloneTemplateAction, deleteTemplateAction, updateTemplateAction } from "@/app/(app)/settings/templates/actions";
+import { getTemplate, getTemplateFieldSample, getTemplates } from "@/lib/data/templates";
+import { createCustomModuleAction } from "@/app/(app)/custom-modules/actions";
+import { updateDashboardModuleOrderAction } from "@/app/(app)/settings/actions";
+import { deletePushSubscription, hasPushSubscription, markPushedNotificationOpened, savePushSubscription } from "@/lib/data/push";
+import { getPersonHistoryAction, getPersonKinesisLinksAction, saveMapGeometry } from "@/app/(app)/relationships/actions";
 
 const form = (values: Record<string, string | string[]>) => {
   const data = new FormData();
@@ -223,5 +244,251 @@ describe.sequential("cross-user authorization contract", () => {
     authenticateAs("ownerB");
     await expect(getDocument(ids.documentB)).resolves.toMatchObject({ name: ids.documentB });
     await expect(getDocument(ids.documentA)).resolves.toBeNull();
+  });
+});
+
+/**
+ * Every data module beyond the core records above: To-Dos, Kinesis Links,
+ * search, the calendar, notifications and attention, templates, settings,
+ * push devices and the relationship map's per-person reads. Two rules
+ * throughout: owner A acting on owner B's ids changes nothing of B's, and
+ * nothing of B's -- an id or any of `ownerBMarkers` -- reaches A through a
+ * read, even the reads that gather from every module at once.
+ */
+const leaksFromB = (value: unknown) => {
+  const text = JSON.stringify(value) ?? "";
+  return [...ownerBMarkers.filter((marker) => text.includes(marker)), ...(text.match(/object-[a-z]+-b\d?\b/g) ?? [])];
+};
+
+/** Runs a foreign mutation the way a client would: a refusal may come back as an error result or a thrown refusal; either way, B's data must be exactly as it was. */
+async function expectOwnerBUntouched(attempt: () => Promise<unknown>) {
+  const before = await ownerState("ownerB");
+  try { await attempt(); } catch { /* a thrown refusal is as good as a returned one */ }
+  expect(await ownerState("ownerB")).toEqual(before);
+}
+
+// Dates in the fixture sit in early 2030; this is "now" for every date-driven read below.
+const MARCH_2030 = new Date("2030-03-25T12:00:00.000Z");
+
+describe.sequential("cross-user authorization contract: every other data module", () => {
+  beforeEach(resetAuthorizationDatabase);
+  afterAll(async () => { await prisma.user.deleteMany(); await prisma.$disconnect(); });
+
+  describe("To-Dos", () => {
+    it.each([
+      ["status change", () => setTodoStatusAction(ids.todoB, "DONE")],
+      ["due date change", () => updateTodoDueDateAction(ids.todoB, {}, form({ dueDate: "2031-01-01" }))],
+      ["details save", () => saveTodoDetailsAction(ids.todoB, {}, form({ target: "TODO", notes: "changed", linkObjectId: "object-document-a" }))],
+      ["deletion", () => deleteTodoAction(ids.todoB)],
+    ])("leaves a foreign To-Do untouched: %s", async (_name, attempt) => {
+      await expectOwnerBUntouched(attempt);
+    });
+
+    it("refuses to create a To-Do linked to a foreign record, creating nothing", async () => {
+      const before = await getTodos();
+      const result = await createTodoAction({}, form({ name: "Sneaky", linkObjectId: "object-document-b" }));
+      expect(result.error).toBeTruthy();
+      expect(await getTodos()).toEqual(before);
+    });
+
+    it("refuses to link an owned To-Do to a foreign record", async () => {
+      const result = await saveTodoDetailsAction(ids.todoA, {}, form({ target: "TODO", linkObjectId: "object-document-b" }));
+      expect(result.error).toBeTruthy();
+      await expect(getTodo(ids.todoA)).resolves.toMatchObject({ links: [], linkedFrom: [] });
+    });
+
+    it("hides a foreign To-Do, and never offers a foreign record as a link target", async () => {
+      await expect(getTodo(ids.todoB)).resolves.toBeNull();
+      expect(leaksFromB(await getTodos())).toEqual([]);
+      expect(leaksFromB(await captureLinkOptionsAction())).toEqual([]);
+    });
+  });
+
+  describe("Kinesis Links", () => {
+    const direction = (value: string) => form({ direction: value });
+
+    it.each([
+      ["from an owned record to a foreign one", "object-goal-a", "object-document-b"],
+      ["from a foreign record to an owned one", "object-goal-b", "object-document-a"],
+      ["between two foreign records", "object-goal-b", "object-document-b"],
+    ])("refuses a link %s", async (_name, from, to) => {
+      const before = await prisma.objectRelationship.count();
+      const result = await addKinesisLinkAction(from, {}, form({ targetObjectId: to, direction: "BLOCKS|forward" }));
+      expect(result.error).toBeTruthy();
+      expect(await prisma.objectRelationship.count()).toBe(before);
+    });
+
+    it.each([
+      ["retype via the foreign record", () => updateKinesisLinkAction("object-goal-b", ids.linkB, direction("BLOCKS|forward"))],
+      ["retype via an owned record", () => updateKinesisLinkAction("object-goal-a", ids.linkB, direction("BLOCKS|forward"))],
+      ["removal via the foreign record", () => removeKinesisLinkAction("object-goal-b", ids.linkB)],
+      ["removal via an owned record", () => removeKinesisLinkAction("object-document-a", ids.linkB)],
+    ])("leaves a foreign link untouched: %s", async (_name, attempt) => {
+      await expectOwnerBUntouched(attempt);
+    });
+
+    const foreignLinkField = () => JSON.stringify([{ label: "Related", type: "KINESIS_LINK", targetObjectIds: ["object-document-b"] }]);
+    const noLinkToForeignDocument = async () => {
+      expect(await prisma.fieldLink.count({ where: { targetObjectId: "object-document-b" } })).toBe(0);
+      expect(await prisma.objectRelationship.count({ where: { userId: ids.ownerA, OR: [{ sourceObjectId: "object-document-b" }, { targetObjectId: "object-document-b" }] } })).toBe(0);
+    };
+
+    it("refuses a Kinesis Link field on a document that points at a foreign record", async () => {
+      const document = await prisma.document.findUniqueOrThrow({ where: { id: ids.documentA } });
+      const data = form({ name: ids.documentA, type: "Owner A Type", updatedAt: document.updatedAt.toISOString() });
+      data.set(CUSTOM_FIELDS_FORM_KEY, foreignLinkField());
+      expect((await updateDocumentAction(ids.documentA, {}, data)).error).toBeTruthy();
+      await noLinkToForeignDocument();
+    });
+
+    it("refuses a Kinesis Link field on a goal that points at a foreign record", async () => {
+      const data = new FormData();
+      data.set(CUSTOM_FIELDS_FORM_KEY, foreignLinkField());
+      expect((await updateGoalFieldsAction(ids.goalA, {}, data)).error).toBeTruthy();
+      await noLinkToForeignDocument();
+    });
+
+    it("reads nothing through a foreign record's id, while an owned record shows its own link", async () => {
+      await expect(getKinesisLinks("object-goal-b")).resolves.toEqual([]);
+      await expect(getKinesisLinkSection("object-document-b")).resolves.toEqual({ links: [], previews: {}, recentEvents: {} });
+      await expect(getKinesisLinkPreviews(["object-document-b", "object-goal-b", "object-finance-b", "object-item-b", "object-person-b2", "object-todo-b"])).resolves.toEqual({});
+      expect(leaksFromB(await getKinesisLinkRecentEvents([{ objectId: "object-goal-b", linkType: null }, { objectId: "object-document-b", linkType: "SUPPORTS" }]))).toEqual([]);
+      expect(leaksFromB(await getKinesisLinkOptions())).toEqual([]);
+      await expect(getKinesisLinks("object-goal-a")).resolves.toMatchObject([{ id: ids.linkA, target: { objectId: "object-document-a" } }]);
+    });
+  });
+
+  describe("search", () => {
+    // Each pair: something only owner B's data contains, and owner A's equivalent -- so a pass can't be a search that finds nothing at all.
+    it.each([
+      ["document name", ids.documentB, ids.documentA],
+      ["document custom field value", "owner-b-field-value", "owner-a-field-value"],
+      ["document notes", "owner-b-document-notes", "owner-a-document-notes"],
+      ["goal name", ids.goalB, ids.goalA],
+      ["milestone name", "owner-b-milestone", "owner-a-milestone"],
+      ["finance item", "owner-b-finance", "owner-a-finance"],
+      ["custom module", "Owner B Module", "Owner A Module"],
+      ["custom item", "owner-b-private-item", "owner-a-private-item"],
+      ["custom item field value", "owner-b-item-field", "owner-a-item-field"],
+      ["person", "owner-b-private-person", "owner-a-private-person"],
+      ["relationship notes", "owner-b-relationship-notes", "owner-a-relationship-notes"],
+      ["to-do", "owner-b-private-todo", "owner-a-private-todo"],
+    ])("never returns owner B's %s, while finding owner A's", async (_name, foreignTerm, ownedTerm) => {
+      expect(leaksFromB(await searchGlobalIndex(foreignTerm, 50))).toEqual([]);
+      expect((await searchGlobalIndex(ownedTerm, 50)).length).toBeGreaterThan(0);
+    });
+
+    it("never returns owner B's records for a term both owners' data contains", async () => {
+      const results = await searchGlobalIndex("private", 50);
+      expect(results.length).toBeGreaterThan(0);
+      expect(leaksFromB(results)).toEqual([]);
+    });
+  });
+
+  describe("the calendar", () => {
+    const year2030 = [new Date("2029-12-01T00:00:00.000Z"), new Date("2030-12-31T23:59:59.999Z")] as const;
+
+    it("shows owner A's dated records from every module and none of owner B's", async () => {
+      const items = await getCalendarItems(...year2030);
+      expect(leaksFromB(items)).toEqual([]);
+      const text = JSON.stringify(items);
+      for (const own of [ids.documentA, "owner-a-milestone", "owner-a-private-todo"]) expect(text).toContain(own);
+    });
+
+    it("shows owner B only owner B's", async () => {
+      authenticateAs("ownerB");
+      const text = JSON.stringify(await getCalendarItems(...year2030));
+      expect(text).toContain(ids.documentB);
+      expect(text).not.toMatch(/owner-a-/);
+    });
+  });
+
+  describe("notifications and attention", () => {
+    it("derives owner A's bell from owner A's records only", async () => {
+      const bell = await collectNotifications(ids.ownerA, MARCH_2030);
+      expect(bell.length).toBeGreaterThan(0);
+      expect(leaksFromB(bell)).toEqual([]);
+    });
+
+    it("keeps Upcoming & Due and Needs Attention to owner A's records", async () => {
+      const [upcoming, attention] = await Promise.all([getUpcomingAndDue(MARCH_2030), getNeedsAttention(MARCH_2030)]);
+      expect(upcoming.length + attention.length).toBeGreaterThan(0);
+      expect(leaksFromB(upcoming)).toEqual([]);
+      expect(leaksFromB(attention)).toEqual([]);
+    });
+
+    it("marks only owner A's notifications read when A marks everything read", async () => {
+      await expectOwnerBUntouched(() => markAllNotificationsRead());
+    });
+
+    it("can't dismiss, or mark read, an attention row for a foreign record", async () => {
+      const key = dismissalKey("document", ids.documentB, "EXPIRED", "2030-04-01");
+      expect(parseDismissalKey(key)).not.toBeNull();
+      await expectOwnerBUntouched(() => dismissAttentionItem(key));
+      await expectOwnerBUntouched(() => markPushedNotificationOpened(`document:${ids.documentB}:EXPIRED:2030-04-01`));
+      expect(await prisma.attentionDismissal.count({ where: { userId: ids.ownerA } })).toBe(0);
+      expect(await prisma.notificationRead.count({ where: { userId: ids.ownerA, documentId: ids.documentB } })).toBe(0);
+
+      // The same dismissal on owner A's own document does go through, so the refusal above is about ownership.
+      await dismissAttentionItem(dismissalKey("document", ids.documentA, "EXPIRED", "2030-04-01"));
+      expect(await prisma.attentionDismissal.count({ where: { userId: ids.ownerA, documentId: ids.documentA } })).toBe(1);
+    });
+  });
+
+  describe("templates", () => {
+    it.each([
+      ["update", async () => {
+        const template = await prisma.template.findUniqueOrThrow({ where: { id: ids.templateB } });
+        return updateTemplateAction(ids.templateB, {}, form({ name: "Taken over", updatedAt: template.updatedAt.toISOString() }));
+      }],
+      ["clone", () => cloneTemplateAction(ids.templateB, {}, form({ name: "Copied" }))],
+      ["deletion", () => deleteTemplateAction(ids.templateB)],
+    ])("leaves a foreign template untouched, and copies nothing to A: %s", async (_name, attempt) => {
+      await expectOwnerBUntouched(attempt);
+      expect(await prisma.template.count({ where: { userId: ids.ownerA } })).toBe(1);
+    });
+
+    it("refuses a custom module built on a foreign template", async () => {
+      const result = await createCustomModuleAction({}, form({ name: "Borrowed", icon: "star", color: "#123456", templateId: ids.templateB }));
+      expect(result.error).toBeTruthy();
+      expect(await prisma.customModule.count({ where: { userId: ids.ownerA } })).toBe(1);
+    });
+
+    it("reads nothing of a foreign template", async () => {
+      await expect(getTemplate(ids.templateB)).resolves.toBeNull();
+      await expect(getTemplateFieldSample(ids.templateB)).resolves.toBeNull();
+      expect(leaksFromB(await getTemplates())).toEqual([]);
+    });
+  });
+
+  describe("settings and push devices", () => {
+    it("drops a foreign custom module from a dashboard order rather than saving it", async () => {
+      await updateDashboardModuleOrderAction(["documents", "goals", "finance", "relationships", ids.moduleA, ids.moduleB]);
+      const settings = await prisma.userSettings.findUnique({ where: { userId: ids.ownerA } });
+      expect(settings?.dashboardModuleOrder).toContain(ids.moduleA);
+      expect(settings?.dashboardModuleOrder).not.toContain(ids.moduleB);
+    });
+
+    it("can neither see nor remove a foreign push device", async () => {
+      await expect(hasPushSubscription("https://push.example.test/owner-b")).resolves.toBe(false);
+      await expectOwnerBUntouched(() => deletePushSubscription("https://push.example.test/owner-b"));
+    });
+
+    it("moves a shared device to whoever registered it last, so it never carries two owners' pushes", async () => {
+      await savePushSubscription({ endpoint: "https://push.example.test/owner-b", keys: { p256dh: "a-p256dh", auth: "a-auth" } }, null);
+      const devices = await prisma.webPushSubscription.findMany({ where: { endpoint: "https://push.example.test/owner-b" } });
+      expect(devices).toEqual([expect.objectContaining({ userId: ids.ownerA })]);
+    });
+  });
+
+  describe("the relationship map's per-person reads and geometry", () => {
+    it("returns no history or links for a foreign person", async () => {
+      await expect(getPersonHistoryAction("object-person-b2")).resolves.toEqual([]);
+      await expect(getPersonKinesisLinksAction("object-person-b2")).resolves.toEqual([]);
+    });
+
+    it("never moves a foreign person's bubble", async () => {
+      await expectOwnerBUntouched(() => saveMapGeometry([{ id: ids.personB2, x: 1, y: 2, size: 90 }]));
+    });
   });
 });

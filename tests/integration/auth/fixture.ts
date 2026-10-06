@@ -40,7 +40,22 @@ export const ids = {
   personB2: "owner-b-person",
   relationshipA: "owner-a-relationship",
   relationshipB: "owner-b-relationship",
+  todoA: "owner-a-todo",
+  todoB: "owner-b-todo",
+  templateA: "owner-a-template",
+  templateB: "owner-b-template",
+  linkA: "owner-a-kinesis-link",
+  linkB: "owner-b-kinesis-link",
+  deviceA: "owner-a-push-device",
+  deviceB: "owner-b-push-device",
 } as const;
+
+/** Every distinctive string owner B's records carry -- what a leak to owner A would show up as. */
+export const ownerBMarkers = [
+  ids.documentB, "owner-b-field-value", "owner-b-document-notes", ids.goalB, "owner-b-goal-note", "owner-b-milestone",
+  "owner-b-finance", "Owner B Module", "owner-b-private-item", "owner-b-item-field", "owner-b-private-person",
+  "owner-b-relationship-notes", "owner-b-private-todo", "Owner B Template", ids.todoB, ids.linkB,
+];
 
 export type FixtureOwner = "ownerA" | "ownerB";
 
@@ -67,7 +82,7 @@ export async function resetAuthorizationDatabase() {
         { id: "object-finance-a", type: "FINANCE_ITEM", name: "owner-a-finance" },
         { id: "object-item-a", type: "CUSTOM_ITEM", name: "owner-a-private-item", fields: { create: { id: ids.itemFieldA, label: "A field", value: "owner-a-item-field" } } },
       ] },
-      documents: { create: { id: ids.documentA, objectId: "object-document-a", name: ids.documentA, type: "Owner A Type", status: "Active", owner: "Owner A", notes: "owner-a-document-notes" } },
+      documents: { create: { id: ids.documentA, objectId: "object-document-a", name: ids.documentA, type: "Owner A Type", status: "Active", owner: "Owner A", notes: "owner-a-document-notes", expiryDate: new Date("2030-04-01T00:00:00.000Z") } },
       documentTypes: { create: { id: "owner-a-document-type", name: "Owner A Type" } },
       goals: { create: { id: ids.goalA, objectId: "object-goal-a", name: ids.goalA, note: "owner-a-goal-note", targetValue: 100, currentValue: 10, milestones: { create: { id: ids.milestoneA, name: "owner-a-milestone", dueDate: new Date("2030-01-01T23:59:59.999Z") } } } },
       financeItems: { create: { id: ids.financeA, objectId: "object-finance-a", kind: "asset", name: "owner-a-finance", amount: 100 } },
@@ -83,7 +98,7 @@ export async function resetAuthorizationDatabase() {
         { id: "object-finance-b", type: "FINANCE_ITEM", name: "owner-b-finance" },
         { id: "object-item-b", type: "CUSTOM_ITEM", name: "owner-b-private-item", fields: { create: { id: ids.itemFieldB, label: "B field", value: "owner-b-item-field" } } },
       ] },
-      documents: { create: { id: ids.documentB, objectId: "object-document-b", name: ids.documentB, type: "Owner B Type", status: "Active", owner: "Owner B", notes: "owner-b-document-notes" } },
+      documents: { create: { id: ids.documentB, objectId: "object-document-b", name: ids.documentB, type: "Owner B Type", status: "Active", owner: "Owner B", notes: "owner-b-document-notes", expiryDate: new Date("2030-04-01T00:00:00.000Z") } },
       documentTypes: { create: { id: "owner-b-document-type", name: "Owner B Type" } },
       goals: { create: { id: ids.goalB, objectId: "object-goal-b", name: ids.goalB, note: "owner-b-goal-note", targetValue: 200, currentValue: 20, milestones: { create: { id: ids.milestoneB, name: "owner-b-milestone", dueDate: new Date("2030-02-01T23:59:59.999Z") } } } },
       financeItems: { create: { id: ids.financeB, objectId: "object-finance-b", kind: "asset", name: "owner-b-finance", amount: 200 } },
@@ -112,6 +127,17 @@ export async function resetAuthorizationDatabase() {
     { id: ids.relationshipA, userId: ids.ownerA, firstPersonId: ids.personA1, secondPersonId: ids.personA2, notes: "owner-a-relationship-notes" },
     { id: ids.relationshipB, userId: ids.ownerB, firstPersonId: ids.personB1, secondPersonId: ids.personB2, notes: "owner-b-relationship-notes" },
   ] });
+  // A To-Do, a template with one field, a Kinesis Link (goal supports
+  // document) and a push device each, so the shared Object layer and the
+  // settings-side records have a foreign row to be tested against too.
+  for (const [owner, tag] of [["ownerA", "a"], ["ownerB", "b"]] as const) {
+    const userId = ids[owner];
+    await prisma.object.create({ data: { id: `object-todo-${tag}`, type: "TODO", name: `owner-${tag}-private-todo`, userId } });
+    await prisma.todo.create({ data: { id: ids[`todo${tag.toUpperCase() as "A" | "B"}`], name: `owner-${tag}-private-todo`, userId, objectId: `object-todo-${tag}`, dueDate: new Date("2030-03-01T00:00:00.000Z"), notes: `owner-${tag}-todo-notes` } });
+    await prisma.template.create({ data: { id: ids[`template${tag.toUpperCase() as "A" | "B"}`], name: `Owner ${tag.toUpperCase()} Template`, userId, fields: { create: { id: `owner-${tag}-template-field`, label: `owner-${tag}-template-label`, type: "TEXT", position: 0 } } } });
+    await prisma.objectRelationship.create({ data: { id: ids[`link${tag.toUpperCase() as "A" | "B"}`], userId, sourceObjectId: `object-goal-${tag}`, targetObjectId: `object-document-${tag}`, type: "SUPPORTS", pairKey: [`object-goal-${tag}`, `object-document-${tag}`].sort().join(":") } });
+    await prisma.webPushSubscription.create({ data: { id: ids[`device${tag.toUpperCase() as "A" | "B"}`], userId, endpoint: `https://push.example.test/owner-${tag}`, p256dh: "p256dh", auth: "auth" } });
+  }
   authenticateAs("ownerA");
 }
 
@@ -121,8 +147,13 @@ export async function ownerState(owner: FixtureOwner) {
     documents: { include: { object: { select: { fields: true } }, notificationReads: true } }, documentTypes: true,
     goals: { include: { milestones: { include: { notificationReads: true } }, metricHistory: true } },
     financeItems: true, customModules: { include: { items: { include: { object: { select: { fields: true } } } } } },
-    people: { include: { selfPractices: true, selfReflections: true, selfImportantDates: true } },
+    people: { include: { selfPractices: true, selfReflections: true, selfImportantDates: true }, orderBy: { id: "asc" } },
     relationships: { include: { practices: true, reflections: true, importantDates: true, linkedGoals: true } },
     goalUnits: true, notificationReads: true,
+    // Ordered: Postgres returns unordered rows in whatever order is cheapest,
+    // which can differ between the before/after snapshots of the same data.
+    todos: { orderBy: { id: "asc" } }, templates: { include: { fields: { orderBy: { id: "asc" } } }, orderBy: { id: "asc" } },
+    objectRelationships: { orderBy: { id: "asc" } }, dismissals: { orderBy: { id: "asc" } },
+    pushSubscriptions: { orderBy: { id: "asc" } }, settings: true, objects: { select: { id: true, name: true, templateId: true }, orderBy: { id: "asc" } },
   } });
 }
