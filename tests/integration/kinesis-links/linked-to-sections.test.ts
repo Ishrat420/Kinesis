@@ -13,6 +13,7 @@ vi.mock("@/lib/relationships/occurrence", () => ({ getNextOccurrence: vi.fn() })
 
 import { prisma } from "@/lib/data/prisma";
 import { getKinesisLinkSection } from "@/lib/data/object-relationships";
+import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 import { addKinesisLinkAction, removeKinesisLinkAction } from "@/app/actions";
 import { getPersonKinesisLinksAction } from "@/app/(app)/relationships/actions";
 
@@ -83,6 +84,25 @@ describe.sequential("Kinesis Links on Finance Items and People", () => {
 
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/finance/lt-finance");
     await expect(getKinesisLinkSection("lt-finance-object")).resolves.toMatchObject({ links: [] });
+  });
+
+  it("adds a link from the Finance Item's own side, which the goal then shows from its side", async () => {
+    const result = await link("lt-finance-object", "lt-goal-object");
+
+    expect(result.error).toBeUndefined();
+    await expect(getKinesisLinkSection("lt-finance-object")).resolves.toMatchObject({ links: [{ label: "Supports", inverse: false, target: { objectId: "lt-goal-object" } }] });
+    await expect(getKinesisLinkSection("lt-goal-object")).resolves.toMatchObject({ links: [{ label: "Supported by", inverse: true, target: { objectId: "lt-finance-object" } }] });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/finance/lt-finance");
+  });
+
+  it("never offers a Finance Item itself, or another account's records, as something to link to", async () => {
+    await prisma.object.create({ data: { id: "lt-stranger-object", type: "GOAL", name: "Not yours", userId: stranger } });
+
+    const options = await getKinesisLinkOptions("lt-finance-object");
+
+    expect(options.map((option) => option.objectId)).toEqual(expect.arrayContaining(["lt-goal-object", "lt-person-object"]));
+    expect(options.map((option) => option.objectId)).not.toContain("lt-finance-object");
+    expect(options.map((option) => option.objectId)).not.toContain("lt-stranger-object");
   });
 
   it("shows a Person the goal that links to them", async () => {

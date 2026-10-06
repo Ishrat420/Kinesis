@@ -82,6 +82,14 @@ deletes the old rows; code in `lib/data/template-kinesis-links.ts`):
 
 The `FieldLink` table itself is left in place, empty, for a later cleanup.
 
+## Done in v1.5.0: adding a link from a Finance item
+
+A Finance item's Kinesis Links section, once opened, now offers **Add link**
+-- the same relationship and searchable target pickers as "Add custom field
+→ Kinesis Link", saving immediately (`AddKinesisLinkForm`). People
+deliberately don't get this: links to a person are still added from the
+other record's side, and the Person panel stays read-only.
+
 ## What's left
 
 * **Done in v1.5.0:** Finance Items and People now show their Kinesis
