@@ -23,6 +23,25 @@ export function registerServiceWorker() {
   return navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: "/", updateViaCache: "none" });
 }
 
+/** This browser's push subscription, if it has one. Never prompts or registers anything. */
+export async function getThisDevicesPushSubscription() {
+  if (!isPushSupported()) return null;
+  const registration = await navigator.serviceWorker.getRegistration();
+  return (await registration?.pushManager.getSubscription()) ?? null;
+}
+
+/**
+ * Ends this browser's push subscription at the push service itself, so
+ * nothing more can reach it -- without needing anyone to be signed in, which
+ * is what makes it usable at sign-out. Kinesis's own row for it is removed
+ * by the next daily run, which deletes any device the push service reports
+ * gone.
+ */
+export async function unsubscribeThisDevice() {
+  const subscription = await getThisDevicesPushSubscription();
+  if (subscription) await subscription.unsubscribe();
+}
+
 /** A VAPID public key, as the byte array `pushManager.subscribe` takes. */
 export function urlBase64ToUint8Array(base64: string) {
   const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
