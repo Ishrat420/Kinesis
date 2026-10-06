@@ -25,9 +25,10 @@ Remove the fixture without recreating it:
 node scripts/seed-kd052-qa-data.mjs --clean
 ```
 
-Kinesis is single-tenant (ADR-014), so the script seeds into whichever
-account is the database's one `User` row by default. Pass `--user a@b.com`
-if that's ever ambiguous.
+The script seeds into the database's one `User` row by default, which fits a
+deployment with a single account. A deployment can hold several accounts
+(ADR-014), so pass `--user a@b.com` to choose one whenever there's more than
+one.
 
 The Kinesis Link peek cycles automatically every `PEEK_LOOP_MS`
 (`useHistorySneakPeek`) -- watch a card for a few seconds, or reload, rather

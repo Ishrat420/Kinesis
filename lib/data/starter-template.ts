@@ -15,8 +15,8 @@ const STARTER_TEMPLATE_NAME = "General Record";
  *
  * Idempotent on the `isStarter` column, not on "this owner has any template
  * at all" (an owner who had already created their own templates before this
- * existed -- the common case for a single-owner deployment, ADR-014, that
- * predates this feature -- must still get this one) and not on matching the
+ * existed -- the common case for any account that predates this feature --
+ * must still get this one) and not on matching the
  * name "General Record" either (the owner renaming their own template is
  * expected and must not make it look absent and bring back a second one).
  * `isStarter` is the one thing neither of those can disturb.

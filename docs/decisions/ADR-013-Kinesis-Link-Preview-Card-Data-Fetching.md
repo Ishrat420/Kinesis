@@ -30,6 +30,10 @@ actual deployment shape, not a general best-practices comparison:
   rendered concurrently across many users/sessions — doesn't really occur
   here. Total concurrency is bounded by however many people use one
   tenant's instance, not by a multi-tenant user base.
+  *v1.5.0 note:* ADR-014 now lets one deployment host many people. This
+  still holds: accounts are private to each other, so a record's preview
+  is only ever rendered for its one owner. More accounts add more
+  independent readers, never more readers of the same record.
 * **Kinesis runs on Neon (serverless Postgres).** Neon bills by active
   compute time and auto-suspends idle compute, cold-starting on the next
   request. A materialized cache's reconciliation sweep needs something to
@@ -173,6 +177,7 @@ say so" item, not a launch requirement.
   this decision governs the data-fetching approach for, including its
   Permissions Assumption section this ADR's fourth deciding factor
   supports.
-* ADR-014 — records why the `userId`-scoped schema this ADR's fourth
-  deciding factor leans on is single-tenant policy, not multi-tenant
-  infrastructure.
+* ADR-014 — one Kinesis per person, many people per deployment: the
+  `userId`-scoped schema this ADR's fourth deciding factor leans on is what
+  keeps each account private in a shared database (revised in v1.5.0; it
+  previously framed this as single-tenant policy).

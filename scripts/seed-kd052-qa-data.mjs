@@ -47,7 +47,7 @@ async function resolveUser() {
   }
   const users = await prisma.user.findMany({ take: 2 });
   if (users.length === 0) throw new Error("No User row exists yet -- sign in through the app once first.");
-  if (users.length > 1) throw new Error(`Found more than one User row (unexpected -- Kinesis is single-tenant, ADR-014). Pass --user <email> to pick one.`);
+  if (users.length > 1) throw new Error(`Found more than one account (a deployment can host several, ADR-014). Pass --user <email> to pick one.`);
   return users[0];
 }
 

@@ -183,9 +183,10 @@ be added — and reading live per render (rather than the materialized-cache
 alternative considered in ADR-013) means that check has a natural home to
 slot into: the same batched fetch step, re-run on every render, rather than
 a cached value that could keep showing data from before access was
-revoked with no re-check point at all. See ADR-014 for why this
-`userId`-scoped-everywhere design is single-tenant policy, not multi-tenant
-infrastructure.
+revoked with no re-check point at all. See ADR-014 (revised in v1.5.0) for
+why this `userId`-scoped-everywhere design keeps each account private in a
+shared deployment, and for this check as the likely first home of any future
+sharing.
 
 ## Principle
 
@@ -199,7 +200,8 @@ infrastructure.
 
 * ADR-013 — records the decision to fetch preview data via batched, narrow
   live queries rather than a materialized preview cache, and why.
-* ADR-014 — records why Kinesis's `userId`-scoped-everywhere schema is
-  single-tenant policy, not multi-tenant infrastructure, which this
-  ticket's Permissions Assumption section relies on.
+* ADR-014 — one Kinesis per person, many people per deployment (revised in
+  v1.5.0); records why the `userId`-scoped-everywhere schema keeps accounts
+  private from each other, which this ticket's Permissions Assumption
+  section relies on.
 

@@ -4,7 +4,7 @@
 
 Life isn't difficult because information is unavailable. It's difficult because there is too much to keep track of. Kinesis remembers what matters so that people don't have to. Kinesis exists to reduce the friction between where you are today and where you want to be tomorrow.
 
-Kinesis is a **single-tenant application**: each deployed environment serves exactly one person and contains that person's life management system. An environment is not shared by multiple people, and Kinesis is not designed for multiple users, households, teams, or organisations within the same deployment.
+Kinesis is a **personal application**: every account is one person's own, private life management system. One deployment can host many people, each with their own Kinesis, side by side in the same infrastructure, which keeps Kinesis affordable and simple to run as it grows. It is not a shared workspace: people never see or change each other's data. If collaboration ever comes, it will be a deliberate, opt-in addition on top of that privacy, not a replacement for it (ADR-014).
 
 ## Vision
 
@@ -86,6 +86,6 @@ Every feature should answer one question:
 If the answer is no, it probably doesn't belong in Kinesis.
 
 ---
-Version: 0.1
-Last Updated: 1 July 2026
+Version: 0.2
+Last Updated: 6 October 2026 (one Kinesis per person, many people per deployment; ADR-014)
 Status: Draft

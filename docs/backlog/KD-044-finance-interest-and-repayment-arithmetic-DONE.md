@@ -77,7 +77,7 @@ Whatever gets added automatically each month has to be correctable and auditable
 
 The actual "never type a number again" version is connecting to the bank directly — read-only balance data through an aggregator (Basiq or Akahu, the providers built around Australia's and New Zealand's Open Banking / Consumer Data Right regimes) rather than per-bank integration, which nobody builds by hand anymore. The developer-facing side is genuinely approachable: an API key, a drop-in auth widget the user completes against their own bank (never through Kinesis), and a token to poll for balances.
 
-What it actually costs is storing a live access token for someone's real bank connection — encryption at rest, rotation, and a real answer for what happens if it leaks. That's a materially different risk than anything Kinesis handles today, and it deserves to be taken seriously rather than bolted on. Kinesis's single-tenant, self-hosted shape (ADR-014) makes this lighter than it would be for a multi-tenant product — there is one person's token to protect, in a database already under that person's own control — but "lighter than a fintech SaaS" is not "no design needed."
+What it actually costs is storing a live access token for someone's real bank connection — encryption at rest, rotation, and a real answer for what happens if it leaks. That's a materially different risk than anything Kinesis handles today, and it deserves to be taken seriously rather than bolted on. This was written when each Kinesis deployment served one person, which made it lighter than for a multi-tenant product: one person's token, in a database under their own control. ADR-014's v1.5.0 revision changes that — one deployment can now host many people, so tokens for several people would sit together in one database, held by an operator who isn't them. Per-account encryption of such secrets is now a prerequisite, not just good practice (see ADR-014, Consequences).
 
 Not chosen now: this stays a named, separate piece of future work, not a blocker on Sections A/B above. Nothing in the arithmetic design should assume a bank connection is coming — it should work exactly as well as a small, purely user-configured system, so that a future integration only has to supply the `amount`/`rate` inputs the manual fields already produce, not change the shape of what consumes them.
 
@@ -91,7 +91,7 @@ Not chosen now: this stays a named, separate piece of future work, not a blocker
 ## Related
 
 * ADR-005 — Finance MVP; explicitly lists "Automatic interest calculations" and "Loan repayment schedules" as out of scope "for MVP... these can be introduced later." This ticket is that later.
-* ADR-014 — Single-Tenant Not Multi-Tenant Infrastructure; why the bank-integration risk calculus is lighter here than for a shared product, without being zero.
+* ADR-014 — One Kinesis Per Person, Many People Per Deployment (revised in v1.5.0); why the bank-integration risk is no longer "one person's token in their own database", and what that requires.
 * `lib/goals/health.ts` (`calculateGoalHealth`) — the pace / at-risk vocabulary this ticket proposes reusing.
 * `lib/notifications/engine.ts` — the derive-don't-store precedent this ticket's arithmetic model follows.
 * KD-017 — turn dashboard into decision surface; found Finance absent from every current awareness surface, deferred pending this ticket.
