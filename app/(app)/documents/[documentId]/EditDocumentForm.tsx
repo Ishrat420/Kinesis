@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { DocumentFields, type CustomField } from "../DocumentFields";
 import { updateDocumentAction, type DocumentActionState } from "../actions";
-import { getDocumentState, type ExpiryUrgency, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { getDocumentState, type ExpiryUrgency, NO_REMINDER_LABEL, NO_REMINDER_VALUE, parseReminderPrompt, REMINDER_OPTIONS, reminderFormValue, reminderLabel } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDate, parseDateOnly } from "@/lib/dates";
@@ -36,7 +36,7 @@ export type EditableDocument = {
   country: string;
   notes: string;
   link: string;
-  prompt: number;
+  prompt: number | null;
   archived: boolean;
   expiryDateLabel: string;
   issueDateLabel: string;
@@ -99,14 +99,13 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, pre
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
 }) {
-  const reminder = REMINDER_OPTIONS.find((option) => option.days === document.prompt)?.label ?? `${document.prompt} days`;
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
         <div className="mb-5 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-zinc-400" /><h2 className="text-lg font-semibold text-zinc-900">Document information</h2></div>
         <div className="grid gap-3 md:grid-cols-2">
           <PromotedField label="Expiry" value={displayDate(document.expiryDate, locale)} detail={expiryLabel} detailTone={expiryUrgency} />
-          <PromotedField label="Reminder" value={document.expiryDate ? `${reminder} before expiry` : EMPTY_VALUE} detail={document.expiryDate ? "Configured reminder" : "Add an expiry date to use reminders"} />
+          <PromotedField label="Reminder" value={document.expiryDate ? reminderLabel(document.prompt) : EMPTY_VALUE} detail={!document.expiryDate ? "Add an expiry date to use reminders" : document.prompt === null ? "The expiry date is still tracked" : "Configured reminder"} />
         </div>
         <dl className="mt-6 grid gap-x-8 gap-y-5 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
           <Metadata label={document.issueDateLabel} value={displayDate(document.issueDate, locale)} />
@@ -162,7 +161,7 @@ function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, 
       <div>
         <label htmlFor="edit-document-reminder" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900">Reminder</label>
         <div className="relative">
-          <select id="edit-document-reminder" name="prompt" defaultValue={document.prompt} onChange={(event) => setPrompt(Number(event.target.value))} className="h-[50px] w-full appearance-none rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 pr-9 text-base text-zinc-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}</select>
+          <select id="edit-document-reminder" name="prompt" defaultValue={reminderFormValue(document.prompt)} onChange={(event) => setPrompt(parseReminderPrompt(event.target.value))} className="h-[50px] w-full appearance-none rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 pr-9 text-base text-zinc-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm">{REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}<option value={NO_REMINDER_VALUE}>{NO_REMINDER_LABEL}</option></select>
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
         </div>
       </div>

@@ -4,7 +4,7 @@ import { Bell, Check, ChevronDown, FileText, Plus, X } from "lucide-react";
 import { useActionState, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
-import { REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { NO_REMINDER_LABEL, NO_REMINDER_VALUE, parseReminderPrompt, REMINDER_OPTIONS, reminderLabel } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
@@ -112,24 +112,23 @@ export function ManualDocumentButton({ documentTypes, linkOptions, capture }: { 
  * with an answer on it, in place of a native select box.
  */
 function ReminderField() {
-  const [label, setLabel] = useState<string>(
-    () => REMINDER_OPTIONS.find((option) => option.days === 180)?.label ?? "6 months",
-  );
+  const [label, setLabel] = useState(() => reminderLabel(180));
   return (
     <div>
       <label htmlFor="document-reminder" className={FIELD_LABEL_CLASS}>Reminder</label>
       <div className="relative flex h-[50px] items-center gap-2.5 rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 transition focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-600/15">
         <Bell aria-hidden="true" className="h-4 w-4 shrink-0 text-blue-600" />
-        <span className="flex-1 truncate text-base font-medium text-zinc-900 sm:text-sm">{label} before expiry</span>
+        <span className="flex-1 truncate text-base font-medium text-zinc-900 sm:text-sm">{label}</span>
         <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
         <select
           id="document-reminder"
           name="prompt"
           defaultValue="180"
-          onChange={(event) => setLabel(REMINDER_OPTIONS.find((option) => String(option.days) === event.target.value)?.label ?? "")}
+          onChange={(event) => setLabel(reminderLabel(parseReminderPrompt(event.target.value)))}
           className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
         >
           {REMINDER_OPTIONS.map((option) => <option key={option.days} value={option.days}>{option.label} before expiry</option>)}
+          <option value={NO_REMINDER_VALUE}>{NO_REMINDER_LABEL}</option>
         </select>
       </div>
     </div>

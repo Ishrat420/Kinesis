@@ -3,7 +3,7 @@
 import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument, type DocumentInput } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getDocumentState, REMINDER_OPTIONS } from "@/lib/documents/expiry";
+import { getDocumentState, parseReminderPrompt } from "@/lib/documents/expiry";
 import { parseDateOnly } from "@/lib/dates";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
@@ -58,8 +58,7 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
   const issueField = dateField(formData, "issueDate", "issue date");
   if (!issueField.ok) return issueField;
   const expiryDate = expiryField.value;
-  const requestedPrompt = Number(text(formData, "prompt"));
-  const prompt = REMINDER_OPTIONS.some((option) => option.days === requestedPrompt) ? requestedPrompt : 180;
+  const prompt = parseReminderPrompt(text(formData, "prompt"));
   // Absent on the create form, so a new document is never born archived.
   const archived = formData.get("archived") === "true";
 

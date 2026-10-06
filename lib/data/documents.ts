@@ -25,7 +25,7 @@ export type DocumentInput = {
   country?: string | null;
   notes?: string | null;
   link?: string | null;
-  prompt?: number;
+  prompt?: number | null;
   archived?: boolean;
   expiryDateLabel?: string;
   issueDateLabel?: string;

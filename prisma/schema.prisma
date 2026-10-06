@@ -125,7 +125,10 @@ model Document {
   // all -- `status` above is derived display data that nothing filters on, so
   // the only exits were clearing the expiry date or deleting the record.
   archived            Boolean              @default(false)
-  prompt              Int                  @default(180)
+  // Days before expiry the reminder starts; null is "No reminders" (KD-026):
+  // the expiry date still drives every date-based surface, only the advance
+  // warning is dropped.
+  prompt              Int?                 @default(180)
   expiryDateLabel     String               @default("Expiry date")
   issueDateLabel      String               @default("Issue date")
   documentNumberLabel String               @default("Document number")

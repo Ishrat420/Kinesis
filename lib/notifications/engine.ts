@@ -36,7 +36,7 @@ export function getDocumentNotificationCandidate(
   // A document remains valid for its full expiry date; it is expired the following day.
   const type = today > expiryDate
     ? "EXPIRED"
-    : remindersEnabled && today >= reminderAt
+    : remindersEnabled && reminderAt !== null && today >= reminderAt
       ? "REMINDER_DUE"
       : null;
 

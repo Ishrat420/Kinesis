@@ -5,6 +5,30 @@ export const REMINDER_OPTIONS = [
   { days: 30, label: "30 days" },
 ] as const;
 
+/**
+ * The reminder control's last option (KD-026): keep the expiry date and every
+ * surface that states it, but never warn ahead of it. Stored as a null
+ * `prompt`; this is only its form value, since a `<select>` can't submit null.
+ */
+export const NO_REMINDER_VALUE = "none";
+export const NO_REMINDER_LABEL = "No reminders";
+
+/** Reads the reminder control's submitted value. Anything unrecognised still falls back to the 6-month default, as it always has. */
+export function parseReminderPrompt(value: string): number | null {
+  if (value === NO_REMINDER_VALUE) return null;
+  const days = Number(value);
+  return REMINDER_OPTIONS.some((option) => option.days === days) ? days : 180;
+}
+
+/** The reminder control's form value for a stored `prompt`. */
+export const reminderFormValue = (prompt: number | null) => (prompt === null ? NO_REMINDER_VALUE : String(prompt));
+
+/** How a stored `prompt` reads to the user: "6 months before expiry", or "No reminders". */
+export function reminderLabel(prompt: number | null) {
+  if (prompt === null) return NO_REMINDER_LABEL;
+  return `${REMINDER_OPTIONS.find((option) => option.days === prompt)?.label ?? `${prompt} days`} before expiry`;
+}
+
 const DAY = 86_400_000;
 
 /** The status an archived document reports, whatever its expiry date says. */
@@ -24,8 +48,9 @@ function subtractUtcMonths(value: Date, months: number) {
   ));
 }
 
-/** Returns the date on which a document's configured reminder period begins. */
-export function getExpiryReminderDate(expiryDate: Date, prompt: number) {
+/** Returns the date on which a document's configured reminder period begins, or null when it is set to "No reminders". */
+export function getExpiryReminderDate(expiryDate: Date, prompt: number | null) {
+  if (prompt === null) return null;
   const expiry = atUtcMidnight(expiryDate);
 
   // These values are persisted as day counts for backwards compatibility, but
@@ -49,7 +74,7 @@ export type ExpiryUrgency = "neutral" | "safe" | "soon" | "expired" | "archived"
  * the page and the list's badge cannot disagree about an archived document.
  */
 export function getDocumentState(
-  document: { expiryDate: Date | null; prompt: number; archived?: boolean },
+  document: { expiryDate: Date | null; prompt: number | null; archived?: boolean },
   today: Date,
 ) {
   if (document.archived) {
@@ -58,7 +83,12 @@ export function getDocumentState(
   return getExpiryDetails(document.expiryDate, document.prompt, today);
 }
 
-export function getExpiryDetails(expiryDate: Date | null, prompt: number, today: Date) {
+/**
+ * "Expiring soon" is the reminder window seen as a status, so a document set
+ * to "No reminders" never enters it (KD-026): it reads Active until the expiry
+ * date passes, then Expired exactly as before.
+ */
+export function getExpiryDetails(expiryDate: Date | null, prompt: number | null, today: Date) {
   if (!expiryDate) {
     return { label: "No expiry date", urgency: "neutral" as const, status: "Active" };
   }
@@ -67,7 +97,8 @@ export function getExpiryDetails(expiryDate: Date | null, prompt: number, today:
   const expiry = atUtcMidnight(expiryDate);
   const differenceInDays = Math.round((expiry.getTime() - currentDay.getTime()) / DAY);
   const expired = differenceInDays < 0;
-  const withinReminderPeriod = currentDay >= getExpiryReminderDate(expiry, prompt);
+  const reminderDate = getExpiryReminderDate(expiry, prompt);
+  const withinReminderPeriod = reminderDate !== null && currentDay >= reminderDate;
   const label = formatExpiry(expiry, currentDay);
 
   return {

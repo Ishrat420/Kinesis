@@ -40,7 +40,7 @@ describe("isOverdueForNeedsAttention (ADR-010 line 26: strict < today, no except
 });
 
 describe("documentUpcomingPhase (ADR-010: expiry is one universal boundary, > expiryDate)", () => {
-  const document = (expiryDate: Date, prompt = 30) => ({ kind: "document" as const, id: "d", name: "Passport", type: "Identity", expiryDate, prompt });
+  const document = (expiryDate: Date, prompt: number | null = 30) => ({ kind: "document" as const, id: "d", name: "Passport", type: "Identity", expiryDate, prompt });
 
   it("is not yet overdue on the expiry day itself", () => {
     expect(documentUpcomingPhase(document(today), today, true)).not.toBe("overdue");
@@ -61,6 +61,11 @@ describe("documentUpcomingPhase (ADR-010: expiry is one universal boundary, > ex
   it("is nothing before the reminder window opens", () => {
     const farOut = document(at("2027-06-20"), 30);
     expect(documentUpcomingPhase(farOut, today, true)).toBeNull();
+  });
+
+  it('is never due-soon with "No reminders", but still overdue once expired (KD-026)', () => {
+    expect(documentUpcomingPhase(document(today, null), today, true)).toBeNull();
+    expect(documentUpcomingPhase(document(at("2026-06-01"), null), today, true)).toBe("overdue");
   });
 });
 

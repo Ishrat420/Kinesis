@@ -78,6 +78,13 @@ describe.sequential("Documents server actions", () => {
       await expect(prisma.document.findFirst({ where: { userId: owner, name: "Passport" } })).resolves.toBeNull();
     });
 
+    it('saves "No reminders" as a null prompt, keeping the expiry date (KD-026)', async () => {
+      await createDocumentAction({}, form({ name: "Driver licence", type: "Licence", expiryDate: "2030-06-01", prompt: "none" }));
+      const created = await prisma.document.findFirstOrThrow({ where: { name: "Driver licence" } });
+      expect(created).toMatchObject({ prompt: null, status: "Active" });
+      expect(created.expiryDate?.toISOString()).toBe("2030-06-01T00:00:00.000Z");
+    });
+
     it("falls back to the default reminder when an unlisted prompt value is submitted", async () => {
       await createDocumentAction({}, form({ name: "Visa", type: "Visa", prompt: "999" }));
       const created = await prisma.document.findFirstOrThrow({ where: { name: "Visa" } });
@@ -131,6 +138,16 @@ describe.sequential("Documents server actions", () => {
       expect(result.error).toBeUndefined();
       expect(result.success).toBe(true);
       await expect(prisma.document.findUniqueOrThrow({ where: { id: document.id } })).resolves.toMatchObject({ name: "Passport renamed" });
+    });
+
+    it('switches a document to "No reminders" and back again (KD-026)', async () => {
+      const document = await makeDocument();
+      await updateDocumentAction(document.id, {}, form({ name: "Passport", type: "Passport", prompt: "none", updatedAt: document.updatedAt.toISOString() }));
+      const silenced = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+      expect(silenced.prompt).toBeNull();
+
+      await updateDocumentAction(document.id, {}, form({ name: "Passport", type: "Passport", prompt: "90", updatedAt: silenced.updatedAt.toISOString() }));
+      await expect(prisma.document.findUniqueOrThrow({ where: { id: document.id } })).resolves.toMatchObject({ prompt: 90 });
     });
 
     /**

@@ -1,8 +1,33 @@
 # KD-026 — A "No reminder" option for a document
 
-**Status:** Idea
+**Status:** Done
 **Priority:** Medium
 **Tags:** UX / UI, Data Model, Technical Debt
+**Planned Release:** v1.5.0
+
+## What shipped (v1.5.0)
+
+* **"No reminders"** is the last option in the Reminder dropdown, on both
+  the Add document form and the document's edit form. The read view shows
+  "No reminders", with "The expiry date is still tracked" under it.
+* **Model:** `Document.prompt` is now `Int?`; `null` means no reminders
+  (migration `20261020000000_document_no_reminder`, additive -- every
+  existing document keeps its lead time). The form submits it as `none`,
+  since a `<select>` can't submit null.
+* **Behaviour** follows the table below exactly: no `REMINDER_DUE`, no
+  Upcoming & Due reminder entry, no calendar reminder pin; the expiry date,
+  calendar expiry pin, `EXPIRED` notification, Upcoming & Due expired entry
+  and Needs Attention row are all unchanged.
+
+Decisions on the open questions:
+
+* **Expiring soon: no.** "Expiring soon" is the reminder window read as a
+  status, so a "No reminders" document goes Active -> Expired and isn't
+  counted in the Expiring soon tile or list. Covered by
+  `tests/unit/documents-expiry.test.ts`.
+* **Invalid values still fall back to 6 months**, as before -- left as a
+  separate question.
+* **The generic day-count branch stays**, unchanged.
 
 ## Summary
 

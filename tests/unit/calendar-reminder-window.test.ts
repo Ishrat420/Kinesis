@@ -52,7 +52,7 @@ const settings = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const document = (expiryDate: string, prompt = 30) => [{
+const document = (expiryDate: string, prompt: number | null = 30) => [{
   id: "document-1", name: "Passport", type: "Identity", expiryDate: at(expiryDate), prompt, object: { fields: [] },
 }];
 
@@ -93,6 +93,13 @@ describe("a reminder appears on the calendar before it fires", () => {
     mocks.documentFindMany.mockResolvedValue(document("2027-01-15", 30));
 
     expect((await reminders(month("2026-12-01", "2026-12-31"))).map(pin)).toEqual(["2026-12-16 Passport reminder"]);
+  });
+
+  it('pins no lead-up for a document set to "No reminders", but keeps its expiry (KD-026)', async () => {
+    mocks.documentFindMany.mockResolvedValue(document("2027-01-15", null));
+
+    expect(await reminders(month("2026-12-01", "2027-01-31"))).toEqual([]);
+    expect((await items(month("2027-01-01", "2027-01-31"))).map(pin)).toEqual(["2027-01-15 Passport expires"]);
   });
 
   it("pins a milestone's lead-up ahead of time", async () => {

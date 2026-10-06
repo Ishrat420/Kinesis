@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExpiryDetails, getExpiryReminderDate } from "@/lib/documents/expiry";
+import { getExpiryDetails, getExpiryReminderDate, NO_REMINDER_VALUE, parseReminderPrompt, reminderFormValue, reminderLabel } from "@/lib/documents/expiry";
 
 describe("getExpiryDetails", () => {
   const today = new Date("2026-08-26T18:30:00.000Z");
@@ -61,5 +61,34 @@ describe("getExpiryDetails", () => {
     const expiry = new Date("2027-08-31T00:00:00.000Z");
 
     expect(getExpiryReminderDate(expiry, 180)).toEqual(new Date("2027-02-28T00:00:00.000Z"));
+  });
+});
+
+describe('"No reminders" (KD-026)', () => {
+  const today = new Date("2026-08-26T00:00:00.000Z");
+
+  it("has no reminder date", () => {
+    expect(getExpiryReminderDate(new Date("2026-09-01T00:00:00.000Z"), null)).toBeNull();
+  });
+
+  it("never reads Expiring soon: Active up to and including the expiry day", () => {
+    expect(getExpiryDetails(new Date("2026-08-27T00:00:00.000Z"), null, today)).toMatchObject({ urgency: "safe", status: "Active" });
+    expect(getExpiryDetails(today, null, today)).toMatchObject({ urgency: "safe", status: "Active" });
+  });
+
+  it("still reads Expired once the expiry date has passed", () => {
+    expect(getExpiryDetails(new Date("2026-08-25T00:00:00.000Z"), null, today)).toMatchObject({ urgency: "expired", status: "Expired" });
+  });
+
+  it("round-trips through the form's select value", () => {
+    expect(reminderFormValue(null)).toBe(NO_REMINDER_VALUE);
+    expect(parseReminderPrompt(NO_REMINDER_VALUE)).toBeNull();
+    expect(parseReminderPrompt(reminderFormValue(90))).toBe(90);
+    expect(parseReminderPrompt("999")).toBe(180);
+  });
+
+  it("reads as No reminders, and the periods as before", () => {
+    expect(reminderLabel(null)).toBe("No reminders");
+    expect(reminderLabel(180)).toBe("6 months before expiry");
   });
 });

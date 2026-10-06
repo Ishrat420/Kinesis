@@ -32,7 +32,9 @@ export type ReminderLead =
  */
 export function reminderOpensAt(deadline: DateInput, lead: ReminderLead): Date {
   const due = startOfUtcDay(deadline)!;
-  return lead.kind === "documentPrompt" ? getExpiryReminderDate(due, lead.prompt) : getReminderWindowStart(due, lead.days);
+  // A document set to "No reminders" never gets a pin (lib/data/calendar.ts
+  // skips it), so its prompt here is always a real lead.
+  return lead.kind === "documentPrompt" ? getExpiryReminderDate(due, lead.prompt)! : getReminderWindowStart(due, lead.days);
 }
 
 /** A pin names the record it warns about, never what it would say today. */

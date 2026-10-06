@@ -100,7 +100,8 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   for (const document of documents) {
     if (document.expiryDate) {
       add({ id: `document-${document.id}`, title: `${document.name} expires`, kind: "DATED", date: document.expiryDate, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, priority: "HIGH", href: `/documents/${document.id}`, detail: "Document expiry date" });
-      addReminder({ id: `document-reminder-${document.id}`, name: document.name, deadline: document.expiryDate, deadlineLabel: "expires", lead: { kind: "documentPrompt", prompt: document.prompt }, sourceObjectId: document.id, sourceModule: "Documents", href: `/documents/${document.id}` });
+      // "No reminders" (KD-026) keeps the expiry pin above but drops the reminder pin.
+      if (document.prompt !== null) addReminder({ id: `document-reminder-${document.id}`, name: document.name, deadline: document.expiryDate, deadlineLabel: "expires", lead: { kind: "documentPrompt", prompt: document.prompt }, sourceObjectId: document.id, sourceModule: "Documents", href: `/documents/${document.id}` });
     }
     for (const field of resolveDatedFields(document.object.fields)) add({ id: `document-field-${field.id}`, title: `${document.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, href: `/documents/${document.id}`, detail: `${field.label} from ${document.name}` });
   }

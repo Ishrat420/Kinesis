@@ -7,7 +7,7 @@ vi.mock("@/lib/data/prisma", () => ({ prisma: {} }));
 const { getDocumentNotificationCandidate, getMilestoneNotificationCandidate, getRelationshipDateNotificationCandidate, getCustomItemNotificationCandidate, getGoalNotificationCandidate } =
   await import("@/lib/notifications/engine");
 
-const document = (expiryDate: string | null, prompt = 30) => ({
+const document = (expiryDate: string | null, prompt: number | null = 30) => ({
   id: "document-1",
   name: "Passport",
   type: "Identity",
@@ -412,5 +412,16 @@ describe("getGoalNotificationCandidate: a goal has no advance phase, ever (KD-02
 
   it("keeps raising it while the goal stays overdue", () => {
     expect(getGoalNotificationCandidate(goal("2026-06-01"), at("2026-07-01"))?.type).toBe("GOAL_DUE");
+  });
+});
+
+describe('a document set to "No reminders" (KD-026)', () => {
+  it("never raises REMINDER_DUE, however close the expiry", () => {
+    expect(getDocumentNotificationCandidate(document("2026-07-02", null), at("2026-07-01"))).toBeNull();
+    expect(getDocumentNotificationCandidate(document("2026-07-01", null), at("2026-07-01"))).toBeNull();
+  });
+
+  it("still raises EXPIRED the day after expiry", () => {
+    expect(getDocumentNotificationCandidate(document("2026-07-01", null), at("2026-07-02"))).toMatchObject({ type: "EXPIRED", reminderAt: null });
   });
 });
