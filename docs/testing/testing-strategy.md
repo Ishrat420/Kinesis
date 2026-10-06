@@ -141,9 +141,11 @@ The security-focused Clerk login/logout lifecycle runbook is:
 
 It must be executed against a production-like, non-production deployment before
 authentication, Clerk, proxy, cookie, domain, or session-policy changes are
-released. The runbook covers anonymous access, owner and non-owner login, missing
-owner configuration, logout, session revocation/expiry, concurrent windows,
-browser history, cookie posture, and redirect safety.
+released. The runbook covers anonymous access, admin login, a second account's
+isolation, the admin setting, logout, session revocation/expiry, concurrent
+windows, browser history, cookie posture, redirect safety, and (since v1.5.0)
+uninvited sign-up, the invitation lifecycle, existing Clerk users, owner
+rotation with `owner:rebind`, and push on a shared device.
 
 The pre-release checklist is:
 

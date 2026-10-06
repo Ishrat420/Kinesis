@@ -6,8 +6,11 @@ These checks complement automated and unit testing and are intended to verify th
 
 ## Authentication & Access
 
-- [ ] Owner can sign in successfully and reach the dashboard.
-- [ ] Verify anonymous and non-owner users cannot access protected content.
+- [ ] Restricted sign-up mode is on in this environment's Clerk instance, and its user list has been reviewed (everyone on it can sign in).
+- [ ] The admin can sign in successfully and reach the dashboard.
+- [ ] Anonymous visitors are sent to sign-in, and the API returns 401.
+- [ ] An uninvited email can't sign up, including through Google SSO (AUTH-M10).
+- [ ] An invited second user signs in to their own empty account and sees nothing of anyone else's (AUTH-M04).
 
 ## Documents
 
