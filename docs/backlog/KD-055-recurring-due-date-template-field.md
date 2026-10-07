@@ -8,10 +8,11 @@
 
 A Custom Item template can offer a **Recurring Due Date** as an alternative
 to the existing Due Date field (KD-038). An object under that template has
-one due date that repeats every _N_ days: completing the current occurrence
-moves the same object's due date forward to the next one, and the reminder
-surfaces (Needs Attention, the bell, Upcoming & Due, the calendar) follow
-that date exactly as they already follow an ordinary due date.
+one due date that repeats on a fixed rule ("every 6 months", "every 90
+days"). Completing the current occurrence moves the same object's due date
+forward to the next one. The reminder surfaces (Needs Attention, the bell,
+Upcoming & Due, the calendar) follow that date exactly as they already
+follow an ordinary due date.
 
 ```text
 Template: Car Service
@@ -20,11 +21,11 @@ Template: Car Service
   - Recurring due date  ← its own action, its own "repeat" icon
 
 Object: Service the Golf
-  Recurring due date   12 Nov 2026   every 180 days   [✓]
-                                                       │
-  click ✓ ─────────────────────────────────────────────┘
+  Recurring due date   12 Nov 2026   every 6 months   [✓]
+                                                      │
+  click ✓ ────────────────────────────────────────────┘
     → ObjectEvent logged: occurrence of 12 Nov 2026 completed
-    → dueDate becomes 11 May 2027
+    → dueDate becomes 12 May 2027
     → same object, same links, fields and notes
 ```
 
@@ -38,8 +39,10 @@ template.
 
 * System modules (Document, Goal, Relationship, Finance, Person). The same
   exclusion-by-construction as KD-038 / ADR-011.
-* Calendar-style recurrence rules ("first Monday of the month", "every
-  month on the 15th"). v1 is a fixed interval in days only.
+* Weekday- or position-based rules ("first Monday of the month", "every
+  weekday"). See Decision 3 for why a number plus a unit covers v1.
+* Undoing a completion (Decision 5).
+* A completion action anywhere other than the object page (Decision 8).
 * KD-006's general "reminder on any object" feature. This ticket is the
   narrower Custom Item version; see **Related**.
 
@@ -64,14 +67,40 @@ fixed type badge, and next to the value on the object page. The type cell
 is a fixed badge, not a dropdown, exactly as in KD-038 Decision 2. The label
 stays editable.
 
-### 3. Filling it in asks two things
+### 3. Filling it in: a date, and "every N units"
 
 On the object page (create and edit), the field asks:
 
 1. **Date**: the next or current occurrence.
-2. **Repeats every … days**: a positive whole number.
+2. **Repeats every**: a positive whole number **and a unit**, one of
+   **days / weeks / months / years**.
 
-Both are required together: a date with no interval, or an interval with no
+The UI offers quick presets (Weekly, Monthly, Every 3 months, Every 6
+months, Yearly) that fill in the number and unit, plus a "Custom" option
+that exposes both inputs.
+
+**Why a unit and not just a day count.** Months and years aren't a fixed
+number of days. "Every 30 days" for a monthly bill drifts by roughly a
+week over a year, and "every 365 days" slips a day in a leap year. People
+think in months and years for most real recurrences (rent, renewals,
+servicing, check-ups). A number plus a unit keeps that exact, and days and
+weeks still cover anything odd ("every 10 days"). It is also what most
+calendar and task apps offer in their custom repeat option. Weekday rules
+("first Monday") are a different shape and stay out of scope until someone
+needs them.
+
+**Month arithmetic is anchored, and clamped to month end.** A monthly or
+yearly rule remembers the day of the month it started on and clamps to the
+last day of a shorter month: 31 Jan → 28 Feb → **31 Mar**, not 28 Mar. Without
+the anchor, one short month would permanently pull every later occurrence
+back to the 28th. Note that the existing practice cadence helper
+(`lib/calendar/recurrence.ts`, `occurrencesForCadence`) matches months by
+`getUTCDate() === anchor day` and so *skips* months that lack the 31st. This
+feature must not reuse that behaviour. Build a small pure helper (e.g.
+`lib/custom-modules/recurrence.ts`: `nextOccurrence` / `occurrencesInRange`)
+with unit tests for the month-end and leap-year cases.
+
+Both inputs are required together. A date with no rule, or a rule with no
 date, is a validation error rather than a half-saved recurrence.
 
 ### 4. One row that moves, not a row per occurrence
@@ -82,9 +111,12 @@ The object keeps a single record, and its due date moves forward.
   same column KD-038 writes to. Needs Attention, notifications, Upcoming &
   Due and the calendar already read that column, so they pick up the
   current occurrence with no new reader.
-* The interval is stored alongside it, e.g. a new nullable
-  `CustomItem.recurrenceDays Int?`. It is set only when the item's
-  template has a recurring due date field.
+* The rule is stored alongside it as new nullable columns, e.g.
+  `recurrenceInterval Int?` and `recurrenceUnit RecurrenceUnit?`
+  (`DAY | WEEK | MONTH | YEAR`), plus the anchor day of month
+  (`recurrenceAnchorDay Int?`) for the clamping in Decision 3. All three are
+  set only when the item's template has a recurring due date field, and are
+  set or cleared together. A check constraint should enforce that.
 * Past occurrences are **not** rows. They live in the `ObjectEvent` stream
   (see Decision 6), so links, fields and notes all stay on one object.
 
@@ -95,37 +127,63 @@ object page. Clicking it:
 
 1. writes an `ObjectEvent` recording that the occurrence was completed,
    including which date it was for;
-2. advances `dueDate` by `recurrenceDays`.
+2. advances `dueDate` to the next occurrence under the rule.
 
 Both happen in one transaction.
 
-How "next" is computed (proposed, to confirm during implementation):
-step forward from the **current due date**, not from "today". If that
-result is still in the past (the item was very overdue), keep stepping
-until it lands on or after today, so completing a long-overdue item never
-leaves it immediately overdue again. Completing early, before the due
-date, still advances from the due date, so the schedule doesn't drift.
+How "next" is computed: step forward from the **current due date**, not
+from "today". If that result is still in the past (the item was very
+overdue), keep stepping until it lands on or after today, so completing a
+long-overdue item never leaves it immediately overdue again. Completing
+early, before the due date, still advances from the due date, so the
+schedule doesn't drift.
 
-The person can also just edit the date or the interval directly. That is
-an ordinary field change, logged as `FIELD_CHANGED` like today, not a
-completion.
+**Completion cannot be undone.** If someone completes an occurrence by
+mistake, they edit the date back on the object page. That is an ordinary
+`FIELD_CHANGED`, and the completion event stays in History as what actually
+happened. There is no reopen event type.
+
+Editing the date or the rule directly is always allowed, and is logged as
+`FIELD_CHANGED` like today, not as a completion.
 
 ### 6. History through the event log
 
-Each completion is an `ObjectEvent`. This probably needs a new
-`ObjectEventType`, e.g. `RECURRENCE_COMPLETED`, rather than overloading
-`FIELD_CHANGED`, so History, Recent Activity and KD-052's significance
-scoring can tell "completed this occurrence" apart from "moved the date".
-`oldValue` / `newValue` carry the completed date and the new due date.
+Each completion is an `ObjectEvent`. This needs a new `ObjectEventType`,
+e.g. `RECURRENCE_COMPLETED`, rather than overloading `FIELD_CHANGED`, so
+History, Recent Activity and KD-052's significance scoring can tell
+"completed this occurrence" apart from "moved the date". `oldValue` /
+`newValue` carry the completed date and the new due date.
 
-### 7. Calendar: future occurrences computed, not stored
+### 7. Calendar: future occurrences computed for the visible range
 
 Without extra work the calendar would only show the current `dueDate`, so
-only the next occurrence. Instead, `lib/data/calendar.ts` projects the
-upcoming occurrences on the fly (`dueDate + k × recurrenceDays`) for
-whatever range is being viewed. Nothing is persisted for them. Projected
-occurrences are display-only: clicking one goes to the object, and only the
-current occurrence carries a reminder entry.
+only the next occurrence. Instead, `getCalendarItems(start, end)` in
+`lib/data/calendar.ts` projects every occurrence of the rule that falls
+inside the range being viewed, starting from the current `dueDate`. Nothing
+is persisted for them.
+
+This is the usual practice: calendar apps store the rule, not the
+instances, and expand it only for the window on screen. Kinesis already
+works this way for yearly important dates (`occurrencesInRange` in
+`lib/relationships/occurrence.ts`) and relationship practices
+(`occurrencesForCadence`). The calendar page already passes just the month
+grid's range (`app/(app)/calendar/page.tsx`), so there is no separate
+"how far ahead" setting. Paging to any future month shows that month's
+occurrences, however far out.
+
+Details:
+
+* **Only forward from the current `dueDate`.** Projected occurrences are
+  never drawn *before* it. Past occurrences are history (Decision 6), not
+  projections, and drawing them would claim they happened on schedule when
+  they may not have.
+* **The current occurrence is the real one.** It keeps today's due pin and
+  reminder pin (`custom-due-*` / `custom-reminder-*`). Projected ones are
+  display-only (marked `recurring: true`, like practices), carry no reminder
+  pin, and link to the object.
+* **A safety cap** on occurrences per item per request (e.g. 400) guards
+  against a pathological "every 1 day" rule meeting a wide range in some
+  future view.
 
 ### 8. Upcoming & Due and Needs Attention: unchanged actions
 
@@ -134,17 +192,47 @@ These surfaces keep exactly the actions a custom item has today (see
 `NeedsAttentionCard`):
 
 * **Edit** goes to the object page, where the person can change the date
-  or interval, or use the complete-occurrence check (Decision 5).
+  or rule, or use the complete-occurrence check (Decision 5).
 * **Dismiss** dismisses **that occurrence only**. This already falls out of
   the existing design: the dismissal key includes the deadline
   (`dismissalKey("custom", id, type, dueDate)` in `lib/data/upcoming.ts` and
   `lib/data/attention.ts`), so once the due date advances, the next
   occurrence has a new key and shows up again.
 
+**No completion check on these surfaces, now or later.** Completing is
+deliberately a two-step act (open the object, then complete) so it can't be
+mistaken for Dismiss. A one-click complete next to Dismiss would get used
+as "make this go away", silently pushing the date forward and writing
+completions into History that never really happened.
+
 Check during implementation that the notification read, first-seen and
 push records (`NotificationRead` / `NotificationFirstSeen` /
 `NotificationPushed`) are also keyed per deadline, so a new occurrence
 re-notifies rather than being treated as already seen.
+
+### 9. Archiving pauses it; nothing else changes
+
+How archiving works today, for any custom item: `toggleCustomItemArchivedAction`
+(`app/(app)/custom-modules/actions.ts`) only flips `archived` and logs
+`ITEM_ARCHIVED`. **`dueDate` is left exactly as it was.** Every surface
+filters archived items out at the query: `getAttentionRecords`
+(`lib/data/attention-items.ts`) does, and Needs Attention, Upcoming & Due and
+the notification engine all read through it, and so does
+`getCalendarItems`. So an archived item, even one with a future due date,
+simply disappears from all of them. Restoring it brings it back with the
+same stored date. If that date has passed in the meantime, it shows as
+overdue straight away.
+
+A recurring item follows the same rule, with no special handling:
+
+* Archiving **pauses** it. The date and rule are kept, nothing advances,
+  and no projected occurrences are drawn on the calendar.
+* Restoring resumes it from the stored date. If that's now in the past, it
+  shows as overdue. The person either completes it (Decision 5's catch-up
+  stepping lands the next date on or after today) or edits the date.
+
+There is no auto-advance while archived. Moving a date on a schedule no one
+is watching would write History nobody acted on.
 
 ## Guardrails
 
@@ -153,25 +241,23 @@ re-notifies rather than being treated as already seen.
 * Switching a template between Due Date and Recurring Due Date while it is
   in use is not allowed. It is a removal plus an add, and removal is
   already blocked by KD-035 Decision 7.
-* `recurrenceDays` must be a positive integer, validated server-side, and
-  needs a sensible upper bound in line with ADR-015's field limits.
+* `recurrenceInterval` must be a positive integer, validated server-side,
+  with an upper bound in line with ADR-015's field limits (e.g. ≤ 999).
+  `recurrenceUnit` is validated against the enum.
 * Completing an occurrence is idempotent against double-clicks and stale
   tabs: it only advances if `dueDate` still equals the occurrence the
   client saw (the same optimistic-concurrency pattern as BUG-007).
 
 ## Open Questions
 
-* Is a day count enough for v1, or do people want "monthly" / "yearly",
-  which aren't a fixed number of days? This ticket assumes days only, as
-  asked.
-* Should the completion check be offered directly on Upcoming & Due /
-  Needs Attention later? It's deliberately out for now (Decision 8).
-* Can a completion be undone (moving the date back and logging a reopen
-  event), mirroring `TODO_REOPENED` / `GOAL_MILESTONE_REOPENED`?
-* How far ahead the calendar projects (Decision 7): only the visible range,
-  or a cap such as 12 months.
-* Archiving an item: does it simply stop recurring? (Expected: yes, since
-  archived items are already excluded everywhere.)
+None blocking. Settled during review:
+
+* Day count vs. calendar units → number plus a unit (Decision 3).
+* Completion check on Upcoming & Due / Needs Attention → no (Decision 8).
+* Undoing a completion → no, edit the date instead (Decision 5).
+* Calendar horizon → the visible range, from the current due date
+  forward (Decision 7).
+* Archiving → pauses it, same as any custom item today (Decision 9).
 
 ## Related
 
