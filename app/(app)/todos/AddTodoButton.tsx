@@ -122,7 +122,8 @@ export function AddTodoForm({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Due takes the wider share: it carries the date plus the attached repeat button. Stacks on phones. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
             <div>
               <label htmlFor="todo-status" className={FIELD_LABEL_CLASS}>Status</label>
               <div className="relative">
@@ -152,7 +153,7 @@ export function AddTodoForm({
               <div className="flex">
               <div
                 onClick={() => dateInputRef.current?.showPicker?.()}
-                className={`relative flex h-[50px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l-xl border-[1.5px] border-r-0 bg-white px-3.5 transition ${
+                className={`relative flex h-[50px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l-xl border-[1.5px] border-r-0 bg-white px-3 transition ${
                   dateFocused ? "border-teal-600 ring-4 ring-teal-600/15" : "border-zinc-200"
                 }`}
               >
@@ -160,7 +161,6 @@ export function AddTodoForm({
                 <span className={`flex-1 truncate text-base sm:text-sm ${dueDate ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
                   {dueDate ? formatDate(dueDate, locale) : "Select a date"}
                 </span>
-                <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
                 <input
                   ref={dateInputRef}
                   type="date"
