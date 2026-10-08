@@ -16,6 +16,7 @@ import { GoalStatusSelect } from "./GoalStatusSelect";
 import { AddMilestoneForm, MeasurableTargetForm } from "./GoalAddForms";
 import { MilestoneRow } from "./MilestoneRow";
 import { calculateGoalHealth } from "@/lib/goals/health";
+import { formatDateInput } from "@/lib/dates";
 import { GoalSupportingInfo } from "./GoalSupportingInfo";
 import { GoalTargetDate } from "./GoalTargetDate";
 import { earliestTargetDate } from "@/lib/goals/target-date";
@@ -61,7 +62,7 @@ export default async function GoalPage({ params }: { params: Promise<{ goalId: s
 
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]"><div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Milestones</h2><p className="mt-1 text-sm text-zinc-500">Your current understanding of the path forward.</p></div><Flag className="h-5 w-5 text-violet-500"/></div>
-        <div className="mt-5 space-y-2">{goal.milestones.map((milestone) => <MilestoneRow key={milestone.id} milestone={milestone} hasTarget={goal.targetValue !== null} unit={goal.unit} goalTargetDate={goal.targetDate} toggleAction={toggleMilestoneAction.bind(null, goal.id, milestone.id, !milestone.completed)} updateAction={updateMilestoneAction.bind(null, goal.id, milestone.id)} duplicateAction={duplicateMilestoneAction.bind(null, goal.id, milestone.id)} deleteAction={deleteMilestoneAction.bind(null, goal.id, milestone.id)} />)}{!goal.milestones.length && <div className="rounded-2xl border border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Ambitious. We like it. Now, checkpoints.</div>}</div>
+        <div className="mt-5 space-y-2">{goal.milestones.map((milestone) => <MilestoneRow key={milestone.id} milestone={milestone} hasTarget={goal.targetValue !== null} unit={goal.unit} goalTargetDate={goal.targetDate} toggleAction={toggleMilestoneAction.bind(null, goal.id, milestone.id, !milestone.completed, milestone.dueDate ? formatDateInput(milestone.dueDate) : null)} updateAction={updateMilestoneAction.bind(null, goal.id, milestone.id)} duplicateAction={duplicateMilestoneAction.bind(null, goal.id, milestone.id)} deleteAction={deleteMilestoneAction.bind(null, goal.id, milestone.id)} />)}{!goal.milestones.length && <div className="rounded-2xl border border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400">Ambitious. We like it. Now, checkpoints.</div>}</div>
         <AddMilestoneForm action={milestoneAction} hasTarget={goal.targetValue !== null} unit={goal.unit} goalTargetDate={goal.targetDate} />
       </section>
 

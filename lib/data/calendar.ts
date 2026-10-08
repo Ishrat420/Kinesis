@@ -8,7 +8,7 @@ import { addUtcDays } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { occurrencesInRange } from "@/lib/relationships/occurrence";
-import { occurrencesInRange as recurringOccurrencesInRange, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
+import { occurrencesInRange as recurringOccurrencesInRange, recurrenceFromColumns, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import { prisma } from "./prisma";
 
@@ -88,7 +88,20 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
     if (goal.targetDate) add({ id: `goal-${goal.id}`, title: `${goal.name} target`, kind: "DATED", date: goal.targetDate, sourceType: "GOAL", sourceObjectId: goal.id, sourceModule: "Goals", href: `/goals/${goal.id}`, detail: "Goal target date" });
     for (const milestone of goal.milestones) {
       if (!milestone.dueDate) continue;
-      add({ id: `milestone-${milestone.id}`, title: `${milestone.name} due`, kind: "DATED", date: milestone.dueDate, sourceType: "MILESTONE", sourceObjectId: goal.id, sourceModule: goal.name, href: `/goals/${goal.id}`, detail: milestone.completed ? "Completed milestone" : "Milestone due date" });
+      // KD-056: an open repeating milestone shows every occurrence in the
+      // visible range, each with the repeat icon -- but only up to the day
+      // before the goal's target date, which ends the repeat. The current
+      // occurrence keeps its own id and is the only one with a reminder pin.
+      const milestoneRecurrence = milestone.completed ? null : recurrenceFromColumns(milestone);
+      if (milestoneRecurrence) {
+        const lastDay = goal.targetDate ? addUtcDays(goal.targetDate, -1) : null;
+        const until = lastDay && lastDay < end ? lastDay : end;
+        const detail = `Repeats: ${recurrenceLabel(milestoneRecurrence).toLowerCase()}`;
+        for (const date of recurringOccurrencesInRange(milestone.dueDate, milestoneRecurrence, start, until)) {
+          const current = dateKey(date) === dateKey(milestone.dueDate);
+          add({ id: current ? `milestone-${milestone.id}` : `milestone-${milestone.id}-${dateKey(date)}`, title: `${milestone.name} due`, kind: "DATED", date, sourceType: "MILESTONE", sourceObjectId: goal.id, sourceModule: goal.name, recurring: true, href: `/goals/${goal.id}`, detail });
+        }
+      } else add({ id: `milestone-${milestone.id}`, title: `${milestone.name} due`, kind: "DATED", date: milestone.dueDate, sourceType: "MILESTONE", sourceObjectId: goal.id, sourceModule: goal.name, href: `/goals/${goal.id}`, detail: milestone.completed ? "Completed milestone" : "Milestone due date" });
       // The engine reconciles away a completed milestone's reminder, and one on
       // a goal that isn't Active, so neither has a lead-up left to pin. A goal
       // past its own target date, left Active, still counts (KD-028) -- its

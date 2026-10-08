@@ -7,19 +7,26 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireKinesisUser } from "@/lib/auth";
 import { formatDate, formatDateInput, parseDateOnly } from "@/lib/dates";
-import { getFormatPreferences } from "@/lib/format/server";
+import { getFormatPreferences, getToday } from "@/lib/format/server";
 import { MEASURE_REMOVAL_CONFIRMATION } from "@/lib/goals/measure";
-import { refuse, refusalOf } from "@/lib/actions/refusal";
+import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/actions/refusal";
+import { buildRecurrence, nextDueAfterCompletion, readRepeatInputs, recurrenceColumns, recurrenceFromColumns, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { deleteObjects, objectFor } from "@/lib/data/objects";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { parseCustomFields, prepareCustomFields } from "@/lib/custom-fields/parse";
 import { createLinksFromFields, splitKinesisLinkFields } from "@/lib/data/template-kinesis-links";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
-import { diffObjectFields, recordEvent, recordFieldChanges, recordMilestoneUpdated, recordStatusChanged, type FieldChange, type MilestoneFieldChange } from "@/lib/data/object-events";
+import { diffObjectFields, recordEvent, recordFieldChanges, recordMilestoneUpdated, recordRecurrenceCompleted, recordStatusChanged, type FieldChange, type MilestoneFieldChange } from "@/lib/data/object-events";
 import { checkLength, checkNumberMagnitude, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 
-export type GoalActionState = { error?: string; saved?: boolean };
+/**
+ * `nextDueDate` (YYYY-MM-DD) and `finished` are set when ticking a repeating
+ * milestone (KD-056): the first when the occurrence moved the date on, the
+ * second when it was the last one before the goal's target date and
+ * completed the milestone for good -- the row's cue for its snackbar.
+ */
+export type GoalActionState = { error?: string; saved?: boolean; conflict?: boolean; nextDueDate?: string; finished?: boolean };
 
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const numeric = (data: FormData, key: string) => {
@@ -43,6 +50,23 @@ const beforeTargetDate = async (dueDate: Date | null, targetDate: Date | null) =
   const { locale } = await getFormatPreferences();
   return `The due date must be before the goal target date of ${formatDate(targetDate, locale)}.`;
 };
+/** KD-056: a milestone with a target value completes itself when the goal reaches it, so it never repeats. */
+const VALUE_CANNOT_REPEAT = "A milestone with a target value can't repeat.";
+
+/**
+ * A rule's anchor day is kept when neither the date nor the rule changed, so
+ * re-saving a clamped 28 Feb (anchored on the 31st) never quietly re-anchors
+ * it to the 28th; any real change anchors afresh on the new date -- the same
+ * rule To-dos and custom items follow.
+ */
+function keepAnchor(next: Recurrence | null, nextDueDate: Date | null, previous: Recurrence | null, previousDueDate: Date | null): Recurrence | null {
+  if (!next || !nextDueDate) return null;
+  const unchanged = previous && previousDueDate
+    && next.rule === previous.rule && next.days === previous.days
+    && formatDateInput(nextDueDate) === formatDateInput(previousDueDate);
+  return unchanged ? previous : buildRecurrence(next.rule, nextDueDate, next.days);
+}
+
 const refresh = (id: string) => { revalidateShell(); revalidatePath("/goals"); revalidatePath(`/goals/${id}`); revalidatePath("/calendar"); revalidatePath("/goals/milestones/due-soon"); };
 
 export async function createGoalAction(_previousState: GoalActionState, data: FormData): Promise<GoalActionState> {
@@ -244,6 +268,8 @@ export async function addMilestoneAction(id: string, _previousState: GoalActionS
   const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate");
   if (!name) return { error: "Enter a milestone name." };
   if (dueDate === undefined) return { error: "Enter a valid due date." };
+  const repeat = readRepeatInputs(data, value(data, "dueDate"), parseDateOnly);
+  if ("error" in repeat) return { error: repeat.error };
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
   const milestoneMagnitudeError = checkNumberMagnitude(milestoneValue, "the target value");
   if (milestoneMagnitudeError) return { error: milestoneMagnitudeError };
@@ -252,9 +278,10 @@ export async function addMilestoneAction(id: string, _previousState: GoalActionS
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
   const measured = measuredValue(goal.targetValue, milestoneValue);
+  if (repeat.recurrence && measured !== null) return { error: VALUE_CANNOT_REPEAT };
   const auto = measured !== null && goal.currentValue !== null && goal.currentValue >= measured;
   await prisma.$transaction(async (tx) => {
-    await tx.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: measured, dueDate, completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } });
+    await tx.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name, value: measured, dueDate, ...recurrenceColumns(repeat.recurrence), completed: auto, completedAt: auto ? new Date() : null, autoCompleted: auto, position: goal._count.milestones } });
     await recordEvent(tx, user.id, goal.objectId, "GOAL_MILESTONE_ADDED", name, dueDate ? formatDateInput(dueDate) : undefined);
   });
   refresh(id);
@@ -266,6 +293,8 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
   const name = value(data, "name"); const milestoneValue = numeric(data, "value"); const dueDate = optionalDate(data, "dueDate");
   if (!name) return { error: "Enter a milestone name." };
   if (dueDate === undefined) return { error: "Enter a valid due date." };
+  const repeat = readRepeatInputs(data, value(data, "dueDate"), parseDateOnly);
+  if ("error" in repeat) return { error: repeat.error };
   if (milestoneValue !== null && !Number.isFinite(milestoneValue)) return { error: "Enter the target value as a number." };
   const milestoneMagnitudeError = checkNumberMagnitude(milestoneValue, "the target value");
   if (milestoneMagnitudeError) return { error: milestoneMagnitudeError };
@@ -276,10 +305,13 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
   const { locale } = await getFormatPreferences();
   try {
     await prisma.$transaction(async (tx) => {
-      const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, value: true, dueDate: true } });
+      const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, value: true, dueDate: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true } });
       if (!previous) refuse("This milestone no longer exists.");
       const measured = measuredValue(goal.targetValue, milestoneValue);
-      await tx.milestone.update({ where: { id: milestoneId }, data: { name, value: measured, dueDate } });
+      if (repeat.recurrence && measured !== null) refuse(VALUE_CANNOT_REPEAT);
+      const previousRecurrence = recurrenceFromColumns(previous);
+      const recurrence = keepAnchor(repeat.recurrence, dueDate, previousRecurrence, previous.dueDate);
+      await tx.milestone.update({ where: { id: milestoneId }, data: { name, value: measured, dueDate, ...recurrenceColumns(recurrence) } });
 
       // Each row is tagged with the milestone's *new* name (`name`, not
       // `previous.name`) even when the name itself is one of the changes --
@@ -288,6 +320,9 @@ export async function updateMilestoneAction(id: string, milestoneId: string, _pr
       if (previous.name !== name) changes.push({ fieldKey: "name", oldValue: previous.name, newValue: name });
       if (previous.value !== measured) changes.push({ fieldKey: "value", oldValue: previous.value !== null ? displayNumber(previous.value, goal.unit, locale) : null, newValue: measured !== null ? displayNumber(measured, goal.unit, locale) : null });
       if (previous.dueDate?.getTime() !== dueDate?.getTime()) changes.push({ fieldKey: "dueDate", oldValue: previous.dueDate ? formatDateInput(previous.dueDate) : null, newValue: dueDate ? formatDateInput(dueDate) : null });
+      const oldRepeats = previousRecurrence ? recurrenceLabel(previousRecurrence) : null;
+      const newRepeats = recurrence ? recurrenceLabel(recurrence) : null;
+      if (oldRepeats !== newRepeats) changes.push({ fieldKey: "recurrence", oldValue: oldRepeats, newValue: newRepeats });
       await recordMilestoneUpdated(tx, user.id, goal.objectId, name, changes);
     });
   } catch (failure) {
@@ -305,7 +340,8 @@ export async function duplicateMilestoneAction(id: string, milestoneId: string) 
   if (!milestone) return;
   const count = await prisma.milestone.count({ where: { goalId: id } });
   await prisma.$transaction(async (tx) => {
-    await tx.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name: milestone.name, value: milestone.value, dueDate: milestone.dueDate, position: count } });
+    // The copy repeats the same way, starting afresh: no occurrences done yet.
+    await tx.milestone.create({ data: { id: crypto.randomUUID(), goalId: id, name: milestone.name, value: milestone.value, dueDate: milestone.dueDate, ...recurrenceColumns(recurrenceFromColumns(milestone)), position: count } });
     await recordEvent(tx, user.id, milestone.goal.objectId, "GOAL_MILESTONE_ADDED", milestone.name, milestone.dueDate ? formatDateInput(milestone.dueDate) : undefined);
   });
   refresh(id);
@@ -320,9 +356,11 @@ export async function updateMilestoneDueDateAction(id: string, milestoneId: stri
   const conflict = await beforeTargetDate(dueDate, goal.targetDate);
   if (conflict) return { error: conflict };
   await prisma.$transaction(async (tx) => {
-    const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, dueDate: true } });
+    const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, dueDate: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true } });
     if (!previous) return;
-    await tx.milestone.update({ where: { id: milestoneId }, data: { dueDate } });
+    // Rescheduling a repeating milestone re-anchors its rule on the new date (KD-056).
+    const previousRecurrence = recurrenceFromColumns(previous);
+    await tx.milestone.update({ where: { id: milestoneId }, data: { dueDate, ...recurrenceColumns(keepAnchor(previousRecurrence, dueDate, previousRecurrence, previous.dueDate)) } });
     if (previous.dueDate?.getTime() !== dueDate?.getTime()) {
       await recordMilestoneUpdated(tx, user.id, goal.objectId, previous.name, [{ fieldKey: "dueDate", oldValue: previous.dueDate ? formatDateInput(previous.dueDate) : null, newValue: dueDate ? formatDateInput(dueDate) : null }]);
     }
@@ -338,7 +376,8 @@ export async function removeMilestoneDueDateAction(id: string, milestoneId: stri
   await prisma.$transaction(async (tx) => {
     const previous = await tx.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, select: { name: true, dueDate: true } });
     if (!previous || !previous.dueDate) return;
-    await tx.milestone.update({ where: { id: milestoneId }, data: { dueDate: null } });
+    // No date, nothing to repeat from: the repeat goes with it (KD-056).
+    await tx.milestone.update({ where: { id: milestoneId }, data: { dueDate: null, ...recurrenceColumns(null) } });
     await recordMilestoneUpdated(tx, user.id, goal.objectId, previous.name, [{ fieldKey: "dueDate", oldValue: formatDateInput(previous.dueDate), newValue: null }]);
   });
   refresh(id);
@@ -350,10 +389,12 @@ export async function removeMilestoneDueDateAction(id: string, milestoneId: stri
  * springs back and the person is left guessing. It takes the form-state shape so
  * the row can drive it with `useActionState` and show the reason in place.
  */
-export async function toggleMilestoneAction(id: string, milestoneId: string, completed: boolean): Promise<GoalActionState> {
+export async function toggleMilestoneAction(id: string, milestoneId: string, completed: boolean, expectedDueDate?: string | null): Promise<GoalActionState> {
   const user = await requireKinesisUser();
-  const owned = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } } });
+  const owned = await prisma.milestone.findFirst({ where: { id: milestoneId, goalId: id, goal: { userId: user.id } }, include: { goal: { select: { objectId: true, targetDate: true } } } });
   if (!owned) return { error: "This milestone no longer exists." };
+  const recurrence = recurrenceFromColumns(owned);
+  if (completed && recurrence && owned.dueDate && !owned.completed) return completeMilestoneOccurrence(id, owned, recurrence, owned.dueDate, user.id, expectedDueDate);
   await prisma.$transaction(async (tx) => {
     const updated = await tx.milestone.update({ where: { id: milestoneId }, data: { completed, completedAt: completed ? new Date() : null, autoCompleted: false }, include: { goal: { select: { name: true, objectId: true } } } });
     const progress = await milestoneProgress(tx, id);
@@ -362,6 +403,55 @@ export async function toggleMilestoneAction(id: string, milestoneId: string, com
   });
   refresh(id);
   return {};
+}
+
+/**
+ * Ticking a repeating milestone (KD-056) completes its current occurrence:
+ * the due date moves to the next one (one step on, caught up to today or
+ * later if it was long overdue) and "Done N times" counts it. The goal's
+ * target date ends the repeat -- a milestone must be due before it -- so
+ * when the next occurrence would land on or after it, this occurrence was
+ * the last one and the milestone completes for good, which is the only
+ * point goal progress counts it. A goal with no target date repeats it
+ * indefinitely.
+ *
+ * Conditioned on the due date the caller showed, so a double click or a
+ * stale tab gets a conflict instead of skipping an occurrence.
+ */
+async function completeMilestoneOccurrence(
+  goalId: string,
+  milestone: { id: string; name: string; completedOccurrences: number; goal: { objectId: string; targetDate: Date | null } },
+  recurrence: Recurrence,
+  dueDate: Date,
+  userId: string,
+  expectedDueDate?: string | null,
+): Promise<GoalActionState> {
+  if (expectedDueDate && expectedDueDate.slice(0, 10) !== formatDateInput(dueDate)) {
+    return { error: "This occurrence was already completed or changed. Reload to see the latest.", conflict: true };
+  }
+  const today = await getToday();
+  const { next } = nextDueAfterCompletion(dueDate, recurrence, today);
+  const targetDate = milestone.goal.targetDate;
+  const finished = targetDate !== null && next >= targetDate;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.milestone.updateMany({
+        where: { id: milestone.id, dueDate, completed: false },
+        data: finished
+          ? { completed: true, completedAt: new Date(), autoCompleted: false, completedOccurrences: { increment: 1 } }
+          : { dueDate: next, completedOccurrences: { increment: 1 } },
+      });
+      if (result.count === 0) refuseConflict("This occurrence was already completed or changed. Reload to see the latest.");
+      if (finished) await recordEvent(tx, userId, milestone.goal.objectId, "GOAL_MILESTONE_COMPLETED", milestone.name, await milestoneProgress(tx, goalId));
+      else await recordRecurrenceCompleted(tx, userId, milestone.goal.objectId, formatDateInput(dueDate), formatDateInput(next), milestone.name);
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return isConflictRefusal(failure) ? { error: refused, conflict: true } : { error: refused };
+  }
+  refresh(goalId);
+  return finished ? { finished: true } : { nextDueDate: formatDateInput(next) };
 }
 
 export async function deleteMilestoneAction(id: string, milestoneId: string) {

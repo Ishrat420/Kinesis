@@ -53,7 +53,7 @@ conflicts, catch-up, editing and re-anchoring, calendar, notifications,
 database constraints), a full migration replay into an empty schema, and a
 production build. Not yet clicked through in a browser.
 
-### Goal milestones (design agreed, not built)
+### Goal milestones (done)
 
 Same repeat button, Repeats options, validation, catch-up and History
 event as To-dos, in the Goals module's violet. Design mockup: "Recurring
@@ -80,6 +80,40 @@ Decisions specific to milestones:
 Missed occurrences behave as for To-dos: nothing moves on its own; the
 milestone stays overdue until ticked, then catches up to the next
 occurrence on or after today.
+
+What shipped:
+
+* **Schema.** `Milestone.recurrence` / `recurrenceDays` /
+  `recurrenceAnchorDay` plus `completedOccurrences` ("Done N times"), with
+  the same NULL-safe check constraints and one more: never a repeat
+  alongside a target value (migration
+  `20261025000000_milestone_recurrence`).
+* **Forms.** The repeat button joins the milestone's date field
+  (`DueDateField`'s new `addon`) on both the "New milestone" and edit
+  forms; the Repeats fields sit narrow under the date
+  (`useMilestoneRepeat` in `GoalAddForms.tsx`). The shared controls moved
+  to `components/recurrence/RepeatControls.tsx` and take an accent (teal,
+  violet) and a size. The button is disabled with "A milestone with a
+  target value can't repeat" while a target value is entered.
+* **Ticking** (`toggleMilestoneAction`, from the row, Upcoming & Due and
+  Needs Attention, each passing the date it showed): moves the date to the
+  next occurrence and counts it, recording RECURRENCE_COMPLETED on the goal
+  with the milestone's name; when the next occurrence would land on or after
+  the goal's target date it completes the milestone instead
+  (GOAL_MILESTONE_COMPLETED, progress counts it). Snackbar on the row.
+* **Editing.** Same anchor rules as To-dos; a rule change logs a "Repeats"
+  milestone update; rescheduling re-anchors; removing the date removes the
+  repeat; duplicating copies the rule with the count reset.
+* **Row.** "↻ Every week · Done N times · Next event: …", or "Last one
+  before the target date".
+* **Calendar.** Occurrences projected up to the day before the goal's
+  target date, with the repeat icon; only the current one has a reminder.
+* **Reminders and notifications.** Unchanged code; they follow the moving
+  due date on the owner's milestone lead.
+
+Verified with typecheck, lint, the unit and integration suites (12 new
+integration tests), a full migration replay into an empty schema, and a
+production build. Not yet clicked through in a browser.
 
 ### Other system modules
 

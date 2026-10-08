@@ -9,6 +9,39 @@ import { MEASURE_REMOVAL_CONSEQUENCE } from "@/lib/goals/measure";
 import type { GoalActionState } from "../actions";
 import { TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/recurrence/RepeatControls";
+import type { Recurrence } from "@/lib/recurrence";
+
+const REPEAT_FIELD_CLASS = "w-full rounded-xl border-[1.5px] border-zinc-200 bg-white text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm";
+
+/**
+ * A milestone's repeat (KD-056): the shared repeat button and Repeats fields,
+ * in Goals' violet at the milestone form's 44px size, plus the two rules only
+ * milestones have. A milestone with a target value can't repeat -- it
+ * completes itself when the goal reaches it -- and the goal's target date
+ * ends the repeat, so the form says when, and calls the last occurrence
+ * before it the last one.
+ *
+ * Returns the pieces separately: the button goes on the date field, the
+ * fields go on a row of their own under it.
+ */
+export function useMilestoneRepeat({ initial, dueDate, valueEntered, goalTargetDate }: { initial?: Recurrence | null; dueDate: string; valueEntered: boolean; goalTargetDate: Date | null }) {
+  const [repeat, setRepeat] = useState<RepeatState>(() => initialRepeat(initial));
+  const { locale } = useFormatPreferences();
+  const blocked = !dueDate ? "Pick a due date first" : valueEntered ? "A milestone with a target value can't repeat" : null;
+  const on = repeat.on && !blocked;
+  const button = <RepeatButton accent="violet" size="sm" on={on} disabled={blocked !== null} disabledReason={blocked ?? undefined} onToggle={() => setRepeat((current) => ({ ...current, on: !current.on }))} />;
+  const fields = (
+    <div className="flex sm:justify-end">
+      <RepeatFields
+        repeat={{ ...repeat, on }} onChange={setRepeat} dueDate={dueDate} fieldClass={REPEAT_FIELD_CLASS} size="sm" className="w-full sm:w-56"
+        lastBefore={goalTargetDate}
+        footnote={goalTargetDate ? `Repeats until ${formatDate(addUtcDays(goalTargetDate, -1), locale)}` : undefined}
+      />
+    </div>
+  );
+  return { button, fields };
+}
 
 type FormAction = (state: GoalActionState, formData: FormData) => Promise<GoalActionState>;
 const initialState: GoalActionState = {};
@@ -26,15 +59,15 @@ function ActionError({ error }: { error?: string }) {
  * Safari where it shows nothing at all until a value is picked. The real
  * input still covers the row so it stays keyboard- and screen-reader-operable.
  */
-export function DueDateField({ value, onChange, max, ariaLabel }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string }) {
+export function DueDateField({ value, onChange, max, ariaLabel, addon }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string; addon?: React.ReactNode }) {
   const [focused, setFocused] = useState(false);
   const { locale } = useFormatPreferences();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  return (
+  const field = (
     <div
       onClick={() => inputRef.current?.showPicker?.()}
-      className={`relative flex h-11 cursor-pointer items-center gap-2.5 rounded-xl border-[1.5px] bg-white px-3 transition ${
+      className={`relative flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-2.5 border-[1.5px] bg-white px-3 transition ${addon ? "rounded-l-xl border-r-0" : "rounded-xl"} ${
         focused ? "border-violet-500 ring-4 ring-violet-500/15" : "border-zinc-200"
       }`}
     >
@@ -56,6 +89,8 @@ export function DueDateField({ value, onChange, max, ariaLabel }: { value: strin
       />
     </div>
   );
+  // `addon` (KD-056): the repeat button, joined onto the field's right edge as one control.
+  return addon ? <div className="flex">{field}{addon}</div> : field;
 }
 
 export function AddMilestoneForm({
@@ -102,6 +137,8 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [dueDate, setDueDate] = useState("");
+  const [targetValue, setTargetValue] = useState("");
+  const repeat = useMilestoneRepeat({ dueDate, valueEntered: hasTarget && targetValue.trim() !== "", goalTargetDate });
   const latestDueDate = goalTargetDate ? formatDateInput(addUtcDays(goalTargetDate, -1)) : undefined;
   useEffect(() => { if (state.saved) onDone(); }, [state.saved, onDone]);
 
@@ -129,20 +166,24 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
             min="0"
             placeholder="2"
             aria-label="Optional target value"
+            value={targetValue}
+            onChange={(event) => setTargetValue(event.target.value)}
             className="h-11 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:w-24 sm:text-sm"
           />
         )}
         {hasTarget && unit && <span className="px-1 text-sm font-medium text-zinc-700">{unit}</span>}
         <span className="px-1 text-sm font-medium uppercase text-zinc-700">by</span>
-        <div className="sm:w-48">
+        <div className="sm:w-56">
           <DueDateField
             value={dueDate}
             onChange={setDueDate}
             max={latestDueDate}
             ariaLabel={latestDueDate ? "Milestone due date, must be before the goal target date" : "Optional milestone due date"}
+            addon={repeat.button}
           />
         </div>
       </div>
+      <div className="mt-3">{repeat.fields}</div>
       <ActionError error={state.error} />
       <div className="mt-4 flex justify-end"><button disabled={pending} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-50"><Plus className="h-4 w-4" /> {pending ? "Saving…" : "Save milestone"}</button></div>
     </form>

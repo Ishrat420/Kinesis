@@ -11,7 +11,7 @@ import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import { createTodoAction, type CreateTodoState } from "./actions";
 import { NOTES_LIMIT } from "@/lib/validation/field-limits";
-import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/todos/RepeatControls";
+import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/recurrence/RepeatControls";
 
 const initialState: CreateTodoState = {};
 

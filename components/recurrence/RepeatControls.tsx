@@ -5,6 +5,18 @@ import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 import { buildRecurrence, followingOccurrence, isRecurrenceRule, RECURRENCE_DAYS_MAX, RECURRENCE_OPTIONS, type Recurrence } from "@/lib/recurrence";
 
+/**
+ * Each module's own accent and field size: To-dos are teal at 50px,
+ * goal milestones violet at 44px -- the same control either way (KD-056).
+ */
+const ACCENTS = {
+  teal: { on: "border-teal-600 bg-teal-600 text-white hover:bg-teal-700", idle: "hover:text-teal-700", ring: "focus-visible:ring-teal-600/15" },
+  violet: { on: "border-violet-600 bg-violet-600 text-white hover:bg-violet-700", idle: "hover:text-violet-700", ring: "focus-visible:ring-violet-500/15" },
+} as const;
+export type RepeatAccent = keyof typeof ACCENTS;
+type RepeatSize = "md" | "sm";
+const SIZES = { md: { button: "h-[50px] w-[50px]", field: "h-[50px]", nWidth: "grid-cols-[1.6fr_1fr]" }, sm: { button: "h-11 w-11", field: "h-11", nWidth: "grid-cols-[minmax(0,1fr)_72px]" } } as const;
+
 /** The repeat button's and Repeats fields' in-progress state, as raw form strings. */
 export type RepeatState = { on: boolean; rule: string; days: string };
 
@@ -15,13 +27,19 @@ export function initialRepeat(recurrence?: Recurrence | null): RepeatState {
 
 /**
  * The square ↻ button joined onto the right edge of a Due field (KD-056,
- * design option B). Pressed, it fills teal and the Repeats fields appear
+ * design option B). Pressed, it fills with the module's accent (teal for
+ * To-dos, violet for goal milestones) and the Repeats fields appear
  * below the form's date row. With no due date there is nothing to repeat
  * from, so it is disabled -- the hover text sits on a wrapper because a
  * disabled button doesn't fire hover events in every browser.
  */
-export function RepeatButton({ on, disabled, onToggle }: { on: boolean; disabled: boolean; onToggle: () => void }) {
-  const title = disabled ? "Pick a due date first" : on ? "Stop repeating" : "Repeat";
+export function RepeatButton({ on, disabled, onToggle, accent = "teal", size = "md", disabledReason = "Pick a due date first" }: {
+  on: boolean; disabled: boolean; onToggle: () => void; accent?: RepeatAccent; size?: RepeatSize;
+  /** The hover text while disabled -- why it can't repeat right now. */
+  disabledReason?: string;
+}) {
+  const title = disabled ? disabledReason : on ? "Stop repeating" : "Repeat";
+  const colours = ACCENTS[accent];
   return (
     <span title={title} className="flex shrink-0">
       <button
@@ -30,12 +48,12 @@ export function RepeatButton({ on, disabled, onToggle }: { on: boolean; disabled
         disabled={disabled}
         aria-pressed={on}
         aria-label={title}
-        className={`flex h-[50px] w-[50px] items-center justify-center rounded-r-xl border-[1.5px] outline-none transition focus-visible:ring-4 focus-visible:ring-teal-600/15 ${
+        className={`flex ${SIZES[size].button} items-center justify-center rounded-r-xl border-[1.5px] outline-none transition focus-visible:ring-4 ${colours.ring} ${
           on
-            ? "border-teal-600 bg-teal-600 text-white hover:bg-teal-700"
+            ? colours.on
             : disabled
               ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-300"
-              : "border-zinc-200 bg-zinc-50 text-zinc-500 hover:bg-zinc-100 hover:text-teal-700"
+              : `border-zinc-200 bg-zinc-50 text-zinc-500 hover:bg-zinc-100 ${colours.idle}`
         }`}
       >
         <Repeat2 className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -51,25 +69,32 @@ export function RepeatButton({ on, disabled, onToggle }: { on: boolean; disabled
  * (KD-055). Always renders the hidden inputs the server reads (`repeat`,
  * `recurrenceRule`, `recurrenceDays`), so an off button submits as a one-off.
  */
-export function RepeatFields({ repeat, onChange, dueDate, fieldClass }: { repeat: RepeatState; onChange: (next: RepeatState) => void; dueDate: string; fieldClass: string }) {
+export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md", className = "", lastBefore, footnote }: {
+  repeat: RepeatState; onChange: (next: RepeatState) => void; dueDate: string; fieldClass: string; size?: RepeatSize; className?: string;
+  /** An end date the repeat stops before (a goal's target date): a next event on or after it reads as the last one instead. */
+  lastBefore?: Date | null;
+  /** A short line under the inputs, e.g. "Repeats until 30 Dec 2026". */
+  footnote?: string;
+}) {
   const { locale } = useFormatPreferences();
   const active = repeat.on && Boolean(dueDate);
   const everyNDays = repeat.rule === "EVERY_N_DAYS";
   const nextEvent = active ? previewNextEvent(dueDate, repeat) : null;
+  const isLast = Boolean(nextEvent && lastBefore && nextEvent >= lastBefore);
 
   return <>
     <input type="hidden" name="repeat" value={active ? "on" : ""} />
     <input type="hidden" name="recurrenceRule" value={active ? repeat.rule : ""} />
     <input type="hidden" name="recurrenceDays" value={active && everyNDays ? repeat.days : ""} />
     {active && (
-      <div className="space-y-2">
-        <div className={`grid min-w-0 gap-2.5 ${everyNDays ? "grid-cols-[1.6fr_1fr]" : "grid-cols-1"}`}>
+      <div className={`space-y-2 ${className}`}>
+        <div className={`grid min-w-0 gap-2.5 ${everyNDays ? SIZES[size].nWidth : "grid-cols-1"}`}>
           <div className="relative min-w-0">
             <select
               value={repeat.rule}
               onChange={(event) => onChange({ ...repeat, rule: event.target.value })}
               aria-label="Repeats"
-              className={`h-[50px] appearance-none pl-3.5 pr-9 ${fieldClass}`}
+              className={`${SIZES[size].field} appearance-none pl-3.5 pr-9 ${fieldClass}`}
             >
               <option value="">Repeats…</option>
               {RECURRENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -82,12 +107,17 @@ export function RepeatFields({ repeat, onChange, dueDate, fieldClass }: { repeat
               value={repeat.days}
               onChange={(event) => onChange({ ...repeat, days: event.target.value })}
               aria-label="Repeat every how many days"
-              placeholder="N (days)"
-              className={`h-[50px] px-3.5 ${fieldClass}`}
+              placeholder={size === "sm" ? "N" : "N (days)"}
+              className={`${SIZES[size].field} px-3.5 ${fieldClass}`}
             />
           )}
         </div>
-        {nextEvent && <p className="text-xs text-zinc-500">Next event: {formatDate(nextEvent, locale)}</p>}
+        {(nextEvent || footnote) && (
+          <div className="text-xs leading-5 text-zinc-500">
+            {nextEvent && <p>{isLast ? "Last one before the target date" : `Next event: ${formatDate(nextEvent, locale)}`}</p>}
+            {footnote && <p>{footnote}</p>}
+          </div>
+        )}
       </div>
     )}
   </>;

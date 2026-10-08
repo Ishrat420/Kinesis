@@ -8,7 +8,7 @@ import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import { formatDateInput } from "@/lib/dates";
-import { buildRecurrence, nextDueAfterCompletion, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
+import { buildRecurrence, nextDueAfterCompletion, recurrenceColumns, recurrenceFromColumns, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import { getToday } from "@/lib/format/server";
 
 /**
@@ -58,16 +58,7 @@ const todoSelect = {
 
 type TodoRow = Prisma.TodoGetPayload<{ select: typeof todoSelect }>;
 
-/** The three stored columns as one rule, or null for a one-off. */
-const toRecurrence = (row: { recurrence: Recurrence["rule"] | null; recurrenceDays: number | null; recurrenceAnchorDay: number | null }): Recurrence | null =>
-  row.recurrence ? { rule: row.recurrence, days: row.recurrenceDays, anchorDay: row.recurrenceAnchorDay } : null;
-
-/** The three columns a rule is stored in, cleared together when there is none. */
-const recurrenceColumns = (recurrence: Recurrence | null) => ({
-  recurrence: recurrence?.rule ?? null,
-  recurrenceDays: recurrence?.days ?? null,
-  recurrenceAnchorDay: recurrence?.anchorDay ?? null,
-});
+const toRecurrence = recurrenceFromColumns;
 
 const toRecord = ({ object, recurrence, recurrenceDays, recurrenceAnchorDay, ...todo }: TodoRow): TodoRecord => {
   const links = locateObjects(object.outgoingRelationships.map((relationship) => relationship.targetObject));

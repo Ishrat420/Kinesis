@@ -68,7 +68,7 @@ export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
                 ? <ResolveActions
                     dueDate={item.date}
                     onComplete={() => setDismissed((current) => [...current, item.key])}
-                    complete={() => toggleMilestoneAction(item.goalId, item.milestoneId, true)}
+                    complete={() => toggleMilestoneAction(item.goalId, item.milestoneId, true, item.date)}
                     reschedule={updateMilestoneDueDateAction.bind(null, item.goalId, item.milestoneId)}
                   />
                 : item.kind === "todo"

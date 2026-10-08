@@ -41,7 +41,7 @@ function UpcomingActions({ item, todoLinkOptions }: { item: UpcomingItem; todoLi
   if (item.kind === "milestone") {
     return <ResolveActions
       dueDate={item.date}
-      complete={toggleMilestoneAction.bind(null, item.goalId, item.milestoneId, true)}
+      complete={toggleMilestoneAction.bind(null, item.goalId, item.milestoneId, true, item.date)}
       reschedule={updateMilestoneDueDateAction.bind(null, item.goalId, item.milestoneId)}
     />;
   }

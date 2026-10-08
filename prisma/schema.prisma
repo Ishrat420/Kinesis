@@ -591,6 +591,17 @@ model Milestone {
   name          String
   value         Float?
   dueDate       DateTime?
+  // KD-056: how `dueDate` repeats, set with the repeat button beside the
+  // milestone's date -- the same three columns and rules as To-do and
+  // CustomItem. Completing an occurrence advances `dueDate`; the goal's
+  // target date ends the repeat, and ticking the last occurrence before it
+  // completes the milestone for good (so goal progress counts it only then).
+  // Never set alongside a target `value`, which completes itself instead.
+  recurrence          RecurrenceRule?
+  recurrenceDays      Int?
+  recurrenceAnchorDay Int?
+  // How many occurrences have been ticked -- the row's "Done N times".
+  completedOccurrences Int     @default(0)
   completed     Boolean        @default(false)
   completedAt   DateTime?
   autoCompleted Boolean        @default(false)

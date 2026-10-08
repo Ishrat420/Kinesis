@@ -11,7 +11,7 @@ import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/
 import { captureTargets, captureTargetCarries, DEFAULT_CAPTURE_TARGET, splitCaptureDetails, type CaptureDetail, type CaptureTargetType } from "@/lib/capture/targets";
 import { captureLinkOptionsAction, saveTodoDetailsAction, type TodoDetailsState } from "@/app/(app)/todos/actions";
 import { NOTES_LIMIT } from "@/lib/validation/field-limits";
-import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/todos/RepeatControls";
+import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/recurrence/RepeatControls";
 import type { Recurrence } from "@/lib/recurrence";
 
 const initialState: TodoDetailsState = {};

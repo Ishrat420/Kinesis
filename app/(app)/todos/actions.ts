@@ -6,7 +6,7 @@ import { captureTodo, createTodo, deleteTodo, getTodoLinkOptions, updateTodoDeta
 import type { ObjectLocation } from "@/lib/objects/locations";
 import { isTodoStatus } from "@/lib/todos/status";
 import { formatDateInput, parseDateOnly } from "@/lib/dates";
-import { buildRecurrence, parseRecurringDueDateInput, type Recurrence } from "@/lib/recurrence";
+import { readRepeatInputs } from "@/lib/recurrence";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { captureCreateHref, DEFAULT_CAPTURE_TARGET, isCaptureTargetType } from "@/lib/capture/targets";
 import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
@@ -25,24 +25,8 @@ export type CreateTodoState = { error?: string; created?: boolean };
 
 const text = (formData: FormData, name: string) => String(formData.get(name) ?? "").trim();
 
-/**
- * The repeat button's half of a create or edit form (KD-056): `repeat` is
- * "on" while the button is pressed, alongside the Repeats dropdown
- * (`recurrenceRule`) and N (`recurrenceDays`). Off means a one-off. On is
- * validated exactly like a custom item's Recurring Due Date (KD-055): the
- * date and the rule together, N a whole number from 1 to 999.
- */
-function readRecurrence(formData: FormData, dueDateValue: string): { recurrence: Recurrence | null } | { error: string } {
-  if (text(formData, "repeat") !== "on") return { recurrence: null };
-  const parsed = parseRecurringDueDateInput(
-    { value: dueDateValue, recurrenceRule: text(formData, "recurrenceRule") || "", recurrenceDays: text(formData, "recurrenceDays") },
-    parseDateOnly,
-  );
-  if (!parsed.ok) return { error: parsed.error };
-  if (!parsed.dueDate) return { error: "Pick a due date for a to-do that repeats." };
-  if (!parsed.rule) return { error: "Pick how often it repeats." };
-  return { recurrence: buildRecurrence(parsed.rule, parsed.dueDate, parsed.days) };
-}
+/** The repeat button's inputs (KD-056), read and validated by the helper shared with goal milestones. */
+const readRecurrence = (formData: FormData, dueDateValue: string) => readRepeatInputs(formData, dueDateValue, parseDateOnly);
 
 /** Titles are the whole payload of a capture, so an unbounded one is refused rather than truncated. */
 const MAX_TITLE_LENGTH = 200;

@@ -162,3 +162,32 @@ export function parseRecurringDueDateInput(input: RecurringDueDateInput, parseDa
   if (!Number.isInteger(days) || days < 1 || days > RECURRENCE_DAYS_MAX) return { ok: false, error: `N must be a whole number from 1 to ${RECURRENCE_DAYS_MAX}.` };
   return { ok: true, dueDate, rule: ruleRaw, days };
 }
+
+/**
+ * The repeat button's half of a system module's create or edit form
+ * (KD-056): `repeat` is "on" while the button is pressed, alongside the
+ * Repeats dropdown (`recurrenceRule`) and N (`recurrenceDays`). Off means a
+ * one-off. On is validated exactly like a custom item's Recurring Due Date
+ * (KD-055): the date and the rule together, N a whole number from 1 to 999.
+ * Shared by To-dos and goal milestones so both read and refuse the same way.
+ */
+export function readRepeatInputs(data: FormData, dueDateValue: string, parseDate: (raw: string) => Date | null): { recurrence: Recurrence | null } | { error: string } {
+  const field = (key: string) => String(data.get(key) ?? "").trim();
+  if (field("repeat") !== "on") return { recurrence: null };
+  const parsed = parseRecurringDueDateInput({ value: dueDateValue, recurrenceRule: field("recurrenceRule"), recurrenceDays: field("recurrenceDays") }, parseDate);
+  if (!parsed.ok) return { error: parsed.error };
+  if (!parsed.dueDate) return { error: "Pick a due date for something that repeats." };
+  if (!parsed.rule) return { error: "Pick how often it repeats." };
+  return { recurrence: buildRecurrence(parsed.rule, parsed.dueDate, parsed.days) };
+}
+
+/** The three columns a rule is stored in on every model that repeats, cleared together when there is none. */
+export const recurrenceColumns = (recurrence: Recurrence | null) => ({
+  recurrence: recurrence?.rule ?? null,
+  recurrenceDays: recurrence?.days ?? null,
+  recurrenceAnchorDay: recurrence?.anchorDay ?? null,
+});
+
+/** The three stored columns back as one rule, or null for a one-off. */
+export const recurrenceFromColumns = (row: { recurrence: RecurrenceRule | null; recurrenceDays: number | null; recurrenceAnchorDay: number | null }): Recurrence | null =>
+  row.recurrence ? { rule: row.recurrence, days: row.recurrenceDays, anchorDay: row.recurrenceAnchorDay } : null;

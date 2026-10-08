@@ -242,13 +242,18 @@ export async function recordEvent(
  * done. `oldValue` is the occurrence completed, `newValue` the due date it
  * moved on to (both YYYY-MM-DD) -- the item keeps one row that moves, so
  * this stream is where its past occurrences live.
+ *
+ * `label` names what repeated when it isn't the object itself: a goal
+ * milestone (KD-056) has no Object of its own, so its occurrences are
+ * recorded on the goal with the milestone's name, the way
+ * `GOAL_MILESTONE_COMPLETED` already is.
  */
-export async function recordRecurrenceCompleted(client: Client, userId: string, objectId: string, completedDate: string, nextDueDate: string) {
-  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: "RECURRENCE_COMPLETED", oldValue: completedDate, newValue: nextDueDate, source: "USER" } });
+export async function recordRecurrenceCompleted(client: Client, userId: string, objectId: string, completedDate: string, nextDueDate: string, label?: string) {
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: "RECURRENCE_COMPLETED", fieldLabel: label ?? null, oldValue: completedDate, newValue: nextDueDate, source: "USER" } });
 }
 
 /** One changed attribute of a milestone, ready to write -- see `recordMilestoneUpdated` below. */
-export type MilestoneFieldChange = { fieldKey: "name" | "value" | "dueDate"; oldValue: string | null; newValue: string | null };
+export type MilestoneFieldChange = { fieldKey: "name" | "value" | "dueDate" | "recurrence"; oldValue: string | null; newValue: string | null };
 
 /**
  * A milestone's own name/target value/due date changed -- `GOAL_MILESTONE_UPDATED`,
@@ -374,6 +379,7 @@ function milestoneAttributeLabel(fieldKey: string | null): string {
     case "name": return "Name";
     case "value": return "Target value";
     case "dueDate": return "Due date";
+    case "recurrence": return "Repeats";
     default: return "Milestone";
   }
 }
@@ -494,7 +500,7 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
     case "RECURRENCE_COMPLETED": {
       const completed = event.oldValue ? `Due ${formatDate(event.oldValue, prefs.locale)}` : null;
       const next = event.newValue ? `next due ${formatDate(event.newValue, prefs.locale)}` : null;
-      return { title: "Occurrence completed", detail: [completed, next].filter(Boolean).join(" · ") || null };
+      return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" occurrence completed` : "Occurrence completed", detail: [completed, next].filter(Boolean).join(" · ") || null };
     }
     case "FIELD_CHANGED":
       return describeFieldChange(event, prefs);
