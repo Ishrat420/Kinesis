@@ -154,6 +154,7 @@ Done
 
 ## 💡 Idea
 
+KD-056-recurring-due-dates-on-system-modules
 KD-006-recurring-reminder-field
 KD-010-external-app-notes-Integration
 KD-012-starter-example-data
