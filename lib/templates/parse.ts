@@ -7,7 +7,8 @@ export const TEMPLATE_PREVIEW_FIELDS_FORM_KEY = "templatePreviewFieldsPayload";
 export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; isRecurringDueDate?: boolean; numberFormat?: NumberFieldFormat; multiline?: boolean };
 export type ParsedTemplateFields = { ok: true; fields: TemplateFieldInput[] } | { ok: false; error: string };
 
-export type TemplateFieldValueInput = { templateFieldId: string; value: string; targetObjectIds: string[] };
+/** `recurrenceRule`/`recurrenceDays` travel only for a Recurring Due Date field (KD-055), raw, for the save action to validate. */
+export type TemplateFieldValueInput = { templateFieldId: string; value: string; targetObjectIds: string[]; recurrenceRule?: string; recurrenceDays?: string };
 export type ParsedTemplateFieldValues = { ok: true; values: TemplateFieldValueInput[] } | { ok: false; error: string };
 
 const VALID_TYPES = new Set(CUSTOM_FIELD_TYPES.map(({ value }) => value));
@@ -87,7 +88,10 @@ export function parseTemplateFieldValues(data: FormData, key: string = TEMPLATE_
     if (!isRecord(entry)) continue;
     const templateFieldId = asString(entry.templateFieldId);
     if (!templateFieldId) continue;
-    values.push({ templateFieldId, value: asString(entry.value).trim(), targetObjectIds: [...new Set(asStringArray(entry.targetObjectIds).filter(Boolean))] });
+    const value: TemplateFieldValueInput = { templateFieldId, value: asString(entry.value).trim(), targetObjectIds: [...new Set(asStringArray(entry.targetObjectIds).filter(Boolean))] };
+    if (typeof entry.recurrenceRule === "string") value.recurrenceRule = entry.recurrenceRule.trim();
+    if (typeof entry.recurrenceDays === "string") value.recurrenceDays = entry.recurrenceDays.trim();
+    values.push(value);
   }
   return { ok: true, values };
 }

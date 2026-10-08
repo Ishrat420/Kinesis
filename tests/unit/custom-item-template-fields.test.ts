@@ -50,8 +50,8 @@ describe("getCustomItem template field merge", () => {
 
     expect(item?.templateId).toBe("template-1");
     expect(item?.templateFields).toEqual([
-      { templateFieldId: "field-date", label: "Date", type: "DATE", isDueDate: false, value: "", targetObjectIds: [] },
-      { templateFieldId: "field-why", label: "Why?", type: "TEXT", isDueDate: false, value: "Cheaper than renting", targetObjectIds: [] },
+      { templateFieldId: "field-date", label: "Date", type: "DATE", isDueDate: false, isRecurringDueDate: false, recurrence: null, value: "", targetObjectIds: [] },
+      { templateFieldId: "field-why", label: "Why?", type: "TEXT", isDueDate: false, isRecurringDueDate: false, recurrence: null, value: "Cheaper than renting", targetObjectIds: [] },
     ]);
   });
 
@@ -72,7 +72,7 @@ describe("getCustomItem template field merge", () => {
     const item = await getCustomItem("module-1", "item-1");
 
     expect(item?.templateFields).toEqual([
-      { templateFieldId: "field-links", label: "Kinesis Links", type: "KINESIS_LINK", isDueDate: false, value: "", targetObjectIds: ["goal-object-1"] },
+      { templateFieldId: "field-links", label: "Kinesis Links", type: "KINESIS_LINK", isDueDate: false, isRecurringDueDate: false, recurrence: null, value: "", targetObjectIds: ["goal-object-1"] },
     ]);
   });
 
@@ -123,10 +123,30 @@ describe("getCustomItem template field merge", () => {
     const item = await getCustomItem("module-1", "item-1");
 
     expect(item?.templateFields).toEqual([
-      { templateFieldId: "field-due", label: "Due date", type: "DATE", isDueDate: true, value: "2027-03-09", targetObjectIds: [] },
+      { templateFieldId: "field-due", label: "Due date", type: "DATE", isDueDate: true, recurrence: null, value: "2027-03-09", targetObjectIds: [] },
     ]);
     // Never consulted for the due-date field's own value -- only for extras.
     expect(mocks.prisma.objectField.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { objectId: "object-1", templateFieldId: { not: null } } }));
+  });
+
+  /** KD-055: a Recurring Due Date field reads the same dueDate column, plus the item's stored repeat rule. */
+  it("reads a Recurring Due Date field's date and rule from the item itself", async () => {
+    mocks.prisma.customItem.findFirst.mockResolvedValue({
+      id: "item-1", objectId: "object-1", moduleId: "module-1", name: "Service the car", dueDate: new Date("2026-10-20T00:00:00.000Z"),
+      recurrence: "MONTHLY", recurrenceDays: null, recurrenceAnchorDay: 20,
+      module: { id: "module-1", name: "Car Service" },
+      object: { templateId: "template-1", fields: [] },
+    });
+    mocks.prisma.templateField.findMany.mockResolvedValue([
+      { id: "field-next", templateId: "template-1", label: "Next service due", type: "DATE", position: 0, isDueDate: false, isRecurringDueDate: true },
+    ]);
+    mocks.prisma.objectField.findMany.mockResolvedValue([]);
+
+    const item = await getCustomItem("module-1", "item-1");
+
+    expect(item?.templateFields).toEqual([
+      { templateFieldId: "field-next", label: "Next service due", type: "DATE", isDueDate: false, isRecurringDueDate: true, recurrence: { rule: "MONTHLY", days: null, anchorDay: 20 }, value: "2026-10-20", targetObjectIds: [] },
+    ]);
   });
 
   it("renders an unset Due Date field as empty, not the epoch", async () => {

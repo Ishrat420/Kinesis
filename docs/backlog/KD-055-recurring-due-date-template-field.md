@@ -317,10 +317,55 @@ Decisions 1 and 2, built:
   is allowed". That tooltip now also applies to a saved Due date row, and
   sits on a wrapper element rather than the disabled `<select>`.
 
-Not yet built (the object side, Decisions 3 to 9): until it is, a recurring
-due date field on an object behaves as an ordinary date field, stored as an
-`ObjectField` value and not in `CustomItem.dueDate`, with no repeat rule.
-Don't ship a release from this branch until the object side lands.
+### Part 2: object side (done)
+
+Decisions 3 to 9, built:
+
+* **Schema.** `CustomItem.recurrence` (`RecurrenceRule` enum: WEEKLY,
+  FORTNIGHTLY, MONTHLY, YEARLY, EVERY_N_DAYS), `recurrenceDays` (EVERY_N_DAYS
+  only) and `recurrenceAnchorDay` (MONTHLY/YEARLY only), plus
+  `ObjectEventType.RECURRENCE_COMPLETED` (migration
+  `20261023000000_custom_item_recurrence`). Check constraints require a due
+  date whenever a rule is set and keep N and the anchor day present exactly
+  for their rules. Each branch tests NULL explicitly, because a CHECK that
+  evaluates to NULL passes.
+* **Rules** (`lib/custom-modules/recurrence.ts`, pure, unit tested): stepping
+  per rule; month and year steps anchored and clamped (31 Jan, 28 Feb,
+  31 Mar; 29 Feb yearly lands on 28 Feb in common years); completion steps
+  from the due date and catches up to today or later; calendar projection
+  jumps straight to the visible range and stops at 366 occurrences.
+* **Form** (`TemplateFieldValues`): the field asks for a date and a Repeats
+  dropdown with the five options, plus an N box only for "Every N days".
+  The save actions validate both together ("Enter a date for the first
+  occurrence.", "Pick how often it repeats.", "N must be a whole number
+  from 1 to 999.") and write `dueDate` plus the rule, never an
+  `ObjectField` row. Re-saving an unchanged date and rule keeps the stored
+  anchor day. Changing the rule logs a "Repeats" `FIELD_CHANGED`.
+* **Object page** (`EditCustomItemForm`): the field reads as a plain field
+  with the repeat icon: a small tick box, date, rule, status, then
+  "Next event: …". Ticking calls `completeRecurringOccurrenceAction`, which
+  records `RECURRENCE_COMPLETED` and advances `dueDate` in one transaction,
+  conditioned on the due date the page showed, so a double click or stale
+  tab gets a conflict instead of skipping an occurrence. A snackbar
+  confirms and fades after about three seconds (`components/ui/Snackbar.tsx`,
+  new). No tick box while archived; the action also refuses then.
+* **History**: "Occurrence completed · Due … · next due …", classified high
+  significance, like completing a to-do.
+* **Calendar**: every occurrence in the visible range from the current due
+  date onward, all marked `recurring` (repeat icon); only the current one
+  has a reminder pin.
+* **Upcoming & Due, Needs Attention, notifications**: unchanged. They already
+  read `dueDate`, and their dismissal and notification keys include the
+  deadline, so Dismiss covers one occurrence and the next one notifies
+  again.
+* **Kinesis Link card preview**: a recurring field picked for "Show on
+  card" reads the item's due date, as a Due Date field does.
+
+Verified with typecheck, lint, the unit and integration suites (new tests
+for the rules, input validation, saving, completion, conflicts, archiving,
+calendar projection and the database constraints), a full migration replay
+into an empty schema, and a production build. Not yet clicked through in a
+browser.
 
 ## Guardrails
 

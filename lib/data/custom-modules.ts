@@ -5,6 +5,10 @@ import { refuse } from "@/lib/actions/refusal";
 import { presentCustomFields } from "@/lib/custom-fields/present";
 import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import { readTemplateFieldLinks } from "./template-kinesis-links";
+import type { Recurrence } from "@/lib/custom-modules/recurrence";
+
+/** The item's own due date and repeat rule -- what a Due Date or Recurring Due Date field reads instead of an ObjectField row. */
+type ItemDueDate = { dueDate: Date | null; recurrence: Recurrence | null };
 
 /** A custom item's own fields, off the shared `ObjectField` table, in display order, with each field's Kinesis Link targets in the order they were added. */
 const itemFieldsInclude = {
@@ -49,9 +53,10 @@ export async function getCustomModule(id: string) {
  * The Due Date field (KD-038) is the one exception to "a value lives in
  * ObjectField": it has no row there at all, ever -- its value is
  * `itemDueDate`, the object's own `CustomItem.dueDate`, the same column the
- * old fixed Due Date input reads and writes.
+ * old fixed Due Date input reads and writes. A Recurring Due Date field
+ * (KD-055) reads the same column, plus the item's stored repeat rule.
  */
-async function getTemplateFieldValues(objectId: string, templateId: string, itemDueDate: Date | null): Promise<TemplateFieldValue[]> {
+async function getTemplateFieldValues(objectId: string, templateId: string, item: ItemDueDate): Promise<TemplateFieldValue[]> {
   // A Kinesis Link field's targets are Kinesis Links (KD-023), not ObjectField rows.
   const [templateFields, values, links] = await Promise.all([
     prisma.templateField.findMany({ where: { templateId }, orderBy: { position: "asc" } }),
@@ -60,15 +65,17 @@ async function getTemplateFieldValues(objectId: string, templateId: string, item
   ]);
   const valueByField = new Map(values.map((value) => [value.templateFieldId as string, value]));
   return templateFields.map((field) => {
-    if (field.isDueDate) {
+    if (field.isDueDate || field.isRecurringDueDate) {
       return {
         templateFieldId: field.id,
         label: field.label,
         type: field.type,
-        isDueDate: true,
+        isDueDate: field.isDueDate,
+        isRecurringDueDate: field.isRecurringDueDate,
+        recurrence: field.isRecurringDueDate ? item.recurrence : null,
         multiline: field.multiline,
         numberFormat: field.numberFormat ?? undefined,
-        value: itemDueDate ? itemDueDate.toISOString().slice(0, 10) : "",
+        value: item.dueDate ? item.dueDate.toISOString().slice(0, 10) : "",
         targetObjectIds: [],
       };
     }
@@ -78,6 +85,8 @@ async function getTemplateFieldValues(objectId: string, templateId: string, item
       label: field.label,
       type: field.type,
       isDueDate: false,
+      isRecurringDueDate: false,
+      recurrence: null,
       multiline: field.multiline,
       numberFormat: field.numberFormat ?? undefined,
       value: field.type === "KINESIS_LINK" ? "" : value?.value ?? "",
@@ -105,7 +114,8 @@ export async function getCustomItem(moduleId: string, itemId: string) {
   });
   if (!item) return null;
   const { object, ...rest } = item;
-  const templateFields = object.templateId ? await getTemplateFieldValues(item.objectId, object.templateId, item.dueDate) : [];
+  const recurrence: Recurrence | null = item.recurrence ? { rule: item.recurrence, days: item.recurrenceDays, anchorDay: item.recurrenceAnchorDay } : null;
+  const templateFields = object.templateId ? await getTemplateFieldValues(item.objectId, object.templateId, { dueDate: item.dueDate, recurrence }) : [];
   return { ...rest, templateId: object.templateId, templateFields, fields: presentCustomFields(object.fields) };
 }
 

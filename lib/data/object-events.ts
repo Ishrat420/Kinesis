@@ -237,6 +237,16 @@ export async function recordEvent(
   await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType, fieldLabel: label ?? null, newValue: newValue ?? null, source } });
 }
 
+/**
+ * KD-055: one occurrence of a custom item's Recurring Due Date was ticked
+ * done. `oldValue` is the occurrence completed, `newValue` the due date it
+ * moved on to (both YYYY-MM-DD) -- the item keeps one row that moves, so
+ * this stream is where its past occurrences live.
+ */
+export async function recordRecurrenceCompleted(client: Client, userId: string, objectId: string, completedDate: string, nextDueDate: string) {
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: "RECURRENCE_COMPLETED", oldValue: completedDate, newValue: nextDueDate, source: "USER" } });
+}
+
 /** One changed attribute of a milestone, ready to write -- see `recordMilestoneUpdated` below. */
 export type MilestoneFieldChange = { fieldKey: "name" | "value" | "dueDate"; oldValue: string | null; newValue: string | null };
 
@@ -481,6 +491,11 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       return { title: "Completed", detail: null };
     case "TODO_REOPENED":
       return { title: "Reopened", detail: null };
+    case "RECURRENCE_COMPLETED": {
+      const completed = event.oldValue ? `Due ${formatDate(event.oldValue, prefs.locale)}` : null;
+      const next = event.newValue ? `next due ${formatDate(event.newValue, prefs.locale)}` : null;
+      return { title: "Occurrence completed", detail: [completed, next].filter(Boolean).join(" · ") || null };
+    }
     case "FIELD_CHANGED":
       return describeFieldChange(event, prefs);
     default:
@@ -652,6 +667,7 @@ export function classifyEventSignificance(event: ClassifiableEvent): Significanc
     case "ITEM_RESTORED":
     case "TODO_COMPLETED":
     case "TODO_REOPENED":
+    case "RECURRENCE_COMPLETED":
     case "STATUS_CHANGED":
     case "RELATIONSHIP_CHANGED":
       return "high";

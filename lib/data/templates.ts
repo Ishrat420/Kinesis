@@ -88,6 +88,8 @@ export async function getTemplateFieldsForNewItem(templateId: string): Promise<T
     label: field.label,
     type: field.type,
     isDueDate: field.isDueDate,
+    isRecurringDueDate: field.isRecurringDueDate,
+    recurrence: null,
     multiline: field.multiline,
     numberFormat: field.numberFormat ?? undefined,
     value: "",

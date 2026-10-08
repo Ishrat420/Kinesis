@@ -8,6 +8,7 @@ import { addUtcDays } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { occurrencesInRange } from "@/lib/relationships/occurrence";
+import { occurrencesInRange as recurringOccurrencesInRange, recurrenceLabel, type Recurrence } from "@/lib/custom-modules/recurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import { prisma } from "./prisma";
 
@@ -122,8 +123,21 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   }
   for (const custom of customItems) {
     const itemHref = `/custom-modules/${custom.moduleId}/items/${custom.id}`;
-    if (custom.dueDate) {
+    // KD-055: a recurring due date shows every occurrence in the visible
+    // range, worked out here and never stored -- the current one (the stored
+    // `dueDate`) is the only real one and the only one with a reminder pin;
+    // every entry carries `recurring` so the calendar draws its repeat icon.
+    const recurrence: Recurrence | null = custom.recurrence ? { rule: custom.recurrence, days: custom.recurrenceDays, anchorDay: custom.recurrenceAnchorDay } : null;
+    if (custom.dueDate && recurrence) {
+      const detail = `Repeats: ${recurrenceLabel(recurrence).toLowerCase()}`;
+      for (const date of recurringOccurrencesInRange(custom.dueDate, recurrence, start, end)) {
+        const current = dateKey(date) === dateKey(custom.dueDate);
+        add({ id: current ? `custom-due-${custom.id}` : `custom-due-${custom.id}-${dateKey(date)}`, title: `${custom.name} due`, kind: "DATED", date, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, recurring: true, href: itemHref, detail });
+      }
+    } else if (custom.dueDate) {
       add({ id: `custom-due-${custom.id}`, title: `${custom.name} due`, kind: hasTime(custom.dueDate) ? "SCHEDULED" : "DATED", date: custom.dueDate, startTime: hasTime(custom.dueDate) ? timeValue(custom.dueDate) : undefined, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: "Custom item due date" });
+    }
+    if (custom.dueDate) {
       addReminder({ id: `custom-reminder-${custom.id}`, name: custom.name, deadline: custom.dueDate, deadlineLabel: "due", lead: customItemLead, sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref });
     }
     for (const field of resolveDatedFields(custom.object.fields)) add({ id: `custom-field-${field.id}`, title: `${custom.name}: ${field.label}`, kind: "DATED", date: field.date, sourceType: "CUSTOM_OBJECT", sourceObjectId: custom.id, sourceModule: custom.module.name, href: itemHref, detail: `${field.label} from ${custom.module.name}` });

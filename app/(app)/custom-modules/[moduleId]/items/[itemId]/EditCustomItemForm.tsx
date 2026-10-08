@@ -2,10 +2,10 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock3, ExternalLink, LayoutTemplate, LoaderCircle, Pencil, Save, X } from "lucide-react";
+import { Check, CheckCircle2, Clock3, ExternalLink, LayoutTemplate, LoaderCircle, Pencil, Repeat2, Save, X } from "lucide-react";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
-import { promoteFieldToTemplateAction, updateCustomItemAction, type CustomItemState } from "../../../actions";
+import { completeRecurringOccurrenceAction, promoteFieldToTemplateAction, updateCustomItemAction, type CustomItemState } from "../../../actions";
 import { CustomFieldsEditor } from "@/components/custom-fields/CustomFieldsEditor";
 import { KinesisLinkCard } from "@/components/custom-fields/KinesisLinkCard";
 import { TemplateFieldValues, type TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
@@ -14,7 +14,10 @@ import type { KinesisLinkPreviewStat, KinesisLinkRecentEvent } from "@/lib/data/
 import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
-import { formatDate } from "@/lib/dates";
+import { differenceInCalendarDays, formatDate, formatDeadline, parseDateOnly } from "@/lib/dates";
+import { followingOccurrence, recurrenceLabel, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { useToday } from "@/lib/format/context";
+import { Snackbar } from "@/components/ui/Snackbar";
 import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { freshestStamp } from "@/lib/actions/concurrency";
@@ -78,12 +81,12 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     <section className="mt-6 sm:mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
         ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
-        : <ReadView item={item} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
+        : <ReadView moduleId={moduleId} item={item} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
     </section>
   </>;
 }
 
-type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean; multiline?: boolean; numberFormat?: NumberFieldFormat };
+type DisplayField = { key: string; label: string; type?: CustomFieldType; value: string; targetObjectIds?: string[]; isDueDate?: boolean; isRecurringDueDate?: boolean; recurrence?: Recurrence | null; multiline?: boolean; numberFormat?: NumberFieldFormat };
 
 function displayValue(field: DisplayField, locale: string, currency: string) {
   if (!field.value) return EMPTY_VALUE;
@@ -99,14 +102,14 @@ function displayValue(field: DisplayField, locale: string, currency: string) {
   return field.value;
 }
 
-function ReadView({ item, linkOptions, previews, recentEvents, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; locale: string; currency: string;
+function ReadView({ moduleId, item, linkOptions, previews, recentEvents, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; locale: string; currency: string;
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
 }) {
   const fields: DisplayField[] = [
-    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, multiline: field.multiline, numberFormat: field.numberFormat })),
+    ...item.templateFields.map((field) => ({ key: `t:${field.templateFieldId}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds, isDueDate: field.isDueDate, isRecurringDueDate: field.isRecurringDueDate, recurrence: field.recurrence, multiline: field.multiline, numberFormat: field.numberFormat })),
     ...item.fields.map((field) => ({ key: `f:${field.id ?? field.label}`, label: field.label, type: field.type, value: field.value, targetObjectIds: field.targetObjectIds })),
   ];
   const metadataFields = fields.filter((field) => field.type !== "KINESIS_LINK");
@@ -128,7 +131,12 @@ function ReadView({ item, linkOptions, previews, recentEvents, locale, currency,
 
   return <div className="space-y-6">
     {metadataFields.length > 0 && <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-      {metadataFields.map((field) => <div key={field.key} className={field.multiline ? "sm:col-span-2 lg:col-span-3" : ""}>
+      {metadataFields.map((field) => field.isRecurringDueDate ? (
+        <div key={field.key} className="sm:col-span-2 lg:col-span-3">
+          <dt className="flex items-center gap-1.5 text-xs font-medium text-zinc-400"><Repeat2 className="h-3 w-3" />{field.label}</dt>
+          <dd className="mt-1 text-sm font-medium text-zinc-700"><RecurringDueDateValue moduleId={moduleId} itemId={item.id} archived={item.archived} value={field.value} recurrence={field.recurrence ?? null} locale={locale} /></dd>
+        </div>
+      ) : <div key={field.key} className={field.multiline ? "sm:col-span-2 lg:col-span-3" : ""}>
         <dt className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">{field.isDueDate && <Clock3 className="h-3 w-3" />}{field.label}</dt>
         <dd className={`mt-1 text-sm font-medium text-zinc-700 ${field.multiline ? "whitespace-pre-wrap break-words" : "break-words"}`}>
           {field.type === "LINK" && field.value
@@ -149,6 +157,62 @@ function ReadView({ item, linkOptions, previews, recentEvents, locale, currency,
       </div>
     )}
   </div>;
+}
+
+/**
+ * A Recurring Due Date's read view (KD-055): a small tick box, the current
+ * occurrence's date, its rule, how far off it is, and the occurrence after
+ * it. Ticking completes the current occurrence (`completeRecurringOccurrenceAction`)
+ * and confirms with a snackbar; History records it. Laid out as a plain
+ * field rather than a boxed panel, so it never reads as a Kinesis Link card.
+ * No tick box while archived -- archiving pauses the schedule (Decision 9).
+ */
+function RecurringDueDateValue({ moduleId, itemId, archived, value, recurrence, locale }: { moduleId: string; itemId: string; archived: boolean; value: string; recurrence: Recurrence | null; locale: string }) {
+  const router = useRouter();
+  const today = useToday();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const dueDate = value ? parseDateOnly(value) : null;
+
+  if (!dueDate || !recurrence) return <>{EMPTY_VALUE}</>;
+
+  const days = differenceInCalendarDays(dueDate, today);
+  const status = formatDeadline(dueDate, today);
+  const statusClass = days < 0 ? "text-red-600" : days === 0 ? "text-amber-700" : "text-zinc-500";
+  const complete = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await completeRecurringOccurrenceAction(moduleId, itemId, value);
+      if (result.error) {
+        setError(result.error);
+        if (result.conflict) router.refresh();
+        return;
+      }
+      if (result.nextDueDate) setToast({ id: Date.now(), message: `Done. Next due ${formatDate(result.nextDueDate, locale)}.` });
+      router.refresh();
+    });
+  };
+
+  return <>
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      {!archived && (
+        <button type="button" onClick={complete} disabled={pending} aria-label="Mark this occurrence done" title="Mark this occurrence done" className="-ml-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 disabled:cursor-wait">
+          <span className={`flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border-2 transition ${pending ? "border-emerald-600 bg-emerald-600 text-white" : "border-zinc-400 bg-white hover:border-zinc-600"}`}>
+            {pending && <Check aria-hidden="true" className="h-3 w-3" strokeWidth={3.5} />}
+          </span>
+        </button>
+      )}
+      <span className="font-semibold text-zinc-900">{formatDate(dueDate, locale)}</span>
+      <span aria-hidden="true" className="text-zinc-300">·</span>
+      <span>{recurrenceLabel(recurrence)}</span>
+      <span aria-hidden="true" className="text-zinc-300">·</span>
+      <span className={`font-semibold ${statusClass}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+    </div>
+    <p className="mt-1 text-xs font-normal text-zinc-500">Next event: {formatDate(followingOccurrence(dueDate, recurrence), locale)}</p>
+    {error && <p role="alert" className="mt-1 text-xs font-medium text-red-600">{error}</p>}
+    {toast && <Snackbar key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />}
+  </>;
 }
 
 function EditForm({ moduleId, item, updatedAt, linkOptions, previews, addKinesisLinkAction, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction, onCancel, onSaved }: { moduleId: string; item: EditableItem; updatedAt: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>; kinesisLinks: KinesisLink[]; updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>; removeKinesisLinkAction: (linkId: string) => Promise<void>; onCancel: () => void; onSaved: (updatedAt: string) => void }) {

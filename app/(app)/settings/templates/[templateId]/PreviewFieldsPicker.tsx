@@ -11,7 +11,7 @@ import { useFormResetKey } from "@/lib/hooks/form-reset-key";
 
 const MAX_PREVIEW_FIELDS = 3;
 
-type PreviewableField = { id: string; label: string; type: CustomFieldType; numberFormat?: NumberFieldFormat; isDueDate: boolean };
+type PreviewableField = { id: string; label: string; type: CustomFieldType; numberFormat?: NumberFieldFormat; isDueDate: boolean; isRecurringDueDate?: boolean };
 type SampleValues = { dueDate: string; values: Record<string, { value: string; linkCount: number }> } | null;
 
 /**
@@ -67,7 +67,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
     if (!field) return [];
     const kind = resolveKind(field.type, field.numberFormat);
     if (!kind) return [];
-    const raw = resolvePreviewFieldRaw(kind, field.isDueDate, sample, id, today);
+    const raw = resolvePreviewFieldRaw(kind, field.isDueDate || Boolean(field.isRecurringDueDate), sample, id, today);
     const formatted = formatPreviewValue(kind, raw, { locale, currency, today: new Date(today) });
     return formatted !== null ? [{ label: field.label, kind, value: formatted }] : [];
   }), [selected, eligible, sample, locale, currency, today]);
@@ -100,7 +100,7 @@ export function PreviewFieldsPicker({ fields, initialSelected, sample, locale, c
                   <Check aria-hidden="true" className="pointer-events-none absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100" />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-700">{field.label}</span>
-                <span className="text-xs font-medium text-zinc-400">{field.isDueDate ? "Due date" : field.type === "TEXT" ? "Text" : field.type === "NUMBER" ? "Number" : field.type === "DATE" ? "Date" : field.type === "CHECKBOX" ? "Checkbox" : "Kinesis Link"}</span>
+                <span className="text-xs font-medium text-zinc-400">{field.isDueDate ? "Due date" : field.isRecurringDueDate ? "Recurring due date" : field.type === "TEXT" ? "Text" : field.type === "NUMBER" ? "Number" : field.type === "DATE" ? "Date" : field.type === "CHECKBOX" ? "Checkbox" : "Kinesis Link"}</span>
               </label>
             );
           })}

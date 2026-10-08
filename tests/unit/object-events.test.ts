@@ -302,3 +302,10 @@ describe("describeObjectEvent: the title/detail pair a History entry renders", (
     expect(describeObjectEvent(event({ eventType: unrecognised, fieldLabel: null }))).toEqual({ title: "Updated", detail: null });
   });
 });
+
+describe("describeObjectEvent: KD-055 RECURRENCE_COMPLETED", () => {
+  it("names the occurrence completed and the due date it moved on to", () => {
+    expect(describeObjectEvent(event({ eventType: "RECURRENCE_COMPLETED", oldValue: "2026-09-20", newValue: "2026-10-20" })))
+      .toEqual({ title: "Occurrence completed", detail: "Due 20 Sept 2026 · next due 20 Oct 2026" });
+  });
+});

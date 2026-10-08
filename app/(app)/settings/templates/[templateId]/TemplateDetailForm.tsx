@@ -50,7 +50,7 @@ export function TemplateDetailForm({ templateId, name, fields, previewFields, sa
       <TemplateFieldsEditor initialFields={fields} locked={locked} />
 
       <PreviewFieldsPicker
-        fields={fields.flatMap((field) => field.id ? [{ id: field.id, label: field.label, type: field.type, numberFormat: field.numberFormat, isDueDate: Boolean(field.isDueDate) }] : [])}
+        fields={fields.flatMap((field) => field.id ? [{ id: field.id, label: field.label, type: field.type, numberFormat: field.numberFormat, isDueDate: Boolean(field.isDueDate), isRecurringDueDate: Boolean(field.isRecurringDueDate) }] : [])}
         initialSelected={previewFields}
         sample={sample}
         locale={locale}

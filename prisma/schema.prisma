@@ -437,6 +437,7 @@ enum ObjectEventType {
   GOAL_REOPENED           // KD-052: the opposite of GOAL_COMPLETED -- any prior status moving back to Active, fires instead of a generic STATUS_CHANGED the same way GOAL_COMPLETED does for "Finished"
   ITEM_CREATED
   ITEM_DELETED
+  RECURRENCE_COMPLETED    // KD-055: one occurrence of a recurring due date was ticked done -- oldValue the completed date, newValue the next one
 }
 
 enum ObjectEventSource {
@@ -646,6 +647,19 @@ model CustomItem {
   // not "reminder": Needs Attention, the notification engine, Upcoming & Due
   // and the Calendar all treat it as a due date, not a bare alert time.
   dueDate       DateTime?
+  // KD-055: how `dueDate` repeats, when the item's template has a Recurring
+  // Due Date field -- null otherwise. One row that moves: completing the
+  // current occurrence advances `dueDate` in place (the ObjectEvent stream
+  // keeps the history), so every reader of `dueDate` above sees only the
+  // current occurrence with nothing new to learn.
+  // `recurrenceDays` is set only for EVERY_N_DAYS; `recurrenceAnchorDay`
+  // (the day of the month the rule started on) only for MONTHLY/YEARLY, so
+  // 31 Jan -> 28 Feb -> 31 Mar rather than drifting to the 28th for good.
+  // Check constraints in the migration SQL keep the three consistent and
+  // require a `dueDate` whenever a rule is set.
+  recurrence          RecurrenceRule?
+  recurrenceDays      Int?
+  recurrenceAnchorDay Int?
   archived      Boolean              @default(false)
   module        CustomModule         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   objectId      String               @unique
@@ -775,6 +789,15 @@ model TemplateField {
   kinesisLinks ObjectRelationship[]
 
   @@index([templateId, position])
+}
+
+/// KD-055: a Recurring Due Date's repeat options, exactly the five offered.
+enum RecurrenceRule {
+  WEEKLY
+  FORTNIGHTLY
+  MONTHLY
+  YEARLY
+  EVERY_N_DAYS
 }
 
 enum CustomFieldType {

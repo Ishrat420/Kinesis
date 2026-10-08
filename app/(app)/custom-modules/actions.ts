@@ -14,12 +14,14 @@ import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { isConflictRefusal, refuse, refuseConflict, refusalOf } from "@/lib/actions/refusal";
 import { parseDateOnly, formatDateInput } from "@/lib/dates";
 import { revalidateShell } from "@/lib/actions/revalidate";
-import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, type FieldChange } from "@/lib/data/object-events";
+import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, recordRecurrenceCompleted, type FieldChange } from "@/lib/data/object-events";
 import { createLinksFromFields, saveTemplateFieldLinks, splitKinesisLinkFields } from "@/lib/data/template-kinesis-links";
 import { checkLength, checkNumberMagnitude, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { formatMoney, formatPercent } from "@/lib/format/numbers";
-import { getFormatPreferences } from "@/lib/format/server";
+import { getFormatPreferences, getToday } from "@/lib/format/server";
 import type { CustomFieldType, NumberFieldFormat } from "@prisma/client";
+import { buildRecurrence, nextDueAfterCompletion, parseRecurringDueDateInput, recurrenceLabel, type Recurrence } from "@/lib/custom-modules/recurrence";
+import type { TemplateFieldValueInput } from "@/lib/templates/parse";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const refresh = (moduleId: string) => { revalidateShell(); revalidatePath(`/custom-modules/${moduleId}`); };
@@ -45,6 +47,44 @@ const dueDateValue = (raw: string) => {
   if (!raw) return null;
   return parseDateOnly(raw) ?? undefined;
 };
+
+/** The template's one due-date-type field (KD-038 Due Date or KD-055 Recurring Due Date), if it has one. */
+function findDueDateKindField(client: Prisma.TransactionClient | typeof prisma, templateId: string) {
+  return client.templateField.findFirst({ where: { templateId, OR: [{ isDueDate: true }, { isRecurringDueDate: true }] }, select: { id: true, isRecurringDueDate: true } });
+}
+
+type ResolvedDueDate = { dueDate: Date | null; recurrence: Recurrence | null };
+
+/**
+ * Reads the item's due date -- and, for a Recurring Due Date field, its repeat
+ * rule -- out of the submitted template values. Returns a message instead
+ * when the input is invalid. `existing` is the item's current state on an
+ * edit: a monthly or yearly rule keeps its stored anchor day when neither
+ * the date nor the rule changed, so re-saving a clamped 28 Feb (anchored on
+ * the 31st) never quietly re-anchors it to the 28th.
+ */
+function resolveDueDate(field: { id: string; isRecurringDueDate: boolean } | null, values: TemplateFieldValueInput[], existing?: ResolvedDueDate): ResolvedDueDate | { error: string } {
+  if (!field) return { dueDate: null, recurrence: null };
+  const submitted = values.find((value) => value.templateFieldId === field.id);
+  if (!field.isRecurringDueDate) {
+    const dueDate = dueDateValue(submitted?.value ?? "");
+    return dueDate === undefined ? { error: "Enter a valid due date." } : { dueDate, recurrence: null };
+  }
+  const parsed = parseRecurringDueDateInput(submitted ?? { value: "" }, parseDateOnly);
+  if (!parsed.ok) return { error: parsed.error };
+  if (!parsed.dueDate || !parsed.rule) return { dueDate: null, recurrence: null };
+  const unchanged = existing?.recurrence && existing.dueDate
+    && existing.recurrence.rule === parsed.rule && existing.recurrence.days === parsed.days
+    && formatDateInput(existing.dueDate) === formatDateInput(parsed.dueDate);
+  return { dueDate: parsed.dueDate, recurrence: unchanged ? existing.recurrence : buildRecurrence(parsed.rule, parsed.dueDate, parsed.days) };
+}
+
+/** The three CustomItem columns a rule is stored in, cleared together when there is none. */
+const recurrenceColumns = (recurrence: Recurrence | null) => ({
+  recurrence: recurrence?.rule ?? null,
+  recurrenceDays: recurrence?.days ?? null,
+  recurrenceAnchorDay: recurrence?.anchorDay ?? null,
+});
 
 export async function createCustomModuleAction(_: CreateModuleState, data: FormData): Promise<CreateModuleState> {
   const user = await requireKinesisUser();
@@ -86,19 +126,19 @@ export async function createCustomItemAction(moduleId: string, _previousState: C
   if (!ownedModule) return { error: "This module no longer exists." };
 
   // A due date is reachable only through a template's own Due Date field
-  // (KD-040) -- there is no fixed input anymore for a module without one.
-  const dueDateField = ownedModule.templateId
-    ? await prisma.templateField.findFirst({ where: { templateId: ownedModule.templateId, isDueDate: true }, select: { id: true } })
-    : null;
-  const dueDate = dueDateField ? dueDateValue(templateValues.values.find((value) => value.templateFieldId === dueDateField.id)?.value ?? "") : null;
-  if (dueDate === undefined) return { error: "Enter a valid due date." };
+  // (KD-040), or its Recurring Due Date field (KD-055) -- there is no fixed
+  // input anymore for a module without one.
+  const dueDateField = ownedModule.templateId ? await findDueDateKindField(prisma, ownedModule.templateId) : null;
+  const resolved = resolveDueDate(dueDateField, templateValues.values);
+  if ("error" in resolved) return { error: resolved.error };
+  const { dueDate, recurrence } = resolved;
 
   const unowned = await validateKinesisTargets([...form.fields, ...templateValues.values]);
   if (unowned) return { error: unowned };
   try {
     await prisma.$transaction(async (tx) => {
       const created = await tx.customItem.create({ data: {
-        id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, dueDate,
+        id: crypto.randomUUID(), module: { connect: { id: moduleId } }, name, dueDate, ...recurrenceColumns(recurrence),
         // Whatever the module is currently linked to, permanently, per KD-035
         // Decision 7 -- later relinking the module never reaches back to this item.
         // A Kinesis Link field picked while creating is saved as Kinesis
@@ -148,23 +188,19 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     updatedAt = await prisma.$transaction(async (tx) => {
     const ownedItem = await tx.customItem.findFirst({
       where: { id: itemId, moduleId, module: { userId: user.id } },
-      select: { objectId: true, name: true, dueDate: true, archived: true, object: { select: { templateId: true } } },
+      select: { objectId: true, name: true, dueDate: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true, archived: true, object: { select: { templateId: true } } },
     });
     if (!ownedItem) refuse("This item no longer exists.");
     const templateId = ownedItem.object.templateId;
 
     // A due date is reachable only through a template's own Due Date field
-    // (KD-040) -- an item whose template has none simply has no due date.
-    const dueDateField = templateId ? await tx.templateField.findFirst({ where: { templateId, isDueDate: true }, select: { id: true } }) : null;
-    let dueDate: Date | null = null;
-    if (dueDateField) {
-      const raw = templateValues.values.find((value) => value.templateFieldId === dueDateField.id)?.value ?? "";
-      if (raw) {
-        const parsed = parseDateOnly(raw);
-        if (!parsed) refuse("Enter a valid due date.");
-        dueDate = parsed;
-      }
-    }
+    // (KD-040) or Recurring Due Date field (KD-055) -- an item whose template
+    // has neither simply has no due date.
+    const dueDateField = templateId ? await findDueDateKindField(tx, templateId) : null;
+    const oldRecurrence: Recurrence | null = ownedItem.recurrence ? { rule: ownedItem.recurrence, days: ownedItem.recurrenceDays, anchorDay: ownedItem.recurrenceAnchorDay } : null;
+    const resolved = resolveDueDate(dueDateField, templateValues.values, { dueDate: ownedItem.dueDate, recurrence: oldRecurrence });
+    if ("error" in resolved) refuse(resolved.error);
+    const { dueDate, recurrence } = resolved;
 
     // Extras only -- a template field's type is changed from the template
     // it belongs to (Settings), never from here, and this object's own
@@ -183,7 +219,7 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     // through rewriting them.
     const result = await tx.customItem.updateMany({
       where: { id: itemId, moduleId, updatedAt: expectedUpdatedAt },
-      data: { name, dueDate, archived },
+      data: { name, dueDate, ...recurrenceColumns(recurrence), archived },
     });
     if (result.count === 0) {
       const stillExists = await tx.customItem.findFirst({ where: { id: itemId, moduleId, module: { userId: user.id } }, select: { id: true } });
@@ -197,6 +233,9 @@ export async function updateCustomItemAction(moduleId: string, itemId: string, _
     const oldDueDate = ownedItem.dueDate ? formatDateInput(ownedItem.dueDate) : null;
     const newDueDate = dueDate ? formatDateInput(dueDate) : null;
     if (oldDueDate !== newDueDate) namedChanges.push({ fieldKey: "dueDate", fieldLabel: "Due date", oldValue: oldDueDate, newValue: newDueDate });
+    const oldRepeats = oldRecurrence ? recurrenceLabel(oldRecurrence) : null;
+    const newRepeats = recurrence ? recurrenceLabel(recurrence) : null;
+    if (oldRepeats !== newRepeats) namedChanges.push({ fieldKey: "recurrence", fieldLabel: "Repeats", oldValue: oldRepeats, newValue: newRepeats });
     await recordFieldChanges(tx, user.id, ownedItem.objectId, namedChanges);
 
     await tx.objectField.deleteMany({ where: { objectId: ownedItem.objectId, templateFieldId: null } });
@@ -333,6 +372,53 @@ async function saveTemplateFieldValues(
     }
   }
   await recordFieldChanges(tx, userId, objectId, changes);
+}
+
+export type CompleteOccurrenceState = { error?: string; conflict?: boolean; nextDueDate?: string };
+
+/**
+ * Ticks the current occurrence of an item's Recurring Due Date done (KD-055
+ * Decision 5): records a RECURRENCE_COMPLETED event and moves `dueDate` on to
+ * the next occurrence -- one step from the due date, caught up to today or
+ * later if it was long overdue -- in one transaction.
+ *
+ * `expectedDueDate` is the occurrence the page showed (YYYY-MM-DD). The
+ * write is conditioned on it still being the item's due date, so a
+ * double-click or a second, stale tab can't complete the same occurrence
+ * twice and silently skip one (the BUG-007 pattern).
+ */
+export async function completeRecurringOccurrenceAction(moduleId: string, itemId: string, expectedDueDate: string): Promise<CompleteOccurrenceState> {
+  const user = await requireKinesisUser();
+  const today = await getToday();
+  let nextDueDate: Date;
+  try {
+    nextDueDate = await prisma.$transaction(async (tx) => {
+      const item = await tx.customItem.findFirst({
+        where: { id: itemId, moduleId, module: { userId: user.id } },
+        select: { objectId: true, dueDate: true, archived: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true },
+      });
+      if (!item) refuse("This item no longer exists.");
+      if (!item.recurrence || !item.dueDate) refuse("This item doesn't have a recurring due date.");
+      // Archiving pauses a recurring item (Decision 9): nothing advances until it's restored.
+      if (item.archived) refuse("Restore this item before completing it.");
+      const completed = formatDateInput(item.dueDate);
+      if (completed !== expectedDueDate) refuseConflict("This occurrence was already completed or changed. Reload to see the latest.");
+
+      const recurrence: Recurrence = { rule: item.recurrence, days: item.recurrenceDays, anchorDay: item.recurrenceAnchorDay };
+      const { next } = nextDueAfterCompletion(item.dueDate, recurrence, today);
+      const result = await tx.customItem.updateMany({ where: { id: itemId, moduleId, dueDate: item.dueDate }, data: { dueDate: next } });
+      if (result.count === 0) refuseConflict("This occurrence was already completed or changed. Reload to see the latest.");
+      await recordRecurrenceCompleted(tx, user.id, item.objectId, completed, formatDateInput(next));
+      return next;
+    });
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return { error: refused, conflict: isConflictRefusal(failure) };
+  }
+  refresh(moduleId);
+  revalidatePath(`/custom-modules/${moduleId}/items/${itemId}`);
+  return { nextDueDate: formatDateInput(nextDueDate) };
 }
 
 export async function promoteFieldToTemplateAction(moduleId: string, itemId: string, fieldId: string): Promise<CustomItemState> {

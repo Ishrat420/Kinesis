@@ -221,3 +221,9 @@ describe("calculatePercentChange", () => {
     expect(calculatePercentChange({ oldValue: null, newValue: null })).toBe(0);
   });
 });
+
+describe("classifyEventSignificance: KD-055", () => {
+  it("treats completing a recurring occurrence as high, like completing a to-do", () => {
+    expect(classifyEventSignificance(event({ objectType: "CUSTOM_ITEM", eventType: "RECURRENCE_COMPLETED", fieldKey: null }))).toBe("high");
+  });
+});

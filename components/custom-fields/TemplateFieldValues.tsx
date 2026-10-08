@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Clock3 } from "lucide-react";
+import { Check, ChevronDown, Clock3, Repeat2 } from "lucide-react";
 import { KinesisLinkList } from "./KinesisLinkField";
 import { CHECKBOX_INPUT_CLASS, FIELD_INPUT_CLASS } from "./field-styles";
 import type { CustomFieldType, KinesisLinkOption, NumberFieldFormat } from "@/lib/custom-fields/types";
@@ -9,16 +9,31 @@ import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
+import { RECURRENCE_DAYS_MAX, RECURRENCE_OPTIONS, type Recurrence } from "@/lib/custom-modules/recurrence";
 
-export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; multiline: boolean; numberFormat?: NumberFieldFormat; value: string; targetObjectIds: string[] };
+/**
+ * `isRecurringDueDate`/`recurrence` (KD-055): a Recurring Due Date field's
+ * `value` is the item's current `dueDate`, like a Due Date field's, and
+ * `recurrence` is its stored repeat rule -- null for every other field, and
+ * for a recurring one nobody has filled in yet.
+ */
+export type TemplateFieldValue = { templateFieldId: string; label: string; type: CustomFieldType; isDueDate: boolean; isRecurringDueDate: boolean; recurrence: Recurrence | null; multiline: boolean; numberFormat?: NumberFieldFormat; value: string; targetObjectIds: string[] };
 
 function toDateInputValue(value: string) {
   const date = parseDatedFieldValue(value);
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
-function buildValues(fields: TemplateFieldValue[]) {
-  return fields.map((field) => ({ ...field, value: field.type === "DATE" ? toDateInputValue(field.value) : field.value }));
+/** A field's in-progress edit state -- for a Recurring Due Date field, the two Repeats inputs as raw strings alongside its date. */
+type EditableValue = TemplateFieldValue & { recurrenceRule: string; recurrenceDays: string };
+
+function buildValues(fields: TemplateFieldValue[]): EditableValue[] {
+  return fields.map((field) => ({
+    ...field,
+    value: field.type === "DATE" ? toDateInputValue(field.value) : field.value,
+    recurrenceRule: field.recurrence?.rule ?? "",
+    recurrenceDays: field.recurrence?.days ? String(field.recurrence.days) : "",
+  }));
 }
 
 /**
@@ -46,12 +61,14 @@ export function TemplateFieldValues({ fields, linkOptions, previews = {} }: { fi
     setValues(buildValues(fields));
   }
 
-  const update = (templateFieldId: string, changes: Partial<TemplateFieldValue>) => {
+  const update = (templateFieldId: string, changes: Partial<EditableValue>) => {
     setValues((current) => current.map((field) => field.templateFieldId === templateFieldId ? { ...field, ...changes } : field));
   };
 
   const payload = useMemo(
-    () => JSON.stringify(values.map(({ templateFieldId, value, targetObjectIds }) => ({ templateFieldId, value, targetObjectIds }))),
+    () => JSON.stringify(values.map(({ templateFieldId, value, targetObjectIds, isRecurringDueDate, recurrenceRule, recurrenceDays }) => (
+      isRecurringDueDate ? { templateFieldId, value, targetObjectIds, recurrenceRule, recurrenceDays } : { templateFieldId, value, targetObjectIds }
+    ))),
     [values],
   );
 
@@ -73,6 +90,7 @@ export function TemplateFieldValues({ fields, linkOptions, previews = {} }: { fi
         <div key={field.templateFieldId} className="min-w-0">
           <div className="mb-2 flex min-w-0 items-center gap-1.5 text-sm font-semibold text-zinc-900">
             {field.isDueDate && <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
+            {field.isRecurringDueDate && <Repeat2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-zinc-400" />}
             <span className="min-w-0 break-words">{field.label}</span>
           </div>
           <FieldValueInput field={field} onChange={(changes) => update(field.templateFieldId, changes)} linkOptions={linkOptions} previews={previews} />
@@ -82,7 +100,9 @@ export function TemplateFieldValues({ fields, linkOptions, previews = {} }: { fi
   );
 }
 
-function FieldValueInput({ field, onChange, linkOptions, previews }: { field: TemplateFieldValue; onChange: (changes: Partial<TemplateFieldValue>) => void; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
+function FieldValueInput({ field, onChange, linkOptions, previews }: { field: EditableValue; onChange: (changes: Partial<EditableValue>) => void; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]> }) {
+  if (field.isRecurringDueDate) return <RecurringDueDateInput field={field} onChange={onChange} />;
+
   if (field.type === "KINESIS_LINK") {
     return <KinesisLinkList options={linkOptions} values={field.targetObjectIds} onChange={(targetObjectIds) => onChange({ targetObjectIds })} ariaLabel={`${field.label} linked objects`} previews={previews} />;
   }
@@ -126,5 +146,32 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Te
       maxLength={field.type === "LINK" ? LINK_LIMIT : field.type === "NUMBER" || field.type === "DATE" ? undefined : TEXT_LIMIT}
       className={FIELD_INPUT_CLASS}
     />
+  );
+}
+
+/**
+ * A Recurring Due Date field's two questions (KD-055 Decision 3): the date of
+ * the current occurrence, and how often it repeats -- with N asked for only
+ * once "Every N days" is chosen. Both are required together; the save action
+ * says so rather than this form blocking submission.
+ */
+function RecurringDueDateInput({ field, onChange }: { field: EditableValue; onChange: (changes: Partial<EditableValue>) => void }) {
+  const everyNDays = field.recurrenceRule === "EVERY_N_DAYS";
+  return (
+    <div className="space-y-2">
+      <input type="date" value={field.value} onChange={(event) => onChange({ value: event.target.value })} aria-label={`${field.label} date`} className={FIELD_INPUT_CLASS} />
+      <div className={`grid min-w-0 gap-2 ${everyNDays ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className="relative min-w-0">
+          <select value={field.recurrenceRule} onChange={(event) => onChange({ recurrenceRule: event.target.value })} aria-label={`${field.label} repeats`} className={`${FIELD_INPUT_CLASS} appearance-none pr-11`}>
+            <option value="">Repeats…</option>
+            {RECURRENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        </div>
+        {everyNDays && (
+          <input type="number" inputMode="numeric" min={1} max={RECURRENCE_DAYS_MAX} step={1} value={field.recurrenceDays} onChange={(event) => onChange({ recurrenceDays: event.target.value })} aria-label={`${field.label}: repeat every how many days`} placeholder="N (days)" className={FIELD_INPUT_CLASS} />
+        )}
+      </div>
+    </div>
   );
 }

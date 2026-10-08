@@ -113,7 +113,7 @@ async function getCustomItemPreviews(objectIds: string[], userId: string, contex
   const templateIds = [...new Set(objects.map(({ templateId }) => templateId as string))];
   const templates = await prisma.template.findMany({
     where: { id: { in: templateIds } },
-    select: { id: true, previewFields: true, fields: { select: { id: true, label: true, type: true, numberFormat: true, isDueDate: true } } },
+    select: { id: true, previewFields: true, fields: { select: { id: true, label: true, type: true, numberFormat: true, isDueDate: true, isRecurringDueDate: true } } },
   });
   const templateById = new Map(templates.map((template) => [template.id, template]));
 
@@ -125,7 +125,7 @@ async function getCustomItemPreviews(objectIds: string[], userId: string, contex
     const fieldById = new Map(template.fields.map((field) => [field.id, field]));
     for (const id of template.previewFields.slice(0, 3)) {
       const field = fieldById.get(id);
-      if (field && !field.isDueDate) neededFieldIds.add(id);
+      if (field && !field.isDueDate && !field.isRecurringDueDate) neededFieldIds.add(id);
     }
   }
 
@@ -157,7 +157,8 @@ async function getCustomItemPreviews(objectIds: string[], userId: string, contex
       const kind = resolveKind(field.type, field.numberFormat ?? undefined);
       if (!kind) continue;
 
-      const raw = field.isDueDate
+      // Either due-date kind (KD-038/KD-055) reads the item's own dueDate, never an ObjectField row.
+      const raw = field.isDueDate || field.isRecurringDueDate
         ? { value: toDateOnly(object.customItem?.dueDate ?? null) }
         : kind === "link-count"
         ? { linkCount: linksByKey.get(`${object.id}:${field.id}`)?.length ?? 0 }
