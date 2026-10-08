@@ -15,6 +15,8 @@ import { getCalendarItems } from "@/lib/data/calendar";
 import { getCustomItem } from "@/lib/data/custom-modules";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { getToday } from "@/lib/format/server";
+import { collectNotifications } from "@/lib/data/notification-collection";
+import { addUtcDays, formatDateInput } from "@/lib/dates";
 
 /**
  * KD-055's object side, end to end against a real database: the Recurring
@@ -182,6 +184,47 @@ describe.sequential("a custom item's Recurring Due Date", () => {
       const items = await getCalendarItems(d("2098-12-29"), new Date("2099-02-08T23:59:59.999Z"));
       expect(items.find((entry) => entry.id === `custom-due-${item.id}`)).toMatchObject({ date: "2099-01-31", recurring: true });
       expect(items.some((entry) => entry.id === `custom-reminder-${item.id}`)).toBe(true);
+    });
+  });
+
+  /**
+   * A recurring item is a due date to everything downstream: the bell (and
+   * web push, which sends from the same collection) reads `dueDate` through
+   * the shared attention records, with the owner's own custom-item
+   * reminder lead from Settings.
+   */
+  describe("notifications", () => {
+    const customItemNotes = async () => (await collectNotifications(owner)).filter((note) => note.source === "custom");
+
+    it("opens a reminder using the owner's custom-item lead time, not before", async () => {
+      await prisma.userSettings.create({ data: { userId: owner, timeZone: "UTC", customItemReminderLeadDays: 10 } });
+      const today = await getToday();
+      await placeItem({ dueDate: addUtcDays(today, 5), recurrence: "WEEKLY" });
+      await placeItem({ dueDate: addUtcDays(today, 20), recurrence: "WEEKLY" });
+
+      const notes = await customItemNotes();
+      expect(notes.map((note) => ({ type: note.type, due: formatDateInput(note.expiryDate!) }))).toEqual([
+        { type: "REMINDER_DUE", due: formatDateInput(addUtcDays(today, 5)) },
+      ]);
+    });
+
+    it("notifies as overdue, then notifies afresh for the next occurrence once completed", async () => {
+      await prisma.userSettings.create({ data: { userId: owner, timeZone: "UTC", customItemReminderLeadDays: 10 } });
+      const today = await getToday();
+      const overdue = addUtcDays(today, -1);
+      const item = await placeItem({ dueDate: overdue, recurrence: "EVERY_N_DAYS", recurrenceDays: 3 });
+
+      const before = await customItemNotes();
+      expect(before.map((note) => note.type)).toEqual(["CUSTOM_ITEM_DUE"]);
+
+      await completeRecurringOccurrenceAction("rec-module", item.id, formatDateInput(overdue));
+
+      const after = await customItemNotes();
+      expect(after.map((note) => ({ type: note.type, due: formatDateInput(note.expiryDate!) }))).toEqual([
+        { type: "REMINDER_DUE", due: formatDateInput(addUtcDays(overdue, 3)) },
+      ]);
+      // A new deadline is a new notification, not the old one already read.
+      expect(after[0].key).not.toBe(before[0].key);
     });
   });
 
