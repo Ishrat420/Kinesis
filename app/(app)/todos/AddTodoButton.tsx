@@ -11,6 +11,7 @@ import type { ObjectLocation } from "@/lib/objects/locations";
 import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import { createTodoAction, type CreateTodoState } from "./actions";
 import { NOTES_LIMIT } from "@/lib/validation/field-limits";
+import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/todos/RepeatControls";
 
 const initialState: CreateTodoState = {};
 
@@ -73,6 +74,7 @@ export function AddTodoForm({
 }) {
   const [status, setStatus] = useState<TodoStatus>("TODO");
   const [dueDate, setDueDate] = useState(initialDueDate);
+  const [repeat, setRepeat] = useState<RepeatState>(initialRepeat());
   const [dateFocused, setDateFocused] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [notes, setNotes] = useState("");
@@ -146,9 +148,11 @@ export function AddTodoForm({
               <label className={FIELD_LABEL_CLASS}>
                 Due <span className="font-normal text-zinc-400">optional</span>
               </label>
+              {/* The repeat button (KD-056) is joined onto the date field's right edge, one control. */}
+              <div className="flex">
               <div
                 onClick={() => dateInputRef.current?.showPicker?.()}
-                className={`relative flex h-[50px] cursor-pointer items-center gap-2 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
+                className={`relative flex h-[50px] min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l-xl border-[1.5px] border-r-0 bg-white px-3.5 transition ${
                   dateFocused ? "border-teal-600 ring-4 ring-teal-600/15" : "border-zinc-200"
                 }`}
               >
@@ -163,14 +167,18 @@ export function AddTodoForm({
                   name="dueDate"
                   aria-label="Due date"
                   value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
+                  onChange={(event) => { setDueDate(event.target.value); if (!event.target.value) setRepeat((current) => ({ ...current, on: false })); }}
                   onFocus={() => setDateFocused(true)}
                   onBlur={() => setDateFocused(false)}
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </div>
+              <RepeatButton on={repeat.on && Boolean(dueDate)} disabled={!dueDate} onToggle={() => setRepeat((current) => ({ ...current, on: !current.on }))} />
+              </div>
             </div>
           </div>
+
+          <RepeatFields repeat={repeat} onChange={setRepeat} dueDate={dueDate} fieldClass={FIELD_CLASS} />
 
           <div>
             <label className={FIELD_LABEL_CLASS}>

@@ -125,7 +125,7 @@ Note that the existing practice cadence helper
 (`lib/calendar/recurrence.ts`, `occurrencesForCadence`) matches months by
 `getUTCDate() === anchor day` and so *skips* months that lack the 31st. This
 feature must not reuse that behaviour. Build a small pure helper (e.g.
-`lib/custom-modules/recurrence.ts`: `nextOccurrence` / `occurrencesInRange`)
+`lib/recurrence/index.ts`: `nextOccurrence` / `occurrencesInRange`)
 with unit tests for the month-end and leap-year cases.
 
 Both inputs are required together. A date with no repeat option, a repeat
@@ -329,7 +329,7 @@ Decisions 3 to 9, built:
   date whenever a rule is set and keep N and the anchor day present exactly
   for their rules. Each branch tests NULL explicitly, because a CHECK that
   evaluates to NULL passes.
-* **Rules** (`lib/custom-modules/recurrence.ts`, pure, unit tested): stepping
+* **Rules** (`lib/recurrence/index.ts`, pure, unit tested): stepping
   per rule; month and year steps anchored and clamped (31 Jan, 28 Feb,
   31 Mar; 29 Feb yearly lands on 28 Feb in common years); completion steps
   from the due date and catches up to today or later; calendar projection

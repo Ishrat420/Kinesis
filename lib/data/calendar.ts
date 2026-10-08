@@ -8,7 +8,7 @@ import { addUtcDays } from "@/lib/dates";
 import { resolveFormatPreferences } from "@/lib/format/preferences";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
 import { occurrencesInRange } from "@/lib/relationships/occurrence";
-import { occurrencesInRange as recurringOccurrencesInRange, recurrenceLabel, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { occurrencesInRange as recurringOccurrencesInRange, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import { isOpenTodoStatus } from "@/lib/todos/status";
 import { prisma } from "./prisma";
 
@@ -43,7 +43,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
     prisma.relationshipImportantDate.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] } }),
     prisma.connectionPractice.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true } }),
     prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, object: { select: { fields: dateFields } } } }),
-    prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, dueDate: true, status: true } }),
+    prisma.todo.findMany({ where: { userId: user.id, dueDate: { not: null } }, select: { id: true, name: true, dueDate: true, status: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true } }),
   ]);
 
   const { locale } = resolveFormatPreferences(settings);
@@ -147,7 +147,18 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   // relabelled rather than removed, exactly as a completed milestone is.
   for (const todo of todos) {
     if (!todo.dueDate) continue;
-    add({ id: `todo-due-${todo.id}`, title: `${todo.name} due`, kind: hasTime(todo.dueDate) ? "SCHEDULED" : "DATED", date: todo.dueDate, startTime: hasTime(todo.dueDate) ? timeValue(todo.dueDate) : undefined, sourceType: "TODO", sourceObjectId: todo.id, sourceModule: "To-Dos", href: `/todos#todo-${todo.id}`, detail: isOpenTodoStatus(todo.status) ? "To-do due date" : "Completed to-do" });
+    // KD-056: a repeating to-do shows every occurrence in the visible range,
+    // worked out here and never stored, each with the repeat icon -- the
+    // same projection a custom item's Recurring Due Date gets (KD-055).
+    // Only the current occurrence (the stored dueDate) has a reminder pin.
+    const todoRecurrence: Recurrence | null = todo.recurrence ? { rule: todo.recurrence, days: todo.recurrenceDays, anchorDay: todo.recurrenceAnchorDay } : null;
+    if (todoRecurrence) {
+      const detail = `Repeats: ${recurrenceLabel(todoRecurrence).toLowerCase()}`;
+      for (const date of recurringOccurrencesInRange(todo.dueDate, todoRecurrence, start, end)) {
+        const current = dateKey(date) === dateKey(todo.dueDate);
+        add({ id: current ? `todo-due-${todo.id}` : `todo-due-${todo.id}-${dateKey(date)}`, title: `${todo.name} due`, kind: "DATED", date, sourceType: "TODO", sourceObjectId: todo.id, sourceModule: "To-Dos", recurring: true, href: `/todos#todo-${todo.id}`, detail });
+      }
+    } else add({ id: `todo-due-${todo.id}`, title: `${todo.name} due`, kind: hasTime(todo.dueDate) ? "SCHEDULED" : "DATED", date: todo.dueDate, startTime: hasTime(todo.dueDate) ? timeValue(todo.dueDate) : undefined, sourceType: "TODO", sourceObjectId: todo.id, sourceModule: "To-Dos", href: `/todos#todo-${todo.id}`, detail: isOpenTodoStatus(todo.status) ? "To-do due date" : "Completed to-do" });
     // A lead-up pin (KD-027) only while still open -- a completed to-do has
     // nothing left to warn about -- and only once a lead is actually
     // configured: `reminderOpensAt` with a zero lead resolves to the due

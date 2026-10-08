@@ -48,7 +48,7 @@ function UpcomingActions({ item, todoLinkOptions }: { item: UpcomingItem; todoLi
   if (item.kind === "todo") {
     return <ResolveActions
       dueDate={item.date}
-      complete={setTodoStatusAction.bind(null, item.todoId, "DONE")}
+      complete={setTodoStatusAction.bind(null, item.todoId, "DONE", item.date)}
       reschedule={updateTodoDueDateAction.bind(null, item.todoId)}
     />;
   }

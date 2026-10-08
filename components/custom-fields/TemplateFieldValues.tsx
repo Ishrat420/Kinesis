@@ -9,7 +9,7 @@ import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
-import { buildRecurrence, followingOccurrence, isRecurrenceRule, RECURRENCE_DAYS_MAX, RECURRENCE_OPTIONS, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { buildRecurrence, followingOccurrence, isRecurrenceRule, RECURRENCE_DAYS_MAX, RECURRENCE_OPTIONS, type Recurrence } from "@/lib/recurrence";
 import { formatDate, parseDateOnly } from "@/lib/dates";
 import { useFormatPreferences } from "@/lib/format/context";
 

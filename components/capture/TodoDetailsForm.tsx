@@ -11,6 +11,8 @@ import { TODO_STATUSES, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/
 import { captureTargets, captureTargetCarries, DEFAULT_CAPTURE_TARGET, splitCaptureDetails, type CaptureDetail, type CaptureTargetType } from "@/lib/capture/targets";
 import { captureLinkOptionsAction, saveTodoDetailsAction, type TodoDetailsState } from "@/app/(app)/todos/actions";
 import { NOTES_LIMIT } from "@/lib/validation/field-limits";
+import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/todos/RepeatControls";
+import type { Recurrence } from "@/lib/recurrence";
 
 const initialState: TodoDetailsState = {};
 
@@ -27,7 +29,7 @@ const FIELD_CLASS =
   "h-[50px] w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/15 sm:text-sm";
 const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-sm font-semibold text-zinc-900";
 
-export type CaptureDetailsDefaults = { status?: TodoStatus; dueDate?: string; notes?: string; linkObjectIds?: string[] };
+export type CaptureDetailsDefaults = { status?: TodoStatus; dueDate?: string; recurrence?: Recurrence | null; notes?: string; linkObjectIds?: string[] };
 
 /**
  * The fields of a capture's optional second step (KD-008) -- extracted from
@@ -57,6 +59,7 @@ export function TodoDetailsForm({
   const [target, setTarget] = useState<CaptureTargetType>(DEFAULT_CAPTURE_TARGET);
   const [status, setStatus] = useState<TodoStatus>(defaults.status ?? "TODO");
   const [dueDate, setDueDate] = useState(defaults.dueDate ?? "");
+  const [repeat, setRepeat] = useState<RepeatState>(initialRepeat(defaults.recurrence));
   const [dateFocused, setDateFocused] = useState(false);
   const [notes, setNotes] = useState(defaults.notes ?? "");
   const [linkObjectIds, setLinkObjectIds] = useState<string[]>(defaults.linkObjectIds ?? []);
@@ -147,9 +150,11 @@ export function TodoDetailsForm({
             <label className={FIELD_LABEL_CLASS}>
               {stayingATodo ? "Due" : "Target date"} <span className="font-normal text-zinc-400">optional</span>
             </label>
+            {/* The repeat button (KD-056) only while this stays a To-Do -- no other capture target repeats. */}
+            <div className="flex">
             <div
               onClick={() => dateInputRef.current?.showPicker?.()}
-              className={`relative flex h-[50px] cursor-pointer items-center gap-2 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
+              className={`relative flex h-[50px] min-w-0 flex-1 cursor-pointer items-center gap-2 border-[1.5px] bg-white px-3.5 transition ${stayingATodo ? "rounded-l-xl border-r-0" : "rounded-xl"} ${
                 dateFocused ? "border-teal-600 ring-4 ring-teal-600/15" : "border-zinc-200"
               }`}
             >
@@ -164,14 +169,18 @@ export function TodoDetailsForm({
                 name="dueDate"
                 aria-label={stayingATodo ? "Due date" : "Target date"}
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
+                onChange={(event) => { setDueDate(event.target.value); if (!event.target.value) setRepeat((current) => ({ ...current, on: false })); }}
                 onFocus={() => setDateFocused(true)}
                 onBlur={() => setDateFocused(false)}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
             </div>
+            {stayingATodo && <RepeatButton on={repeat.on && Boolean(dueDate)} disabled={!dueDate} onToggle={() => setRepeat((current) => ({ ...current, on: !current.on }))} />}
+            </div>
           </div>
         )}
+
+        {stayingATodo && <RepeatFields repeat={repeat} onChange={setRepeat} dueDate={dueDate} fieldClass={FIELD_CLASS} />}
 
         {stayingATodo && (
           <div>

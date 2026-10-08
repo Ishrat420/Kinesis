@@ -1,7 +1,9 @@
 import { addUtcDays, startOfUtcDay } from "@/lib/dates";
 
 /**
- * KD-055: a Recurring Due Date's repeat rule. Mirrors the Prisma
+ * A repeating due date's rule -- shared by custom items' Recurring Due Date
+ * field (KD-055) and a system module's repeat button (KD-056, To-dos first),
+ * so both step, clamp, catch up and project exactly the same way. Mirrors the Prisma
  * `RecurrenceRule` enum value for value, declared here rather than imported
  * so client components can use it without pulling in @prisma/client.
  */

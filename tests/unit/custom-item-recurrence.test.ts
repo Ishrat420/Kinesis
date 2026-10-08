@@ -9,7 +9,7 @@ import {
   parseRecurringDueDateInput,
   recurrenceLabel,
   type Recurrence,
-} from "@/lib/custom-modules/recurrence";
+} from "@/lib/recurrence";
 import { parseDateOnly } from "@/lib/dates";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);

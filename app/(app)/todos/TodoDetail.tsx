@@ -1,6 +1,6 @@
 "use client";
 
-import { ListTodo, Pencil, Trash2, X } from "lucide-react";
+import { ListTodo, Pencil, Repeat2, Trash2, X } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
@@ -14,13 +14,15 @@ import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { isOpenTodoStatus, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import type { TodoRecord } from "@/lib/data/todos";
+import { followingOccurrence, recurrenceLabel } from "@/lib/recurrence";
 import { deleteTodoAction } from "./actions";
 
-function InfoTile({ label, value, caption, danger = false }: { label: string; value: React.ReactNode; caption?: string; danger?: boolean }) {
+function InfoTile({ label, value, caption, footer, danger = false }: { label: string; value: React.ReactNode; caption?: string; footer?: React.ReactNode; danger?: boolean }) {
   return <div className={`rounded-2xl border p-4 ${danger ? "border-red-100 bg-red-50/60" : "border-zinc-100 bg-zinc-50/80"}`}>
     <p className="text-xs font-semibold uppercase tracking-[0.08em] text-zinc-400">{label}</p>
     <p className={`mt-1.5 text-lg font-semibold ${danger ? "text-red-600" : "text-zinc-900"}`}>{value}</p>
     {caption && <p className={`mt-1 text-xs ${danger ? "text-red-500" : "text-zinc-400"}`}>{caption}</p>}
+    {footer}
   </div>;
 }
 
@@ -35,7 +37,14 @@ function TodoInfo({ todo, locale, today }: { todo: TodoRecord; locale: string; t
         label="Status"
         value={<span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className={`h-2 w-2 rounded-full ${todoStatusDotClass(todo.status)}`} />{todoStatusLabel(todo.status)}</span>}
       />
-      {open && todo.dueDate && <InfoTile label="Due" value={formatDate(todo.dueDate, locale)} caption={formatDeadline(todo.dueDate, today)} danger={overdue} />}
+      {open && todo.dueDate && <InfoTile
+        label="Due" value={formatDate(todo.dueDate, locale)} caption={formatDeadline(todo.dueDate, today)} danger={overdue}
+        // KD-056: a repeating to-do says how it repeats and when it comes back next.
+        footer={todo.recurrence && <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
+          <span className="inline-flex items-center gap-1 font-semibold text-teal-700"><Repeat2 className="h-3 w-3" aria-hidden="true" />{recurrenceLabel(todo.recurrence)}</span>
+          <span>Next event: {formatDate(followingOccurrence(todo.dueDate, todo.recurrence), locale)}</span>
+        </p>}
+      />}
       {!open && todo.completedAt && <InfoTile label="Completed" value={formatDate(todo.completedAt, locale)} />}
     </div>
     {todo.notes && <div><p className="mb-1.5 text-xs font-semibold text-zinc-500">Notes</p><p className="whitespace-pre-wrap text-sm leading-6 text-zinc-700">{todo.notes}</p></div>}
@@ -90,7 +99,7 @@ export function TodoDetailView({ todo, history, kinesisLinks, updateKinesisLinkA
   const body = editing
     ? <TodoDetailsForm
         todo={todo}
-        defaults={{ status: todo.status, dueDate: todo.dueDate ? formatDateInput(todo.dueDate) : "", notes: todo.notes ?? "", linkObjectIds: todo.links.map((link) => link.objectId) }}
+        defaults={{ status: todo.status, dueDate: todo.dueDate ? formatDateInput(todo.dueDate) : "", recurrence: todo.recurrence, notes: todo.notes ?? "", linkObjectIds: todo.links.map((link) => link.objectId) }}
         onClose={() => setEditing(false)}
         allowConvert={false}
       />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useOptimistic, useState, useTransition } from "react";
-import { CalendarClock, CalendarDays, Check, Ellipsis, Link2, Search, X } from "lucide-react";
+import { CalendarClock, CalendarDays, Check, Ellipsis, Link2, Repeat2, Search, X } from "lucide-react";
 import type { TodoRecord } from "@/lib/data/todos";
 import { isOpenTodoStatus, todoStatusDotClass, todoStatusLabel } from "@/lib/todos/status";
 import { groupTodosByUrgency, type TodoUrgencyGroup } from "@/lib/todos/groups";
@@ -13,6 +13,8 @@ import { InlineDatePicker } from "@/components/dashboard/InlineDatePicker";
 import { useToday } from "@/lib/format/context";
 import { deleteTodoAction, setTodoStatusAction, updateTodoDueDateAction, type TodoActionState } from "./actions";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { Snackbar } from "@/components/ui/Snackbar";
+import { recurrenceLabel } from "@/lib/recurrence";
 
 const initialRescheduleState: TodoActionState = {};
 
@@ -31,6 +33,10 @@ const inScope = (todo: TodoRecord, scope: TodoScope) =>
 export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; locale: string; scope: TodoScope }) {
   const [editing, setEditing] = useState<TodoRecord | null>(null);
   const [query, setQuery] = useState("");
+  // KD-056: "Done. Next due …" after ticking a repeating to-do, which stays
+  // open with its date moved on. Held here, not in the row: the row can move
+  // to another urgency group (and remount) the moment its date changes.
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const today = useToday();
   const trimmedQuery = query.trim().toLowerCase();
   const visible = todos.filter((todo) => inScope(todo, scope) && (!trimmedQuery || todo.name.toLowerCase().includes(trimmedQuery)));
@@ -71,7 +77,7 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
                 <span className="text-xs font-semibold text-zinc-400">{group.todos.length}</span>
               </div>
               <ul className="divide-y divide-zinc-100">
-                {group.todos.map((todo) => <TodoRow key={todo.id} todo={todo} locale={locale} onEdit={() => setEditing(todo)} />)}
+                {group.todos.map((todo) => <TodoRow key={todo.id} todo={todo} locale={locale} onEdit={() => setEditing(todo)} onAdvanced={(message) => setToast({ id: Date.now(), message })} />)}
               </ul>
             </div>
           ))}
@@ -90,12 +96,15 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
         </div>
       )}
 
+      {toast && <Snackbar key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />}
+
       {editing && (
         <CaptureDetailsDialog
           todo={editing}
           defaults={{
             status: editing.status,
             dueDate: editing.dueDate ? formatDateInput(editing.dueDate) : "",
+            recurrence: editing.recurrence,
             notes: editing.notes ?? "",
             linkObjectIds: editing.links.map((link) => link.objectId),
           }}
@@ -106,7 +115,7 @@ export function TodoBoard({ todos, locale, scope }: { todos: TodoRecord[]; local
   );
 }
 
-function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; onEdit: () => void }) {
+function TodoRow({ todo, locale, onEdit, onAdvanced }: { todo: TodoRecord; locale: string; onEdit: () => void; onAdvanced: (message: string) => void }) {
   const today = useToday();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +149,11 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
       setOptimisticOpen(!status);
       setHasToggled(true);
       setError(null);
-      setError((await setTodoStatusAction(todo.id, status ? "DONE" : "TODO")).error ?? null);
+      // The shown date travels with a completion, so a repeating to-do that has
+      // already moved on (a double click, another tab) is refused, not skipped.
+      const result = await setTodoStatusAction(todo.id, status ? "DONE" : "TODO", status && todo.dueDate ? formatDateInput(todo.dueDate) : null);
+      setError(result.error ?? null);
+      if (result.nextDueDate) onAdvanced(`Done. Next due ${formatDate(result.nextDueDate, locale)}.`);
     });
   }
 
@@ -193,6 +206,11 @@ function TodoRow({ todo, locale, onEdit }: { todo: TodoRecord; locale: string; o
           {open && todo.dueDate && (
             <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold ${todo.dueDate < today ? "bg-red-50 text-red-600" : "bg-zinc-100 text-zinc-700"}`}>
               <CalendarDays className="h-3 w-3" aria-hidden="true" />{formatDate(todo.dueDate, locale)} · {formatDeadline(todo.dueDate, today)}
+            </span>
+          )}
+          {open && todo.recurrence && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700">
+              <Repeat2 className="h-3 w-3" aria-hidden="true" />{recurrenceLabel(todo.recurrence)}
             </span>
           )}
           {[...todo.links, ...todo.linkedFrom].map((link) => (

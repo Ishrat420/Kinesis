@@ -15,7 +15,7 @@ import { KinesisLinks } from "@/components/kinesis-links/KinesisLinks";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
 import { differenceInCalendarDays, formatDate, formatDeadline, parseDateOnly } from "@/lib/dates";
-import { followingOccurrence, recurrenceLabel, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { followingOccurrence, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import { useToday } from "@/lib/format/context";
 import { Snackbar } from "@/components/ui/Snackbar";
 import { formatMoney, formatPercent } from "@/lib/format/numbers";

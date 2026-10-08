@@ -842,6 +842,14 @@ model Todo {
   name        String
   status      TodoStatus @default(TODO)
   dueDate     DateTime?
+  // KD-056: how `dueDate` repeats, set with the repeat button beside the
+  // Due field -- the same three columns, rules and check constraints as
+  // CustomItem's (KD-055). A repeating to-do never becomes DONE: marking it
+  // done advances `dueDate` to the next occurrence and keeps it open, with a
+  // RECURRENCE_COMPLETED event recording the occurrence.
+  recurrence          RecurrenceRule?
+  recurrenceDays      Int?
+  recurrenceAnchorDay Int?
   completedAt DateTime?
   notes       String?
   userId      String

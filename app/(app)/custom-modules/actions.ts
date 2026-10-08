@@ -20,7 +20,7 @@ import { checkLength, checkNumberMagnitude, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT 
 import { formatMoney, formatPercent } from "@/lib/format/numbers";
 import { getFormatPreferences, getToday } from "@/lib/format/server";
 import type { CustomFieldType, NumberFieldFormat } from "@prisma/client";
-import { buildRecurrence, nextDueAfterCompletion, parseRecurringDueDateInput, recurrenceLabel, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { buildRecurrence, nextDueAfterCompletion, parseRecurringDueDateInput, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import type { TemplateFieldValueInput } from "@/lib/templates/parse";
 
 const getValue = (data: FormData, key: string) => String(data.get(key) ?? "").trim();

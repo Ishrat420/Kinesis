@@ -1,13 +1,15 @@
 import type { Prisma, TodoStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { deleteObjects, objectFor } from "./objects";
-import { recordEvent, recordFieldChanges, recordRelationshipAdded, recordRelationshipRemoved, recordStatusChanged, type FieldChange } from "./object-events";
+import { recordEvent, recordFieldChanges, recordRecurrenceCompleted, recordRelationshipAdded, recordRelationshipRemoved, recordStatusChanged, type FieldChange } from "./object-events";
 import { requireKinesisUser } from "@/lib/auth";
 import { objectPairKey } from "@/lib/objects/relationships";
 import { locateObjects, objectLocationSelect, type ObjectLocation } from "@/lib/objects/locations";
 import { isOpenTodoStatus } from "@/lib/todos/status";
-import { refuse } from "@/lib/actions/refusal";
+import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import { formatDateInput } from "@/lib/dates";
+import { buildRecurrence, nextDueAfterCompletion, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
+import { getToday } from "@/lib/format/server";
 
 /**
  * Standalone To-Dos (ADR-009).
@@ -26,6 +28,8 @@ export type TodoRecord = {
   name: string;
   status: TodoStatus;
   dueDate: Date | null;
+  /** KD-056: how `dueDate` repeats, or null for a one-off to-do. */
+  recurrence: Recurrence | null;
   completedAt: Date | null;
   notes: string | null;
   createdAt: Date;
@@ -43,7 +47,7 @@ export type TodoRecord = {
 };
 
 const todoSelect = {
-  id: true, name: true, status: true, dueDate: true, completedAt: true, notes: true, createdAt: true, objectId: true,
+  id: true, name: true, status: true, dueDate: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true, completedAt: true, notes: true, createdAt: true, objectId: true,
   object: {
     select: {
       outgoingRelationships: { select: { targetObject: { select: objectLocationSelect } }, orderBy: { createdAt: "asc" } },
@@ -54,13 +58,24 @@ const todoSelect = {
 
 type TodoRow = Prisma.TodoGetPayload<{ select: typeof todoSelect }>;
 
-const toRecord = ({ object, ...todo }: TodoRow): TodoRecord => {
+/** The three stored columns as one rule, or null for a one-off. */
+const toRecurrence = (row: { recurrence: Recurrence["rule"] | null; recurrenceDays: number | null; recurrenceAnchorDay: number | null }): Recurrence | null =>
+  row.recurrence ? { rule: row.recurrence, days: row.recurrenceDays, anchorDay: row.recurrenceAnchorDay } : null;
+
+/** The three columns a rule is stored in, cleared together when there is none. */
+const recurrenceColumns = (recurrence: Recurrence | null) => ({
+  recurrence: recurrence?.rule ?? null,
+  recurrenceDays: recurrence?.days ?? null,
+  recurrenceAnchorDay: recurrence?.anchorDay ?? null,
+});
+
+const toRecord = ({ object, recurrence, recurrenceDays, recurrenceAnchorDay, ...todo }: TodoRow): TodoRecord => {
   const links = locateObjects(object.outgoingRelationships.map((relationship) => relationship.targetObject));
   const own = new Set(links.map((link) => link.objectId));
   const incoming = locateObjects(object.incomingRelationships.map((relationship) => relationship.sourceObject)).filter((link) => !own.has(link.objectId));
   // Two Kinesis Links of different types from the same object are one chip.
   const linkedFrom = incoming.filter((link, index) => incoming.findIndex((other) => other.objectId === link.objectId) === index);
-  return { ...todo, links, linkedFrom };
+  return { ...todo, recurrence: toRecurrence({ recurrence, recurrenceDays, recurrenceAnchorDay }), links, linkedFrom };
 };
 
 /**
@@ -115,7 +130,7 @@ export async function captureTodo(name: string) {
   });
 }
 
-export type NewTodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: string | null; linkObjectIds?: string[] };
+export type NewTodoDetails = { status?: TodoStatus; dueDate?: Date | null; recurrence?: Recurrence | null; notes?: string | null; linkObjectIds?: string[] };
 
 /**
  * The in-page "Add to-do" button's create, as opposed to quick capture's
@@ -123,8 +138,12 @@ export type NewTodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes
  * with the title in one transaction, so a to-do with an unresolved link is
  * never left half-created.
  */
-export async function createTodo(name: string, { status = "TODO", dueDate = null, notes = null, linkObjectIds = [] }: NewTodoDetails = {}) {
+export async function createTodo(name: string, { status = "TODO", dueDate = null, recurrence = null, notes = null, linkObjectIds = [] }: NewTodoDetails = {}) {
   const user = await requireKinesisUser();
+  // KD-056: a repeat needs a date to repeat from, and a repeating to-do is
+  // never stored as Done -- completing it moves the date instead.
+  if (recurrence && !dueDate) refuse("Pick a due date for a to-do that repeats.");
+  if (recurrence && status === "DONE") refuse("A repeating to-do can't start as Done.");
   return prisma.$transaction(async (transaction) => {
     const todo = await transaction.todo.create({
       data: {
@@ -132,6 +151,7 @@ export async function createTodo(name: string, { status = "TODO", dueDate = null
         name,
         status,
         dueDate,
+        ...recurrenceColumns(recurrence),
         notes,
         completedAt: isOpenTodoStatus(status) ? null : new Date(),
         user: { connect: { id: user.id } },
@@ -170,7 +190,24 @@ export async function createTodo(name: string, { status = "TODO", dueDate = null
   });
 }
 
-export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: string | null; linkObjectIds?: string[] };
+export type TodoDetails = {
+  status?: TodoStatus;
+  dueDate?: Date | null;
+  /** KD-056: the repeat rule -- `undefined` leaves it alone, `null` makes the to-do a one-off. Cleared automatically if the due date is cleared. */
+  recurrence?: Recurrence | null;
+  /**
+   * The due date the caller showed when it marked a repeating to-do done. A
+   * completion is refused as a conflict if the to-do has since moved on, so a
+   * double click or a stale tab can't complete the same occurrence twice and
+   * silently skip one (the BUG-007 pattern).
+   */
+  expectedDueDate?: Date | null;
+  notes?: string | null;
+  linkObjectIds?: string[];
+};
+
+/** `advancedTo` is set when the save completed an occurrence of a repeating to-do: the due date it moved on to. */
+export type UpdatedTodo = TodoRecord & { advancedTo?: Date };
 
 /**
  * The "Add details" step. Every field is optional and independent: a caller
@@ -180,37 +217,88 @@ export type TodoDetails = { status?: TodoStatus; dueDate?: Date | null; notes?: 
  * the To-Do concerns, so an empty array means "no longer concerns anything" --
  * a choice the user can make, and applied -- while `undefined` leaves the
  * existing links alone.
+ *
+ * KD-056: marking a *repeating* to-do Done -- from the board's checkbox, the
+ * dashboard's Complete, or the edit form -- completes the current occurrence
+ * instead: the due date moves to the next one (one step from the due date,
+ * caught up to today or later if it was long overdue), the to-do stays open
+ * as To do, and a RECURRENCE_COMPLETED event records the occurrence. Every
+ * "mark done" path in the app goes through here, so none can close one.
  */
-export async function updateTodoDetails(id: string, { status, dueDate, notes, linkObjectIds }: TodoDetails) {
+export async function updateTodoDetails(id: string, { status, dueDate, recurrence, expectedDueDate, notes, linkObjectIds }: TodoDetails): Promise<UpdatedTodo> {
   const user = await requireKinesisUser();
+  const today = await getToday();
   return prisma.$transaction(async (transaction) => {
-    const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, name: true, status: true, dueDate: true, notes: true } });
+    const todo = await transaction.todo.findFirst({ where: { id, userId: user.id }, select: { objectId: true, name: true, status: true, dueDate: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true, notes: true } });
     if (!todo) refuse("This to-do no longer exists.");
+    let advancedTo: Date | undefined;
 
-    if (status !== undefined || dueDate !== undefined || notes !== undefined) {
+    if (status !== undefined || dueDate !== undefined || recurrence !== undefined || notes !== undefined) {
+      const oldRecurrence = toRecurrence(todo);
+      const nextDueDate = dueDate !== undefined ? dueDate : todo.dueDate;
+      let nextRecurrence = recurrence !== undefined ? recurrence : oldRecurrence;
+      // No date, nothing to repeat from: clearing the date clears the repeat.
+      if (!nextDueDate) nextRecurrence = null;
+      // A monthly or yearly rule keeps its stored anchor day when neither the
+      // date nor the rule changed, so re-saving a clamped 28 Feb (anchored on
+      // the 31st) never quietly re-anchors it to the 28th (same as KD-055).
+      // Any real change -- a new rule, or the date moved (a reschedule) --
+      // anchors afresh on the new date.
+      if (nextRecurrence && nextDueDate) {
+        const unchanged = oldRecurrence && todo.dueDate
+          && nextRecurrence.rule === oldRecurrence.rule && nextRecurrence.days === oldRecurrence.days
+          && formatDateInput(nextDueDate) === formatDateInput(todo.dueDate);
+        nextRecurrence = unchanged ? oldRecurrence : buildRecurrence(nextRecurrence.rule, nextDueDate, nextRecurrence.days);
+      }
+
       const nextStatus = status ?? todo.status;
-      await transaction.todo.update({
-        where: { id },
-        data: {
-          ...(status !== undefined ? { status } : {}),
-          ...(dueDate !== undefined ? { dueDate } : {}),
-          ...(notes !== undefined ? { notes } : {}),
-          // completedAt tracks the status rather than being set alongside it, so
-          // a To-Do reopened from Done cannot keep a completion date.
-          ...(status !== undefined ? { completedAt: isOpenTodoStatus(nextStatus) ? null : new Date() } : {}),
-        },
-      });
+      const completingOccurrence = nextRecurrence !== null && nextStatus === "DONE";
+      if (completingOccurrence && todo.status === "DONE") refuse("Reopen this to-do before making it repeat.");
 
-      if (status !== undefined && status !== todo.status) {
-        if (status === "DONE") await recordEvent(transaction, user.id, todo.objectId, "TODO_COMPLETED");
-        else if (todo.status === "DONE") await recordEvent(transaction, user.id, todo.objectId, "TODO_REOPENED");
-        else await recordStatusChanged(transaction, user.id, todo.objectId, todo.status, status);
+      if (completingOccurrence) {
+        if (expectedDueDate && todo.dueDate && formatDateInput(expectedDueDate) !== formatDateInput(todo.dueDate)) {
+          refuseConflict("This occurrence was already completed or changed. Reload to see the latest.");
+        }
+        const completed = nextDueDate!;
+        const { next } = nextDueAfterCompletion(completed, nextRecurrence!, today);
+        // Conditioned on the date this transaction read, so a concurrent
+        // completion of the same occurrence loses here rather than skipping one.
+        const result = await transaction.todo.updateMany({
+          where: { id, dueDate: todo.dueDate },
+          data: { status: "TODO", completedAt: null, dueDate: next, ...recurrenceColumns(nextRecurrence), ...(notes !== undefined ? { notes } : {}) },
+        });
+        if (result.count === 0) refuseConflict("This occurrence was already completed or changed. Reload to see the latest.");
+        await recordRecurrenceCompleted(transaction, user.id, todo.objectId, formatDateInput(completed), formatDateInput(next));
+        advancedTo = next;
+      } else {
+        await transaction.todo.update({
+          where: { id },
+          data: {
+            ...(status !== undefined ? { status } : {}),
+            ...(dueDate !== undefined ? { dueDate } : {}),
+            ...recurrenceColumns(nextRecurrence),
+            ...(notes !== undefined ? { notes } : {}),
+            // completedAt tracks the status rather than being set alongside it, so
+            // a To-Do reopened from Done cannot keep a completion date.
+            ...(status !== undefined ? { completedAt: isOpenTodoStatus(nextStatus) ? null : new Date() } : {}),
+          },
+        });
+
+        if (status !== undefined && status !== todo.status) {
+          if (status === "DONE") await recordEvent(transaction, user.id, todo.objectId, "TODO_COMPLETED");
+          else if (todo.status === "DONE") await recordEvent(transaction, user.id, todo.objectId, "TODO_REOPENED");
+          else await recordStatusChanged(transaction, user.id, todo.objectId, todo.status, status);
+        }
       }
 
       const fieldChanges: FieldChange[] = [];
-      if (dueDate !== undefined && dueDate?.getTime() !== todo.dueDate?.getTime()) {
+      // A completion's own date move is the RECURRENCE_COMPLETED event, not a field change.
+      if (!completingOccurrence && dueDate !== undefined && dueDate?.getTime() !== todo.dueDate?.getTime()) {
         fieldChanges.push({ fieldKey: "dueDate", fieldLabel: "Due date", oldValue: todo.dueDate ? formatDateInput(todo.dueDate) : null, newValue: dueDate ? formatDateInput(dueDate) : null });
       }
+      const oldRepeats = oldRecurrence ? recurrenceLabel(oldRecurrence) : null;
+      const newRepeats = nextRecurrence ? recurrenceLabel(nextRecurrence) : null;
+      if (oldRepeats !== newRepeats) fieldChanges.push({ fieldKey: "recurrence", fieldLabel: "Repeats", oldValue: oldRepeats, newValue: newRepeats });
       if (notes !== undefined && notes !== todo.notes) {
         fieldChanges.push({ fieldKey: "notes", fieldLabel: "Notes", oldValue: todo.notes, newValue: notes });
       }
@@ -271,7 +359,9 @@ export async function updateTodoDetails(id: string, { status, dueDate, notes, li
       }
     }
 
-    return transaction.todo.findFirstOrThrow({ where: { id }, select: todoSelect }).then(toRecord);
+    const updated: UpdatedTodo = toRecord(await transaction.todo.findFirstOrThrow({ where: { id }, select: todoSelect }));
+    if (advancedTo) updated.advancedTo = advancedTo;
+    return updated;
   });
 }
 

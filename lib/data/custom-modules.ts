@@ -5,7 +5,7 @@ import { refuse } from "@/lib/actions/refusal";
 import { presentCustomFields } from "@/lib/custom-fields/present";
 import type { TemplateFieldValue } from "@/components/custom-fields/TemplateFieldValues";
 import { readTemplateFieldLinks } from "./template-kinesis-links";
-import type { Recurrence } from "@/lib/custom-modules/recurrence";
+import type { Recurrence } from "@/lib/recurrence";
 
 /** The item's own due date and repeat rule -- what a Due Date or Recurring Due Date field reads instead of an ObjectField row. */
 type ItemDueDate = { dueDate: Date | null; recurrence: Recurrence | null };
