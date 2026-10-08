@@ -91,3 +91,87 @@ describe("updateTemplate: Due Date field rules", () => {
     expect(mocks.tx.templateField.create).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * KD-055: the Recurring Due Date field is held to Due Date's own two rules,
+ * and the two kinds share a single cap -- one due-date-type field per
+ * template, of either kind.
+ */
+describe("updateTemplate: Recurring Due Date field rules", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireKinesisUser.mockResolvedValue(owner);
+    mocks.tx.template.findFirst.mockResolvedValue({ id: "template-1" });
+    mocks.tx.template.updateMany.mockResolvedValue({ count: 1 });
+    mocks.tx.template.findUniqueOrThrow.mockResolvedValue({ updatedAt: new Date("2024-01-02T00:00:00.000Z") });
+    mocks.tx.object.count.mockResolvedValue(0);
+  });
+
+  it("allows adding one new Recurring Due Date field when the template has no due-date-type field", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([]);
+    await updateTemplate("template-1", "Car Service", [
+      { label: "Next service due", type: "DATE", isRecurringDueDate: true },
+    ], expectedUpdatedAt);
+    expect(mocks.tx.templateField.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ label: "Next service due", type: "DATE", isDueDate: false, isRecurringDueDate: true }),
+    }));
+  });
+
+  it("refuses two Recurring Due Date fields", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([]);
+    await expect(updateTemplate("template-1", "Car Service", [
+      { label: "Next service due", type: "DATE", isRecurringDueDate: true },
+      { label: "Next MOT due", type: "DATE", isRecurringDueDate: true },
+    ], expectedUpdatedAt)).rejects.toThrow("Only one due date type field is allowed.");
+    expect(mocks.tx.templateField.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Due Date and a Recurring Due Date field together", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: true, isRecurringDueDate: false }]);
+    await expect(updateTemplate("template-1", "Car Service", [
+      { id: "field-1", label: "Due date", type: "DATE", isDueDate: true },
+      { label: "Next service due", type: "DATE", isRecurringDueDate: true },
+    ], expectedUpdatedAt)).rejects.toThrow("Only one due date type field is allowed.");
+    expect(mocks.tx.templateField.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses one row claiming to be both kinds", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([]);
+    await expect(updateTemplate("template-1", "Car Service", [
+      { label: "Both", type: "DATE", isDueDate: true, isRecurringDueDate: true },
+    ], expectedUpdatedAt)).rejects.toThrow("Only one due date type field is allowed.");
+  });
+
+  it("refuses turning an existing Recurring Due Date field back into an ordinary one", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: false, isRecurringDueDate: true }]);
+    await expect(updateTemplate("template-1", "Car Service", [
+      { id: "field-1", label: "Next service due", type: "DATE", isRecurringDueDate: false },
+    ], expectedUpdatedAt)).rejects.toThrow("A field can't be turned into or out of the Recurring Due Date field.");
+    expect(mocks.tx.templateField.update).not.toHaveBeenCalled();
+  });
+
+  it("refuses turning an existing ordinary field into a Recurring Due Date field", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: false, isRecurringDueDate: false }]);
+    await expect(updateTemplate("template-1", "Car Service", [
+      { id: "field-1", label: "Some date", type: "DATE", isRecurringDueDate: true },
+    ], expectedUpdatedAt)).rejects.toThrow("A field can't be turned into or out of the Recurring Due Date field.");
+  });
+
+  it("refuses swapping an existing Due Date field over to the recurring kind", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: true, isRecurringDueDate: false }]);
+    await expect(updateTemplate("template-1", "Car Service", [
+      { id: "field-1", label: "Due date", type: "DATE", isDueDate: false, isRecurringDueDate: true },
+    ], expectedUpdatedAt)).rejects.toThrow("A field can't be turned into or out of the Due Date field.");
+  });
+
+  it("allows renaming an existing Recurring Due Date field", async () => {
+    mocks.tx.templateField.findMany.mockResolvedValue([{ id: "field-1", type: "DATE", isDueDate: false, isRecurringDueDate: true }]);
+    await updateTemplate("template-1", "Car Service", [
+      { id: "field-1", label: "Service due (renamed)", type: "DATE", isRecurringDueDate: true },
+    ], expectedUpdatedAt);
+    expect(mocks.tx.templateField.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "field-1" },
+      data: expect.objectContaining({ label: "Service due (renamed)" }),
+    }));
+  });
+});

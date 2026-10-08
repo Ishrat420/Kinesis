@@ -175,10 +175,9 @@ KD-052-event-significance-and-change-awareness
 
 ## ✓ Accepted
 
-KD-055-recurring-due-date-template-field
-
 ## 🚧 In Progress
 
+KD-055-recurring-due-date-template-field
 KD-023-universal-object-connection
 
 ## Accepted — Needs Planning

@@ -14,22 +14,22 @@ describe("parseTemplateFields", () => {
 
   it("reads label, type, and a stable id when present", () => {
     const result = parseTemplateFields(withPayload([{ id: "field-1", label: "Date", type: "DATE" }]));
-    expect(result).toEqual({ ok: true, fields: [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, numberFormat: undefined, multiline: false }] });
+    expect(result).toEqual({ ok: true, fields: [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, isRecurringDueDate: false, numberFormat: undefined, multiline: false }] });
   });
 
   it("omits the id for a field that has none yet", () => {
     const result = parseTemplateFields(withPayload([{ label: "Notes", type: "TEXT" }]));
-    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Notes", type: "TEXT", isDueDate: false, numberFormat: undefined, multiline: false }] });
+    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Notes", type: "TEXT", isDueDate: false, isRecurringDueDate: false, numberFormat: undefined, multiline: false }] });
   });
 
   it("drops a field with a blank label", () => {
     const result = parseTemplateFields(withPayload([{ label: "  ", type: "TEXT" }, { label: "Kept", type: "TEXT" }]));
-    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Kept", type: "TEXT", isDueDate: false, numberFormat: undefined, multiline: false }] });
+    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Kept", type: "TEXT", isDueDate: false, isRecurringDueDate: false, numberFormat: undefined, multiline: false }] });
   });
 
   it("falls back to TEXT for an unrecognised type", () => {
     const result = parseTemplateFields(withPayload([{ label: "Mystery", type: "NOT_A_TYPE" }]));
-    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Mystery", type: "TEXT", isDueDate: false, numberFormat: undefined, multiline: false }] });
+    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Mystery", type: "TEXT", isDueDate: false, isRecurringDueDate: false, numberFormat: undefined, multiline: false }] });
   });
 
   it("reports an error for a payload that isn't JSON", () => {
@@ -49,11 +49,29 @@ describe("parseTemplateFields", () => {
   /** KD-038: never trust the client's claimed type for a due-date field -- it's always DATE. */
   it("forces a due-date field's type to DATE regardless of what's submitted", () => {
     const result = parseTemplateFields(withPayload([{ label: "Renewal", type: "TEXT", isDueDate: true }]));
-    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Renewal", type: "DATE", isDueDate: true, numberFormat: undefined, multiline: false }] });
+    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Renewal", type: "DATE", isDueDate: true, isRecurringDueDate: false, numberFormat: undefined, multiline: false }] });
   });
 
   it("reads isDueDate as false when absent", () => {
     const result = parseTemplateFields(withPayload([{ label: "Date", type: "DATE" }]));
     expect(result.ok && result.fields[0].isDueDate).toBe(false);
+  });
+});
+
+/** KD-055: the recurring kind gets the same defensive treatment as Due Date. */
+describe("parseTemplateFields: Recurring Due Date", () => {
+  it("forces a recurring due-date field's type to DATE regardless of what's submitted", () => {
+    const result = parseTemplateFields(withPayload([{ label: "Next service", type: "NUMBER", isRecurringDueDate: true }]));
+    expect(result).toEqual({ ok: true, fields: [{ id: undefined, label: "Next service", type: "DATE", isDueDate: false, isRecurringDueDate: true, numberFormat: undefined, multiline: false }] });
+  });
+
+  it("reads isRecurringDueDate as false when absent", () => {
+    const result = parseTemplateFields(withPayload([{ label: "Date", type: "DATE" }]));
+    expect(result.ok && result.fields[0].isRecurringDueDate).toBe(false);
+  });
+
+  it("passes a row claiming both kinds through unchanged, for updateTemplate to refuse", () => {
+    const result = parseTemplateFields(withPayload([{ label: "Both", type: "DATE", isDueDate: true, isRecurringDueDate: true }]));
+    expect(result.ok && result.fields[0]).toMatchObject({ isDueDate: true, isRecurringDueDate: true });
   });
 });

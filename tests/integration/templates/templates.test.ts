@@ -193,6 +193,59 @@ describe.sequential("the template data layer", () => {
     });
   });
 
+  /**
+   * KD-055: the Recurring Due Date field, through the real data layer and
+   * the real migration's constraints -- the app-level refusals are unit
+   * tested in tests/unit/template-due-date-validation.test.ts; these check
+   * the database backstop holds even when the app layer is bypassed.
+   */
+  describe("Recurring Due Date field", () => {
+    it("saves one and reads it back flagged as the recurring kind", async () => {
+      const template = await createTemplate();
+      await save(template.id, "Car Service", [field({ label: "Garage" }), field({ label: "Next service due", type: "DATE", isRecurringDueDate: true })]);
+
+      const rows = await prisma.templateField.findMany({ where: { templateId: template.id }, orderBy: { position: "asc" } });
+      expect(rows.map(({ label, type, isDueDate, isRecurringDueDate }) => ({ label, type, isDueDate, isRecurringDueDate }))).toEqual([
+        { label: "Garage", type: "TEXT", isDueDate: false, isRecurringDueDate: false },
+        { label: "Next service due", type: "DATE", isDueDate: false, isRecurringDueDate: true },
+      ]);
+    });
+
+    it("refuses adding a Recurring Due Date field to a template that already has a Due Date field", async () => {
+      const template = await createTemplate();
+      await save(template.id, "Renewals", [field({ label: "Due date", type: "DATE", isDueDate: true })]);
+      const [dueDate] = await prisma.templateField.findMany({ where: { templateId: template.id } });
+
+      await expect(save(template.id, "Renewals", [
+        { id: dueDate.id, label: "Due date", type: "DATE", isDueDate: true },
+        field({ label: "Next service due", type: "DATE", isRecurringDueDate: true }),
+      ])).rejects.toThrow("Only one due date type field is allowed.");
+    });
+
+    it("has the database refuse a second due-date-type field even when the app layer is bypassed", async () => {
+      const template = await createTemplate();
+      await prisma.templateField.create({ data: { id: crypto.randomUUID(), templateId: template.id, label: "Due date", type: "DATE", isDueDate: true } });
+
+      await expect(prisma.templateField.create({ data: { id: crypto.randomUUID(), templateId: template.id, label: "Next service due", type: "DATE", isRecurringDueDate: true } })).rejects.toThrow();
+    });
+
+    it("has the database refuse a recurring due-date field that isn't DATE, or a row that is both kinds", async () => {
+      const template = await createTemplate();
+
+      await expect(prisma.templateField.create({ data: { id: crypto.randomUUID(), templateId: template.id, label: "Not a date", type: "TEXT", isRecurringDueDate: true } })).rejects.toThrow();
+      await expect(prisma.templateField.create({ data: { id: crypto.randomUUID(), templateId: template.id, label: "Both", type: "DATE", isDueDate: true, isRecurringDueDate: true } })).rejects.toThrow();
+    });
+
+    it("is copied by cloneTemplate onto the clone's own independent row", async () => {
+      const source = await createTemplate();
+      await save(source.id, "Car Service", [field({ label: "Next service due", type: "DATE", isRecurringDueDate: true })]);
+
+      const clone = await cloneTemplate(source.id, "Car Service copy");
+      const [cloneField] = await prisma.templateField.findMany({ where: { templateId: clone.id } });
+      expect(cloneField).toMatchObject({ label: "Next service due", type: "DATE", isDueDate: false, isRecurringDueDate: true });
+    });
+  });
+
   describe("cloneTemplate", () => {
     it("copies every field, including isDueDate, onto a new independent template", async () => {
       const source = await createTemplate();

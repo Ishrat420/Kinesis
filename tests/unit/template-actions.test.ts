@@ -69,7 +69,7 @@ describe("updateTemplateAction", () => {
       { name: "Decision" },
       [{ id: "field-1", label: "Date", type: "DATE" }],
     ))).resolves.toEqual({ saved: true, updatedAt: "2024-01-02T00:00:00.000Z" });
-    expect(mocks.updateTemplate).toHaveBeenCalledWith("template-1", "Decision", [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, numberFormat: undefined, multiline: false }], new Date(STAMP), []);
+    expect(mocks.updateTemplate).toHaveBeenCalledWith("template-1", "Decision", [{ id: "field-1", label: "Date", type: "DATE", isDueDate: false, isRecurringDueDate: false, numberFormat: undefined, multiline: false }], new Date(STAMP), []);
   });
 
   it("refuses a missing or unparseable updatedAt without calling the data layer", async () => {

@@ -737,6 +737,15 @@ model TemplateField {
   // constraint (only ever true on a DATE row) live in the migration SQL --
   // Prisma schema syntax can't express either directly.
   isDueDate    Boolean         @default(false)
+  // Marks this row as the template's one Recurring Due Date field (KD-055)
+  // -- the repeating sibling of `isDueDate`, under every same rule: chosen
+  // only on a brand-new row, never converted into or out of, and DATE-only.
+  // A template has at most one *due-date-type* field: this or `isDueDate`,
+  // never both, never two of either. The partial unique index enforcing
+  // that (replacing KD-038's isDueDate-only one) and the two check
+  // constraints (DATE-only; not both flags on one row) live in the
+  // migration SQL, for the same reason as `isDueDate`'s.
+  isRecurringDueDate Boolean   @default(false)
   // Display refinement for a NUMBER field only ("$2,140" vs "15.2%" vs a
   // plain number) -- deliberately not a sibling CustomFieldType, since
   // Currency and Percent are still numbers underneath (same storage, same

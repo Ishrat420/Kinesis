@@ -12,6 +12,12 @@ type EditorField = TemplateFieldInput & { key: string };
 /** The dropdown's sentinel value for Due Date -- not a real `CustomFieldType`, since a due-date field is still `type: "DATE"` underneath (KD-038), just with `isDueDate: true` alongside it. */
 const DUE_DATE_OPTION = "DUE_DATE";
 
+/** The dropdown's sentinel value for Recurring Due Date (KD-055) -- Due Date's repeating sibling, `type: "DATE"` plus `isRecurringDueDate: true`, under every same rule. */
+const RECURRING_DUE_DATE_OPTION = "RECURRING_DUE_DATE";
+
+/** Hover text on a saved due-date-type row's locked dropdown, either kind. */
+const DUE_DATE_KIND_LOCKED_TITLE = "Only one due date type field is allowed";
+
 /**
  * The dropdown's sentinel value for Notes -- same shape as Due Date's, but
  * unlike Due Date this one carries no uniqueness or permanence rule: a
@@ -44,6 +50,10 @@ const NUMBER_FORMAT_OPTIONS: { value: NumberFieldFormat | undefined; label: stri
  * Date field, its own dropdown goes back to being a disabled, single-option
  * control, the same locked look every field's dropdown already gets once a
  * template is in use, just unconditional from the moment it's created.
+ *
+ * "↻ Recurring due date" (KD-055) is offered and locked by exactly the same
+ * rules, and shares Due Date's cap: once a template has a field of either
+ * kind, a new row offers neither.
  */
 export function TemplateFieldsEditor({ initialFields, locked }: { initialFields: TemplateFieldInput[]; locked: boolean }) {
   const buildFields = () => initialFields.map((field) => ({ ...field, key: field.id ?? crypto.randomUUID() }));
@@ -86,9 +96,11 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
     const key = crypto.randomUUID();
     setFields((current) => [...current, { key, label: "", type: "TEXT" }]);
   };
-  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION | typeof NOTES_OPTION, currentLabel: string) => {
+  const chooseType = (key: string, value: CustomFieldType | typeof DUE_DATE_OPTION | typeof RECURRING_DUE_DATE_OPTION | typeof NOTES_OPTION, currentLabel: string) => {
     if (value === DUE_DATE_OPTION) {
       update(key, { type: "DATE", isDueDate: true, label: currentLabel.trim() || "Due date", numberFormat: undefined, multiline: false });
+    } else if (value === RECURRING_DUE_DATE_OPTION) {
+      update(key, { type: "DATE", isRecurringDueDate: true, label: currentLabel.trim() || "Recurring due date", numberFormat: undefined, multiline: false });
     } else if (value === NOTES_OPTION) {
       update(key, { type: "TEXT", multiline: true, numberFormat: undefined });
     } else {
@@ -98,10 +110,10 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
       update(key, { type: value, numberFormat: value === "NUMBER" ? fields.find((field) => field.key === key)?.numberFormat : undefined, multiline: false });
     }
   };
-  const hasDueDateField = fields.some((field) => field.isDueDate);
+  const hasDueDateKindField = fields.some((field) => field.isDueDate || field.isRecurringDueDate);
 
   const payload = useMemo(
-    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate, numberFormat, multiline }) => ({ id, label, type, isDueDate, numberFormat, multiline }))),
+    () => JSON.stringify(fields.filter((field) => field.label.trim()).map(({ id, label, type, isDueDate, isRecurringDueDate, numberFormat, multiline }) => ({ id, label, type, isDueDate, isRecurringDueDate, numberFormat, multiline }))),
     [fields],
   );
 
@@ -147,10 +159,13 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                 required
                 className={FIELD_INPUT_CLASS}
               />
-              {field.isDueDate ? (
-                <div className="relative min-w-0">
-                  <select disabled value={DUE_DATE_OPTION} aria-label={`Field ${index + 1} type`} title="A Due Date field can't be changed into or out of another type." className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}>
-                    <option value={DUE_DATE_OPTION}>◷ Due date</option>
+              {field.isDueDate || field.isRecurringDueDate ? (
+                // The title sits on this wrapper, not the <select>: a
+                // disabled control doesn't fire hover events in every
+                // browser, so its own tooltip would never show there.
+                <div className="relative min-w-0" title={DUE_DATE_KIND_LOCKED_TITLE}>
+                  <select disabled value={field.isDueDate ? DUE_DATE_OPTION : RECURRING_DUE_DATE_OPTION} aria-label={`Field ${index + 1} type`} className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}>
+                    {field.isDueDate ? <option value={DUE_DATE_OPTION}>◷ Due date</option> : <option value={RECURRING_DUE_DATE_OPTION}>↻ Recurring due date</option>}
                   </select>
                   <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>
@@ -159,7 +174,7 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                   <select
                     value={field.type === "TEXT" && field.multiline ? NOTES_OPTION : field.type}
                     disabled={locked}
-                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION | typeof NOTES_OPTION, field.label)}
+                    onChange={(event) => chooseType(field.key, event.target.value as CustomFieldType | typeof DUE_DATE_OPTION | typeof RECURRING_DUE_DATE_OPTION | typeof NOTES_OPTION, field.label)}
                     aria-label={`Field ${index + 1} type`}
                     title={locked ? "This template is in use, so a field's type can't be changed." : undefined}
                     className={`${FIELD_INPUT_CLASS} appearance-none pr-11 disabled:bg-zinc-100 disabled:text-zinc-400`}
@@ -174,7 +189,8 @@ export function TemplateFieldsEditor({ initialFields, locked }: { initialFields:
                         existing field's dropdown never gets this option, at
                         any point, which is what keeps "no conversion, ever"
                         true (KD-038/ADR-011, amended by KD-040). */}
-                    {!field.id && !hasDueDateField && <option value={DUE_DATE_OPTION}>◷ Due date</option>}
+                    {!field.id && !hasDueDateKindField && <option value={DUE_DATE_OPTION}>◷ Due date</option>}
+                    {!field.id && !hasDueDateKindField && <option value={RECURRING_DUE_DATE_OPTION}>↻ Recurring due date</option>}
                   </select>
                   <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 </div>

@@ -4,7 +4,7 @@ export const TEMPLATE_FIELDS_FORM_KEY = "templateFieldsPayload";
 export const TEMPLATE_FIELD_VALUES_FORM_KEY = "templateFieldValuesPayload";
 export const TEMPLATE_PREVIEW_FIELDS_FORM_KEY = "templatePreviewFieldsPayload";
 
-export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; numberFormat?: NumberFieldFormat; multiline?: boolean };
+export type TemplateFieldInput = { id?: string; label: string; type: CustomFieldType; isDueDate?: boolean; isRecurringDueDate?: boolean; numberFormat?: NumberFieldFormat; multiline?: boolean };
 export type ParsedTemplateFields = { ok: true; fields: TemplateFieldInput[] } | { ok: false; error: string };
 
 export type TemplateFieldValueInput = { templateFieldId: string; value: string; targetObjectIds: string[] };
@@ -46,15 +46,19 @@ export function parseTemplateFields(data: FormData, key: string = TEMPLATE_FIELD
     // "+ Add due date field" action always sends DATE -- but this is read
     // defensively like everything else here rather than trusted.
     const isDueDate = entry.isDueDate === true;
+    // KD-055: same treatment for the recurring kind. A payload claiming both
+    // is passed through as-is for `updateTemplate` to refuse, rather than
+    // silently picking one here.
+    const isRecurringDueDate = entry.isRecurringDueDate === true;
     const requestedType = asString(entry.type) as CustomFieldType;
-    const type = isDueDate ? "DATE" : VALID_TYPES.has(requestedType) ? requestedType : "TEXT";
+    const type = isDueDate || isRecurringDueDate ? "DATE" : VALID_TYPES.has(requestedType) ? requestedType : "TEXT";
     // Only meaningful on a NUMBER field -- dropped for every other type,
     // whatever a stray or tampered payload sent.
     const requestedFormat = asString(entry.numberFormat) as NumberFieldFormat;
     const numberFormat = type === "NUMBER" && VALID_NUMBER_FORMATS.has(requestedFormat) ? requestedFormat : undefined;
     // Only meaningful on a TEXT field -- same defensive treatment as numberFormat.
     const multiline = type === "TEXT" && entry.multiline === true;
-    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate, numberFormat, multiline });
+    fields.push({ id: asString(entry.id) || undefined, label, type, isDueDate, isRecurringDueDate, numberFormat, multiline });
   }
   return { ok: true, fields };
 }

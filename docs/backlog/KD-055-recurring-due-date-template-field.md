@@ -1,6 +1,6 @@
 # KD-055 — Recurring Due Date as a Template Field
 
-**Status:** Accepted
+**Status:** In Progress
 **Priority:** Medium
 **Tags:** Data Model, UX / UI, Improvement
 
@@ -289,6 +289,38 @@ A recurring item follows the same rule, with no special handling:
 
 There is no auto-advance while archived. Moving a date on a schedule no one
 is watching would write History nobody acted on.
+
+## Progress
+
+### Part 1: template field (done)
+
+Decisions 1 and 2, built:
+
+* **Schema.** `TemplateField.isRecurringDueDate` (boolean beside
+  `type: DATE`, the same shape as KD-038's `isDueDate`; migration
+  `20261022000000_template_recurring_due_date`). Database backstops in the
+  migration's raw SQL: a check constraint pinning it to `DATE`, a check
+  constraint refusing a row with both flags, and KD-038's isDueDate-only
+  partial unique index replaced by one covering either flag, so a template
+  has at most one due-date-type field.
+* **`updateTemplate`** refuses converting an existing field into or out of
+  the recurring kind (unconditionally, like Due Date), and refuses a save
+  with two due-date-type fields of any mix, or one row claiming both:
+  "Only one due date type field is allowed."
+* **`parseTemplateFields`** reads `isRecurringDueDate` defensively and
+  forces the field's type to `DATE`, as it does for Due Date.
+* **`cloneTemplate`** copies the flag.
+* **Editor** (`TemplateFieldsEditor`): "↻ Recurring due date" is a
+  type-dropdown option on a new, unsaved row only, offered only while the
+  template has no due-date-type field. Once saved, the row's dropdown is
+  locked and greyed out. Hovering it shows "Only one due date type field
+  is allowed". That tooltip now also applies to a saved Due date row, and
+  sits on a wrapper element rather than the disabled `<select>`.
+
+Not yet built (the object side, Decisions 3 to 9): until it is, a recurring
+due date field on an object behaves as an ordinary date field, stored as an
+`ObjectField` value and not in `CustomItem.dueDate`, with no repeat rule.
+Don't ship a release from this branch until the object side lands.
 
 ## Guardrails
 

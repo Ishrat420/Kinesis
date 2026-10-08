@@ -160,7 +160,7 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     const owned = await tx.template.findFirst({ where: { id: templateId, userId: user.id }, select: { id: true } });
     if (!owned) refuse("This template no longer exists.");
 
-    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true, multiline: true } });
+    const existing = await tx.templateField.findMany({ where: { templateId }, select: { id: true, type: true, isDueDate: true, isRecurringDueDate: true, multiline: true } });
     const existingById = new Map(existing.map((field) => [field.id, field]));
     const submittedIds = new Set(fields.flatMap(({ id }) => id ? [id] : []));
     const removedIds = existing.filter(({ id }) => !submittedIds.has(id)).map(({ id }) => id);
@@ -183,6 +183,15 @@ export async function updateTemplate(templateId: string, name: string, fields: T
     }
     if (fields.filter(({ isDueDate }) => isDueDate).length > 1) {
       refuse("A template can only have one Due Date field.");
+    }
+    // KD-055: the Recurring Due Date field is held to the same two rules,
+    // and the two kinds share one cap -- a template has at most one
+    // due-date-type field, of either kind, and no row is ever both.
+    if (fields.some(({ id, isRecurringDueDate }) => id && existingById.has(id) && Boolean(existingById.get(id)!.isRecurringDueDate) !== Boolean(isRecurringDueDate))) {
+      refuse("A field can't be turned into or out of the Recurring Due Date field.");
+    }
+    if (fields.some(({ isDueDate, isRecurringDueDate }) => isDueDate && isRecurringDueDate) || fields.filter(({ isDueDate, isRecurringDueDate }) => isDueDate || isRecurringDueDate).length > 1) {
+      refuse("Only one due date type field is allowed.");
     }
 
     const fieldById = new Map(fields.flatMap((field) => field.id ? [[field.id, field]] as const : []));
@@ -214,7 +223,7 @@ export async function updateTemplate(templateId: string, name: string, fields: T
           await tx.objectRelationship.updateMany({ where: { templateFieldId: existingField.id, customLabel: { not: field.label } }, data: { customLabel: field.label } });
         }
       } else {
-        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
+        await tx.templateField.create({ data: { id: crypto.randomUUID(), templateId, label: field.label, type: field.type, position, isDueDate: Boolean(field.isDueDate), isRecurringDueDate: Boolean(field.isRecurringDueDate), numberFormat: field.numberFormat ?? null, multiline: Boolean(field.multiline) } });
       }
     }
 
@@ -250,7 +259,7 @@ export async function cloneTemplate(templateId: string, name: string) {
       name,
       previewFields,
       fields: {
-        create: clonedFields.map(({ id, label, type, position, isDueDate, numberFormat, multiline }) => ({ id, label, type, position, isDueDate, numberFormat, multiline })),
+        create: clonedFields.map(({ id, label, type, position, isDueDate, isRecurringDueDate, numberFormat, multiline }) => ({ id, label, type, position, isDueDate, isRecurringDueDate, numberFormat, multiline })),
       },
     },
   });
