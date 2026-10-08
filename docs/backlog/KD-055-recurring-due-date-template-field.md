@@ -8,7 +8,7 @@
 
 A Custom Item template can offer a **Recurring Due Date** as an alternative
 to the existing Due Date field (KD-038). An object under that template has
-one due date that repeats on a fixed rule ("every 6 months", "every 90
+one due date that repeats on a fixed rule ("every month", "every 90
 days"). Completing the current occurrence moves the same object's due date
 forward to the next one. The reminder surfaces (Needs Attention, the bell,
 Upcoming & Due, the calendar) follow that date exactly as they already
@@ -21,11 +21,11 @@ Template: Car Service
   - Recurring due date  ← its own action, its own "repeat" icon
 
 Object: Service the Golf
-  Recurring due date   12 Nov 2026   every 6 months   [✓]
-                                                      │
-  click ✓ ────────────────────────────────────────────┘
+  Recurring due date   12 Nov 2026   Every year   [✓]
+                                                  │
+  click ✓ ────────────────────────────────────────┘
     → ObjectEvent logged: occurrence of 12 Nov 2026 completed
-    → dueDate becomes 12 May 2027
+    → dueDate becomes 12 Nov 2027
     → same object, same links, fields and notes
 ```
 
@@ -39,8 +39,10 @@ template.
 
 * System modules (Document, Goal, Relationship, Finance, Person). The same
   exclusion-by-construction as KD-038 / ADR-011.
-* Weekday- or position-based rules ("first Monday of the month", "every
-  weekday"). See Decision 3 for why a number plus a unit covers v1.
+* Any repeat rule other than the five in Decision 3: no "every 3 months",
+  no "every N weeks", no weekday or position rules ("first Monday of the
+  month", "every weekday"). "Every N days" is the escape hatch for anything
+  odd.
 * Undoing a completion (Decision 5).
 * A completion action anywhere other than the object page (Decision 8).
 * KD-006's general "reminder on any object" feature. This ticket is the
@@ -60,48 +62,54 @@ so that at most one row per template is a due-date-like field.
 
 ### 2. Its own icon
 
-A recurring due date field gets its own repeat-style icon (e.g. lucide
-`Repeat` / `CalendarSync`). It must differ from the plain due date's
-`Clock3`. The icon appears in the template editor's add button, in its
+A recurring due date field gets its own repeat icon: lucide `Repeat2`,
+the same icon the calendar already uses for recurring items (Decision 7),
+so "this repeats" looks the same everywhere. It must differ from the plain
+due date's `Clock3`. The icon appears in the template editor's add button, in its
 fixed type badge, and next to the value on the object page. The type cell
 is a fixed badge, not a dropdown, exactly as in KD-038 Decision 2. The label
 stays editable.
 
-### 3. Filling it in: a date, and "every N units"
+### 3. Filling it in: a date, and a repeat dropdown
 
 On the object page (create and edit), the field asks:
 
 1. **Date**: the next or current occurrence.
-2. **Repeats every**: a positive whole number **and a unit**, one of
-   **days / weeks / months / years**.
+2. **Repeats**: a dropdown with exactly these options:
 
-The UI offers quick presets (Weekly, Monthly, Every 3 months, Every 6
-months, Yearly) that fill in the number and unit, plus a "Custom" option
-that exposes both inputs.
+   | Option | Rule |
+   |---|---|
+   | Every week | +7 days |
+   | Every fortnight | +14 days |
+   | Every month | +1 calendar month (anchored, see below) |
+   | Every year | +1 calendar year (anchored, see below) |
+   | Every N days | +N days, where the person types N |
 
-**Why a unit and not just a day count.** Months and years aren't a fixed
-number of days. "Every 30 days" for a monthly bill drifts by roughly a
-week over a year, and "every 365 days" slips a day in a leap year. People
-think in months and years for most real recurrences (rent, renewals,
-servicing, check-ups). A number plus a unit keeps that exact, and days and
-weeks still cover anything odd ("every 10 days"). It is also what most
-calendar and task apps offer in their custom repeat option. Weekday rules
-("first Monday") are a different shape and stay out of scope until someone
-needs them.
+   Choosing **Every N days** shows a number input for N. The other options
+   need no extra input.
 
-**Month arithmetic is anchored, and clamped to month end.** A monthly or
-yearly rule remembers the day of the month it started on and clamps to the
-last day of a shorter month: 31 Jan → 28 Feb → **31 Mar**, not 28 Mar. Without
-the anchor, one short month would permanently pull every later occurrence
-back to the 28th. Note that the existing practice cadence helper
+**Why months and years are calendar units, not day counts.** Months and
+years aren't a fixed number of days. "Every 30 days" for a monthly bill
+drifts by roughly a week over a year, and "every 365 days" slips a day in a
+leap year. So "Every month" and "Every year" step by calendar month and
+calendar year, and "Every N days" covers anything that really is a fixed
+number of days ("every 10 days", "every 90 days").
+
+**Month arithmetic is anchored, and clamped to month end.** "Every month"
+and "Every year" remember the day of the month the rule started on and
+clamp to the last day of a shorter month: 31 Jan → 28 Feb → **31 Mar**, not
+28 Mar. Without the anchor, one short month would permanently pull every
+later occurrence back to the 28th. 29 Feb yearly works the same way: it
+lands on 28 Feb in non-leap years and returns to 29 Feb in leap years.
+Note that the existing practice cadence helper
 (`lib/calendar/recurrence.ts`, `occurrencesForCadence`) matches months by
 `getUTCDate() === anchor day` and so *skips* months that lack the 31st. This
 feature must not reuse that behaviour. Build a small pure helper (e.g.
 `lib/custom-modules/recurrence.ts`: `nextOccurrence` / `occurrencesInRange`)
 with unit tests for the month-end and leap-year cases.
 
-Both inputs are required together. A date with no rule, or a rule with no
-date, is a validation error rather than a half-saved recurrence.
+Both inputs are required together. A date with no repeat option, a repeat
+option with no date, or "Every N days" with no N, is a validation error rather than a half-saved recurrence.
 
 ### 4. One row that moves, not a row per occurrence
 
@@ -111,12 +119,17 @@ The object keeps a single record, and its due date moves forward.
   same column KD-038 writes to. Needs Attention, notifications, Upcoming &
   Due and the calendar already read that column, so they pick up the
   current occurrence with no new reader.
-* The rule is stored alongside it as new nullable columns, e.g.
-  `recurrenceInterval Int?` and `recurrenceUnit RecurrenceUnit?`
-  (`DAY | WEEK | MONTH | YEAR`), plus the anchor day of month
-  (`recurrenceAnchorDay Int?`) for the clamping in Decision 3. All three are
-  set only when the item's template has a recurring due date field, and are
-  set or cleared together. A check constraint should enforce that.
+* The rule is stored alongside it as new nullable columns, e.g.:
+  * `recurrence RecurrenceRule?`, an enum
+    `WEEKLY | FORTNIGHTLY | MONTHLY | YEARLY | EVERY_N_DAYS`;
+  * `recurrenceDays Int?`, set only for `EVERY_N_DAYS`;
+  * `recurrenceAnchorDay Int?`, the day of month, set only for `MONTHLY` /
+    `YEARLY` (for the clamping in Decision 3).
+
+  These are set only when the item's template has a recurring due date
+  field. Check constraints enforce that `recurrenceDays` is present exactly
+  when the rule is `EVERY_N_DAYS`, and the anchor exactly when it is
+  `MONTHLY` / `YEARLY`.
 * Past occurrences are **not** rows. They live in the `ObjectEvent` stream
   (see Decision 6), so links, fields and notes all stay on one object.
 
@@ -127,7 +140,7 @@ object page. Clicking it:
 
 1. writes an `ObjectEvent` recording that the occurrence was completed,
    including which date it was for;
-2. advances `dueDate` to the next occurrence under the rule.
+2. advances `dueDate` to the next occurrence under the rule (Decision 3).
 
 Both happen in one transaction.
 
@@ -179,8 +192,18 @@ Details:
   they may not have.
 * **The current occurrence is the real one.** It keeps today's due pin and
   reminder pin (`custom-due-*` / `custom-reminder-*`). Projected ones are
-  display-only (marked `recurring: true`, like practices), carry no reminder
-  pin, and link to the object.
+  display-only, carry no reminder pin, and link to the object.
+* **Every recurring entry shows the repeat icon.** The current occurrence
+  and every projected one are marked `recurring: true`. The calendar
+  already renders that flag as a `Repeat2` icon on the item pill and
+  "· Recurring" in the item preview (`app/(app)/calendar/CalendarView.tsx`),
+  exactly as it does for yearly important dates and relationship practices.
+  So no new calendar styling is needed, only setting the flag. The current
+  occurrence's reminder pin stays a plain reminder (bell icon): it is a
+  one-off lead-up, not a repeating entry.
+* **Dated or Scheduled follows the existing rule.** As with any custom item
+  due date today, an occurrence is Scheduled if its due date carries a
+  time, and Dated otherwise. Projected occurrences inherit the same time.
 * **Jump straight to the window, then cap.** The calendar's only caller
   today passes a 42-day month grid (`app/(app)/calendar/page.tsx`), so even
   an "every 1 day" rule yields at most 42 occurrences. That makes the
@@ -189,8 +212,8 @@ Details:
   time from a 2026 due date to that month would be millions of iterations.
   So the helper:
   1. computes the first occurrence on or after the window start directly
-     (days/weeks: `ceil((start − dueDate) / interval)` steps in one go;
-     months/years: from the month difference, then clamp per Decision 3);
+     (week / fortnight / N days: `ceil((start − dueDate) / stepDays)` steps in one go;
+     month / year: from the month difference, then clamp per Decision 3);
   2. walks from there to the window end;
   3. stops at a hard cap of **366 occurrences per item per call**. That is
      one year of a daily rule, which is far above anything the month grid
@@ -254,9 +277,9 @@ is watching would write History nobody acted on.
 * Switching a template between Due Date and Recurring Due Date while it is
   in use is not allowed. It is a removal plus an add, and removal is
   already blocked by KD-035 Decision 7.
-* `recurrenceInterval` must be a positive integer, validated server-side,
-  with an upper bound in line with ADR-015's field limits (e.g. ≤ 999).
-  `recurrenceUnit` is validated against the enum.
+* The repeat option is validated server-side against the enum.
+  `recurrenceDays` must be a positive whole number with an upper bound in
+  line with ADR-015's field limits (e.g. 1 to 999).
 * Completing an occurrence is idempotent against double-clicks and stale
   tabs: it only advances if `dueDate` still equals the occurrence the
   client saw (the same optimistic-concurrency pattern as BUG-007).
@@ -265,11 +288,14 @@ is watching would write History nobody acted on.
 
 None blocking. Settled during review:
 
-* Day count vs. calendar units → number plus a unit (Decision 3).
+* Day count vs. calendar units → a dropdown of Every week / fortnight /
+  month / year, plus Every N days (Decision 3).
 * Completion check on Upcoming & Due / Needs Attention → no (Decision 8).
 * Undoing a completion → no, edit the date instead (Decision 5).
 * Calendar horizon → the visible range, from the current due date
-  forward (Decision 7).
+  forward, capped at 366 occurrences per item (Decision 7).
+* Calendar icon → every recurring entry shows the `Repeat2` icon
+  (Decision 7).
 * Archiving → pauses it, same as any custom item today (Decision 9).
 
 ## Related
