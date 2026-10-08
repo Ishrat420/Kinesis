@@ -26,6 +26,12 @@ import { keepFormValues } from "@/components/ui/keep-form-values";
 
 const initialState: CustomItemState = {};
 const EMPTY_VALUE = "—";
+/**
+ * A field's name on the read view -- small caps in a mid grey, the same
+ * label treatment the Document page gives its Expiry/Reminder fields, so
+ * each name reads as a label rather than fading into the page.
+ */
+const FIELD_LABEL_CLASS = "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-500";
 
 type EditableItem = {
   id: string; name: string; archived: boolean;
@@ -141,12 +147,12 @@ function ReadView({ moduleId, moduleName, moduleIcon, item, linkOptions, preview
     {metadataFields.length > 0 && <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
       {metadataFields.map((field) => field.isRecurringDueDate ? (
         <div key={field.key} className="sm:col-span-2 lg:col-span-3">
-          <dt className="flex items-center gap-1.5 text-xs font-medium text-zinc-400"><Repeat2 className="h-3 w-3" />{field.label}</dt>
-          <dd className="mt-1 text-sm font-medium text-zinc-700"><RecurringDueDateValue moduleId={moduleId} itemId={item.id} archived={item.archived} value={field.value} recurrence={field.recurrence ?? null} locale={locale} /></dd>
+          <dt className={FIELD_LABEL_CLASS}><Repeat2 className="h-3 w-3" />{field.label}</dt>
+          <dd className="mt-1.5 text-sm font-medium text-zinc-700"><RecurringDueDateValue moduleId={moduleId} itemId={item.id} archived={item.archived} value={field.value} recurrence={field.recurrence ?? null} locale={locale} /></dd>
         </div>
       ) : <div key={field.key} className={field.multiline ? "sm:col-span-2 lg:col-span-3" : ""}>
-        <dt className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">{field.isDueDate && <Clock3 className="h-3 w-3" />}{field.label}</dt>
-        <dd className={`mt-1 text-sm font-medium text-zinc-700 ${field.multiline ? "whitespace-pre-wrap break-words" : "break-words"}`}>
+        <dt className={FIELD_LABEL_CLASS}>{field.isDueDate && <Clock3 className="h-3 w-3" />}{field.label}</dt>
+        <dd className={`mt-1.5 text-sm font-medium text-zinc-900 ${field.multiline ? "whitespace-pre-wrap break-words" : "break-words"}`}>
           {field.type === "LINK" && field.value
             ? <a href={field.value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{field.value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a>
             : displayValue(field, locale, currency)}
@@ -155,7 +161,7 @@ function ReadView({ moduleId, moduleName, moduleIcon, item, linkOptions, preview
     </dl>}
     {linkedFields.length > 0 && <div className={`grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))] ${metadataFields.length > 0 ? "border-t border-zinc-100 pt-6" : ""}`}>
       {linkedFields.map(({ key, label, options }) => <div key={key} className="min-w-0 space-y-2">
-        <h3 className="mb-2 truncate text-xs font-medium text-zinc-500">{label}</h3>
+        <h3 className={`mb-2 truncate ${FIELD_LABEL_CLASS}`}>{label}</h3>
         {options.length ? options.map((option) => <KinesisLinkCard key={option.objectId} option={option} stats={previews[option.objectId] ?? []} recentEvent={recentEvents[option.objectId]} />) : <p className="rounded-xl border border-dashed border-zinc-200 px-3 py-2 text-sm text-zinc-400">Linked item no longer available</p>}
       </div>)}
     </div>}
