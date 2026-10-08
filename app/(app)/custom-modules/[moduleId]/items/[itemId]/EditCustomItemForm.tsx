@@ -40,10 +40,12 @@ type EditableItem = {
  * the form being the only way this page ever looked, editable the moment you
  * opened it.
  */
-export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon, moduleColor, linkOptions, previews, recentEvents, locale, currency, deleteAction, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
+export function CustomItemDetailRecord({ moduleId, item, moduleName, description, moduleIcon, moduleColor, linkOptions, previews, recentEvents, locale, currency, deleteAction, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
   moduleId: string;
   item: EditableItem;
   moduleName: string;
+  /** The Created/Updated line, shown under the item's name the way a Document shows its own Added date. */
+  description: React.ReactNode;
   moduleIcon: string;
   moduleColor: string;
   linkOptions: KinesisLinkOption[];
@@ -73,6 +75,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
       backLabel={`Back to ${moduleName}`}
       breadcrumbs={[{ label: moduleName, href: `/custom-modules/${moduleId}` }, { label: item.name }]}
       title={item.name}
+      description={description}
       icon={<CustomModuleIcon name={moduleIcon} className="h-6 w-6"/>}
       iconClassName="text-zinc-700"
       iconStyle={{ backgroundColor: `color-mix(in srgb, ${moduleColor} 10%, white)` }}
@@ -81,7 +84,7 @@ export function CustomItemDetailRecord({ moduleId, item, moduleName, moduleIcon,
     <section className="mt-6 sm:mt-8 rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       {editing
         ? <EditForm moduleId={moduleId} item={item} updatedAt={updatedAt} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
-        : <ReadView moduleId={moduleId} item={item} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
+        : <ReadView moduleId={moduleId} moduleName={moduleName} moduleIcon={moduleIcon} item={item} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} locale={locale} currency={currency} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} />}
     </section>
   </>;
 }
@@ -102,8 +105,8 @@ function displayValue(field: DisplayField, locale: string, currency: string) {
   return field.value;
 }
 
-function ReadView({ moduleId, item, linkOptions, previews, recentEvents, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  moduleId: string; item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; locale: string; currency: string;
+function ReadView({ moduleId, moduleName, moduleIcon, item, linkOptions, previews, recentEvents, locale, currency, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+  moduleId: string; moduleName: string; moduleIcon: string; item: EditableItem; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; locale: string; currency: string;
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -127,9 +130,14 @@ function ReadView({ moduleId, item, linkOptions, previews, recentEvents, locale,
     return [{ key: `t:${field.templateFieldId}`, label: field.label, options }];
   });
 
-  if (!fields.length && !kinesisLinks.length) return <p className="text-sm text-zinc-400">No details added yet.</p>;
+  // Opens with "[Module] information", the same heading a Document's own
+  // page opens its details card with ("Document information").
+  const heading = <div className="flex items-center gap-2"><CustomModuleIcon name={moduleIcon} className="h-5 w-5 text-zinc-400" /><h2 className="text-lg font-semibold text-zinc-900">{moduleName} information</h2></div>;
+
+  if (!fields.length && !kinesisLinks.length) return <div className="space-y-5">{heading}<p className="text-sm text-zinc-400">No details added yet.</p></div>;
 
   return <div className="space-y-6">
+    {heading}
     {metadataFields.length > 0 && <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
       {metadataFields.map((field) => field.isRecurringDueDate ? (
         <div key={field.key} className="sm:col-span-2 lg:col-span-3">

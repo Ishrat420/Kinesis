@@ -40,6 +40,7 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       moduleId={moduleId}
       item={{ id: item.id, name: item.name, archived: item.archived, templateId: item.templateId, templateFields: item.templateFields, fields: item.fields, updatedAt: item.updatedAt.toISOString() }}
       moduleName={item.module.name}
+      description={<>Created {formatDate(item.createdAt, locale)} <span className="mx-1 text-zinc-300">|</span> Updated {formatDate(item.updatedAt, locale)}</>}
       moduleIcon={item.module.icon}
       moduleColor={item.module.color}
       linkOptions={linkOptions}
@@ -53,7 +54,6 @@ export default async function CustomItemPage({ params }: { params: Promise<{ mod
       updateKinesisLinkAction={updateKinesisLinkAction.bind(null, item.objectId)}
       removeKinesisLinkAction={removeKinesisLinkAction.bind(null, item.objectId)}
     />
-    <p className="mt-4 text-sm text-zinc-400">Created {formatDate(item.createdAt, locale)} · Updated {formatDate(item.updatedAt, locale)}</p>
     <div className="mt-6">
       <ObjectHistory entries={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))} fallbackCreatedAt={item.createdAt.toISOString()} locale={locale} />
     </div>
