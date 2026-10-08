@@ -18,7 +18,7 @@ follow an ordinary due date.
 Template: Car Service
   Fields
   - Garage (Text)
-  - Recurring due date  ← its own action, its own "repeat" icon
+  - Next service due (↻ Recurring due date)  ← picked from the type dropdown
 
 Object: Service the Golf
   Recurring due date   12 Nov 2026   Every year   [✓]
@@ -50,25 +50,42 @@ template.
 
 ## Decisions
 
-### 1. Due Date *or* Recurring Due Date, never both
+### 1. A type-dropdown option, like Due Date today
 
-The template editor gets a **"+ Add recurring due date field"** action next
-to KD-038's "+ Add due date field". A template may have at most one of the
-two: once either one exists, both actions show as unavailable. As with
-KD-038 Decision 4, this is enforced twice: the UI hides the option, and
-`updateTemplate` refuses a save that would end up with both, or with two of
-either. Add a database backstop alongside KD-038's partial unique index,
-so that at most one row per template is a due-date-like field.
+There is no separate button. "**↻ Recurring due date**" is an option in a
+field row's type dropdown, next to "◷ Due date". It follows exactly the rules
+`TemplateFieldsEditor` already applies to Due Date (KD-038, as revised by
+KD-040):
+
+* **Only on a new, not-yet-saved row.** Choosing it there converts nothing,
+  because the row has no earlier type. An existing, saved field's dropdown
+  never offers it, so no field can ever be converted into or out of a
+  recurring due date.
+* **Only while the template has neither kind.** Once a template has a Due
+  date *or* a Recurring due date field, new rows offer neither option.
+* **Locked once saved.** That row's dropdown becomes the same disabled,
+  greyed-out, single-option control a saved Due date gets
+  (`disabled:bg-zinc-100`), unconditionally and not just once the template
+  is in use. Its title reads "A Recurring Due Date field can't be changed
+  into or out of another type." The label stays editable.
+
+A template may have at most one of the two. As with KD-038 Decision 4,
+this is enforced twice: the UI only offers the option when allowed, and
+`updateTemplate` refuses a save that would end up with both, two of either,
+or an existing field changing to or from a recurring due date. Add a
+database backstop alongside KD-038's partial unique index, so that at most
+one row per template is a due-date-like field.
 
 ### 2. Its own icon
 
 A recurring due date field gets its own repeat icon: lucide `Repeat2`,
 the same icon the calendar already uses for recurring items (Decision 7),
 so "this repeats" looks the same everywhere. It must differ from the plain
-due date's `Clock3`. The icon appears in the template editor's add button, in its
-fixed type badge, and next to the value on the object page. The type cell
-is a fixed badge, not a dropdown, exactly as in KD-038 Decision 2. The label
-stays editable.
+due date's `Clock3`. In the native type dropdown the option is labelled
+with a text glyph, "↻ Recurring due date", matching how "◷ Due date" and
+"▤ Notes" are labelled today, since a `<select>` can't render an icon.
+`Repeat2` itself appears next to the field's label and value on the object
+page.
 
 ### 3. Filling it in: a date, and a repeat dropdown
 
