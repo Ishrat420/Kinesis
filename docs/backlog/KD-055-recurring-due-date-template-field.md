@@ -66,8 +66,11 @@ KD-040):
 * **Locked once saved.** That row's dropdown becomes the same disabled,
   greyed-out, single-option control a saved Due date gets
   (`disabled:bg-zinc-100`), unconditionally and not just once the template
-  is in use. Its title reads "A Recurring Due Date field can't be changed
-  into or out of another type." The label stays editable.
+  is in use. There is no explanatory text under the row. Hovering the
+  disabled dropdown shows a tooltip: **"Only one due date type field is
+  allowed"**. A disabled `<select>` doesn't fire hover events in every
+  browser, so put the `title` on a wrapper element, not on the `<select>`
+  itself. The label stays editable.
 
 A template may have at most one of the two. As with KD-038 Decision 4,
 this is enforced twice: the UI only offers the option when allowed, and
