@@ -1,6 +1,6 @@
 # KD-055 — Recurring Due Date as a Template Field
 
-**Status:** In Progress
+**Status:** Done
 **Priority:** Medium
 **Tags:** Data Model, UX / UI, Improvement
 
@@ -364,8 +364,7 @@ Decisions 3 to 9, built:
 Verified with typecheck, lint, the unit and integration suites (new tests
 for the rules, input validation, saving, completion, conflicts, archiving,
 calendar projection and the database constraints), a full migration replay
-into an empty schema, and a production build. Not yet clicked through in a
-browser.
+into an empty schema, and a production build, and confirmed working in the app by the owner.
 
 ## Guardrails
 
