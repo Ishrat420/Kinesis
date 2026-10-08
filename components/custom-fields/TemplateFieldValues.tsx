@@ -9,7 +9,9 @@ import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import { TEMPLATE_FIELD_VALUES_FORM_KEY } from "@/lib/templates/parse";
 import { parseDatedFieldValue } from "@/lib/calendar/dated-fields";
 import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
-import { RECURRENCE_DAYS_MAX, RECURRENCE_OPTIONS, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { buildRecurrence, followingOccurrence, isRecurrenceRule, RECURRENCE_DAYS_MAX, RECURRENCE_OPTIONS, type Recurrence } from "@/lib/custom-modules/recurrence";
+import { formatDate, parseDateOnly } from "@/lib/dates";
+import { useFormatPreferences } from "@/lib/format/context";
 
 /**
  * `isRecurringDueDate`/`recurrence` (KD-055): a Recurring Due Date field's
@@ -156,7 +158,9 @@ function FieldValueInput({ field, onChange, linkOptions, previews }: { field: Ed
  * says so rather than this form blocking submission.
  */
 function RecurringDueDateInput({ field, onChange }: { field: EditableValue; onChange: (changes: Partial<EditableValue>) => void }) {
+  const { locale } = useFormatPreferences();
   const everyNDays = field.recurrenceRule === "EVERY_N_DAYS";
+  const nextEvent = previewNextEvent(field);
   return (
     <div className="space-y-2">
       <input type="date" value={field.value} onChange={(event) => onChange({ value: event.target.value })} aria-label={`${field.label} date`} className={FIELD_INPUT_CLASS} />
@@ -172,6 +176,23 @@ function RecurringDueDateInput({ field, onChange }: { field: EditableValue; onCh
           <input type="number" inputMode="numeric" min={1} max={RECURRENCE_DAYS_MAX} step={1} value={field.recurrenceDays} onChange={(event) => onChange({ recurrenceDays: event.target.value })} aria-label={`${field.label}: repeat every how many days`} placeholder="N (days)" className={FIELD_INPUT_CLASS} />
         )}
       </div>
+      {nextEvent && <p className="text-xs text-zinc-500">Next event: {formatDate(nextEvent, locale)}</p>}
     </div>
   );
+}
+
+/**
+ * The occurrence after the entered date, shown live under the inputs -- the
+ * same "Next event" the item page shows once saved. Null until the date, the
+ * rule and (for "Every N days") a valid N are all filled in.
+ */
+function previewNextEvent(field: EditableValue): Date | null {
+  const dueDate = field.value ? parseDateOnly(field.value) : null;
+  if (!dueDate || !isRecurrenceRule(field.recurrenceRule)) return null;
+  let days: number | null = null;
+  if (field.recurrenceRule === "EVERY_N_DAYS") {
+    days = /^\d+$/.test(field.recurrenceDays) ? Number(field.recurrenceDays) : NaN;
+    if (!Number.isInteger(days) || days < 1 || days > RECURRENCE_DAYS_MAX) return null;
+  }
+  return followingOccurrence(dueDate, buildRecurrence(field.recurrenceRule, dueDate, days));
 }
