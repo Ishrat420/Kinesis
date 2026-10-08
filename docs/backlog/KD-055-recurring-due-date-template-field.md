@@ -181,9 +181,22 @@ Details:
   reminder pin (`custom-due-*` / `custom-reminder-*`). Projected ones are
   display-only (marked `recurring: true`, like practices), carry no reminder
   pin, and link to the object.
-* **A safety cap** on occurrences per item per request (e.g. 400) guards
-  against a pathological "every 1 day" rule meeting a wide range in some
-  future view.
+* **Jump straight to the window, then cap.** The calendar's only caller
+  today passes a 42-day month grid (`app/(app)/calendar/page.tsx`), so even
+  an "every 1 day" rule yields at most 42 occurrences. That makes the
+  output size a non-issue. The real risk is the walk *to* the window:
+  `?month=` accepts any year up to 9999, so stepping one occurrence at a
+  time from a 2026 due date to that month would be millions of iterations.
+  So the helper:
+  1. computes the first occurrence on or after the window start directly
+     (days/weeks: `ceil((start − dueDate) / interval)` steps in one go;
+     months/years: from the month difference, then clamp per Decision 3);
+  2. walks from there to the window end;
+  3. stops at a hard cap of **366 occurrences per item per call**. That is
+     one year of a daily rule, which is far above anything the month grid
+     can show, but still a safe bound if a wider view (agenda, year) is
+     ever added. The cap is a named constant with a unit test, not a magic
+     number.
 
 ### 8. Upcoming & Due and Needs Attention: unchanged actions
 
