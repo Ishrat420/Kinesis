@@ -177,7 +177,6 @@ KD-052-event-significance-and-change-awareness
 
 ## 🚧 In Progress
 
-KD-056-recurring-due-dates-on-system-modules
 KD-023-universal-object-connection
 
 ## Accepted — Needs Planning
@@ -189,6 +188,7 @@ KD-020-mobile-navigation-and-responsive-app
 
 
 ## ✅ Done
+KD-056-recurring-due-dates-on-system-modules
 KD-055-recurring-due-date-template-field
 KD-011-unified-todo-view
 KD-043-field-length-limits

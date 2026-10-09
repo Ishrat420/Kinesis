@@ -1,6 +1,6 @@
 # KD-056 — Recurring Due Dates on System Modules
 
-**Status:** In Progress
+**Status:** Done
 **Priority:** Medium
 **Tags:** Data Model, UX / UI, Improvement
 
@@ -166,9 +166,16 @@ Verified with typecheck, lint, the unit and integration suites (11 new
 integration tests, 2 unit tests), a full migration replay into an empty
 schema, and a production build. Not yet clicked through in a browser.
 
-### Other system modules
+### Finance and Relationships (out of scope)
 
-Not started.
+Left as they are, by decision. Finance items already repeat through their
+own frequency, start and end date; Relationships already repeat through
+important dates ("repeats every year") and practice cadences. Neither moves
+onto the shared repeat rules.
+
+A goal's own target date doesn't repeat (one finish line; its milestones
+carry the repeating work), and extra Date custom fields stay one-off
+reference dates.
 
 ## Related
 
