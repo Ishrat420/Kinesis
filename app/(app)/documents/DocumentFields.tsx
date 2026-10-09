@@ -70,10 +70,8 @@ export function DocumentFields({
           <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={changeExpiry} addon={repeatButton} />
           <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
         </div>
-        {/* Under the expiry date's own column, not across both: it belongs to that one field. */}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <RepeatFields repeat={repeat} onChange={setRepeat} dueDate={expiryDate} fieldClass={repeatFieldClass} wording="renew" />
-        </div>
+        {/* Full width, as on the to-do form: half a column left "Every N days" and its N box too narrow to read. */}
+        <RepeatFields repeat={repeat} onChange={setRepeat} dueDate={expiryDate} fieldClass={repeatFieldClass} wording="renew" />
       </div>
 
       {afterDates}
