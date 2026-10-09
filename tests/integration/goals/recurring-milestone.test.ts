@@ -15,6 +15,8 @@ import { getCalendarItems } from "@/lib/data/calendar";
 import { collectNotifications } from "@/lib/data/notification-collection";
 import { getToday } from "@/lib/format/server";
 import { addUtcDays, formatDateInput } from "@/lib/dates";
+import { getObjectEvents } from "@/lib/data/object-event-history";
+import { getUpcomingAndDue } from "@/lib/data/upcoming";
 
 /**
  * KD-056 for goal milestones, end to end against a real database: the repeat
@@ -210,6 +212,111 @@ describe.sequential("a repeating goal milestone", () => {
       await expect(prisma.milestone.create({ data: { id: crypto.randomUUID(), ...base, dueDate: d("2099-01-03"), recurrence: "WEEKLY", value: 5 } })).rejects.toThrow();
       await expect(prisma.milestone.create({ data: { id: crypto.randomUUID(), ...base, recurrence: "WEEKLY" } })).rejects.toThrow();
       await expect(prisma.milestone.create({ data: { id: crypto.randomUUID(), ...base, dueDate: d("2099-01-03"), recurrence: "WEEKLY", recurrenceDays: 3 } })).rejects.toThrow();
+    });
+  });
+
+  describe("History", () => {
+    it("names the milestone and both dates on the goal's own History", async () => {
+      const objectId = await makeGoal();
+      await addMilestoneAction(GOAL, {}, repeating("Weekly long run", "2099-01-03", "WEEKLY"));
+      const milestone = await onlyMilestone();
+      await toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-03");
+
+      const [latest] = await getObjectEvents(objectId);
+      expect(latest.title).toBe('Milestone "Weekly long run" occurrence completed');
+      expect(latest.detail).toMatch(/^Due 3 Jan(uary)? 2099 · next due 10 Jan(uary)? 2099$/);
+    });
+  });
+
+  describe("schedules", () => {
+    it("keeps a month-end anchor across short months", async () => {
+      await makeGoal();
+      await addMilestoneAction(GOAL, {}, repeating("Monthly review", "2099-01-31", "MONTHLY"));
+      const milestone = await onlyMilestone();
+      await expect(toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-31")).resolves.toEqual({ nextDueDate: "2099-02-28" });
+      await expect(toggleMilestoneAction(GOAL, milestone.id, true, "2099-02-28")).resolves.toEqual({ nextDueDate: "2099-03-31" });
+      await expect(onlyMilestone()).resolves.toMatchObject({ recurrenceAnchorDay: 31, completedOccurrences: 2 });
+    });
+
+    it("steps every N days from the current due date", async () => {
+      await makeGoal();
+      await addMilestoneAction(GOAL, {}, repeating("Water the garden", "2099-01-01", "EVERY_N_DAYS", { recurrenceDays: "10" }));
+      const milestone = await onlyMilestone();
+      expect(milestone).toMatchObject({ recurrence: "EVERY_N_DAYS", recurrenceDays: 10, recurrenceAnchorDay: null });
+      await expect(toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-01")).resolves.toEqual({ nextDueDate: "2099-01-11" });
+    });
+
+    it("refuses an N outside 1 to 999", async () => {
+      await makeGoal();
+      await expect(addMilestoneAction(GOAL, {}, repeating("Water the garden", "2099-01-01", "EVERY_N_DAYS", { recurrenceDays: "1000" }))).resolves.toEqual({ error: "N must be a whole number from 1 to 999." });
+      await expect(prisma.milestone.count({ where: { goalId: GOAL } })).resolves.toBe(0);
+    });
+  });
+
+  describe("stopping the repeat", () => {
+    it("turns it into a one-off, so the next tick completes it for good", async () => {
+      const objectId = await makeGoal();
+      await addMilestoneAction(GOAL, {}, repeating("Weekly long run", "2099-01-03", "WEEKLY"));
+      const milestone = await onlyMilestone();
+      await toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-03");
+
+      await updateMilestoneAction(GOAL, milestone.id, {}, form({ name: "Weekly long run", dueDate: "2099-01-10" }));
+      await expect(onlyMilestone()).resolves.toMatchObject({ recurrence: null, recurrenceAnchorDay: null, dueDate: d("2099-01-10") });
+
+      await toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-10");
+      await expect(onlyMilestone()).resolves.toMatchObject({ completed: true, dueDate: d("2099-01-10") });
+      const events = await goalEvents(objectId);
+      expect(events.find((event) => event.fieldKey === "recurrence")).toMatchObject({ oldValue: "Every week", newValue: null });
+      expect(events.at(-1)).toMatchObject({ eventType: "GOAL_MILESTONE_COMPLETED", fieldLabel: "Weekly long run" });
+    });
+  });
+
+  describe("Upcoming & Due", () => {
+    it("shows the next occurrence once one is ticked", async () => {
+      await prisma.userSettings.create({ data: { userId: owner, timeZone: "UTC", milestoneReminderLeadDays: 10 } });
+      await makeGoal();
+      const today = await getToday();
+      const due = formatDateInput(addUtcDays(today, 2));
+      await addMilestoneAction(GOAL, {}, repeating("Water the garden", due, "EVERY_N_DAYS", { recurrenceDays: "3" }));
+      const milestone = await onlyMilestone();
+      const mine = async () => (await getUpcomingAndDue()).filter((item) => item.kind === "milestone" && item.milestoneId === milestone.id).map((item) => item.date.slice(0, 10));
+
+      await expect(mine()).resolves.toEqual([due]);
+      await toggleMilestoneAction(GOAL, milestone.id, true, due);
+      await expect(mine()).resolves.toEqual([formatDateInput(addUtcDays(today, 5))]);
+    });
+  });
+
+  describe("the calendar's limits", () => {
+    it("projects nothing for a repeating milestone once its last occurrence is done", async () => {
+      await makeGoal({ targetDate: d("2099-01-12") });
+      await addMilestoneAction(GOAL, {}, repeating("Weekly long run", "2099-01-03", "WEEKLY"));
+      const milestone = await onlyMilestone();
+      await expect(toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-03")).resolves.toEqual({ nextDueDate: "2099-01-10" });
+      await expect(toggleMilestoneAction(GOAL, milestone.id, true, "2099-01-10")).resolves.toEqual({ finished: true });
+
+      const items = await getCalendarItems(d("2099-01-01"), new Date("2099-02-28T23:59:59.999Z"));
+      const projected = items.filter((entry) => entry.id.startsWith(`milestone-${milestone.id}`));
+      expect(projected.map(({ date, recurring }) => ({ date, recurring }))).toEqual([{ date: "2099-01-10", recurring: undefined }]);
+    });
+  });
+
+  describe("ownership", () => {
+    it("can't tick someone else's milestone", async () => {
+      const stranger = "recurring-milestone-stranger";
+      await prisma.user.deleteMany({ where: { id: stranger } });
+      await prisma.user.create({ data: { id: stranger, firstName: "Some", lastName: "One", email: "recurring-milestone-stranger@example.test" } });
+      try {
+        const object = await prisma.object.create({ data: { id: "stranger-goal-object", type: "GOAL", name: "Their goal", userId: stranger } });
+        await prisma.goal.create({ data: { id: "stranger-goal", name: "Their goal", userId: stranger, objectId: object.id } });
+        await prisma.milestone.create({ data: { id: "stranger-milestone", goalId: "stranger-goal", name: "Theirs", position: 0, dueDate: d("2099-01-03"), recurrence: "WEEKLY" } });
+
+        const result = await toggleMilestoneAction("stranger-goal", "stranger-milestone", true, "2099-01-03");
+        expect(result.error).toBeTruthy();
+        await expect(prisma.milestone.findUniqueOrThrow({ where: { id: "stranger-milestone" } })).resolves.toMatchObject({ dueDate: d("2099-01-03"), completedOccurrences: 0, completed: false });
+      } finally {
+        await prisma.user.deleteMany({ where: { id: stranger } });
+      }
     });
   });
 });
