@@ -1,7 +1,19 @@
 # KD-006 — Reminder and Recurring Reminder Field
 
-**Status:** Idea
+**Status:** Dropped
 **Priority:** High
+
+## Why dropped
+
+Superseded by **KD-056 — Recurring Due Dates on System Modules** (with
+KD-055 for custom modules). In Kinesis only the due date repeats; a reminder
+is always measured against a due date (its lead time before it), so a
+repeating due date already gives a repeating reminder: each new occurrence
+gets its own reminder and notification.
+
+A reminder can't exist independently of a due date, so a standalone
+reminder field, or a reminder that repeats on its own schedule, will not be
+implemented. The original idea is kept below for reference.
 
 ## Summary
 

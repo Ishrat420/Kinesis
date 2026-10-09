@@ -154,7 +154,6 @@ Done
 
 ## 💡 Idea
 
-KD-006-recurring-reminder-field
 KD-010-external-app-notes-Integration
 KD-012-starter-example-data
 KD-013-guided-onboarding
@@ -226,6 +225,7 @@ KD-044-finance-interest-and-repayment-arithmetic
 
 ## 🗑 Dropped
 KD-004-templates-object-types
+KD-006-reminder-and-recurring-reminder-field
 KD-036-object-types-navigation-superseded
 
 
