@@ -6,7 +6,7 @@ import { displayNumber } from "@/lib/goals/format";
 import { addUtcDays, formatDate, formatDateInput, formatDeadline } from "@/lib/dates";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
 import type { GoalActionState } from "../actions";
-import { DueDateField, useMilestoneRepeat } from "./GoalAddForms";
+import { DueDateField, MilestoneValueField, useMilestoneRepeat } from "./GoalAddForms";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { Snackbar } from "@/components/ui/Snackbar";
 import { followingOccurrence, recurrenceFromColumns, recurrenceLabel, type Recurrence, type RecurrenceRule } from "@/lib/recurrence";
@@ -170,16 +170,13 @@ function MilestoneEditForm({ milestone, hasTarget, unit, latestDueDate, goalTarg
 
   return <form autoComplete="off" spellCheck={false} action={formAction} className="rounded-2xl border border-violet-200 bg-violet-50/50 p-4">
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      {/* Same phone layout as the "New milestone" form: value beside its unit, "by" beside the date, and the name never squashed by a column-direction `flex-1`. */}
+      {/* Same phone layout as the "New milestone" form: full-width lines with the unit and "by" inside their boxes, and the name never squashed by a column-direction `flex-1`. */}
       <input name="name" required autoFocus defaultValue={milestone.name} aria-label="Milestone title" className="h-11 w-full min-w-0 shrink-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-violet-400 sm:w-auto sm:flex-1" />
-      {hasTarget && <div className="flex items-center gap-2">
-        <input name="value" type="number" step="any" min="0" value={targetValue} onChange={(event) => setTargetValue(event.target.value)} placeholder="2" aria-label="Optional target value" className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none sm:w-24 sm:flex-none" />
-        {unit && <span className="shrink-0 px-1 text-sm font-medium text-zinc-700">{unit}</span>}
-      </div>}
+      {hasTarget && <MilestoneValueField value={targetValue} onChange={setTargetValue} unit={unit} />}
       <div className="flex items-center gap-2">
-        <span className="shrink-0 px-1 text-sm font-medium uppercase text-zinc-700">by</span>
+        <span className="hidden shrink-0 px-1 text-sm font-medium uppercase text-zinc-700 sm:inline">by</span>
         <div className="min-w-0 flex-1 sm:w-52 sm:flex-none">
-          <DueDateField value={dueDate} onChange={setDueDate} max={latestDueDate} ariaLabel="Optional due date" addon={repeat.button} />
+          <DueDateField value={dueDate} onChange={setDueDate} max={latestDueDate} ariaLabel="Optional due date" addon={repeat.button} lead="By" />
         </div>
       </div>
       <button disabled={pending} className="h-11 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Saving…" : "Save"}</button>

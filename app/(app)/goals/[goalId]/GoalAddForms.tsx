@@ -59,7 +59,7 @@ function ActionError({ error }: { error?: string }) {
  * Safari where it shows nothing at all until a value is picked. The real
  * input still covers the row so it stays keyboard- and screen-reader-operable.
  */
-export function DueDateField({ value, onChange, max, ariaLabel, addon }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string; addon?: React.ReactNode }) {
+export function DueDateField({ value, onChange, max, ariaLabel, addon, lead }: { value: string; onChange: (value: string) => void; max?: string; ariaLabel: string; addon?: React.ReactNode; lead?: string }) {
   const [focused, setFocused] = useState(false);
   const { locale } = useFormatPreferences();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +73,9 @@ export function DueDateField({ value, onChange, max, ariaLabel, addon }: { value
     >
       <CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
       <span className={`flex-1 truncate text-base sm:text-sm ${value ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
-        {value ? formatDate(value, locale) : "Select a date"}
+        {/* `lead`: the word a phone shows inside the box ("By 17 Oct 2026") where sm+ has it beside the box. */}
+        {lead && value && <span className="font-normal text-zinc-500 sm:hidden">{lead} </span>}
+        {value ? formatDate(value, locale) : lead ? <><span className="sm:hidden">{lead} when?</span><span className="hidden sm:inline">Select a date</span></> : "Select a date"}
       </span>
       <input
         ref={inputRef}
@@ -91,6 +93,31 @@ export function DueDateField({ value, onChange, max, ariaLabel, addon }: { value
   );
   // `addon` (KD-056): the repeat button, joined onto the field's right edge as one control.
   return addon ? <div className="flex">{field}{addon}</div> : field;
+}
+
+/**
+ * A milestone's target value with its unit. From sm up they sit side by side
+ * in the milestone's one-line sentence (the wrapper is `sm:contents`); on a
+ * phone the unit goes inside the box as a suffix, so the box spans the full
+ * width and lines up with the name and date above and below it.
+ */
+export function MilestoneValueField({ value, onChange, unit }: { value: string; onChange: (value: string) => void; unit: string | null }) {
+  return (
+    <label className="flex h-11 min-w-0 items-center rounded-xl border-[1.5px] border-zinc-200 bg-white transition focus-within:border-violet-500 focus-within:ring-4 focus-within:ring-violet-500/15 sm:contents">
+      <input
+        name="value"
+        type="number"
+        step="any"
+        min="0"
+        placeholder="2"
+        aria-label={unit ? `Optional target value in ${unit}` : "Optional target value"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-full min-w-0 flex-1 rounded-xl bg-transparent px-3 text-base text-zinc-900 outline-none sm:h-11 sm:w-24 sm:flex-none sm:border-[1.5px] sm:border-zinc-200 sm:bg-white sm:text-sm sm:transition sm:focus:border-violet-500 sm:focus:ring-4 sm:focus:ring-violet-500/15"
+      />
+      {unit && <span className="shrink-0 pr-3 text-sm font-medium text-zinc-500 sm:px-1 sm:text-zinc-700">{unit}</span>}
+    </label>
+  );
 }
 
 export function AddMilestoneForm({
@@ -151,11 +178,10 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
         </button>
       </div>
       {/*
-        One row from sm up; on a phone each part gets its own line, with the
-        value beside its unit and "by" beside the date rather than every word
-        stacked alone. The name stretches with `sm:flex-1` only -- a bare
-        `flex-1` in the phone's column layout set its *height* basis to zero
-        and squashed the box.
+        One row from sm up; on a phone each part gets its own full-width line,
+        with the unit and "by" moved inside their boxes so all three edges line
+        up. The name stretches with `sm:flex-1` only -- a bare `flex-1` in the
+        phone's column layout set its *height* basis to zero and squashed the box.
       */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
@@ -165,24 +191,9 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
           placeholder="What will you do next?"
           className="h-11 w-full min-w-0 shrink-0 rounded-xl sm:w-auto sm:flex-1 border-[1.5px] border-zinc-200 bg-white px-4 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:text-sm"
         />
-        {hasTarget && (
-          <div className="flex items-center gap-2">
-          <input
-            name="value"
-            type="number"
-            step="any"
-            min="0"
-            placeholder="2"
-            aria-label="Optional target value"
-            value={targetValue}
-            onChange={(event) => setTargetValue(event.target.value)}
-            className="h-11 min-w-0 flex-1 rounded-xl border-[1.5px] border-zinc-200 bg-white px-3 text-base text-zinc-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-500/15 sm:w-24 sm:flex-none sm:text-sm"
-          />
-          {unit && <span className="shrink-0 px-1 text-sm font-medium text-zinc-700">{unit}</span>}
-          </div>
-        )}
+        {hasTarget && <MilestoneValueField value={targetValue} onChange={setTargetValue} unit={unit} />}
         <div className="flex items-center gap-2">
-        <span className="shrink-0 px-1 text-sm font-medium uppercase text-zinc-700">by</span>
+        <span className="hidden shrink-0 px-1 text-sm font-medium uppercase text-zinc-700 sm:inline">by</span>
         <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
           <DueDateField
             value={dueDate}
@@ -190,6 +201,7 @@ function AddMilestoneFields({ action, hasTarget, unit, goalTargetDate, onDone }:
             max={latestDueDate}
             ariaLabel={latestDueDate ? "Milestone due date, must be before the goal target date" : "Optional milestone due date"}
             addon={repeat.button}
+            lead="By"
           />
         </div>
         </div>
