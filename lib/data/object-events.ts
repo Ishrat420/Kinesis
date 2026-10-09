@@ -252,6 +252,16 @@ export async function recordRecurrenceCompleted(client: Client, userId: string, 
   await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: "RECURRENCE_COMPLETED", fieldLabel: label ?? null, oldValue: completedDate, newValue: nextDueDate, source: "USER" } });
 }
 
+/**
+ * KD-056: a renewing document was marked renewed. `oldValue` is the expiry
+ * it replaced, `newValue` the new one (both YYYY-MM-DD) -- like a repeating
+ * to-do, the document keeps one row whose expiry moves, so this stream is
+ * where its past expiries live.
+ */
+export async function recordDocumentRenewed(client: Client, userId: string, objectId: string, previousExpiry: string, nextExpiry: string) {
+  await client.objectEvent.create({ data: { id: crypto.randomUUID(), userId, objectId, eventType: "DOCUMENT_RENEWED", oldValue: previousExpiry, newValue: nextExpiry, source: "USER" } });
+}
+
 /** One changed attribute of a milestone, ready to write -- see `recordMilestoneUpdated` below. */
 export type MilestoneFieldChange = { fieldKey: "name" | "value" | "dueDate" | "recurrence"; oldValue: string | null; newValue: string | null };
 
@@ -502,6 +512,11 @@ export function describeObjectEvent(event: ObjectEvent, prefs: Pick<FormatPrefer
       const next = event.newValue ? `next due ${formatDate(event.newValue, prefs.locale)}` : null;
       return { title: event.fieldLabel ? `Milestone "${event.fieldLabel}" occurrence completed` : "Occurrence completed", detail: [completed, next].filter(Boolean).join(" · ") || null };
     }
+    case "DOCUMENT_RENEWED": {
+      const from = event.oldValue ? formatDate(event.oldValue, prefs.locale) : null;
+      const to = event.newValue ? formatDate(event.newValue, prefs.locale) : null;
+      return { title: "Renewed", detail: from && to ? `Expiry moved from ${from} to ${to}` : to ? `Now expires ${to}` : null };
+    }
     case "FIELD_CHANGED":
       return describeFieldChange(event, prefs);
     default:
@@ -674,6 +689,7 @@ export function classifyEventSignificance(event: ClassifiableEvent): Significanc
     case "TODO_COMPLETED":
     case "TODO_REOPENED":
     case "RECURRENCE_COMPLETED":
+    case "DOCUMENT_RENEWED":
     case "STATUS_CHANGED":
     case "RELATIONSHIP_CHANGED":
       return "high";

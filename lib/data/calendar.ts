@@ -39,7 +39,7 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
   const [settings, goals, documents, importantDates, practices, customItems, todos] = await Promise.all([
     prisma.userSettings.findUnique({ where: { userId: user.id } }),
     prisma.goal.findMany({ where: { userId: user.id }, include: { milestones: true } }),
-    prisma.document.findMany({ where: { userId: user.id, archived: false }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, object: { select: { fields: dateFields } } } }),
+    prisma.document.findMany({ where: { userId: user.id, archived: false }, select: { id: true, name: true, type: true, expiryDate: true, prompt: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true, object: { select: { fields: dateFields } } } }),
     prisma.relationshipImportantDate.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] } }),
     prisma.connectionPractice.findMany({ where: { OR: [{ relationship: { userId: user.id } }, { selfPerson: { userId: user.id } }] }, include: { relationship: { include: { firstPerson: true, secondPerson: true } }, selfPerson: true } }),
     prisma.customItem.findMany({ where: { archived: false, module: { userId: user.id } }, include: { module: true, object: { select: { fields: dateFields } } } }),
@@ -112,8 +112,19 @@ export async function getCalendarItems(start: Date, end: Date): Promise<KinesisC
     }
   }
   for (const document of documents) {
+    // KD-056: a renewing document shows every future expiry in the visible
+    // range, each with the repeat icon; only the current one keeps the
+    // reminder pin below, the same as a repeating to-do.
+    const documentRecurrence = document.expiryDate ? recurrenceFromColumns(document) : null;
+    if (document.expiryDate && documentRecurrence) {
+      const detail = `Renews: ${recurrenceLabel(documentRecurrence).toLowerCase()}`;
+      for (const date of recurringOccurrencesInRange(document.expiryDate, documentRecurrence, start, end)) {
+        const current = date.getTime() === document.expiryDate.getTime();
+        add({ id: current ? `document-${document.id}` : `document-${document.id}-${dateKey(date)}`, title: `${document.name} expires`, kind: "DATED", date, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, priority: "HIGH", recurring: true, href: `/documents/${document.id}`, detail });
+      }
+    }
     if (document.expiryDate) {
-      add({ id: `document-${document.id}`, title: `${document.name} expires`, kind: "DATED", date: document.expiryDate, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, priority: "HIGH", href: `/documents/${document.id}`, detail: "Document expiry date" });
+      if (!documentRecurrence) add({ id: `document-${document.id}`, title: `${document.name} expires`, kind: "DATED", date: document.expiryDate, sourceType: "DOCUMENT", sourceObjectId: document.id, sourceModule: document.type, priority: "HIGH", href: `/documents/${document.id}`, detail: "Document expiry date" });
       // "No reminders" (KD-026) keeps the expiry pin above but drops the reminder pin.
       if (document.prompt !== null) addReminder({ id: `document-reminder-${document.id}`, name: document.name, deadline: document.expiryDate, deadlineLabel: "expires", lead: { kind: "documentPrompt", prompt: document.prompt }, sourceObjectId: document.id, sourceModule: "Documents", href: `/documents/${document.id}` });
     }

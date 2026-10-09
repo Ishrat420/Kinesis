@@ -12,7 +12,18 @@ import { buildRecurrence, followingOccurrence, isRecurrenceRule, RECURRENCE_DAYS
 const ACCENTS = {
   teal: { on: "border-teal-600 bg-teal-600 text-white hover:bg-teal-700", idle: "hover:text-teal-700", ring: "focus-visible:ring-teal-600/15" },
   violet: { on: "border-violet-600 bg-violet-600 text-white hover:bg-violet-700", idle: "hover:text-violet-700", ring: "focus-visible:ring-violet-500/15" },
+  blue: { on: "border-blue-600 bg-blue-600 text-white hover:bg-blue-700", idle: "hover:text-blue-700", ring: "focus-visible:ring-blue-600/15" },
 } as const;
+
+/**
+ * A document's expiry date renews rather than repeats (KD-056), so the same
+ * control speaks of renewing there: "Renews…", "Stop renewing", "Next expiry".
+ */
+const WORDING = {
+  repeat: { idle: "Repeat", on: "Stop repeating", select: "Repeats", placeholder: "Repeats…", nLabel: "Repeat every how many days", next: "Next event" },
+  renew: { idle: "Renews regularly", on: "Stop renewing", select: "Renews", placeholder: "Renews…", nLabel: "Renews every how many days", next: "Next expiry" },
+} as const;
+export type RepeatWording = keyof typeof WORDING;
 export type RepeatAccent = keyof typeof ACCENTS;
 type RepeatSize = "md" | "sm";
 const SIZES = { md: { button: "h-[50px] w-[50px]", field: "h-[50px]", nWidth: "grid-cols-[1.6fr_1fr]" }, sm: { button: "h-11 w-11", field: "h-11", nWidth: "grid-cols-[minmax(0,1fr)_72px]" } } as const;
@@ -33,12 +44,12 @@ export function initialRepeat(recurrence?: Recurrence | null): RepeatState {
  * from, so it is disabled -- the hover text sits on a wrapper because a
  * disabled button doesn't fire hover events in every browser.
  */
-export function RepeatButton({ on, disabled, onToggle, accent = "teal", size = "md", disabledReason = "Pick a due date first" }: {
-  on: boolean; disabled: boolean; onToggle: () => void; accent?: RepeatAccent; size?: RepeatSize;
+export function RepeatButton({ on, disabled, onToggle, accent = "teal", size = "md", disabledReason = "Pick a due date first", wording = "repeat" }: {
+  on: boolean; disabled: boolean; onToggle: () => void; accent?: RepeatAccent; size?: RepeatSize; wording?: RepeatWording;
   /** The hover text while disabled -- why it can't repeat right now. */
   disabledReason?: string;
 }) {
-  const title = disabled ? disabledReason : on ? "Stop repeating" : "Repeat";
+  const title = disabled ? disabledReason : on ? WORDING[wording].on : WORDING[wording].idle;
   const colours = ACCENTS[accent];
   return (
     <span title={title} className="flex shrink-0">
@@ -69,8 +80,8 @@ export function RepeatButton({ on, disabled, onToggle, accent = "teal", size = "
  * (KD-055). Always renders the hidden inputs the server reads (`repeat`,
  * `recurrenceRule`, `recurrenceDays`), so an off button submits as a one-off.
  */
-export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md", className = "", lastBefore, footnote }: {
-  repeat: RepeatState; onChange: (next: RepeatState) => void; dueDate: string; fieldClass: string; size?: RepeatSize; className?: string;
+export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md", className = "", lastBefore, footnote, wording = "repeat" }: {
+  repeat: RepeatState; onChange: (next: RepeatState) => void; dueDate: string; fieldClass: string; size?: RepeatSize; className?: string; wording?: RepeatWording;
   /** An end date the repeat stops before (a goal's target date): a next event on or after it reads as the last one instead. */
   lastBefore?: Date | null;
   /** A short line under the inputs, e.g. "Repeats until 30 Dec 2026". */
@@ -81,6 +92,7 @@ export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md
   const everyNDays = repeat.rule === "EVERY_N_DAYS";
   const nextEvent = active ? previewNextEvent(dueDate, repeat) : null;
   const isLast = Boolean(nextEvent && lastBefore && nextEvent >= lastBefore);
+  const words = WORDING[wording];
 
   return <>
     <input type="hidden" name="repeat" value={active ? "on" : ""} />
@@ -93,10 +105,10 @@ export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md
             <select
               value={repeat.rule}
               onChange={(event) => onChange({ ...repeat, rule: event.target.value })}
-              aria-label="Repeats"
+              aria-label={words.select}
               className={`${SIZES[size].field} appearance-none pl-3.5 pr-9 ${fieldClass}`}
             >
-              <option value="">Repeats…</option>
+              <option value="">{words.placeholder}</option>
               {RECURRENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -106,7 +118,7 @@ export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md
               type="number" inputMode="numeric" min={1} max={RECURRENCE_DAYS_MAX} step={1}
               value={repeat.days}
               onChange={(event) => onChange({ ...repeat, days: event.target.value })}
-              aria-label="Repeat every how many days"
+              aria-label={words.nLabel}
               placeholder={size === "sm" ? "N" : "N (days)"}
               className={`${SIZES[size].field} px-3.5 ${fieldClass}`}
             />
@@ -114,7 +126,7 @@ export function RepeatFields({ repeat, onChange, dueDate, fieldClass, size = "md
         </div>
         {(nextEvent || footnote) && (
           <div className="text-xs leading-5 text-zinc-500">
-            {nextEvent && <p>{isLast ? "Last one before the target date" : `Next event: ${formatDate(nextEvent, locale)}`}</p>}
+            {nextEvent && <p>{isLast ? "Last one before the target date" : `${words.next}: ${formatDate(nextEvent, locale)}`}</p>}
             {footnote && <p>{footnote}</p>}
           </div>
         )}

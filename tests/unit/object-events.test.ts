@@ -309,3 +309,10 @@ describe("describeObjectEvent: KD-055 RECURRENCE_COMPLETED", () => {
       .toEqual({ title: "Occurrence completed", detail: "Due 20 Sept 2026 · next due 20 Oct 2026" });
   });
 });
+
+describe("describeObjectEvent: KD-056 DOCUMENT_RENEWED", () => {
+  it("says Renewed, with the expiry it moved from and to", () => {
+    expect(describeObjectEvent(event({ eventType: "DOCUMENT_RENEWED", oldValue: "2026-10-14", newValue: "2027-10-14" })))
+      .toEqual({ title: "Renewed", detail: "Expiry moved from 14 Oct 2026 to 14 Oct 2027" });
+  });
+});

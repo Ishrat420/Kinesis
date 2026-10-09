@@ -10,6 +10,8 @@ import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
 import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
+import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/recurrence/RepeatControls";
+import type { Recurrence } from "@/lib/recurrence";
 
 export type CustomField = CustomFieldValue;
 
@@ -24,6 +26,7 @@ export function DocumentFields({
   },
   values = {},
   initialCustomFields = [],
+  initialRecurrence = null,
   onExpiryDateChange,
   linkOptions,
   previews,
@@ -36,6 +39,8 @@ export function DocumentFields({
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
   initialCustomFields?: CustomField[];
+  /** KD-056: how the expiry date renews, for the edit form; a new document starts as a one-off. */
+  initialRecurrence?: Recurrence | null;
   onExpiryDateChange?: (value: string) => void;
   linkOptions: KinesisLinkOption[];
   previews?: Record<string, KinesisLinkPreviewStat[]>;
@@ -47,11 +52,28 @@ export function DocumentFields({
   updateKinesisLinkAction?: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction?: (linkId: string) => Promise<void>;
 }) {
+  const [expiryDate, setExpiryDate] = useState(values.expiryDate ?? "");
+  const [repeat, setRepeat] = useState<RepeatState>(() => initialRepeat(initialRecurrence));
+  const changeExpiry = (value: string) => {
+    setExpiryDate(value);
+    // No date, nothing to renew from: clearing it turns renewing off, as on a to-do.
+    if (!value) setRepeat((current) => ({ ...current, on: false }));
+    onExpiryDateChange?.(value);
+  };
+  // KD-056: the repeat button joined onto the expiry date, in Documents' blue.
+  const repeatButton = <RepeatButton accent="blue" wording="renew" on={repeat.on && Boolean(expiryDate)} disabled={!expiryDate} disabledReason="Pick an expiry date first" onToggle={() => setRepeat((current) => ({ ...current, on: !current.on }))} />;
+
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={onExpiryDateChange} />
-        <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={changeExpiry} addon={repeatButton} />
+          <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
+        </div>
+        {/* Under the expiry date's own column, not across both: it belongs to that one field. */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <RepeatFields repeat={repeat} onChange={setRepeat} dueDate={expiryDate} fieldClass={repeatFieldClass} wording="renew" />
+        </div>
       </div>
 
       {afterDates}
@@ -76,16 +98,18 @@ export function DocumentFields({
  * A real border and real size (50px) at rest, the same treatment every
  * redesigned create/edit form in the app shares, in Documents' own blue.
  */
+const repeatFieldClass = "w-full rounded-xl border-[1.5px] border-zinc-200 bg-white text-base text-zinc-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm";
+
 const inputClass = "h-[50px] min-w-0 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm";
 
-function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, maxLength, onChange }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; maxLength?: number; onChange?: (value: string) => void }) {
+function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, maxLength, onChange, addon }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; maxLength?: number; onChange?: (value: string) => void; addon?: ReactNode }) {
   return (
     <div className="min-w-0 space-y-2">
       <EditableLabel name={labelName} initialValue={label} ariaLabel={`${label} field name`} />
       {multiline ? (
         <textarea spellCheck name={name} defaultValue={value} aria-label={label} rows={3} maxLength={maxLength} className={`${inputClass} min-h-[92px] resize-y py-3`} />
       ) : type === "date" ? (
-        <DateRowField name={name} label={label} value={value} onChange={onChange} />
+        <DateRowField name={name} label={label} value={value} onChange={onChange} addon={addon} />
       ) : (
         <div className="relative min-w-0">
           {icon && <Link2 aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />}
@@ -105,16 +129,16 @@ function EditableField({ label, labelName, name, value, type = "text", multiline
  * reliably opening the calendar -- and that real input is still what stays
  * keyboard- and screen-reader-operable.
  */
-function DateRowField({ name, label, value, onChange }: { name: string; label: string; value?: string; onChange?: (value: string) => void }) {
+function DateRowField({ name, label, value, onChange, addon }: { name: string; label: string; value?: string; onChange?: (value: string) => void; addon?: ReactNode }) {
   const [current, setCurrent] = useState(value ?? "");
   const [focused, setFocused] = useState(false);
   const { locale } = useFormatPreferences();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  return (
+  const field = (
     <div
       onClick={() => inputRef.current?.showPicker?.()}
-      className={`relative flex h-[50px] cursor-pointer items-center gap-2.5 rounded-xl border-[1.5px] bg-white px-3.5 transition ${
+      className={`relative flex h-[50px] min-w-0 flex-1 cursor-pointer items-center gap-2.5 border-[1.5px] bg-white px-3.5 transition ${addon ? "rounded-l-xl border-r-0" : "rounded-xl"} ${
         focused ? "border-blue-600 ring-4 ring-blue-600/15" : "border-zinc-200"
       }`}
     >
@@ -122,7 +146,8 @@ function DateRowField({ name, label, value, onChange }: { name: string; label: s
       <span className={`flex-1 truncate text-base sm:text-sm ${current ? "font-medium text-zinc-900" : "text-zinc-400"}`}>
         {current ? formatDate(current, locale) : "Select a date"}
       </span>
-      <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+      {/* With the repeat button attached, that button closes the right edge instead. */}
+      {!addon && <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />}
       <input
         ref={inputRef}
         type="date"
@@ -136,6 +161,7 @@ function DateRowField({ name, label, value, onChange }: { name: string; label: s
       />
     </div>
   );
+  return addon ? <div className="flex min-w-0">{field}{addon}</div> : field;
 }
 
 function EditableLabel({ name, initialValue, ariaLabel, placeholder }: { name: string; initialValue: string; ariaLabel: string; placeholder?: string }) {

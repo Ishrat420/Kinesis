@@ -1,10 +1,10 @@
 "use server";
 
-import { createDocument, deleteUnusedDocumentType, resolveDocumentType, updateDocument, type DocumentInput } from "@/lib/data/documents";
+import { createDocument, deleteUnusedDocumentType, renewDocument, resolveDocumentType, updateDocument, type DocumentInput } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDocumentState, parseReminderPrompt } from "@/lib/documents/expiry";
-import { parseDateOnly } from "@/lib/dates";
+import { formatDateInput, parseDateOnly } from "@/lib/dates";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
@@ -12,6 +12,7 @@ import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { checkLength, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
+import { readRepeatInputs } from "@/lib/recurrence";
 
 export type DocumentActionState = { error?: string; success?: boolean; conflict?: boolean; updatedAt?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -58,6 +59,11 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
   const issueField = dateField(formData, "issueDate", "issue date");
   if (!issueField.ok) return issueField;
   const expiryDate = expiryField.value;
+  // KD-056: the repeat button on the expiry date, validated the same way as a
+  // to-do's -- the date and "Renews" together, N from 1 to 999.
+  if (text(formData, "repeat") === "on" && !expiryDate) return { ok: false, error: "Pick an expiry date for a document that renews." };
+  const repeat = readRepeatInputs(formData, text(formData, "expiryDate"), parseDateOnly);
+  if ("error" in repeat) return { ok: false, error: repeat.error.replace("how often it repeats", "how often it renews") };
   const prompt = parseReminderPrompt(text(formData, "prompt"));
   // Absent on the create form, so a new document is never born archived.
   const archived = formData.get("archived") === "true";
@@ -87,6 +93,7 @@ function documentData(formData: FormData, today: Date): DocumentFormResult {
     notes,
     link,
     prompt,
+    recurrence: repeat.recurrence,
     archived,
     expiryDateLabel: text(formData, "expiryDateLabel") || "Expiry date",
     issueDateLabel: text(formData, "issueDateLabel") || "Issue date",
@@ -149,6 +156,28 @@ export async function updateDocumentAction(
   }
   revalidateShell();
   return { success: true, updatedAt: saved.updatedAt.toISOString() };
+}
+
+export type RenewDocumentState = { error?: string; conflict?: boolean; expiryDate?: string; updatedAt?: string };
+
+/**
+ * KD-056: "Mark renewed" on the document page. `expectedExpiry` is the
+ * expiry the page showed (yyyy-mm-dd), so a second click or a stale tab
+ * gets a conflict rather than renewing twice.
+ */
+export async function renewDocumentAction(documentId: string, expectedExpiry: string): Promise<RenewDocumentState> {
+  const expected = parseDateOnly(expectedExpiry);
+  if (!expected) return { error: "This document could not be identified. Reload and try again." };
+  let renewed;
+  try {
+    renewed = await renewDocument(documentId, expected);
+  } catch (failure) {
+    const refused = refusalOf(failure);
+    if (refused === null) throw failure;
+    return isConflictRefusal(failure) ? { error: refused, conflict: true } : { error: refused };
+  }
+  revalidateShell();
+  return { expiryDate: formatDateInput(renewed.expiryDate!), updatedAt: renewed.updatedAt.toISOString() };
 }
 
 export async function deleteDocumentTypeAction(name: string): Promise<DocumentActionState> {

@@ -115,6 +115,57 @@ Verified with typecheck, lint, the unit and integration suites (12 new
 integration tests), a full migration replay into an empty schema, and a
 production build. Not yet clicked through in a browser.
 
+### Documents (done)
+
+A document's expiry date *renews* rather than repeats, so the same control
+speaks of renewing: the repeat button on the Expiry date, in Documents'
+blue, with a "Renews…" dropdown and "Next expiry". Design mockup:
+"Recurring Document Design" artifact.
+
+Decisions specific to documents:
+
+1. **"Mark renewed", not a tick box.** On the document page's Expiry tile.
+   It moves the expiry to the next occurrence (caught up to today or later
+   if it lapsed long ago, as for To-dos) and brings the stored status up to
+   date in the same write.
+2. **The issue date is left alone** when renewing.
+3. **Nothing renews on its own.** An expired renewing document stays
+   expired until it is marked renewed.
+4. **Upcoming & Due is unchanged.** Edit and Dismiss stay; renewing happens
+   on the document page. Dismissing hides that one expiry only, since
+   notification and dismissal keys already include the expiry date.
+5. **An archived document can't be renewed** ("Restore this document
+   before renewing it.").
+
+What shipped:
+
+* **Schema.** `Document.recurrence` / `recurrenceDays` /
+  `recurrenceAnchorDay`, with the same NULL-safe check constraints (a rule
+  needs an expiry date), and a new History event type `DOCUMENT_RENEWED`
+  (migration `20261026000000_document_recurrence`).
+* **Forms** (create dialog and edit form, via `DocumentFields`): the repeat
+  button joined to the Expiry date; the Renews fields under the Expiry
+  column. Disabled with "Pick an expiry date first"; clearing the date turns
+  renewing off. `RepeatControls` gained the blue accent and renew wording.
+* **Renewing** (`renewDocument` / `renewDocumentAction`): conditioned on the
+  expiry the page showed, so a double click or stale tab is refused as a
+  conflict. Moves `updatedAt` on, so an edit opened before renewing must
+  reload, and the page carries the new stamp so an Edit after renewing saves.
+  Snackbar: "Renewed. Next expiry …".
+* **Audit.** Renewing records DOCUMENT_RENEWED ("Renewed · Expiry moved from
+  X to Y", high significance), not a status or field change. Turning
+  renewing on, off or to another rule records a "Renews" field change
+  (e.g. "Every month" to "Every year"). Editing keeps the anchor day on an
+  unchanged re-save and re-anchors when the date or rule changes.
+* **Display.** The Expiry tile shows "↻ Renews every year · Next expiry: …";
+  the Documents list shows the rule beside the expiry date.
+* **Calendar.** Future expiries projected with the repeat icon; only the
+  current one has a reminder pin.
+
+Verified with typecheck, lint, the unit and integration suites (11 new
+integration tests, 2 unit tests), a full migration replay into an empty
+schema, and a production build. Not yet clicked through in a browser.
+
 ### Other system modules
 
 Not started.

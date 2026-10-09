@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { FileText, Search } from "lucide-react";
+import { FileText, Repeat2, Search } from "lucide-react";
+import { recurrenceFromColumns, recurrenceLabel } from "@/lib/recurrence";
 import { formatDate } from "@/lib/dates";
 import type { getDocuments } from "@/lib/data/documents";
 
@@ -60,8 +61,14 @@ export function DocumentsList({ documents, locale }: { documents: Document[]; lo
               {/* One line until lg; from lg, `contents` puts both straight
                   into their own columns of the row's grid. */}
               <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 lg:contents">
-                <p className="text-sm text-zinc-500">
+                <p className="flex flex-wrap items-center gap-x-2 text-sm text-zinc-500">
                   {document.expiryDate ? formatDate(document.expiryDate, locale) : "No expiry"}
+                  {/* KD-056: a renewing document says how often, with the repeat icon. */}
+                  {document.expiryDate && document.recurrence && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
+                      <Repeat2 className="h-3.5 w-3.5" aria-hidden="true" />{recurrenceLabel(recurrenceFromColumns(document)!)}
+                    </span>
+                  )}
                 </p>
 
                 <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium">

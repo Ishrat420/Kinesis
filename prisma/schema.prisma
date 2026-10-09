@@ -110,6 +110,12 @@ model Document {
   type                String
   status              String
   expiryDate          DateTime?
+  // KD-056: the expiry date renews on a schedule -- same rule columns as
+  // Todo/Milestone/CustomItem. "Mark renewed" moves expiryDate on to the next
+  // occurrence and records DOCUMENT_RENEWED; null is a one-off expiry.
+  recurrence          RecurrenceRule?
+  recurrenceDays      Int?
+  recurrenceAnchorDay Int?
   issueDate           DateTime?
   owner               String
   documentNumber      String?
@@ -438,6 +444,7 @@ enum ObjectEventType {
   ITEM_CREATED
   ITEM_DELETED
   RECURRENCE_COMPLETED    // KD-055: one occurrence of a recurring due date was ticked done -- oldValue the completed date, newValue the next one
+  DOCUMENT_RENEWED        // KD-056: a renewing document was marked renewed -- oldValue the expiry it replaced, newValue the new expiry
 }
 
 enum ObjectEventSource {

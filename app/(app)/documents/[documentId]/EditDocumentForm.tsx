@@ -1,11 +1,11 @@
 "use client";
 
-import { CalendarDays, ChevronDown, Clock3, ExternalLink, FileText, Pencil, Save, X } from "lucide-react";
-import { useActionState, useEffect, useState } from "react";
+import { CalendarDays, Check, ChevronDown, Clock3, ExternalLink, FileText, Pencil, Repeat2, Save, X } from "lucide-react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
 import { DocumentFields, type CustomField } from "../DocumentFields";
-import { updateDocumentAction, type DocumentActionState } from "../actions";
+import { renewDocumentAction, updateDocumentAction, type DocumentActionState } from "../actions";
 import { getDocumentState, type ExpiryUrgency, NO_REMINDER_LABEL, NO_REMINDER_VALUE, parseReminderPrompt, REMINDER_OPTIONS, reminderFormValue, reminderLabel } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "../DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
@@ -20,6 +20,8 @@ import { freshestStamp } from "@/lib/actions/concurrency";
 import { SaveConflictNotice } from "@/components/ui/SaveConflictNotice";
 import { ObjectHistory, type ObjectHistoryEntry } from "@/components/history/ObjectHistory";
 import { keepFormValues } from "@/components/ui/keep-form-values";
+import { followingOccurrence, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
+import { Snackbar } from "@/components/ui/Snackbar";
 
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
@@ -45,6 +47,8 @@ export type EditableDocument = {
   notesLabel: string;
   linkLabel: string;
   customFields: CustomField[];
+  /** KD-056: how the expiry date renews, or null for a one-off. */
+  recurrence: Recurrence | null;
   updatedAt: string;
 };
 
@@ -85,7 +89,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} recentEvents={recentEvents} history={history}
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} recentEvents={recentEvents} history={history} onRenewed={setSavedUpdatedAt}
           kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
         />
       )}
@@ -93,8 +97,10 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, recentEvents, history, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, recentEvents, history, onRenewed, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
   document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; history: ObjectHistoryEntry[];
+  /** KD-056: renewing moves `updatedAt` on, so a later Edit must save against the new stamp. */
+  onRenewed: (updatedAt: string) => void;
   kinesisLinks: KinesisLink[];
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction: (linkId: string) => Promise<void>;
@@ -104,7 +110,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, pre
       <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
         <div className="mb-5 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-zinc-400" /><h2 className="text-lg font-semibold text-zinc-900">Document information</h2></div>
         <div className="grid gap-3 md:grid-cols-2">
-          <PromotedField label="Expiry" value={displayDate(document.expiryDate, locale)} detail={expiryLabel} detailTone={expiryUrgency} />
+          <ExpiryField document={document} expiryLabel={expiryLabel} expiryUrgency={expiryUrgency} locale={locale} onRenewed={onRenewed} />
           <PromotedField label="Reminder" value={document.expiryDate ? reminderLabel(document.prompt) : EMPTY_VALUE} detail={!document.expiryDate ? "Add an expiry date to use reminders" : document.prompt === null ? "The expiry date is still tracked" : "Configured reminder"} />
         </div>
         <dl className="mt-6 grid gap-x-8 gap-y-5 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -170,7 +176,7 @@ function EditForm({ document, updatedAt, documentTypes, ownerName, linkOptions, 
         <div role="status" className={`flex h-[50px] items-center gap-2 rounded-xl px-3.5 font-semibold ${urgencyClass}`}><Clock3 className="h-4 w-4" />{expiry.label}</div>
       </div>
     </div>
-    <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} /></div>
+    <div className="border-t border-zinc-100 pt-5"><p className="mb-4 font-semibold text-zinc-800">Information</p><DocumentFields labels={{ expiryDate: document.expiryDateLabel, issueDate: document.issueDateLabel, documentNumber: document.documentNumberLabel, country: document.countryLabel, notes: document.notesLabel, link: document.linkLabel }} values={{ expiryDate: document.expiryDate, issueDate: document.issueDate, documentNumber: document.documentNumber, country: document.country, notes: document.notes, link: document.link }} initialCustomFields={document.customFields} initialRecurrence={document.recurrence} onExpiryDateChange={setExpiryDate} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} /></div>
     <div className="flex justify-end"><button type="button" aria-pressed={archived} onClick={() => setArchived((current) => !current)} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${archived ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"}`}>{archived ? "Archived" : "Not archived"}</button><input type="hidden" name="archived" value={String(archived)} /></div>
     {state.error && (state.conflict ? <SaveConflictNotice message={state.error} /> : <p role="alert" className="text-sm font-medium text-red-600">{state.error}</p>)}
     <div className="flex flex-col gap-4 border-t border-zinc-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-zinc-500">Owner: <span className="font-medium text-zinc-700">{ownerName}</span></p><div className="flex gap-2"><button type="button" onClick={onCancel} disabled={pending} className="flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><X className="h-4 w-4" />Cancel</button><button disabled={pending} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"><Save className="h-4 w-4" />{pending ? "Saving…" : "Save changes"}</button></div></div>
@@ -197,6 +203,64 @@ function PromotedField({ label, value, detail, detailTone }: { label: string; va
   }[detailTone] : "text-zinc-500";
   return <div className="rounded-2xl bg-blue-50/50 p-4"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</dt><dd className="mt-2 text-lg font-semibold text-zinc-900">{value}</dd><p className={`mt-1 inline-flex rounded-full text-sm ${detailTone ? `px-2.5 py-1 font-semibold ${detailClass}` : detailClass}`}>{detail}</p></div>;
 }
+/**
+ * The Expiry tile. A renewing document (KD-056) adds its rule, the expiry
+ * after this one, and "Mark renewed", which moves the expiry on and records
+ * Renewed in History. Conditioned on the expiry shown, so a second click or
+ * a stale tab gets a conflict rather than renewing twice.
+ */
+function ExpiryField({ document, expiryLabel, expiryUrgency, locale, onRenewed }: { document: EditableDocument; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; onRenewed: (updatedAt: string) => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const expiry = toUtcDate(document.expiryDate);
+  const recurrence = expiry ? document.recurrence : null;
+  const renewable = recurrence !== null && !document.archived;
+  const detailClass = DETAIL_TONES[expiryUrgency];
+
+  const renew = () => startTransition(async () => {
+    setError(null);
+    const result = await renewDocumentAction(document.id, document.expiryDate);
+    if (result.error) { setError(result.error); if (result.conflict) router.refresh(); return; }
+    if (result.updatedAt) onRenewed(result.updatedAt);
+    if (result.expiryDate) setToast({ id: Date.now(), message: `Renewed. Next expiry ${formatDate(result.expiryDate, locale)}.` });
+    router.refresh();
+  });
+
+  return (
+    <div className="rounded-2xl bg-blue-50/50 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">Expiry</dt>
+          <dd className={`mt-2 text-lg font-semibold text-zinc-900 transition-opacity ${pending ? "opacity-40" : ""}`}>{displayDate(document.expiryDate, locale)}</dd>
+        </div>
+        {renewable && (
+          <button
+            type="button"
+            onClick={renew}
+            disabled={pending}
+            aria-label="Mark renewed, moving the expiry date on to the next one"
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border-[1.5px] border-blue-200 bg-white px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-600 hover:bg-blue-600 hover:text-white disabled:opacity-60"
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden="true" />{pending ? "Renewing…" : "Mark renewed"}
+          </button>
+        )}
+      </div>
+      <p className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-semibold ${detailClass}`}>{expiryLabel}</p>
+      {recurrence && expiry && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-medium text-zinc-500">
+          <span className="inline-flex items-center gap-1 font-semibold text-blue-700"><Repeat2 className="h-3.5 w-3.5" aria-hidden="true" />Renews {lowerFirst(recurrenceLabel(recurrence))}</span>
+          <span>Next expiry: {formatDate(followingOccurrence(expiry, recurrence), locale)}</span>
+        </p>
+      )}
+      {error && <p role="alert" className="mt-2 text-sm font-medium text-red-600">{error}</p>}
+      {toast && <Snackbar key={toast.id} message={toast.message} onDismiss={() => setToast(null)} />}
+    </div>
+  );
+}
+const DETAIL_TONES: Record<ExpiryUrgency, string> = { neutral: "bg-zinc-100 text-zinc-600", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" };
+function lowerFirst(text: string) { return text.charAt(0).toLowerCase() + text.slice(1); }
 function Metadata({ label, value, link = false }: { label: string; value?: string; link?: boolean }) { const shown = value || EMPTY_VALUE; return <div><dt className="text-xs font-medium text-zinc-400">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-zinc-700">{link && value ? <a href={value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a> : shown}</dd></div>; }
 function Field({ label, name, value, required }: { label: string; name: string; value: string; required?: boolean }) {
   return (

@@ -8,6 +8,7 @@ import { getKinesisLinkOptions, getKinesisLinkPreviews, getKinesisLinkRecentEven
 import { getKinesisLinks } from "@/lib/data/object-relationships";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDateInput } from "@/lib/dates";
+import { recurrenceFromColumns } from "@/lib/recurrence";
 
 export default async function DocumentDetailPage({ params, searchParams }: { params: Promise<{ documentId: string }>; searchParams: Promise<{ edit?: string }> }) {
   const { documentId } = await params;
@@ -39,6 +40,7 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     documentNumber: document.documentNumber ?? "", country: document.country ?? "", notes: document.notes ?? "", link: document.link ?? "", prompt: document.prompt,
     expiryDateLabel: document.expiryDateLabel, issueDateLabel: document.issueDateLabel, documentNumberLabel: document.documentNumberLabel,
     countryLabel: document.countryLabel, notesLabel: document.notesLabel, linkLabel: document.linkLabel, customFields: document.customFields,
+    recurrence: recurrenceFromColumns(document),
     updatedAt: document.updatedAt.toISOString(),
   }} documentTypes={documentTypes} ownerName={getUserDisplayName(user)} linkOptions={linkOptions} previews={previews} recentEvents={recentEvents} history={history.map((event) => ({ id: event.id, title: event.title, detail: event.detail, occurredAt: event.occurredAt.toISOString() }))} initialEditing={edit === "1"}
     kinesisLinks={kinesisLinks}

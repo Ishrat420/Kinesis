@@ -13,8 +13,9 @@ import { deleteObjects, objectFor } from "./objects";
 import { refuse, refuseConflict } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { documentUpcomingPhase } from "@/lib/attention/items";
-import { diffObjectFields, recordArchivedChanged, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "./object-events";
+import { diffObjectFields, recordArchivedChanged, recordDocumentRenewed, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "./object-events";
 import { formatDateInput } from "@/lib/dates";
+import { buildRecurrence, nextDueAfterCompletion, recurrenceColumns, recurrenceFromColumns, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 
 export type DocumentInput = {
   name: string;
@@ -27,6 +28,8 @@ export type DocumentInput = {
   notes?: string | null;
   link?: string | null;
   prompt?: number | null;
+  /** KD-056: how the expiry date renews, or null for a one-off. Needs an expiry date. */
+  recurrence?: Recurrence | null;
   archived?: boolean;
   expiryDateLabel?: string;
   issueDateLabel?: string;
@@ -243,7 +246,8 @@ export async function getDocument(id: string) {
 
 export async function createDocument(data: DocumentInput & { id?: string }) {
   const user = await getCurrentUser();
-  const { customFields = [], ...document } = data;
+  const { customFields = [], recurrence = null, ...document } = data;
+  if (recurrence && !document.expiryDate) refuse("Pick an expiry date for a document that renews.");
   // A Kinesis Link field picked while creating is saved as Kinesis Links
   // (KD-023), so it shows on the document and on what it points at.
   const { fields: plainFields, links } = splitKinesisLinkFields(customFields);
@@ -252,6 +256,7 @@ export async function createDocument(data: DocumentInput & { id?: string }) {
     const created = await tx.document.create({
       data: {
         ...document,
+        ...recurrenceColumns(recurrence),
         id: data.id ?? crypto.randomUUID(),
         user: { connect: { id: user.id } },
         object: objectFor.document(document.name, user.id, fields),
@@ -287,13 +292,20 @@ function columnValue(value: unknown): string | null {
  */
 export async function updateDocument(id: string, data: DocumentInput, expectedUpdatedAt: Date) {
   const user = await requireKinesisUser();
-  const { customFields = [], ...document } = data;
+  const { customFields = [], recurrence, ...document } = data;
   return prisma.$transaction(async (transaction) => {
     const owned = await transaction.document.findFirst({
       where: { id, userId: user.id },
-      select: { objectId: true, status: true, archived: true, name: true, expiryDate: true, issueDate: true, documentNumber: true, country: true, notes: true, link: true, prompt: true },
+      select: { objectId: true, status: true, archived: true, name: true, expiryDate: true, issueDate: true, documentNumber: true, country: true, notes: true, link: true, prompt: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true },
     });
     if (!owned) refuse("This document no longer exists.");
+    // KD-056: absent leaves the rule as it was; clearing the expiry date clears
+    // it, since there is nothing left to renew from.
+    const oldRecurrence = recurrenceFromColumns(owned);
+    const nextExpiry = document.expiryDate !== undefined ? document.expiryDate : owned.expiryDate;
+    let nextRecurrence = recurrence !== undefined ? recurrence : oldRecurrence;
+    if (!nextExpiry) nextRecurrence = null;
+    if (nextRecurrence && nextExpiry) nextRecurrence = keepAnchor(oldRecurrence, owned.expiryDate, nextRecurrence, nextExpiry);
     const existingFields = await transaction.objectField.findMany({ where: { objectId: owned.objectId }, select: { id: true, type: true, label: true, value: true } });
     const existingTypes = new Map(existingFields.map((field) => [field.id, field.type]));
     if (customFields.some((field) => field.id && existingTypes.has(field.id) && existingTypes.get(field.id) !== (field.type ?? "TEXT"))) refuse("A custom field's type cannot be changed once it has been saved.");
@@ -309,7 +321,7 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
     // still the one the caller read.
     const result = await transaction.document.updateMany({
       where: { id, userId: user.id, updatedAt: expectedUpdatedAt },
-      data: document,
+      data: { ...document, ...recurrenceColumns(nextRecurrence) },
     });
     if (result.count === 0) {
       const stillExists = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { id: true } });
@@ -349,10 +361,60 @@ export async function updateDocument(id: string, data: DocumentInput, expectedUp
     const namedChanges: FieldChange[] = NAMED_FIELDS
       .filter(([key]) => columnValue(owned[key]) !== columnValue(document[key]))
       .map(([key, label]) => ({ fieldKey: key, fieldLabel: label, oldValue: columnValue(owned[key]), newValue: columnValue(document[key]) }));
+    const oldRenews = oldRecurrence ? recurrenceLabel(oldRecurrence) : null;
+    const newRenews = nextRecurrence ? recurrenceLabel(nextRecurrence) : null;
+    if (oldRenews !== newRenews) namedChanges.push({ fieldKey: "recurrence", fieldLabel: "Renews", oldValue: oldRenews, newValue: newRenews });
     await recordFieldChanges(transaction, user.id, owned.objectId, namedChanges);
     await recordFieldChanges(transaction, user.id, owned.objectId, diffObjectFields(existingFields, newFields));
 
     return transaction.document.findUniqueOrThrow({ where: { id } });
+  });
+}
+
+/**
+ * A monthly or yearly rule keeps its stored anchor day when neither the expiry
+ * date nor the rule changed, so re-saving a clamped 28 Feb (anchored on the
+ * 31st) never quietly re-anchors it -- the same rule as to-dos and
+ * milestones. A new rule or a moved expiry date anchors afresh.
+ */
+function keepAnchor(old: Recurrence | null, oldExpiry: Date | null, next: Recurrence, nextExpiry: Date): Recurrence {
+  const unchanged = old && oldExpiry && next.rule === old.rule && next.days === old.days && formatDateInput(nextExpiry) === formatDateInput(oldExpiry);
+  return unchanged ? old : buildRecurrence(next.rule, nextExpiry, next.days);
+}
+
+/**
+ * KD-056: "Mark renewed" on a renewing document. Moves the expiry date on to
+ * the next occurrence -- one step from the current expiry, caught up to today
+ * or later if it lapsed long ago, the same as completing a repeating to-do --
+ * and records DOCUMENT_RENEWED with the old and new expiry.
+ *
+ * `expectedExpiry` is the expiry the person was looking at: the write is
+ * conditioned on it, so a double click or a stale tab is refused as a
+ * conflict rather than renewing twice. The stored `status` is brought up to
+ * date with the new expiry in the same write, without a status line of its
+ * own -- the renewal is the event; "Expiring soon -> Active" is only its
+ * consequence.
+ */
+export async function renewDocument(id: string, expectedExpiry: Date) {
+  const user = await requireKinesisUser();
+  const today = await getToday();
+  return prisma.$transaction(async (transaction) => {
+    const document = await transaction.document.findFirst({
+      where: { id, userId: user.id },
+      select: { objectId: true, archived: true, prompt: true, expiryDate: true, recurrence: true, recurrenceDays: true, recurrenceAnchorDay: true },
+    });
+    if (!document) refuse("This document no longer exists.");
+    const recurrence = recurrenceFromColumns(document);
+    if (!recurrence || !document.expiryDate) refuse("This document doesn't renew. Edit it to set how often it renews.");
+    if (document.archived) refuse("Restore this document before renewing it.");
+    if (formatDateInput(document.expiryDate) !== formatDateInput(expectedExpiry)) refuseConflict("This document was already renewed or changed. Reload to see the latest.");
+
+    const { next } = nextDueAfterCompletion(document.expiryDate, recurrence, today);
+    const status = getDocumentState({ expiryDate: next, prompt: document.prompt, archived: false }, today).status;
+    const result = await transaction.document.updateMany({ where: { id, userId: user.id, expiryDate: document.expiryDate }, data: { expiryDate: next, status } });
+    if (result.count === 0) refuseConflict("This document was already renewed or changed. Reload to see the latest.");
+    await recordDocumentRenewed(transaction, user.id, document.objectId, formatDateInput(document.expiryDate), formatDateInput(next));
+    return transaction.document.findUniqueOrThrow({ where: { id }, select: { expiryDate: true, updatedAt: true } });
   });
 }
 

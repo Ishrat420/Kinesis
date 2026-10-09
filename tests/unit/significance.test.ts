@@ -227,3 +227,9 @@ describe("classifyEventSignificance: KD-055", () => {
     expect(classifyEventSignificance(event({ objectType: "CUSTOM_ITEM", eventType: "RECURRENCE_COMPLETED", fieldKey: null }))).toBe("high");
   });
 });
+
+describe("classifyEventSignificance: KD-056", () => {
+  it("treats renewing a document as high, like completing an occurrence", () => {
+    expect(classifyEventSignificance(event({ objectType: "DOCUMENT", eventType: "DOCUMENT_RENEWED", fieldKey: null }))).toBe("high");
+  });
+});
