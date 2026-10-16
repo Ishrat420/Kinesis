@@ -22,6 +22,7 @@ const STAGE_LABEL: Record<ExtractionStage, string> = {
 
 const FAILURE_MESSAGE: Record<ExtractionFailure, string> = {
   "too-large": "That file is over 10 MB. Try a smaller photo or scan, or fill the details in yourself.",
+  "too-many-pixels": "That image is larger than any camera photo (over 60 megapixels), so it wasn't opened.",
   unsupported: "That isn't a PDF, PNG or JPEG file.",
   unreadable: "We couldn't read that file.",
 };

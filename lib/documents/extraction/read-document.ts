@@ -1,5 +1,5 @@
 import assets from "./assets.json";
-import { MAX_DOCUMENT_BYTES, sniffFileKind } from "./file-kind";
+import { imageDimensions, MAX_DOCUMENT_BYTES, MAX_IMAGE_PIXELS, sniffFileKind } from "./file-kind";
 import { looksLikeMrz, readMrz } from "./mrz";
 import { suggestFields, type FieldSuggestions } from "./suggest";
 
@@ -11,7 +11,7 @@ import { suggestFields, type FieldSuggestions } from "./suggest";
  * engines themselves load from Kinesis, never a CDN.
  */
 
-export type ExtractionFailure = "too-large" | "unsupported" | "unreadable";
+export type ExtractionFailure = "too-large" | "too-many-pixels" | "unsupported" | "unreadable";
 
 export class ExtractionError extends Error {
   constructor(readonly reason: ExtractionFailure) {
@@ -119,7 +119,8 @@ async function readPdf(bytes: Uint8Array, options: Options): Promise<{ text: str
   // The legacy build: the same engine, compiled for the older mobile browsers people actually have.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = `${ASSETS}/pdf.worker.min.mjs`;
-  const loading = pdfjs.getDocument({ data: bytes, wasmUrl: `${ASSETS}/pdf-wasm/`, enableXfa: false });
+  // maxImageSize: the same pixel ceiling as for photos, for images embedded in a PDF (they're skipped, not decoded).
+  const loading = pdfjs.getDocument({ data: bytes, wasmUrl: `${ASSETS}/pdf-wasm/`, enableXfa: false, maxImageSize: MAX_IMAGE_PIXELS });
   try {
     const pdf = await loading.promise;
     const pages = Math.min(pdf.numPages, MAX_PAGES);
@@ -215,6 +216,11 @@ export async function readDocumentText(file: File, options: Options): Promise<Re
   const bytes = new Uint8Array(await file.arrayBuffer());
   const kind = sniffFileKind(bytes);
   if (!kind) throw new ExtractionError("unsupported");
+  if (kind !== "pdf") {
+    const size = imageDimensions(bytes, kind);
+    if (!size) throw new ExtractionError("unreadable");
+    if (size.width * size.height > MAX_IMAGE_PIXELS) throw new ExtractionError("too-many-pixels");
+  }
   checkAborted(options.signal);
 
   try {
@@ -224,6 +230,7 @@ export async function readDocumentText(file: File, options: Options): Promise<Re
     }
     return await recognise([await imageCanvas(file)], options);
   } catch (error) {
+    if (error instanceof ExtractionError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     if (options.signal?.aborted) throw new DOMException("Extraction cancelled", "AbortError");
     throw new ExtractionError("unreadable");

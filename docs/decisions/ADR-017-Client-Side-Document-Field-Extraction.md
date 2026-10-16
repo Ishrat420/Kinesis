@@ -351,6 +351,44 @@ Jane's number stays blank: the only reading that saw it misread it as
 isn't suggested. Reading time rose by roughly one OCR pass (1-2 s on a
 desktop) for anything without a verified MRZ.
 
+## Security review (before testing with real documents)
+
+Checked against the code and in headless Chromium, not from this ADR's own
+claims:
+
+- **Nothing leaves the device.** No network, logging or storage calls in the
+  extraction code or upload UI. Under the app's CSP *enforced*, a full read
+  makes no request off the origin and has no violations. After a read,
+  IndexedDB, Cache Storage, localStorage and sessionStorage are all empty.
+- **No new server surface.** Suggestions reach the server only through the
+  existing `createDocumentAction` and its validation; React escapes them as
+  input values.
+- **Dependencies.** Pinned exactly; `npm audit` shows only the existing
+  deepmerge-ts item (OPS-002).
+- **Fixed: decompression bomb.** A 76 KB PNG claiming 20000×20000 px took
+  12 s to decode on a desktop (likely a crashed tab on a phone); the 10 MB
+  file limit can't see it. Image dimensions are now read from the header
+  before decoding and anything over 60 MP is refused; PDFs get the same
+  ceiling for embedded images via pdf.js `maxImageSize`.
+- **Fixed: quadratic rules.** A line of nothing but "Expiry" labels (200 KB)
+  froze the rules for 30 s, each label scanning the rest of its line. Values
+  are now looked for within 80 characters of a label, and each reading is
+  capped at 50,000 characters: 0.6 s.
+- **Guarded: the proxy exclusion.** `/extraction/` skips the Clerk proxy.
+  A test now fails if an app route is ever created under that path.
+
+Remaining, by design or out of scope:
+- **The CSP is still report-only** (a pre-existing decision in
+  `next.config.ts`). "Nothing leaves the device" therefore rests on the
+  code (reviewed, and verified in a browser with the policy enforced)
+  rather than on the browser blocking it. Enforcing the CSP would make it
+  a guarantee, including against a compromised OCR or PDF package.
+- **Saved values are stored as before.** A confirmed document number and
+  dates go into the database like typed ones; what is new is only that
+  they were read from a file.
+- `pdfjs-dist` pulls in `@napi-rs/canvas` as an optional native dependency
+  on the build machine; it is never shipped to the browser or used.
+
 ## Consequences
 
 - Strong privacy story, no server changes, and no storage risk.

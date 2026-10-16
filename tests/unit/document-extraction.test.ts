@@ -3,7 +3,7 @@ import { dateOrderFor, documentDateOrder, findDates, fullYear } from "@/lib/docu
 import { readLabelledFields } from "@/lib/documents/extraction/labels";
 import { looksLikeMrz, readMrz } from "@/lib/documents/extraction/mrz";
 import { suggestFields } from "@/lib/documents/extraction/suggest";
-import { sniffFileKind } from "@/lib/documents/extraction/file-kind";
+import { imageDimensions, sniffFileKind } from "@/lib/documents/extraction/file-kind";
 
 /**
  * KD-016 / ADR-017. The OCR engine itself isn't under test here -- these are
@@ -405,5 +405,37 @@ describe("real OCR output from Victorian driver licence specimens", () => {
       documentNumber: "051395622",
       expiryDate: "2024-03-21",
     });
+  });
+});
+
+describe("hostile input", () => {
+  it("reads image dimensions from the header, before anything is decoded", () => {
+    const png = new Uint8Array(24);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    png.set([0x00, 0x00, 0x4e, 0x20, 0x00, 0x00, 0x4e, 0x20], 16); // 20000 x 20000
+    expect(imageDimensions(png, "png")).toEqual({ width: 20000, height: 20000 });
+
+    // SOI, an APP0 segment to skip, then SOF0: precision 8, height 1080, width 1920.
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x04, 0x38, 0x07, 0x80, 0x03]);
+    expect(imageDimensions(jpeg, "jpeg")).toEqual({ width: 1920, height: 1080 });
+    expect(imageDimensions(new Uint8Array([0xff, 0xd8, 0x00]), "jpeg")).toBeNull();
+  });
+
+  it("keeps the rules fast on a page of nothing but labels", () => {
+    const started = performance.now();
+    suggestFields("Expiry ".repeat(30000), "en-AU");
+    // Was 30 s when every label scanned the rest of its line.
+    expect(performance.now() - started).toBeLessThan(5000);
+  });
+
+  it("has no app route under /extraction, which the auth proxy skips for the OCR engine files", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const segments = (directory: string): string[] =>
+      readdirSync(directory).flatMap((entry) => {
+        const path = join(directory, entry);
+        return statSync(path).isDirectory() ? [entry, ...segments(path)] : [];
+      });
+    expect(segments("app").filter((segment) => segment.toLowerCase().startsWith("extraction"))).toEqual([]);
   });
 });

@@ -41,6 +41,9 @@ function crossChecked(printed: string | undefined, mrzCandidates: string[] | und
   return mrzCandidates.includes(printed.replace(/[\s.-]/g, "")) ? printed : undefined;
 }
 
+/** Per reading. Bounds the work the rules can be made to do by a hostile file. */
+const MAX_TEXT_CHARACTERS = 50_000;
+
 /** The one value every reading that has one agrees on; readings that disagree leave the field blank. */
 function agreed(values: (string | undefined)[]): string | undefined {
   const present = new Set(values.filter((value): value is string => Boolean(value)));
@@ -58,7 +61,8 @@ function agreed(values: (string | undefined)[]): string | undefined {
  * read from it.
  */
 export function suggestFields(text: string | string[], locale: string, mrzText?: string): FieldSuggestions {
-  const texts = Array.isArray(text) ? text : [text];
+  // Three pages of OCR is a few thousand characters; anything far beyond that is not a document to fill a form from.
+  const texts = (Array.isArray(text) ? text : [text]).map((reading) => reading.slice(0, MAX_TEXT_CHARACTERS));
   const all = texts.join("\n");
   // The first reading whose MRZ verified a number, else one that verified anything.
   const mrzReads = [...texts, ...(mrzText ? [mrzText] : [])].map(readMrz);

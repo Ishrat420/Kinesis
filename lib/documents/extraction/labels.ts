@@ -49,6 +49,13 @@ const NUMBER_TOKEN = /^[A-Z0-9][A-Z0-9/.-]*(?: \d+)*/i;
 /** One whole token on a line of its own: the value under a label, beside whatever else OCR saw there. */
 const STANDALONE_TOKEN = /^[A-Z0-9][A-Z0-9/.-]*[A-Z0-9]$/i;
 
+/**
+ * How far past a label its value may be, in characters. Wide enough for any
+ * real layout; it also keeps the work linear: on a line of nothing but labels,
+ * each one reading the whole rest of its line took 30 s for 200 KB of text.
+ */
+const VALUE_WINDOW = 80;
+
 type Labelled = { expiryDate?: string; issueDate?: string; documentNumber?: string };
 
 type Hit = { end: number; index: number; text: string };
@@ -89,7 +96,7 @@ function datesFor(lines: string[], label: RegExp, order: DateOrder, handled: Set
   lines.forEach((line, i) => {
     if (handled.has(i) || namesBoth(line)) return;
     for (const hit of hits(line, label)) {
-      const after = findDates(line.slice(hit.end), order);
+      const after = findDates(line.slice(hit.end, hit.end + VALUE_WINDOW), order);
       if (after.length > 0) {
         values.push(after[0].iso);
       } else if (!sameLineOnly(hit.text) && endsLine(line, hit.end) && i + 1 < lines.length) {
@@ -163,7 +170,7 @@ function numbersFor(lines: string[], order: DateOrder): string[] {
       // Up to two lines down: passports print "Type / Code of issuing State" between the label and its number.
       const token = endsLine(line, hit.end)
         ? (lines[i + 1] !== undefined ? numberBelow(lines[i + 1], order) : undefined) ?? (lines[i + 2] !== undefined ? numberBelow(lines[i + 2], order) : undefined)
-        : NUMBER_TOKEN.exec(line.slice(hit.end))?.[0].trim().replace(/\.$/, "");
+        : NUMBER_TOKEN.exec(line.slice(hit.end, hit.end + VALUE_WINDOW))?.[0].trim().replace(/\.$/, "");
       if (token && isNumberShaped(token)) values.push(token.toUpperCase());
     }
   });
