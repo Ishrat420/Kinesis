@@ -57,4 +57,4 @@ User should have the ability to turn off AI features as well if wanted.
 
 ## Analysis
 
-The first version is scoped to no AI and no file storage: deterministic OCR and parsing, run entirely in the browser, pre-filling the existing manual form. Libraries, pipeline, security requirements, phasing and open questions are in [ADR-017](../decisions/ADR-017-Client-Side-Document-Field-Extraction.md) (Proposed). v1 is built into the real Upload flow; the next step is the spike: 10–20 real documents, each field recorded as right, blank or wrong.
+The first version is built: no AI and no file storage, with deterministic OCR and parsing run entirely in the browser, pre-filling the existing create form. How it was implemented, what testing on specimen documents changed, the security review and the known limits are in [ADR-017](../decisions/ADR-017-Client-Side-Document-Field-Extraction.md). Remaining: testing with the owner's own documents.
