@@ -1,5 +1,5 @@
 import { parse, states, type ParseResult } from "mrz";
-import { isoDate } from "./dates";
+import { fullYear, isoDate } from "./dates";
 
 /**
  * The machine-readable zone on passports and ID cards (ICAO 9303): the two
@@ -18,6 +18,12 @@ export type MrzFields = {
   documentNumber?: string;
   expiryDate?: string;
   country?: string;
+  /**
+   * When the number's own check digit failed and the composite was unreadable
+   * too: the one-character fixes that satisfy the number's check digit. Not a
+   * suggestion on their own -- only once the printed page agrees with one.
+   */
+  documentNumberCandidates?: string[];
 };
 
 /** The layouts as [lines, characters per line]: TD3 (passports), TD2, TD1 (ID cards). */
@@ -28,9 +34,13 @@ function cleanLine(line: string): string {
   return line.toUpperCase().replace(/«/g, "<<").replace(/[‹(\[{]/g, "<").replace(/\s+/g, "");
 }
 
-/** Within two characters of the layout's width: pad or trim the filler at the end. */
+/**
+ * Within a few characters of the layout's width: pad or trim the filler at
+ * the end. A little more room for extra characters than missing ones: OCR
+ * tends to split a `<` run into extra junk, and what it adds lands at the end.
+ */
 function fit(line: string, width: number): string | null {
-  if (Math.abs(line.length - width) > 2) return null;
+  if (line.length < width - 2 || line.length > width + 6) return null;
   if (line.length < width) return line.padEnd(width, "<");
   return line.slice(0, width);
 }
@@ -83,22 +93,27 @@ const LOOKALIKES: Record<string, string[]> = {
  * look-alike swap makes both its own check digit and the composite check digit
  * (which covers the number and the dates together) pass. Two independent
  * checks agreeing on one answer, rather than a guess.
+ *
+ * The swaps that satisfy the number's own check digit are returned too, for
+ * when the composite itself was misread: then a candidate still needs a
+ * second, independent witness -- the number printed on the page.
  */
-function repairDocumentNumber(lines: string[], result: ParseResult): string | undefined {
+function repairDocumentNumber(lines: string[], result: ParseResult): { repaired?: string; candidates: string[] } {
   const detail = result.details.find((entry) => entry.field === "documentNumber");
-  if (!detail || !isValid(result, "expirationDateCheckDigit")) return undefined;
+  if (!detail || !isValid(result, "expirationDateCheckDigit")) return { candidates: [] };
   const fixes = new Set<string>();
+  const candidates = new Set<string>();
   for (let column = detail.start; column < detail.end; column++) {
     for (const swap of LOOKALIKES[lines[detail.line][column]] ?? []) {
       const changed = [...lines];
       changed[detail.line] = changed[detail.line].slice(0, column) + swap + changed[detail.line].slice(column + 1);
       const reparsed = tryParse(changed);
-      if (reparsed?.documentNumber && isValid(reparsed, "documentNumberCheckDigit") && isValid(reparsed, "compositeCheckDigit")) {
-        fixes.add(reparsed.documentNumber);
-      }
+      if (!reparsed?.documentNumber || !isValid(reparsed, "documentNumberCheckDigit")) continue;
+      candidates.add(reparsed.documentNumber);
+      if (isValid(reparsed, "compositeCheckDigit")) fixes.add(reparsed.documentNumber);
     }
   }
-  return fixes.size === 1 ? [...fixes][0] : undefined;
+  return { repaired: fixes.size === 1 ? [...fixes][0] : undefined, candidates: [...candidates] };
 }
 
 function fields(lines: string[], result: ParseResult): MrzFields {
@@ -107,13 +122,14 @@ function fields(lines: string[], result: ParseResult): MrzFields {
   if (result.documentNumber && valid("documentNumber") && valid("documentNumberCheckDigit")) {
     out.documentNumber = result.documentNumber;
   } else {
-    const repaired = repairDocumentNumber(lines, result);
+    const { repaired, candidates } = repairDocumentNumber(lines, result);
     if (repaired) out.documentNumber = repaired;
+    else if (candidates.length > 0) out.documentNumberCandidates = candidates;
   }
   const expiry = result.fields.expirationDate;
   if (expiry && valid("expirationDate") && valid("expirationDateCheckDigit")) {
-    // YYMMDD; anything still worth tracking expires this century.
-    const iso = isoDate(2000 + Number(expiry.slice(0, 2)), Number(expiry.slice(2, 4)), Number(expiry.slice(4, 6)));
+    // YYMMDD.
+    const iso = isoDate(fullYear(Number(expiry.slice(0, 2))), Number(expiry.slice(2, 4)), Number(expiry.slice(4, 6)));
     if (iso) out.expiryDate = iso;
   }
   // No check digit covers the issuing state, so it only counts alongside a field that was verified.

@@ -290,15 +290,40 @@ Results after the changes:
 Still open:
 - **US-format dates under an Australian locale.** "EXP 07/11/2025" with
   no unambiguous date elsewhere on the card is read as 7 Nov, where the US
-  licence means 11 Jul. It is marked for checking like every suggestion,
-  but by the "blank, not wrong" principle it is wrong. Options: leave
-  ambiguous numeric dates blank, or treat US-only signals (the "LICENSE"
-  spelling, US state codes) as evidence. Undecided.
+  licence means 11 Jul. It is marked for checking like every suggestion.
+  The owner decided to leave this as is: their documents are Australian.
 - **Multi-column numbers** (the Chilean "NÚMERO DOCUMENTO" sits beside the
   date of birth) aren't read: telling columns apart needs word positions
   from OCR, not just its text.
 - Specimen images are small, flat and clean. Phone photos of real
   documents are the remaining test.
+
+## Spike round 2 — document number on a passport specimen
+
+A 1994 Australian diplomatic passport specimen gave type only. From its OCR
+text:
+
+- The MRZ's first line came out 47 characters long (misread filler), and
+  the length check discarded the whole MRZ with it. Lines may now run up
+  to 6 characters long and are trimmed. Line 1 holds no check digit and
+  only its issuing-state code is used.
+- The MRZ's number read "SO000001" with its composite check digit lost.
+  Four one-character fixes satisfy the number's own check digit, so the
+  MRZ alone can't choose. It now returns those as candidates, and the
+  number printed on the page decides: kept if it is one of them, dropped
+  if it contradicts them all.
+- The printed number was two lines under "DOCUMENT No." (the "Type / Code
+  of issuing State" line sits between), after a stray "x" on the label's
+  line, and read as "$0000001". The label rule now tolerates one or two
+  stray non-digit characters, looks up to two lines down, and reads a
+  leading "$" as "S".
+- "94" had been read as 2094. A two-digit year more than 20 years ahead
+  is now the 1900s, in both MRZ and printed dates.
+- "Date of issue" (the full phrase) may now take its date from the line
+  below; the bare word "issued" still may not ("Issued by …").
+
+Result: number S0000001, expiry 1994-11-01 and country, with the number
+confirmed by both the page and the MRZ.
 
 ## Consequences
 

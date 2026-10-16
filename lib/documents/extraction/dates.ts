@@ -57,9 +57,18 @@ function monthFromName(word: string): number | null {
   return index === -1 ? null : index + 1;
 }
 
+/**
+ * A two-digit year as a full one: this century, unless that would put it more
+ * than 20 years ahead -- no passport or licence runs that long -- in which case
+ * the last one. "29" is 2029; "94" is 1994, not 2094.
+ */
+export function fullYear(twoDigits: number, now = new Date()): number {
+  const year = 2000 + twoDigits;
+  return year > now.getUTCFullYear() + 20 ? year - 100 : year;
+}
+
 function expandYear(year: string): number {
-  // Two-digit years only ever appear on documents still current, so 20YY.
-  return year.length === 2 ? 2000 + Number(year) : Number(year);
+  return year.length === 2 ? fullYear(Number(year)) : Number(year);
 }
 
 /** `YYYY-MM-DD`, or null unless it is a real calendar date in a plausible range. */

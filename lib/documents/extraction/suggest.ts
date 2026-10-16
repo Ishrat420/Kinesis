@@ -30,6 +30,17 @@ function typeFromKeywords(text: string): DocumentType | undefined {
 }
 
 /**
+ * The number printed on the page, checked against an MRZ that couldn't settle
+ * its own: kept when the MRZ's check digit vouches for it, dropped when it
+ * contradicts every reading the check digit allows. With no such MRZ it
+ * stands as read, marked for checking like any suggestion.
+ */
+function crossChecked(printed: string | undefined, mrzCandidates: string[] | undefined): string | undefined {
+  if (!printed || !mrzCandidates) return printed;
+  return mrzCandidates.includes(printed.replace(/[\s.-]/g, "")) ? printed : undefined;
+}
+
+/**
  * `mrzText` is a second OCR pass restricted to MRZ characters, when there was
  * one. It reads the MRZ better and everything else worse, so only the MRZ is
  * read from it -- and only once the ordinary text has failed to yield one.
@@ -39,11 +50,12 @@ export function suggestFields(text: string, locale: string, mrzText?: string): F
   const mrz = fromText.documentNumber || !mrzText ? fromText : { ...fromText, ...readMrz(mrzText) };
   const labelled = readLabelledFields(text, documentDateOrder(text, dateOrderFor(locale)));
   const type = mrz.type ?? typeFromKeywords(text);
+  const documentNumber = mrz.documentNumber ?? crossChecked(labelled.documentNumber, mrz.documentNumberCandidates);
 
   // The MRZ is check-digit verified, so it wins wherever both read a field.
   const suggestions: FieldSuggestions = {
     type,
-    documentNumber: mrz.documentNumber ?? labelled.documentNumber,
+    documentNumber,
     expiryDate: mrz.expiryDate ?? labelled.expiryDate,
     issueDate: labelled.issueDate,
     country: mrz.country,

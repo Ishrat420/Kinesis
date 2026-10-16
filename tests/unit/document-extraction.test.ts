@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateOrderFor, documentDateOrder, findDates } from "@/lib/documents/extraction/dates";
+import { dateOrderFor, documentDateOrder, findDates, fullYear } from "@/lib/documents/extraction/dates";
 import { readLabelledFields } from "@/lib/documents/extraction/labels";
 import { looksLikeMrz, readMrz } from "@/lib/documents/extraction/mrz";
 import { suggestFields } from "@/lib/documents/extraction/suggest";
@@ -294,5 +294,71 @@ describe("real OCR output from specimen documents", () => {
   it("Australian passport specimen with an invalid MRZ: nothing from it, and no guessed dates", () => {
     const text = "PASSPORT AUSTRALIA DOCUMENT NC\n18 MAR 2019 A\nLY J 18 MAR 2029\nP<AUSANTHONY<<MARCUS<SETH<<<<<<<<<<<<<<<<<<<<<<<<<<\nNOB8B5237AUS75213M2760315<<1987885W0<<<<<<<<<<B4";
     expect(suggestFields(text, "en-AU")).toEqual({ name: "Passport", type: "Passport" });
+  });
+});
+
+describe("two-digit years", () => {
+  const now = new Date("2026-10-16T00:00:00Z");
+
+  it("are this century unless that is more than 20 years ahead", () => {
+    expect(fullYear(29, now)).toBe(2029);
+    expect(fullYear(46, now)).toBe(2046);
+    expect(fullYear(47, now)).toBe(1947);
+    expect(fullYear(94, now)).toBe(1994);
+  });
+});
+
+describe("printed numbers under a label", () => {
+  const read = (text: string) => readLabelledFields(text, "DMY");
+
+  it("ignores a stray character or two after the label", () => {
+    expect(read("DOCUMENT No. x\nS0000001")).toEqual({ documentNumber: "S0000001" });
+  });
+
+  it("looks two lines down, past a line with no number on it", () => {
+    expect(read("DOCUMENT No.\nType / Code of issuing State\nPASSPORT P AUS S0000001")).toEqual({ documentNumber: "S0000001" });
+  });
+
+  it("reads a leading '$' as the S OCR took it for", () => {
+    expect(read("Document No.\n$0000001")).toEqual({ documentNumber: "S0000001" });
+  });
+});
+
+describe("issue dates on the line below", () => {
+  const read = (text: string) => readLabelledFields(text, "DMY");
+
+  it("reads the line below 'Date of issue'", () => {
+    expect(read("Date of issue\n01 NOV 2020")).toEqual({ issueDate: "2020-11-01" });
+  });
+
+  it("still needs the bare word 'issued' to have its date on its own line", () => {
+    expect(read("Issued\n01 NOV 2020")).toEqual({});
+  });
+});
+
+describe("printed number checked against an MRZ that couldn't settle its own", () => {
+  // OCR of a 1994 Australian diplomatic passport specimen: the number's first 0 read as O,
+  // the composite check digit lost, and line 1 longer than the layout from misread filler.
+  const MRZ = "P<AUSCITIZEN<C<CJANECCCCCCLCLLLLLLLLLLLLLLLLLKL\nSO000001<9AUS9410316F9411014<<<<<<<<<<<<<<D";
+
+  it("offers only candidates, since four one-character fixes satisfy the check digit", () => {
+    expect(readMrz(MRZ)).toMatchObject({ expiryDate: "1994-11-01", country: "Australia" });
+    expect(readMrz(MRZ)).not.toHaveProperty("documentNumber");
+    expect(readMrz(MRZ).documentNumberCandidates).toContain("S0000001");
+  });
+
+  it("keeps the printed number when the MRZ vouches for it", () => {
+    const text = "DIPLOMATIC AUSTRALIA DOCUMENT No. x\nType! 7 Code / 3\nPASSPORT  p  Sspys ewer $0000001";
+    expect(suggestFields(text, "en-AU", MRZ)).toEqual({
+      name: "Passport (Australia)",
+      type: "Passport",
+      documentNumber: "S0000001",
+      expiryDate: "1994-11-01",
+      country: "Australia",
+    });
+  });
+
+  it("drops a printed number the MRZ contradicts", () => {
+    expect(suggestFields("Document No.\nS0000007", "en-AU", MRZ)).not.toHaveProperty("documentNumber");
   });
 });

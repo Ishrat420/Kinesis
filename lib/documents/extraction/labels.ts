@@ -51,19 +51,28 @@ const STANDALONE_TOKEN = /^[A-Z0-9][A-Z0-9/.-]*[A-Z0-9]$/i;
 
 type Labelled = { expiryDate?: string; issueDate?: string; documentNumber?: string };
 
-type Hit = { end: number; index: number };
+type Hit = { end: number; index: number; text: string };
 
 function hits(line: string, pattern: RegExp): Hit[] {
   pattern.lastIndex = 0;
   const found: Hit[] = [];
   for (let match = pattern.exec(line); match; match = pattern.exec(line)) {
-    found.push({ index: match.index, end: match.index + match[0].length });
+    found.push({ index: match.index, end: match.index + match[0].length, text: match[0] });
   }
   return found;
 }
 
-/** Nothing but punctuation and spacing follows the label on its line. */
-const endsLine = (line: string, end: number) => /^[\s:.\-#]*$/.test(line.slice(end));
+/**
+ * Nothing but punctuation and spacing follows the label on its line -- or one
+ * or two stray characters with no digit among them, which is OCR seeing a
+ * speck of the background ("DOCUMENT No. x").
+ */
+const endsLine = (line: string, end: number) => {
+  const rest = line.slice(end).replace(/[\s:.\-#]/g, "");
+  return rest.length === 0 || (rest.length <= 2 && !/\d/.test(rest));
+};
+/** "Issued by <authority>" is common: the bare word only counts with its date on the same line. */
+const BARE_ISSUED = /^(?:[^\p{L}\d])?(?:issued|iss)$/iu;
 
 /** The one value every candidate agrees on, or nothing. */
 function agreed(values: string[]): string | undefined {
@@ -74,7 +83,8 @@ function agreed(values: string[]): string | undefined {
 /** "Date of issue / Date of expiry" over one date: which one it is can't be told, so neither single-label rule reads it. */
 const namesBoth = (line: string) => hits(line, ISSUE_LABEL).length > 0 && hits(line, EXPIRY_LABEL).length > 0;
 
-function datesFor(lines: string[], label: RegExp, order: DateOrder, handled: Set<number>, sameLineOnly = false): string[] {
+/** `sameLineOnly` picks out labels whose date must be on their own line, never the one below. */
+function datesFor(lines: string[], label: RegExp, order: DateOrder, handled: Set<number>, sameLineOnly: (label: string) => boolean = () => false): string[] {
   const values: string[] = [];
   lines.forEach((line, i) => {
     if (handled.has(i) || namesBoth(line)) return;
@@ -82,7 +92,7 @@ function datesFor(lines: string[], label: RegExp, order: DateOrder, handled: Set
       const after = findDates(line.slice(hit.end), order);
       if (after.length > 0) {
         values.push(after[0].iso);
-      } else if (!sameLineOnly && endsLine(line, hit.end) && i + 1 < lines.length) {
+      } else if (!sameLineOnly(hit.text) && endsLine(line, hit.end) && i + 1 < lines.length) {
         const below = findDates(lines[i + 1], order);
         if (below.length > 0) values.push(below[0].iso);
       }
@@ -117,12 +127,13 @@ const isNumberShaped = (token: string) => /\d/.test(token) && token.replace(/[\s
 
 /**
  * The value under a label that ends its line: the one number-shaped token on
- * the next line, ignoring dates and short OCR debris around it. Two or more
+ * a line below it, ignoring dates and short OCR debris around it. Two or more
  * candidates means a multi-column layout this can't tell apart, so none.
  */
 function numberBelow(line: string, order: DateOrder): string | undefined {
   const withoutDates = findDates(line, order).reduceRight((rest, date) => rest.slice(0, date.index) + " " + rest.slice(date.end), line);
-  const tokens = withoutDates.split(/\s+/).map((token) => token.replace(/\.$/, "")).filter((token) => STANDALONE_TOKEN.test(token) && isNumberShaped(token) && token.length >= 5);
+  // OCR reads a leading S as "$" often enough to undo it; no document number starts with "$".
+  const tokens = withoutDates.split(/\s+/).map((token) => token.replace(/\.$/, "").replace(/^\$/, "S")).filter((token) => STANDALONE_TOKEN.test(token) && isNumberShaped(token) && token.length >= 5);
   return tokens.length === 1 ? tokens[0] : undefined;
 }
 
@@ -130,8 +141,9 @@ function numbersFor(lines: string[], order: DateOrder): string[] {
   const values: string[] = [];
   lines.forEach((line, i) => {
     for (const hit of [...hits(line, NUMBER_LABEL), ...hits(line, DL_LABEL)]) {
+      // Up to two lines down: passports print "Type / Code of issuing State" between the label and its number.
       const token = endsLine(line, hit.end)
-        ? i + 1 < lines.length ? numberBelow(lines[i + 1], order) : undefined
+        ? (lines[i + 1] !== undefined ? numberBelow(lines[i + 1], order) : undefined) ?? (lines[i + 2] !== undefined ? numberBelow(lines[i + 2], order) : undefined)
         : NUMBER_TOKEN.exec(line.slice(hit.end))?.[0].trim().replace(/\.$/, "");
       if (token && isNumberShaped(token)) values.push(token.toUpperCase());
     }
@@ -144,8 +156,7 @@ export function readLabelledFields(text: string, order: DateOrder): Labelled {
   const paired = pairedDates(lines, order);
   const result: Labelled = {
     expiryDate: agreed([...paired.expiry, ...datesFor(lines, EXPIRY_LABEL, order, paired.handled)]),
-    // "Issued by <authority>" is common; only a date on the label's own line counts.
-    issueDate: agreed([...paired.issue, ...datesFor(lines, ISSUE_LABEL, order, paired.handled, true)]),
+    issueDate: agreed([...paired.issue, ...datesFor(lines, ISSUE_LABEL, order, paired.handled, (label) => BARE_ISSUED.test(label.trim()))]),
     documentNumber: agreed(numbersFor(lines, order)),
   };
   // An expiry on or before the issue date means one of them was misread.
