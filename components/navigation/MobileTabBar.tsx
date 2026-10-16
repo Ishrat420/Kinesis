@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { Calendar, House, LayoutGrid, ListTodo, Plus, type LucideIcon } from "lucide-react";
-import { requestCaptureFocus } from "@/lib/capture/focus";
+import { CaptureSheet } from "@/components/capture/CaptureSheet";
 import { BottomSheet } from "@/components/overlay/BottomSheet";
 import { Z_INDEX } from "@/lib/layout/z-index";
 import { tabForPath, tabSlot, type TabId } from "@/lib/navigation/tab-bar";
@@ -41,6 +42,17 @@ export function MobileTabBar({ children }: { children: React.ReactNode }) {
   const moreOpen = moreOpenedOn !== null && moreOpenedOn === pathname;
   const closeMore = () => setMoreOpenedOn(null);
 
+  // KD-057: the + opens the capture sheet rather than focusing the top bar.
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const captureInput = useRef<HTMLTextAreaElement>(null);
+  const openCapture = () => {
+    // Committed synchronously so the sheet is no longer inert when the
+    // textarea is focused -- still inside the tap, which iOS requires before
+    // it will raise the keyboard.
+    flushSync(() => { closeMore(); setCaptureOpen(true); });
+    captureInput.current?.focus();
+  };
+
   const current: TabId = moreOpen ? "more" : tapped && tapped.on === pathname ? tapped.tab : tabForPath(pathname);
   const select = (tab: TabId) => setTapped({ tab, on: pathname });
 
@@ -65,7 +77,7 @@ export function MobileTabBar({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               aria-label="Quick capture"
-              onClick={() => { closeMore(); requestCaptureFocus(); }}
+              onClick={openCapture}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-950 text-white shadow-[0_6px_16px_rgb(0,0,0,0.22)]"
             >
               <Plus className="h-[22px] w-[22px]" strokeWidth={2.25} />
@@ -88,6 +100,7 @@ export function MobileTabBar({ children }: { children: React.ReactNode }) {
       </nav>
 
       <BottomSheet open={moreOpen} onClose={closeMore} ariaLabel="More">{children}</BottomSheet>
+      <CaptureSheet open={captureOpen} onClose={() => setCaptureOpen(false)} inputRef={captureInput} />
     </>
   );
 }

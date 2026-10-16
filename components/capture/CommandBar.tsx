@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Boxes, Command, FileText, Landmark, ListTodo, Plus, Search, Target, UsersRound, X } from "lucide-react";
+import { Boxes, Check, Command, FileText, Landmark, ListTodo, Paperclip, Search, Target, UsersRound, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import type { SearchEntry } from "@/lib/search/types";
@@ -12,7 +12,10 @@ import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { CaptureDetailsDialog } from "./CaptureDetailsDialog";
 import { CaptureConfirmation } from "./CaptureConfirmation";
 import { searchAction } from "./search-actions";
-import { FOCUS_CAPTURE_EVENT } from "@/lib/capture/focus";
+import { CAPTURED_EVENT, type CapturedDetail } from "@/lib/capture/captured";
+import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
+import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
+import { CaptureDocumentDialog, DocumentReadPanel, DueDateButton, RolledYearNote, useCaptureDraft } from "./CaptureDraft";
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 /** How long to let someone keep typing before a search actually runs. */
@@ -22,13 +25,17 @@ const kindIcons = { Document: FileText, Goal: Target, Finance: Landmark, Relatio
 const kindTones = { Document: "bg-blue-50", Goal: "bg-violet-50", Finance: "bg-emerald-50", Relationship: "bg-rose-50", Custom: "bg-zinc-100", Todo: "bg-teal-50" };
 
 /**
- * Search and create in one bar (KD-008A).
+ * Search and create in one bar (KD-008A), and the capture box (KD-057, ADR-018).
  *
  * The bar answers both "do I already have this?" and "then record it" without
- * making the user choose between them first: results appear above, and the ways
- * to create what they just typed appear below. Enter takes the default --
- * create a To-Do -- because ADR-009's whole argument is that capture has to cost
- * nothing, and picking a destination is a cost.
+ * making the user choose between them first. What the typed text will create
+ * comes first -- a card with the title and the due date read from the text,
+ * both changeable -- then search matches, then the other things it could
+ * become. Enter takes the card, because ADR-009's whole argument is that
+ * capture has to cost nothing, and picking a destination is a cost.
+ *
+ * A file attached with the paperclip, or dropped on the bar, is read on the
+ * device (ADR-017) and opens the Documents create form, pre-filled.
  */
 export function CommandBar() {
   const router = useRouter();
@@ -41,6 +48,12 @@ export function CommandBar() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [capturing, startCapture] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const draft = useCaptureDraft(query);
+  const { state: fileRead, read: readFile, cancel: cancelFile } = useDocumentRead();
+  const [attached, setAttached] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [documentForm, setDocumentForm] = useState<{ suggestions?: FieldSuggestions } | null>(null);
 
   const title = query.trim();
   const searchable = title.length >= MIN_QUERY_LENGTH;
@@ -51,8 +64,9 @@ export function CommandBar() {
   // search results themselves.
   const results = searchable ? fetchedResults : [];
   const searchUnavailable = searchable && searchFailed;
-  const createOptions = useMemo(() => captureTargets.filter((target) => target.promoted), []);
-  const isOpen = isFocused && title.length > 0;
+  // The card is the default target; the rest are offered after the matches.
+  const otherTargets = useMemo(() => captureTargets.filter((target) => target.promoted && target.type !== DEFAULT_CAPTURE_TARGET), []);
+  const isOpen = isFocused && title.length > 0 && attached === null;
 
   /**
    * Nothing runs until there's something long enough to search for, and a
@@ -81,17 +95,19 @@ export function CommandBar() {
   }, [title, searchable]);
 
   /**
-   * One list for the keyboard, results first and create options after, so
-   * ArrowUp from the default lands on the closest search result.
+   * One list for the keyboard, in the order it reads: the card (0), then the
+   * search matches, then the other targets. ArrowDown from the card walks
+   * down into the matches.
    *
-   * `highlighted` is null until the user actually moves: the default then
-   * follows the result count as they type, rather than an effect chasing it
-   * after each render. Typing clears any explicit choice, which is why it is
-   * reset in the change handler and nowhere else.
+   * `highlighted` is null until the user actually moves, so the card stays
+   * the default as they type. Typing clears any explicit choice, which is why
+   * it is reset in the change handler and nowhere else.
    */
   const [highlighted, setHighlighted] = useState<number | null>(null);
-  const optionCount = results.length + createOptions.length;
-  const activeIndex = Math.min(highlighted ?? results.length, Math.max(optionCount - 1, 0));
+  const optionCount = 1 + results.length + otherTargets.length;
+  const activeIndex = Math.min(highlighted ?? 0, optionCount - 1);
+  const resultIndex = (index: number) => 1 + index;
+  const targetIndex = (index: number) => 1 + results.length + index;
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -105,15 +121,34 @@ export function CommandBar() {
         inputRef.current?.blur();
       }
     }
-    // The phone tab bar's + (KD-054) lands here, in the same box.
-    const focusForCapture = () => inputRef.current?.focus();
+    // The phone's capture sheet (KD-057) creates its own to-dos; the
+    // confirmation, Undo and Add details still show here, in one place.
+    const showCaptured = (event: Event) => {
+      const todo = (event as CustomEvent<CapturedDetail>).detail;
+      setDetailsOpen(false);
+      setCaptured(todo);
+    };
     window.addEventListener("keydown", handleShortcut);
-    window.addEventListener(FOCUS_CAPTURE_EVENT, focusForCapture);
+    window.addEventListener(CAPTURED_EVENT, showCaptured);
     return () => {
       window.removeEventListener("keydown", handleShortcut);
-      window.removeEventListener(FOCUS_CAPTURE_EVENT, focusForCapture);
+      window.removeEventListener(CAPTURED_EVENT, showCaptured);
     };
   }, []);
+
+  const attach = (file: File | undefined) => {
+    if (!file) return;
+    setAttached(file.name);
+    void readFile(file);
+  };
+  const detach = () => {
+    cancelFile();
+    setAttached(null);
+  };
+  const openDocumentForm = (suggestions?: FieldSuggestions) => {
+    detach();
+    setDocumentForm({ suggestions });
+  };
 
   /**
    * Creating as a To-Do happens here, and clears the bar so the next capture can
@@ -122,14 +157,16 @@ export function CommandBar() {
    * requires instead of a generic form guessing at them.
    */
   const create = (target: CaptureTargetType) => {
-    if (!title) return;
+    const name = draft.title || title;
+    if (!name) return;
     if (target !== DEFAULT_CAPTURE_TARGET) {
-      const href = captureCreateHref(target, title);
+      // A target with a date field (a Goal's target date) gets the date too; captureCreateHref drops it for one without.
+      const href = captureCreateHref(target, name, { dueDate: draft.dueDate || undefined });
       if (href) router.push(href);
       return;
     }
     startCapture(async () => {
-      const result = await captureTodoAction(title);
+      const result = await captureTodoAction(name, draft.dueDate || undefined);
       if (result.error) return setError(result.error);
       setError(undefined);
       setCaptured(result.captured ?? null);
@@ -139,47 +176,82 @@ export function CommandBar() {
     });
   };
 
+  const optionId = (index: number) => (index === 0 ? "command-capture" : index <= results.length ? `command-result-${index - 1}` : `command-create-${index - 1 - results.length}`);
+
   return (
-    <div className="relative w-full max-w-2xl">
-      <div className="flex h-11 items-center gap-3 rounded-xl border border-transparent bg-zinc-100/80 px-3.5 transition duration-200 hover:bg-zinc-100 focus-within:border-zinc-200 focus-within:bg-white">
+    <div
+      className="relative w-full max-w-2xl"
+      onFocus={() => setIsFocused(true)}
+      // Closes only when focus leaves the whole box: the card's date and
+      // buttons are inside it, and tabbing to them must not close it.
+      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) window.setTimeout(() => setIsFocused(false), 150); }}
+      onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); setDragging(true); } }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+      onDrop={(event) => { if (!event.dataTransfer.files.length) return; event.preventDefault(); setDragging(false); attach(event.dataTransfer.files[0]); }}
+    >
+      <div className={`flex h-11 items-center gap-3 rounded-xl border px-3.5 transition duration-200 ${dragging ? "border-blue-500 bg-blue-50" : "border-transparent bg-zinc-100/80 hover:bg-zinc-100 focus-within:border-zinc-200 focus-within:bg-white"}`}>
         <Search className="h-[18px] w-[18px] shrink-0 text-zinc-400" aria-hidden="true" />
         <input
           ref={inputRef} type="search" value={query} autoComplete="off" spellCheck={false}
           onChange={(event) => { setQuery(event.target.value); setHighlighted(null); setError(undefined); }}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => window.setTimeout(() => setIsFocused(false), 150)}
           onKeyDown={(event) => {
-            if (event.key === "ArrowDown" && optionCount) { event.preventDefault(); setHighlighted((activeIndex + 1) % optionCount); }
-            if (event.key === "ArrowUp" && optionCount) { event.preventDefault(); setHighlighted((activeIndex - 1 + optionCount) % optionCount); }
+            if (event.key === "ArrowDown" && title) { event.preventDefault(); setHighlighted((activeIndex + 1) % optionCount); }
+            if (event.key === "ArrowUp" && title) { event.preventDefault(); setHighlighted((activeIndex - 1 + optionCount) % optionCount); }
             if (event.key === "Enter") {
               event.preventDefault();
               if (!title) return;
-              if (activeIndex < results.length) { document.getElementById(`command-result-${activeIndex}`)?.click(); return; }
-              const target = createOptions[activeIndex - results.length];
+              if (activeIndex === 0) { create(DEFAULT_CAPTURE_TARGET); return; }
+              if (activeIndex <= results.length) { document.getElementById(optionId(activeIndex))?.click(); return; }
+              const target = otherTargets[activeIndex - 1 - results.length];
               if (target) create(target.type);
             }
           }}
           className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:hidden"
-          placeholder="Search, or type something to capture..." aria-label="Search everything, or capture a to-do" role="combobox"
+          placeholder={dragging ? "Drop to read it on this device" : "Search, or type something to capture..."} aria-label="Search everything, or capture a to-do" role="combobox"
           aria-expanded={isOpen} aria-controls="command-bar-options" aria-autocomplete="list"
-          aria-activedescendant={isOpen ? (activeIndex < results.length ? `command-result-${activeIndex}` : `command-create-${activeIndex - results.length}`) : undefined}
+          aria-activedescendant={isOpen ? optionId(activeIndex) : undefined}
         />
         {query ? <button type="button" onClick={() => { setQuery(""); setHighlighted(null); inputRef.current?.focus(); }} className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700" aria-label="Clear search"><X className="h-4 w-4" /></button>
           : <div className="hidden items-center gap-1 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 sm:flex"><Command className="h-3 w-3" aria-hidden="true" />K</div>}
+        {/* Phones attach from the capture sheet (KD-057), which has room for camera and file buttons. */}
+        <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a document to read" title="Attach a PDF or photo to read it, on this device" className="hidden rounded-md p-1 text-zinc-500 transition hover:bg-zinc-200/60 hover:text-zinc-800 md:block"><Paperclip className="h-4 w-4" aria-hidden="true" /></button>
+        <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" hidden onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ""; }} />
       </div>
 
-      {isOpen && <div id="command-bar-options" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
+      {attached !== null && <div className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
+        <DocumentReadPanel fileName={attached} state={fileRead} onCheck={(suggestions) => openDocumentForm(suggestions)} onFillIn={() => openDocumentForm()} onRemove={detach} />
+      </div>}
+
+      {isOpen && <div id="command-bar-options" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
+        <SectionLabel>Will create</SectionLabel>
+        <div
+          id="command-capture" role="option" aria-selected={activeIndex === 0}
+          onMouseEnter={() => setHighlighted(0)}
+          className={`flex flex-col gap-3 rounded-2xl border-[1.5px] p-3.5 transition ${activeIndex === 0 ? "border-zinc-900" : "border-zinc-200"}`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-950 text-white"><Check className="h-4 w-4" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-semibold text-zinc-900">{draft.title || title}</span><span className="block text-xs text-zinc-600">To-Do</span></span>
+            <button type="button" disabled={capturing} onMouseDown={(event) => event.preventDefault()} onClick={() => create(DEFAULT_CAPTURE_TARGET)} className="flex h-9 shrink-0 items-center gap-2 rounded-xl bg-zinc-950 px-3.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
+              {capturing ? "Creating…" : "Create"}<span className="hidden rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider sm:inline">Enter</span>
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2"><DueDateButton value={draft.dueDate} onChange={draft.setDueDate} /></div>
+          {draft.rolledToNextYear && <RolledYearNote />}
+        </div>
+
         {results.length ? <>
-          <SectionLabel>Search results</SectionLabel>
+          <SectionLabel>Matches</SectionLabel>
           <ul aria-label="Search results" role="listbox">{results.map((result, index) => {
             const Icon = result.kind === "Custom" && result.icon && result.icon in CUSTOM_MODULE_ICONS ? CUSTOM_MODULE_ICONS[result.icon as keyof typeof CUSTOM_MODULE_ICONS] : kindIcons[result.kind];
-            return <li key={result.id} role="option" aria-selected={index === activeIndex}>
+            const option = resultIndex(index);
+            return <li key={result.id} role="option" aria-selected={option === activeIndex}>
               {/* Unprefetched: up to ten of these render on every keystroke,
                   and scanning a dropdown isn't a signal to load all ten
                   destination pages in the background -- Next's default
                   prefetch-on-render turned every search into a burst of
                   requests competing with the search itself for bandwidth. */}
-              <Link id={`command-result-${index}`} href={result.href} prefetch={false} onMouseEnter={() => setHighlighted(index)} className={`flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none ${index === activeIndex ? "bg-zinc-50" : ""}`}>
+              <Link id={`command-result-${index}`} href={result.href} prefetch={false} onMouseEnter={() => setHighlighted(option)} className={`flex items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none ${option === activeIndex ? "bg-zinc-50" : ""}`}>
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-700 ${kindTones[result.kind]}`} style={result.color ? { color: result.color } : undefined}><Icon className="h-4 w-4" aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-zinc-900">{result.title}</span><span className="block truncate text-xs text-zinc-500">{result.subtitle}</span></span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{result.kind}</span>
@@ -187,22 +259,20 @@ export function CommandBar() {
             </li>;
           })}</ul>
         </> : searchUnavailable
-          ? <p role="alert" className="px-4 pb-2 pt-3 text-xs font-medium text-red-600">Search isn&rsquo;t responding right now. You can still capture below.</p>
+          ? <p role="alert" className="px-4 pb-2 pt-3 text-xs font-medium text-red-600">Search isn&rsquo;t responding right now. You can still capture above.</p>
           : null}
 
-        <SectionLabel>Create</SectionLabel>
-        <ul aria-label="Create" role="listbox">{createOptions.map((target, index) => {
-          const optionIndex = results.length + index;
-          return <li key={target.type} role="option" aria-selected={optionIndex === activeIndex}>
+        <SectionLabel>Create as something else</SectionLabel>
+        <ul aria-label="Create as something else" role="listbox" className="flex flex-wrap gap-2 px-3 pb-2">{otherTargets.map((target, index) => {
+          const option = targetIndex(index);
+          return <li key={target.type} role="option" aria-selected={option === activeIndex}>
             <button
               id={`command-create-${index}`} type="button" disabled={capturing}
-              onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setHighlighted(optionIndex)}
+              onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setHighlighted(option)}
               onClick={() => create(target.type)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-zinc-50 disabled:opacity-60 ${optionIndex === activeIndex ? "bg-zinc-50" : ""}`}
+              className={`h-9 rounded-xl border px-3 text-[13px] font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:opacity-60 ${option === activeIndex ? "border-zinc-900 bg-zinc-50" : "border-zinc-200"}`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-950 text-white"><Plus className="h-4 w-4" aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1 text-sm text-zinc-700">Create <span className="font-semibold text-zinc-900">“{title}”</span> as {target.label}</span>
-              {target.type === DEFAULT_CAPTURE_TARGET && <span className="hidden shrink-0 rounded-lg bg-zinc-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 sm:block">Enter</span>}
+              {target.label}
             </button>
           </li>;
         })}</ul>
@@ -212,8 +282,10 @@ export function CommandBar() {
 
       {/* Keyed on the capture, so a second one replaces the first outright
           rather than reusing the previous confirmation's dismissal timer. */}
-      {captured && !detailsOpen && <CaptureConfirmation key={captured.id} todo={captured} onAddDetails={() => setDetailsOpen(true)} onUndone={() => setCaptured(null)} />}
+      {/* It gives way while the dropdown or a file panel is showing: all three sit in the same place under the bar. */}
+      {captured && !detailsOpen && !isOpen && attached === null && <CaptureConfirmation key={captured.id} todo={captured} onAddDetails={() => setDetailsOpen(true)} onUndone={() => setCaptured(null)} />}
       {captured && detailsOpen && <CaptureDetailsDialog todo={captured} onClose={() => { setDetailsOpen(false); setCaptured(null); }} />}
+      {documentForm && <CaptureDocumentDialog suggestions={documentForm.suggestions} onClose={() => setDocumentForm(null)} />}
     </div>
   );
 }

@@ -1,12 +1,12 @@
 "use server";
 
-import { createDocument, deleteUnusedDocumentType, renewDocument, resolveDocumentType, updateDocument, type DocumentInput } from "@/lib/data/documents";
+import { createDocument, deleteUnusedDocumentType, getDocumentTypes, renewDocument, resolveDocumentType, updateDocument, type DocumentInput } from "@/lib/data/documents";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDocumentState, parseReminderPrompt } from "@/lib/documents/expiry";
 import { formatDateInput, parseDateOnly } from "@/lib/dates";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
-import { validateKinesisTargets } from "@/lib/data/kinesis-links";
+import { getKinesisLinkOptions, validateKinesisTargets } from "@/lib/data/kinesis-links";
 import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
@@ -184,4 +184,16 @@ export async function deleteDocumentTypeAction(name: string): Promise<DocumentAc
   const result = await deleteUnusedDocumentType(name);
   revalidatePath("/documents");
   return result;
+}
+
+/**
+ * What the create-document form needs, for opening it from the capture box
+ * (KD-057), which lives in the top bar on every page and so can't receive them
+ * from the Documents page. Fetched only when a file has actually been read,
+ * never on page load. Read-only and scoped to the signed-in user, like the
+ * page's own loaders it calls.
+ */
+export async function documentFormOptionsAction() {
+  const [documentTypes, linkOptions] = await Promise.all([getDocumentTypes(), getKinesisLinkOptions()]);
+  return { documentTypes, linkOptions };
 }

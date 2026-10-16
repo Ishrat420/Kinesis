@@ -3,28 +3,13 @@
 import { FileText, LoaderCircle, UploadCloud, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/overlay/Modal";
-import { useFormatPreferences } from "@/lib/format/context";
 import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
-import type { ExtractionFailure, ExtractionStage } from "@/lib/documents/extraction/read-document";
+import { READ_FAILURE_MESSAGE, READ_STAGE_LABEL, useDocumentRead } from "@/lib/documents/extraction/use-document-read";
 
 type UploadDocumentModalProps = {
   onClose: () => void;
   /** The file has been read (or skipped): open the create form with whatever was found. */
   onRead: (suggestions: FieldSuggestions) => void;
-};
-
-const STAGE_LABEL: Record<ExtractionStage, string> = {
-  opening: "Opening your file…",
-  "reading-text": "Reading the document…",
-  "loading-ocr": "Getting the text reader ready… (first time only, can take a moment)",
-  recognising: "Reading the text… this can take a few seconds",
-};
-
-const FAILURE_MESSAGE: Record<ExtractionFailure, string> = {
-  "too-large": "That file is over 10 MB. Try a smaller photo or scan, or fill the details in yourself.",
-  "too-many-pixels": "That image is larger than any camera photo (over 60 megapixels), so it wasn't opened.",
-  unsupported: "That isn't a PDF, PNG or JPEG file.",
-  unreadable: "We couldn't read that file.",
 };
 
 /**
@@ -35,46 +20,31 @@ const FAILURE_MESSAGE: Record<ExtractionFailure, string> = {
  */
 export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const { locale } = useFormatPreferences();
   const [file, setFile] = useState<File | null>(null);
-  const [stage, setStage] = useState<ExtractionStage | null>(null);
-  const [failure, setFailure] = useState<ExtractionFailure | null>(null);
   const [dragging, setDragging] = useState(false);
+  const { state, read: readFile, cancel } = useDocumentRead();
 
-  // Closing mid-read stops the OCR worker rather than leaving it running.
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // A finished read moves straight on to the create form.
+  useEffect(() => {
+    if (state.status === "read") onRead(state.suggestions);
+  }, [state, onRead]);
 
   const choose = (selected: File | undefined) => {
     if (!selected) return;
     setFile(selected);
-    setFailure(null);
+    cancel();
   };
 
-  const read = async () => {
-    if (!file) return;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setFailure(null);
-    setStage("opening");
-    try {
-      const { readDocument } = await import("@/lib/documents/extraction/read-document");
-      const suggestions = await readDocument(file, { locale, signal: controller.signal, onStage: setStage });
-      if (!controller.signal.aborted) onRead(suggestions);
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      const { ExtractionError } = await import("@/lib/documents/extraction/read-document");
-      setFailure(error instanceof ExtractionError ? error.reason : "unreadable");
-      setStage(null);
-    }
-  };
+  const read = () => { if (file) void readFile(file); };
 
   const skip = () => {
-    abortRef.current?.abort();
+    cancel();
     onRead({});
   };
 
-  const reading = stage !== null && failure === null;
+  const reading = state.status === "reading";
+  const stage = state.status === "reading" ? state.stage : null;
+  const failure = state.status === "failed" ? state.failure : null;
 
   return (
     <Modal labelledBy="upload-document-title" onClose={onClose} customHeader panelClassName="p-0 sm:max-w-2xl">
@@ -156,13 +126,13 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
           {reading && (
             <p role="status" className="flex items-center gap-2 text-sm font-medium text-zinc-700">
               <LoaderCircle className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
-              {STAGE_LABEL[stage]}
+              {stage && READ_STAGE_LABEL[stage]}
             </p>
           )}
 
           {failure && (
             <p role="alert" className="text-sm font-medium text-red-600">
-              {FAILURE_MESSAGE[failure]} You can still add it by filling in the details yourself.
+              {READ_FAILURE_MESSAGE[failure]} You can still add it by filling in the details yourself.
             </p>
           )}
         </div>

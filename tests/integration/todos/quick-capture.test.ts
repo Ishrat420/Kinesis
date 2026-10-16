@@ -63,6 +63,20 @@ describe.sequential("quick capture", () => {
     expect(todo.object).toMatchObject({ type: "TODO", name: "Update new passport details", userId: owner });
   });
 
+  it("saves the due date the capture box read from the text (KD-057)", async () => {
+    const { captured, error } = await captureTodoAction("Make a dr's appt", "2027-09-24");
+
+    expect(error).toBeUndefined();
+    const todo = await prisma.todo.findUniqueOrThrow({ where: { id: captured!.id } });
+    expect(todo.dueDate?.toISOString()).toBe("2027-09-24T00:00:00.000Z");
+  });
+
+  it("refuses a due date that isn't a real day, and records nothing", async () => {
+    expect(await captureTodoAction("Make a dr's appt", "2027-02-31")).toEqual({ error: expect.any(String) });
+    expect(await captureTodoAction("Make a dr's appt", "next tuesday")).toEqual({ error: expect.any(String) });
+    expect(await prisma.todo.count({ where: { userId: owner, name: "Make a dr's appt", dueDate: null } })).toBe(0);
+  });
+
   it("refuses an empty capture instead of recording a nameless To-Do", async () => {
     expect(await captureTodoAction("   ")).toEqual({ error: expect.any(String) });
     expect(await prisma.todo.count({ where: { userId: owner } })).toBe(0);

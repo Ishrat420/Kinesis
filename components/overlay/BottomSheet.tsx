@@ -21,7 +21,14 @@ const DISMISS_VELOCITY = 0.5;
  * its state after the sheet has closed behind it. `inert` keeps the hidden
  * sheet out of the tab order and away from screen readers.
  */
-export function BottomSheet({ open, onClose, ariaLabel, children }: { open: boolean; onClose: () => void; ariaLabel: string; children: React.ReactNode }) {
+export function BottomSheet({ open, onClose, ariaLabel, initialFocusRef, children }: {
+  open: boolean;
+  onClose: () => void;
+  ariaLabel: string;
+  /** Focused on open instead of the panel itself: the capture sheet's text box (KD-057). */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  children: React.ReactNode;
+}) {
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState(0);
@@ -30,11 +37,11 @@ export function BottomSheet({ open, onClose, ariaLabel, children }: { open: bool
 
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.focus({ preventScroll: true });
+    (initialFocusRef?.current ?? panelRef.current)?.focus({ preventScroll: true });
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onCloseRef.current(); };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
+  }, [open, initialFocusRef]);
 
   /**
    * Swipe down to close. Native listeners, because the move has to be able to
@@ -112,8 +119,14 @@ export function BottomSheet({ open, onClose, ariaLabel, children }: { open: bool
         aria-modal="true"
         aria-label={ariaLabel}
         tabIndex={-1}
+        // Visibility transitions only on the way out. At the first instant of
+        // a hidden-to-visible transition the panel still counts as hidden,
+        // so nothing in it could take focus in the opening tap -- which iOS
+        // needs before it will raise the keyboard for the capture sheet.
+        // Coming in, it is still off-screen below, so turning visible at
+        // once looks the same.
         className={`absolute inset-x-0 bottom-0 flex max-h-[85dvh] flex-col rounded-t-[28px] bg-white shadow-[0_-12px_40px_rgb(0,0,0,0.12)] outline-none ${
-          drag ? "" : `transition-[transform,visibility] duration-[420ms] ${EASE} motion-reduce:transition-none`
+          drag ? "" : `${open ? "transition-transform" : "transition-[transform,visibility]"} duration-[420ms] ${EASE} motion-reduce:transition-none`
         } ${open ? "visible" : "invisible"}`}
         style={{ transform: open ? `translateY(${drag}px)` : "translateY(100%)" }}
       >

@@ -39,18 +39,25 @@ const MAX_TITLE_LENGTH = 200;
 const refresh = () => revalidateShell();
 
 /**
- * Quick capture (KD-008A). A title, and nothing else, becomes a To-Do.
+ * Quick capture (KD-008A). A title, and the due date the capture box read
+ * from it if any (KD-057), becomes a To-Do.
  *
  * This returns the new To-Do instead of redirecting: the point of capture is
  * that the user does not leave what they were doing, so the command bar shows
  * the confirmation in place and offers Undo and Add details from there.
  */
-export async function captureTodoAction(rawName: string): Promise<CaptureState> {
+export async function captureTodoAction(rawName: string, rawDueDate?: string): Promise<CaptureState> {
   const name = rawName.trim();
   if (!name) return { error: "Type what you need to do." };
   if (name.length > MAX_TITLE_LENGTH) return { error: `Keep it under ${MAX_TITLE_LENGTH} characters — you can add the detail afterwards.` };
+  // KD-057: the date the capture box read from the text, or the one picked in
+  // its preview card. Checked here like any other due date: the client's
+  // reading of the text earns it no trust.
+  const dueDateValue = typeof rawDueDate === "string" ? rawDueDate.trim() : "";
+  const dueDate = dueDateValue ? parseDateOnly(dueDateValue) : null;
+  if (dueDateValue && !dueDate) return { error: "Enter a valid due date." };
 
-  const todo = await captureTodo(name);
+  const todo = await captureTodo(name, dueDate);
   refresh();
   return { captured: todo };
 }
