@@ -325,6 +325,32 @@ text:
 Result: number S0000001, expiry 1994-11-01 and country, with the number
 confirmed by both the page and the MRZ.
 
+## Spike round 3 — Victorian driver licences
+
+Two VicRoads licence specimens filled nothing (one only its number).
+
+- **No single image suits every card.** The flattened copy lost the name
+  and number lines on one card; the plain image read "21-03-2024" as
+  "21703-2024" when flattened. Images are now read twice, plain and
+  flattened, and suggestions are combined field by field: a value from
+  either reading is used, and readings that disagree leave the field
+  blank. The second reading is skipped when the first already verified an
+  MRZ document number, so a clean passport costs one reading.
+- **Column headers.** "LICENCE EXPIRY   DATE OF BIRTH" over "20-05-2019
+  29-07-1983" wasn't read: pairing only knew issue + expiry. It now pairs
+  any mix of issue, expiry and date-of-birth headers with the same number
+  of dates below. Date of birth is only used to tell the columns apart and
+  is never suggested.
+- **Licence type.** The "DRIVER LICENCE" header is white on a dark band
+  and OCR loses it in both readings; "LICENCE NO." / "LICENCE EXPIRY" /
+  "LICENCE TYPE" now count as licence evidence.
+
+Results: Zhang gives type, number and expiry; Jane gives type and expiry.
+Jane's number stays blank: the only reading that saw it misread it as
+"887654301" and had no "LICENCE NO." label to tie it to, so it correctly
+isn't suggested. Reading time rose by roughly one OCR pass (1-2 s on a
+desktop) for anything without a verified MRZ.
+
 ## Consequences
 
 - Strong privacy story, no server changes, and no storage risk.

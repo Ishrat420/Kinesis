@@ -362,3 +362,48 @@ describe("printed number checked against an MRZ that couldn't settle its own", (
     expect(suggestFields("Document No.\nS0000007", "en-AU", MRZ)).not.toHaveProperty("documentNumber");
   });
 });
+
+describe("column headers over their dates", () => {
+  const read = (text: string) => readLabelledFields(text, "DMY");
+
+  it("tells the expiry from the date of birth beside it", () => {
+    expect(read("LICENCE EXPIRY DATE OF BIRTH\n20-05-2019 29-07-1983")).toEqual({ expiryDate: "2019-05-20" });
+    expect(read("DATE OF BIRTH LICENCE EXPIRY\n29-07-1983 20-05-2019")).toEqual({ expiryDate: "2019-05-20" });
+  });
+
+  it("reads nothing when the dates below don't match the headers one for one", () => {
+    expect(read("LICENCE EXPIRY DATE OF BIRTH\n20-05-2019")).toEqual({});
+  });
+});
+
+describe("several OCR readings of one page", () => {
+  it("takes a field from whichever reading has it", () => {
+    expect(suggestFields(["LICENCE NO.\n051395622", "Expiry 21/03/2024"], "en-AU")).toMatchObject({
+      documentNumber: "051395622",
+      expiryDate: "2024-03-21",
+    });
+  });
+
+  it("leaves a field blank when the readings disagree", () => {
+    expect(suggestFields(["Expiry 21/03/2024", "Expiry 21/08/2024"], "en-AU")).not.toHaveProperty("expiryDate");
+  });
+});
+
+describe("real OCR output from Victorian driver licence specimens", () => {
+  it("Jane Citizen: the flattened reading has the dates, the plain one a misread number with no label", () => {
+    const plain = "VICTORIA AUSTRALIA\nJANE CITIZEN ~~ 887654301\n- FLAT 10 NaN 2\nEa";
+    const flattened = "fe = mee —\nVICTORIA AUSTRALIA\nLICENCE NO.\nFLAT 10 on,\n77 SAMPLE PARADE j\nKEW EAST VIC 3102 ool\nLICENCE EXPIRY DATE OF BIRTH re\n20-05-2019 29-07-1983 | aad / )\nve LICENCE TYPE CONDITIONS MR Fe 'y\n= i CAR SBEAVXYZ [ag";
+    expect(suggestFields([plain, flattened], "en-AU")).toEqual({ name: "License", type: "License", expiryDate: "2019-05-20" });
+  });
+
+  it("Zhang: the plain reading has a clean expiry where the flattened one read '-' as '7'", () => {
+    const plain = "VICTORIA AUSTRALIA\n| ZHANG LICENCE NO.\nLIU 051395622\n2 MONTCLAIR CLOSE |\nSPRINGVALE SOUTH VIC 3172 / \\\nLICENCE EXPIRY DATE OF BIRTH \\\n21-03-2024 20-08-1995 -\nLICENCE TYPE CONDITIONS No\nCAR Va |";
+    const flattened = "i VICTORIA AUSTRALIA AAA\nZHANG LICENCENO. |\n| LIU 051395622 |\nl  LicenCE EXPIRY DATE OF BIRTH i\n| 21703-2024 20-08-1995 | i\n\"LICENCE TYPE CONDITIONS A";
+    expect(suggestFields([plain, flattened], "en-AU")).toEqual({
+      name: "License",
+      type: "License",
+      documentNumber: "051395622",
+      expiryDate: "2024-03-21",
+    });
+  });
+});

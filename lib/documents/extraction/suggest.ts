@@ -17,7 +17,8 @@ type DocumentType = (typeof DEFAULT_DOCUMENT_TYPES)[number];
 const TYPE_KEYWORDS: [DocumentType, RegExp][] = [
   ["Passport", /\bpassport\b/i],
   ["Visa", /\bvisa\b/i],
-  ["License", /\b(?:driver'?s?|driving|drivers)\s+licen[cs]e\b/i],
+  // The card's own field labels count too: its "DRIVER LICENCE" header is often white on a dark band, which OCR loses.
+  ["License", /\b(?:(?:driver'?s?|driving|drivers)\s+licen[cs]e|licen[cs]e\s*(?:no\b|number|expiry|type|class))/i],
   ["ID Card", /\b(?:identity|id)\s+card\b/i],
   ["Birth Certificate", /\bbirth\s+certificate\b/i],
   ["Lease", /\b(?:lease\s+agreement|residential\s+tenancy)\b/i],
@@ -40,16 +41,36 @@ function crossChecked(printed: string | undefined, mrzCandidates: string[] | und
   return mrzCandidates.includes(printed.replace(/[\s.-]/g, "")) ? printed : undefined;
 }
 
+/** The one value every reading that has one agrees on; readings that disagree leave the field blank. */
+function agreed(values: (string | undefined)[]): string | undefined {
+  const present = new Set(values.filter((value): value is string => Boolean(value)));
+  return present.size === 1 ? [...present][0] : undefined;
+}
+
 /**
+ * `text` may be several OCR readings of the same page (the image as it is,
+ * and with its background flattened): each catches print the other loses, so
+ * a field is taken from whichever reading has it, and left blank when two
+ * readings disagree.
+ *
  * `mrzText` is a second OCR pass restricted to MRZ characters, when there was
  * one. It reads the MRZ better and everything else worse, so only the MRZ is
- * read from it -- and only once the ordinary text has failed to yield one.
+ * read from it.
  */
-export function suggestFields(text: string, locale: string, mrzText?: string): FieldSuggestions {
-  const fromText = readMrz(text);
-  const mrz = fromText.documentNumber || !mrzText ? fromText : { ...fromText, ...readMrz(mrzText) };
-  const labelled = readLabelledFields(text, documentDateOrder(text, dateOrderFor(locale)));
-  const type = mrz.type ?? typeFromKeywords(text);
+export function suggestFields(text: string | string[], locale: string, mrzText?: string): FieldSuggestions {
+  const texts = Array.isArray(text) ? text : [text];
+  const all = texts.join("\n");
+  // The first reading whose MRZ verified a number, else one that verified anything.
+  const mrzReads = [...texts, ...(mrzText ? [mrzText] : [])].map(readMrz);
+  const mrz = mrzReads.find((read) => read.documentNumber) ?? mrzReads.find((read) => read.expiryDate) ?? {};
+  const order = documentDateOrder(all, dateOrderFor(locale));
+  const readings = texts.map((reading) => readLabelledFields(reading, order));
+  const labelled = {
+    documentNumber: agreed(readings.map((reading) => reading.documentNumber)),
+    expiryDate: agreed(readings.map((reading) => reading.expiryDate)),
+    issueDate: agreed(readings.map((reading) => reading.issueDate)),
+  };
+  const type = mrz.type ?? typeFromKeywords(all);
   const documentNumber = mrz.documentNumber ?? crossChecked(labelled.documentNumber, mrz.documentNumberCandidates);
 
   // The MRZ is check-digit verified, so it wins wherever both read a field.
@@ -60,7 +81,7 @@ export function suggestFields(text: string, locale: string, mrzText?: string): F
     issueDate: labelled.issueDate,
     country: mrz.country,
   };
-  // A label-read issue date that lands on or after the verified expiry was misread.
+  // A label-read issue date that lands on or after the expiry was misread.
   if (suggestions.issueDate && suggestions.expiryDate && suggestions.issueDate >= suggestions.expiryDate) {
     delete suggestions.issueDate;
   }

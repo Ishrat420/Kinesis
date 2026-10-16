@@ -102,22 +102,41 @@ function datesFor(lines: string[], label: RegExp, order: DateOrder, handled: Set
 }
 
 /**
- * The passport-page layout: "Date of issue   Date of expiry" on one line,
- * both dates under them on the next, read in the order the labels are.
+ * Never suggested -- Kinesis doesn't track it -- but a date of birth sits
+ * beside the expiry on most cards, and knowing which column it heads is what
+ * tells the two dates under them apart.
+ */
+const BIRTH_LABEL = label([
+  "date\\s+of\\s+birth", "birth\\s+date", "dob",
+  "fecha\\s+de\\s+nacimiento", "date\\s+de\\s+naissance", "geburtsdatum",
+]);
+
+/**
+ * Column headers over their dates: "Date of issue   Date of expiry", or a
+ * licence's "LICENCE EXPIRY   DATE OF BIRTH", on one line, with the dates in
+ * the same order on the next. Only when the line has no date of its own and
+ * the count of dates below matches the count of headers exactly.
  */
 function pairedDates(lines: string[], order: DateOrder): { issue: string[]; expiry: string[]; handled: Set<number> } {
   const issue: string[] = [];
   const expiry: string[] = [];
   const handled = new Set<number>();
   lines.forEach((line, i) => {
-    const issueHits = hits(line, ISSUE_LABEL);
-    const expiryHits = hits(line, EXPIRY_LABEL);
-    if (issueHits.length !== 1 || expiryHits.length !== 1 || findDates(line, order).length > 0 || i + 1 >= lines.length) return;
+    if (i + 1 >= lines.length || findDates(line, order).length > 0) return;
+    const headers = [
+      ...hits(line, ISSUE_LABEL).map((hit) => ({ ...hit, kind: "issue" as const })),
+      ...hits(line, EXPIRY_LABEL).map((hit) => ({ ...hit, kind: "expiry" as const })),
+      ...hits(line, BIRTH_LABEL).map((hit) => ({ ...hit, kind: "birth" as const })),
+    ].sort((a, b) => a.index - b.index);
+    const kinds = new Set(headers.map((header) => header.kind));
+    // "Date of issue / Date d'expiration" is two names for one column, not two columns.
+    if (headers.length < 2 || kinds.size !== headers.length) return;
     const below = findDates(lines[i + 1], order);
-    if (below.length !== 2) return;
-    const issueFirst = issueHits[0].index < expiryHits[0].index;
-    issue.push(below[issueFirst ? 0 : 1].iso);
-    expiry.push(below[issueFirst ? 1 : 0].iso);
+    if (below.length !== headers.length) return;
+    headers.forEach((header, column) => {
+      if (header.kind === "issue") issue.push(below[column].iso);
+      if (header.kind === "expiry") expiry.push(below[column].iso);
+    });
     handled.add(i);
   });
   return { issue, expiry, handled };

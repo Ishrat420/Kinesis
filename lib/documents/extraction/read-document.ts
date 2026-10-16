@@ -150,7 +150,9 @@ async function readPdf(bytes: Uint8Array, options: Options): Promise<{ text: str
   }
 }
 
-async function recognise(canvases: HTMLCanvasElement[], options: Options): Promise<{ text: string; mrzText?: string }> {
+type ReadText = { texts: string[]; mrzText?: string };
+
+async function recognise(canvases: HTMLCanvasElement[], options: Options): Promise<ReadText> {
   options.onStage?.("loading-ocr");
   const { createWorker, OEM, PSM } = await import("tesseract.js");
   const worker = await createWorker("eng", OEM.LSTM_ONLY, {
@@ -167,15 +169,24 @@ async function recognise(canvases: HTMLCanvasElement[], options: Options): Promi
   try {
     checkAborted(options.signal);
     options.onStage?.("recognising");
-    const texts: string[] = [];
+    // Two readings of each page: as it is, and with its background flattened.
+    // On real cards each caught print the other lost, in both directions.
+    const plain: string[] = [];
+    for (const canvas of canvases) {
+      checkAborted(options.signal);
+      plain.push((await worker.recognize(canvas)).data.text);
+    }
+    // An MRZ that verified on the first reading already has everything the others could add.
+    if (readMrz(plain.join("\n")).documentNumber) return { texts: [plain.join("\n")] };
+    const flattened: string[] = [];
     for (const canvas of canvases) {
       checkAborted(options.signal);
       const flat = flattenedCopy(canvas);
-      texts.push((await worker.recognize(flat)).data.text);
+      flattened.push((await worker.recognize(flat)).data.text);
       flat.width = flat.height = 0;
     }
-    const text = texts.join("\n");
-    if (!looksLikeMrz(text) || readMrz(text).documentNumber) return { text };
+    const texts = [plain.join("\n"), flattened.join("\n")];
+    if (!texts.some(looksLikeMrz) || texts.some((text) => readMrz(text).documentNumber)) return { texts };
 
     // An MRZ the first pass couldn't verify: once more, on the unflattened image, seeing only MRZ characters.
     await worker.setParameters({ tessedit_char_whitelist: MRZ_CHARACTERS, tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
@@ -184,7 +195,7 @@ async function recognise(canvases: HTMLCanvasElement[], options: Options): Promi
       checkAborted(options.signal);
       mrzTexts.push((await worker.recognize(canvas)).data.text);
     }
-    return { text, mrzText: mrzTexts.join("\n") };
+    return { texts, mrzText: mrzTexts.join("\n") };
   } finally {
     options.signal?.removeEventListener("abort", stop);
     stop();
@@ -198,7 +209,7 @@ async function recognise(canvases: HTMLCanvasElement[], options: Options): Promi
  * `readDocument` so the rules can be checked against exactly what the engine
  * saw on a real document.
  */
-export async function readDocumentText(file: File, options: Options): Promise<{ text: string; mrzText?: string }> {
+export async function readDocumentText(file: File, options: Options): Promise<ReadText> {
   if (file.size > MAX_DOCUMENT_BYTES) throw new ExtractionError("too-large");
   options.onStage?.("opening");
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -209,7 +220,7 @@ export async function readDocumentText(file: File, options: Options): Promise<{ 
   try {
     if (kind === "pdf") {
       const read = await readPdf(bytes, options);
-      return "text" in read ? read : await recognise(read.canvases, options);
+      return "text" in read ? { texts: [read.text] } : await recognise(read.canvases, options);
     }
     return await recognise([await imageCanvas(file)], options);
   } catch (error) {
@@ -220,6 +231,6 @@ export async function readDocumentText(file: File, options: Options): Promise<{ 
 }
 
 export async function readDocument(file: File, options: Options): Promise<FieldSuggestions> {
-  const { text, mrzText } = await readDocumentText(file, options);
-  return suggestFields(text, options.locale, mrzText);
+  const { texts, mrzText } = await readDocumentText(file, options);
+  return suggestFields(texts, options.locale, mrzText);
 }
