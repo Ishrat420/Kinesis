@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Minified OCR/PDF engines copied from node_modules (scripts/copy-extraction-assets.mjs).
+    "public/extraction/**",
   ]),
 ]);
 

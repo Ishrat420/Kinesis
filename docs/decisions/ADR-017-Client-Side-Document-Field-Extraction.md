@@ -2,8 +2,9 @@
 
 ## Status
 
-Proposed — analysis for KD-016 (v1.5.0). Not yet implemented. The open
-questions at the end need answers before this moves to Accepted.
+Proposed — v1 is built on the `v1.5.0` branch (see "Implementation" below) so
+the spike in "Phasing" runs on the real Upload flow instead of a separate test
+page. It moves to Accepted once the spike's results are in.
 
 ## Context
 
@@ -59,7 +60,7 @@ text into field suggestions.
 | Job | Library | Licence | Notes |
 |---|---|---|---|
 | Text from PDFs that already contain text | `pdfjs-dist` 6.x | Apache-2.0 | Mozilla's PDF engine, the same one Firefox uses. Exact, fast, no OCR. |
-| Text from photos and scans | `tesseract.js` 7.x + `tesseract.js-core` | Apache-2.0 | Tesseract (classic LSTM OCR, no LLM) compiled to WASM. |
+| Text from photos and scans | `tesseract.js` 7.x + `tesseract.js-core` 7.x + `@tesseract.js-data/eng` | Apache-2.0 / MIT | Tesseract (classic LSTM OCR, no LLM) compiled to WASM. |
 | Parse and verify the passport/ID machine-readable zone (MRZ) | `mrz` 5.x | MIT | Validates check digits (verified locally on the ICAO specimen: a single misread character in the document number fails both its own check digit and the composite one). |
 | Field rules | Our own code in `lib/documents/extraction/` | — | Pure functions over text, unit-tested in Vitest. |
 
@@ -149,9 +150,11 @@ missed renewal.
   loads from a same-origin URL and `worker-src 'self'` is enough, with no
   need for `blob:`.
 - **pdf.js hardening.** Use 6.x (well past CVE-2024-4367, a code-execution
-  bug fixed in 4.2.67). Pass `isEvalSupported: false`. Never render pdf.js
-  output as HTML. The risk is contained anyway: it's the user's own file,
-  in their own browser.
+  bug fixed in 4.2.67). pdf.js 6 has removed the eval-based font path that
+  `isEvalSupported: false` used to switch off, so there is no option left to
+  set. Don't ship `quickjs-eval` (pdf.js's engine for JavaScript embedded in
+  PDFs). Never render pdf.js output as HTML. The risk is contained anyway:
+  it's the user's own file, in their own browser.
 - **Data minimisation (KD-016).** Raw OCR text is never put in `notes`,
   never logged, and never sent anywhere. Only the specific suggested
   fields are surfaced. Terminate the worker, revoke object URLs and drop
@@ -165,10 +168,11 @@ missed renewal.
 
 - Load nothing until the user actually picks a file (dynamic `import()`
   inside the upload flow, so the documents page bundle is unchanged).
-- Rough download on first use: WASM core a few MB, `eng.traineddata`
-  (fast) about 2 MB, pdf.js about 1 MB. After that it's cached by the
-  browser. **To be measured in the spike.** Exact figures depend on which
-  core build (SIMD or not) the device loads.
+- Download on first use (measured on the built files): OCR worker 0.1 MB,
+  one WASM core 3.9 MB (the device gets one of three builds), English
+  language data 2.9 MB, and for PDFs the pdf.js worker 1.3 MB plus a
+  0.9 MB chunk. All of it is cached for a year after that, because the
+  folder name changes with every version.
 - Expect a few seconds per image on a modern phone. Show progress, and
   always let the user skip straight to the empty form.
 
@@ -211,6 +215,38 @@ missed renewal.
 3. **Later.** More label sets per document type (licences, insurance,
    leases). Optional preprocessing such as deskew and contrast. Revisit
    barcodes only if needed.
+
+## Implementation (v1, on `v1.5.0`)
+
+- Rules: `lib/documents/extraction/` — `dates.ts`, `labels.ts`, `mrz.ts`,
+  `suggest.ts`, `file-kind.ts`, tested in
+  `tests/unit/document-extraction.test.ts`.
+- Browser runner: `lib/documents/extraction/read-document.ts`, loaded with
+  `import()` only once a file is being read.
+- Assets: `scripts/copy-extraction-assets.mjs` copies the engines into
+  `public/extraction/t<tesseract>-c<core>-p<pdfjs>/` on `npm run dev` and
+  `npm run build`. The folder is gitignored, and the build fails if
+  `assets.json` disagrees with what is installed. Dependencies are pinned
+  exactly.
+- Headers: `'wasm-unsafe-eval'` in `script-src`; `/extraction/*` cached
+  immutable and excluded from the `no-store` rule; excluded from the Clerk
+  proxy matcher (public library code, no user data).
+- UI: "Upload document" reads the file, then opens the same create form
+  as "Add manually" (now `CreateDocumentDialog`), pre-filled, with each
+  filled field marked "From your document — check this". "Fill in myself"
+  is available while it reads and after a failure.
+- The second MRZ pass re-reads the whole image with only MRZ characters
+  allowed, and only the MRZ is taken from it. It doesn't crop to the MRZ
+  area. Cropping is the next step if the spike shows MRZ misses on real
+  photos.
+- Checked in headless Chromium with this policy *enforced* on generated
+  documents: an MRZ passport image, a text PDF, a scanned PDF and a
+  disguised HTML file. All fields were read correctly, the HTML file was
+  refused, there were no CSP violations, and no requests left the origin.
+  Those were clean synthetic images; real photos are what the spike is for.
+- Not yet known: visas. `mrz` parses TD1, TD2 and TD3; machine-readable
+  visas (MRV-A/B) may not parse, in which case they fall back to the label
+  rules.
 
 ## Consequences
 

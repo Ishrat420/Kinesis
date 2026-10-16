@@ -1,0 +1,6 @@
+{
+  "tesseract": "7.0.0",
+  "tesseractCore": "7.0.0",
+  "eng": "4.0.0_best_int",
+  "pdfjs": "6.4.299"
+}

@@ -29,8 +29,10 @@ export default clerkMiddleware(
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Skip Next.js internals and all static files, unless found in search params.
+    // extraction/ is the OCR and PDF engines (ADR-017): public library code with
+    // no user data in it, and file types (.mjs, .gz) the extension list doesn't cover.
+    '/((?!_next|extraction/|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
     // Always run for API routes
     '/(api|trpc)(.*)',
     // Match Clerk Frontend API proxy requests when the Clerk option above is enabled.

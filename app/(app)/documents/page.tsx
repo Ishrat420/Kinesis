@@ -32,7 +32,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         actions={
           <>
             <ManualDocumentButton documentTypes={documentTypes} linkOptions={linkOptions} capture={capture} />
-            <UploadDocumentButton />
+            <UploadDocumentButton documentTypes={documentTypes} linkOptions={linkOptions} />
           </>
         }
       />

@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# document extraction engines, copied from node_modules (scripts/copy-extraction-assets.mjs)
+/public/extraction/

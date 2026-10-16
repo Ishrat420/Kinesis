@@ -9,6 +9,7 @@ import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/ty
 import type { KinesisLinkPreviewStat } from "@/lib/data/kinesis-links";
 import type { KinesisLink } from "@/lib/data/object-relationships";
 import type { KinesisLinkActionState } from "@/app/actions";
+import { SuggestedHint } from "./SuggestedHint";
 import { LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { initialRepeat, RepeatButton, RepeatFields, type RepeatState } from "@/components/recurrence/RepeatControls";
 import type { Recurrence } from "@/lib/recurrence";
@@ -35,6 +36,7 @@ export function DocumentFields({
   kinesisLinks,
   updateKinesisLinkAction,
   removeKinesisLinkAction,
+  suggested,
 }: {
   labels?: Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>;
   values?: Partial<Record<"expiryDate" | "issueDate" | "documentNumber" | "country" | "notes" | "link", string>>;
@@ -51,6 +53,8 @@ export function DocumentFields({
   kinesisLinks?: KinesisLink[];
   updateKinesisLinkAction?: (linkId: string, data: FormData) => Promise<void>;
   removeKinesisLinkAction?: (linkId: string) => Promise<void>;
+  /** KD-016: the fields pre-filled from an uploaded file, each marked for checking. */
+  suggested?: ReadonlySet<string>;
 }) {
   const [expiryDate, setExpiryDate] = useState(values.expiryDate ?? "");
   const [repeat, setRepeat] = useState<RepeatState>(() => initialRepeat(initialRecurrence));
@@ -67,8 +71,8 @@ export function DocumentFields({
     <div className="space-y-5">
       <div className="space-y-3">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" type="date" value={values.expiryDate} onChange={changeExpiry} addon={repeatButton} />
-          <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" type="date" value={values.issueDate} />
+          <EditableField label={labels.expiryDate} labelName="expiryDateLabel" name="expiryDate" suggested={suggested?.has("expiryDate")} type="date" value={values.expiryDate} onChange={changeExpiry} addon={repeatButton} />
+          <EditableField label={labels.issueDate} labelName="issueDateLabel" name="issueDate" suggested={suggested?.has("issueDate")} type="date" value={values.issueDate} />
         </div>
         {/* Full width, as on the to-do form: half a column left "Every N days" and its N box too narrow to read. */}
         <RepeatFields repeat={repeat} onChange={setRepeat} dueDate={expiryDate} fieldClass={repeatFieldClass} wording="renew" />
@@ -80,8 +84,8 @@ export function DocumentFields({
         <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">More details</p>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" value={values.documentNumber} maxLength={TEXT_LIMIT} />
-          <EditableField label={labels.country} labelName="countryLabel" name="country" value={values.country} maxLength={TEXT_LIMIT} />
+          <EditableField label={labels.documentNumber} labelName="documentNumberLabel" name="documentNumber" suggested={suggested?.has("documentNumber")} value={values.documentNumber} maxLength={TEXT_LIMIT} />
+          <EditableField label={labels.country} labelName="countryLabel" name="country" suggested={suggested?.has("country")} value={values.country} maxLength={TEXT_LIMIT} />
         </div>
         <EditableField label={labels.link} labelName="linkLabel" name="link" value={values.link} type="url" icon maxLength={LINK_LIMIT} />
         <EditableField label={labels.notes} labelName="notesLabel" name="notes" value={values.notes} multiline maxLength={NOTES_LIMIT} />
@@ -100,7 +104,7 @@ const repeatFieldClass = "w-full rounded-xl border-[1.5px] border-zinc-200 bg-wh
 
 const inputClass = "h-[50px] min-w-0 w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 text-base text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm";
 
-function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, maxLength, onChange, addon }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; maxLength?: number; onChange?: (value: string) => void; addon?: ReactNode }) {
+function EditableField({ label, labelName, name, value, type = "text", multiline = false, icon = false, maxLength, onChange, addon, suggested = false }: { label: string; labelName: string; name: string; value?: string; type?: string; multiline?: boolean; icon?: boolean; maxLength?: number; onChange?: (value: string) => void; addon?: ReactNode; suggested?: boolean }) {
   return (
     <div className="min-w-0 space-y-2">
       <EditableLabel name={labelName} initialValue={label} ariaLabel={`${label} field name`} />
@@ -114,6 +118,7 @@ function EditableField({ label, labelName, name, value, type = "text", multiline
           <input name={name} type={type} defaultValue={value} onChange={(event) => onChange?.(event.target.value)} aria-label={label} placeholder={icon ? "https://example.com" : undefined} maxLength={maxLength} className={`${inputClass} ${icon ? "pl-10" : ""}`} />
         </div>
       )}
+      {suggested && <SuggestedHint />}
     </div>
   );
 }

@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
+    "dev": "node scripts/copy-extraction-assets.mjs && next dev",
+    "build": "prisma generate && node scripts/copy-extraction-assets.mjs && next build",
     "db:deploy": "node scripts/deploy-database.mjs",
     "start": "next start",
     "lint": "eslint",
@@ -19,12 +19,16 @@
   "dependencies": {
     "@clerk/nextjs": "^7.8.2",
     "@prisma/client": "^6.19.3",
+    "@tesseract.js-data/eng": "1.0.0",
     "lucide-react": "^1.46.0",
+    "mrz": "5.0.2",
     "next": "16.3.8",
+    "pdfjs-dist": "6.4.299",
     "pg": "^8.22.0",
     "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "tesseract.js": "7.0.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

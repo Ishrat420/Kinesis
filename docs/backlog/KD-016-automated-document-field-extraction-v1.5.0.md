@@ -1,6 +1,6 @@
 # KD-016 — Automated Document Field Extraction
 
-**Status:** Planning Needed
+**Status:** In Progress — v1 built on `v1.5.0` for the spike (ADR-017)
 **Priority:** High  
 **Tags:** Security, Needs Research
 **Planned Release:** v1.5.0
@@ -57,4 +57,4 @@ User should have the ability to turn off AI features as well if wanted.
 
 ## Analysis
 
-The first version is scoped to no AI and no file storage: deterministic OCR and parsing, run entirely in the browser, pre-filling the existing manual form. Libraries, pipeline, security requirements, phasing and open questions are in [ADR-017](../decisions/ADR-017-Client-Side-Document-Field-Extraction.md) (Proposed).
+The first version is scoped to no AI and no file storage: deterministic OCR and parsing, run entirely in the browser, pre-filling the existing manual form. Libraries, pipeline, security requirements, phasing and open questions are in [ADR-017](../decisions/ADR-017-Client-Side-Document-Field-Extraction.md) (Proposed). v1 is built into the real Upload flow; the next step is the spike: 10–20 real documents, each field recorded as right, blank or wrong.
