@@ -26,6 +26,26 @@ export function dateOrderFor(locale: string): DateOrder {
   return "DMY";
 }
 
+/**
+ * The order the document itself uses, when it gives itself away: any numeric
+ * date with a part over 12 (23/04/2027, 04/23/2027) can only be read one way,
+ * and a document doesn't mix orders. Without such a date, or with dates
+ * pointing both ways, the owner's locale decides.
+ */
+export function documentDateOrder(text: string, fallback: DateOrder): DateOrder {
+  let dayFirst = false;
+  let monthFirst = false;
+  for (const match of text.matchAll(/\b(\d{1,2})([-/.])(\d{1,2})\2(?:\d{4}|\d{2})\b/g)) {
+    const first = Number(match[1]);
+    const second = Number(match[3]);
+    if (first > 12 && second <= 12) dayFirst = true;
+    if (second > 12 && first <= 12) monthFirst = true;
+  }
+  if (dayFirst && !monthFirst) return "DMY";
+  if (monthFirst && !dayFirst) return "MDY";
+  return fallback;
+}
+
 const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
 /** `Apr`, `April`, `APR.` and `Sept` -- but not any word that merely starts like a month. */

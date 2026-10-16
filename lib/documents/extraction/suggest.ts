@@ -1,5 +1,5 @@
 import { DEFAULT_DOCUMENT_TYPES } from "@/lib/documents/types";
-import { dateOrderFor } from "./dates";
+import { dateOrderFor, documentDateOrder } from "./dates";
 import { readLabelledFields } from "./labels";
 import { readMrz } from "./mrz";
 
@@ -37,7 +37,7 @@ function typeFromKeywords(text: string): DocumentType | undefined {
 export function suggestFields(text: string, locale: string, mrzText?: string): FieldSuggestions {
   const fromText = readMrz(text);
   const mrz = fromText.documentNumber || !mrzText ? fromText : { ...fromText, ...readMrz(mrzText) };
-  const labelled = readLabelledFields(text, dateOrderFor(locale));
+  const labelled = readLabelledFields(text, documentDateOrder(text, dateOrderFor(locale)));
   const type = mrz.type ?? typeFromKeywords(text);
 
   // The MRZ is check-digit verified, so it wins wherever both read a field.

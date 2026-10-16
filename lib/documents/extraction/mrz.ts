@@ -62,12 +62,53 @@ function countryName(code: string): string | undefined {
   return name?.replace(/\s*\(.*?\)\s*/g, " ").trim() || undefined;
 }
 
-function fields(result: ParseResult): MrzFields {
-  const valid = (field: string) => result.details.find((detail) => detail.field === field)?.valid === true;
-  const out: MrzFields = {};
+const isValid = (result: ParseResult, field: string) => result.details.find((detail) => detail.field === field)?.valid === true;
 
+/**
+ * Characters OCR confuses in a document number. Unlike dates, a document
+ * number may hold letters and digits, so `mrz`'s autocorrect can't know which
+ * was meant -- but the check digits can.
+ */
+const LOOKALIKES: Record<string, string[]> = {
+  "0": ["O", "D", "Q"], O: ["0"], D: ["0"], Q: ["0"],
+  "1": ["I"], I: ["1"],
+  "2": ["Z"], Z: ["2"],
+  "5": ["S"], S: ["5"],
+  "6": ["G"], G: ["6"],
+  "8": ["B"], B: ["8"],
+};
+
+/**
+ * A misread document number, fixed only when exactly one single-character
+ * look-alike swap makes both its own check digit and the composite check digit
+ * (which covers the number and the dates together) pass. Two independent
+ * checks agreeing on one answer, rather than a guess.
+ */
+function repairDocumentNumber(lines: string[], result: ParseResult): string | undefined {
+  const detail = result.details.find((entry) => entry.field === "documentNumber");
+  if (!detail || !isValid(result, "expirationDateCheckDigit")) return undefined;
+  const fixes = new Set<string>();
+  for (let column = detail.start; column < detail.end; column++) {
+    for (const swap of LOOKALIKES[lines[detail.line][column]] ?? []) {
+      const changed = [...lines];
+      changed[detail.line] = changed[detail.line].slice(0, column) + swap + changed[detail.line].slice(column + 1);
+      const reparsed = tryParse(changed);
+      if (reparsed?.documentNumber && isValid(reparsed, "documentNumberCheckDigit") && isValid(reparsed, "compositeCheckDigit")) {
+        fixes.add(reparsed.documentNumber);
+      }
+    }
+  }
+  return fixes.size === 1 ? [...fixes][0] : undefined;
+}
+
+function fields(lines: string[], result: ParseResult): MrzFields {
+  const valid = (field: string) => isValid(result, field);
+  const out: MrzFields = {};
   if (result.documentNumber && valid("documentNumber") && valid("documentNumberCheckDigit")) {
     out.documentNumber = result.documentNumber;
+  } else {
+    const repaired = repairDocumentNumber(lines, result);
+    if (repaired) out.documentNumber = repaired;
   }
   const expiry = result.fields.expirationDate;
   if (expiry && valid("expirationDate") && valid("expirationDateCheckDigit")) {
@@ -89,9 +130,13 @@ function fields(result: ParseResult): MrzFields {
   return out;
 }
 
-/** Whether the text looks like it holds an MRZ, worth a second, MRZ-only OCR pass. */
+/**
+ * Whether the text looks like it holds an MRZ, worth a second, MRZ-only OCR
+ * pass: a run of filler, or a long line of nothing but MRZ characters. OCR
+ * often reads a line's `<` filler as `C` or `L`, so filler on one line is enough.
+ */
 export function looksLikeMrz(text: string): boolean {
-  return (text.match(/<{2,}/g) ?? []).length >= 2;
+  return /<{3,}/.test(text) || candidates(text).length > 0;
 }
 
 export function readMrz(text: string): MrzFields {
@@ -102,7 +147,7 @@ export function readMrz(text: string): MrzFields {
       if (window.some((line) => line === null)) continue;
       const result = tryParse(window as string[]);
       if (!result) continue;
-      const read = fields(result);
+      const read = fields(window as string[], result);
       if (read.documentNumber || read.expiryDate) return read;
     }
   }

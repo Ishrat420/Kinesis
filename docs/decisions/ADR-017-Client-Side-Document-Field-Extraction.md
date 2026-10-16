@@ -248,6 +248,58 @@ missed renewal.
   visas (MRV-A/B) may not parse, in which case they fall back to the label
   rules.
 
+## Spike round 1 — published specimen images
+
+The owner's first test used four published specimen images: a US driver
+licence, a Chilean ID card and two Australian passports, all 250–600 px
+wide. At first only the document type came through. What was wrong, from
+the raw OCR text, and what changed:
+
+- **Too small to read.** Small images were never enlarged, so their print
+  was 8–12 px tall, below what Tesseract reads at all. Images are now
+  enlarged up to 4× toward a 2000 px long edge.
+- **Security-pattern backgrounds.** The general pass now reads a copy that
+  is greyscaled and contrast-stretched (darkest 1% to black, lightest 40%
+  to white). On the US licence this turned "MR"/"exe" into "EXP". It broke
+  a digit in a passport MRZ, which sits on plain paper, so the MRZ pass
+  reads the unflattened image.
+- **MRZ misses.** A first pass that read every `<` as `C` never triggered
+  the MRZ-only pass; the trigger is now a run of filler *or* any long line
+  of MRZ characters. A document number with one look-alike misread
+  (`RA0123456` read as `RAD123456`) is repaired only when exactly one
+  single-character swap makes both its own check digit and the composite
+  check digit pass.
+- **Labels in other languages.** Spanish, French and German expiry, issue
+  and document-number labels, and the US licence codes `DL`, `EXP`, `ISS`.
+  A line naming both issue and expiry over a single date ("Date of issue /
+  Date d'expiration") is no longer read by either single-label rule: it
+  had been about to fill the issue date in as the expiry.
+- **Day/month order.** A numeric date with a part over 12 anywhere on the
+  document now sets the order for the whole document; the locale only
+  decides when the document doesn't.
+
+Results after the changes:
+
+| Sample | Before | After |
+|---|---|---|
+| Australian passport (Jane Citizen) | type | number, expiry, country, type (all check-digit verified) |
+| Chilean ID | — | expiry, issue date |
+| US licence | type | type, expiry (read day-first under en-AU; see below) |
+| Australian passport (Marcus) | type | type: its MRZ is invalid (5-digit date of birth, failing check digits), so it is correctly refused, and its visual-zone labels don't survive OCR |
+
+Still open:
+- **US-format dates under an Australian locale.** "EXP 07/11/2025" with
+  no unambiguous date elsewhere on the card is read as 7 Nov, where the US
+  licence means 11 Jul. It is marked for checking like every suggestion,
+  but by the "blank, not wrong" principle it is wrong. Options: leave
+  ambiguous numeric dates blank, or treat US-only signals (the "LICENSE"
+  spelling, US state codes) as evidence. Undecided.
+- **Multi-column numbers** (the Chilean "NÚMERO DOCUMENTO" sits beside the
+  date of birth) aren't read: telling columns apart needs word positions
+  from OCR, not just its text.
+- Specimen images are small, flat and clean. Phone photos of real
+  documents are the remaining test.
+
 ## Consequences
 
 - Strong privacy story, no server changes, and no storage risk.

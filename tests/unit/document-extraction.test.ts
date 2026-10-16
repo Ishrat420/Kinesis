@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateOrderFor, findDates } from "@/lib/documents/extraction/dates";
+import { dateOrderFor, documentDateOrder, findDates } from "@/lib/documents/extraction/dates";
 import { readLabelledFields } from "@/lib/documents/extraction/labels";
 import { looksLikeMrz, readMrz } from "@/lib/documents/extraction/mrz";
 import { suggestFields } from "@/lib/documents/extraction/suggest";
@@ -15,7 +15,7 @@ import { sniffFileKind } from "@/lib/documents/extraction/file-kind";
 // real: same holder and dates, check digits recomputed for the new state.
 const PASSPORT_MRZ = [
   "P<AUSERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
-  "L898902C36AUS7408122F1204159<<<<<<<<<<<<<<02",
+  "L898902C36AUS7408122F1204159<<<<<<<<<<<<<<08",
 ];
 
 const iso = (text: string, locale = "en-AU") => findDates(text, dateOrderFor(locale)).map((date) => date.iso);
@@ -206,5 +206,93 @@ describe("sniffFileKind", () => {
   it("refuses anything else, whatever it is named", () => {
     expect(sniffFileKind(new TextEncoder().encode("<html>"))).toBeNull();
     expect(sniffFileKind(bytes())).toBeNull();
+  });
+});
+
+describe("documentDateOrder", () => {
+  it("follows a date on the document that can only be read one way", () => {
+    expect(documentDateOrder("DOB 09/25/1993\nEXP 07/11/2025", "DMY")).toBe("MDY");
+    expect(documentDateOrder("Born 25/09/1993\nExpiry 07/11/2025", "MDY")).toBe("DMY");
+  });
+
+  it("falls back to the locale when the document doesn't say, or says both", () => {
+    expect(documentDateOrder("EXP 07/11/2025", "DMY")).toBe("DMY");
+    expect(documentDateOrder("25/09/1993 09/25/1993", "MDY")).toBe("MDY");
+  });
+});
+
+describe("more label languages and layouts", () => {
+  const read = (text: string) => readLabelledFields(text, "DMY");
+
+  it("reads Spanish, French and German labels", () => {
+    expect(read("FECHA DE VENCIMIENTO: 15 SEP 2027")).toEqual({ expiryDate: "2027-09-15" });
+    expect(read("Fecha de emisión 14/04/2017")).toEqual({ issueDate: "2017-04-14" });
+    expect(read("Date de délivrance : 01.02.2020")).toEqual({ issueDate: "2020-02-01" });
+    expect(read("Gültig bis 01.02.2030")).toEqual({ expiryDate: "2030-02-01" });
+    expect(read("Número documento: 728.628.513")).toEqual({ documentNumber: "728.628.513" });
+  });
+
+  it("reads the US licence codes", () => {
+    expect(read("DL 123456789 CLASS C\nEXP 07/11/2025\nISS 07/11/2015")).toEqual({
+      documentNumber: "123456789",
+      expiryDate: "2025-11-07",
+      issueDate: "2015-11-07",
+    });
+  });
+
+  it("doesn't take 'dl' in lower case as a licence label", () => {
+    expect(read("handl 12345678")).toEqual({});
+  });
+
+  it("reads neither date under a label naming both issue and expiry", () => {
+    // The Australian passport prints "Date of issue / Date d'expiration" over the issue date.
+    expect(read("Date of issue / Date d'expiration\n18 MAR 2019\nAuthority\n18 MAR 2029")).toEqual({});
+  });
+
+  it("takes the one number-shaped token under a label that ends its line", () => {
+    expect(read("PASSPORT AUSTRALIA DOCUMENT NO.\neT N0885237")).toEqual({ documentNumber: "N0885237" });
+  });
+
+  it("takes nothing when the line under the label has two candidates", () => {
+    expect(read("Document number\n12345678 87654321")).toEqual({});
+  });
+});
+
+describe("MRZ document number repair", () => {
+  it("fixes one look-alike character when both check digits then agree", () => {
+    const misread = PASSPORT_MRZ[1].replace("L898902C3", "L8989O2C3");
+    expect(readMrz(`${PASSPORT_MRZ[0]}\n${misread}`)).toMatchObject({ documentNumber: "L898902C3" });
+  });
+
+  it("leaves the number blank when no single swap satisfies the check digits", () => {
+    const misread = PASSPORT_MRZ[1].replace("L898902C3", "L898902G3");
+    expect(readMrz(`${PASSPORT_MRZ[0]}\n${misread}`)).not.toHaveProperty("documentNumber");
+  });
+});
+
+/**
+ * The text tesseract.js actually produced from sample images the owner
+ * tested with: published specimen documents, not anyone's real document.
+ */
+describe("real OCR output from specimen documents", () => {
+  it("Australian passport specimen: '<' read as C, 0 read as D", () => {
+    const mrzPass = "PCAUSCITIZENCCIANECCCCCCCCCCLCCLCLLLLLCCCC<\nRAD1234564AUS9105045F3208014<99999000T<<<<86";
+    expect(suggestFields("AUSTRALIA\nPASSPORT\n04 MAY 1991\nCANBERRA\n01 AUG 2022", "en-AU", mrzPass)).toEqual({
+      name: "Passport (Australia)",
+      type: "Passport",
+      documentNumber: "RA0123456",
+      expiryDate: "2032-08-01",
+      country: "Australia",
+    });
+  });
+
+  it("Chilean ID specimen: Spanish column headers over their dates", () => {
+    const text = "FECHA DE NACIMIENTO NUMERO DOCUMENTO 3\n: 07 FEB 1975 728628513 208 158s 5\n¢ rr FECHA DE EMISION FECHA DE VENCIMIENTO\n5 J 14 APR 1975 15 SEP 2027";
+    expect(suggestFields(text, "en-AU")).toEqual({ expiryDate: "2027-09-15", issueDate: "1975-04-14" });
+  });
+
+  it("Australian passport specimen with an invalid MRZ: nothing from it, and no guessed dates", () => {
+    const text = "PASSPORT AUSTRALIA DOCUMENT NC\n18 MAR 2019 A\nLY J 18 MAR 2029\nP<AUSANTHONY<<MARCUS<SETH<<<<<<<<<<<<<<<<<<<<<<<<<<\nNOB8B5237AUS75213M2760315<<1987885W0<<<<<<<<<<B4";
+    expect(suggestFields(text, "en-AU")).toEqual({ name: "Passport", type: "Passport" });
   });
 });
