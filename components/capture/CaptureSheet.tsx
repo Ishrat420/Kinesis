@@ -116,7 +116,7 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
                 value={text}
                 onChange={(event) => { setText(event.target.value); setError(undefined); }}
                 enterKeyHint="done"
-                className="w-full resize-none rounded-2xl border-[1.5px] border-zinc-900 px-4 py-3.5 text-[17px] leading-snug text-zinc-950 outline-none focus:ring-4 focus:ring-zinc-900/10"
+                className="w-full resize-none rounded-2xl bg-zinc-100 px-4 py-3.5 text-[17px] leading-snug text-zinc-950 outline-none"
               />
 
               {title ? (
@@ -129,14 +129,14 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
                   {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
 
                   <div className="flex gap-2.5">
-                    <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a photo or file instead" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-900"><Paperclip className="h-5 w-5" aria-hidden="true" /></button>
+                    <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a photo or file instead" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900"><Paperclip className="h-5 w-5" aria-hidden="true" /></button>
                     <button type="button" onClick={createFromText} disabled={creating} className="h-14 flex-1 rounded-2xl bg-zinc-950 text-base font-semibold text-white disabled:opacity-60">{buttonLabel}</button>
                   </div>
                 </>
               ) : (
                 <div className="grid grid-cols-2 gap-2.5">
-                  <button type="button" onClick={() => photoRef.current?.click()} className="flex h-[52px] items-center justify-center gap-2.5 rounded-2xl border border-zinc-200 bg-zinc-50 text-[15px] font-semibold text-zinc-950"><Camera className="h-5 w-5" aria-hidden="true" />Take photo</button>
-                  <button type="button" onClick={() => fileRef.current?.click()} className="flex h-[52px] items-center justify-center gap-2.5 rounded-2xl border border-zinc-200 bg-zinc-50 text-[15px] font-semibold text-zinc-950"><FileText className="h-5 w-5" aria-hidden="true" />Choose file</button>
+                  <button type="button" onClick={() => photoRef.current?.click()} className="flex h-[52px] items-center justify-center gap-2.5 rounded-2xl bg-zinc-100 text-[15px] font-semibold text-zinc-950"><Camera className="h-5 w-5" aria-hidden="true" />Take photo</button>
+                  <button type="button" onClick={() => fileRef.current?.click()} className="flex h-[52px] items-center justify-center gap-2.5 rounded-2xl bg-zinc-100 text-[15px] font-semibold text-zinc-950"><FileText className="h-5 w-5" aria-hidden="true" />Choose file</button>
                 </div>
               )}
             </>

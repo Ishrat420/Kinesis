@@ -65,7 +65,7 @@ export function DueDateButton({ value, onChange, large = false }: { value: strin
   const label = useDateLabel(large);
   const [focused, setFocused] = useState(false);
   return (
-    <div className={`flex min-w-0 shrink-0 items-center rounded-xl border bg-white transition ${focused ? "border-zinc-900 ring-4 ring-zinc-900/10" : "border-zinc-200"} ${large ? "w-full" : ""}`}>
+    <div className={`flex min-w-0 shrink-0 items-center rounded-xl transition ${focused ? "bg-zinc-200" : "bg-white"} ${large ? "w-full" : ""}`}>
       <div className={`relative flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl font-medium text-zinc-900 ${large ? "h-12 px-3 text-[15px]" : "h-8 px-2.5 text-[13px]"}`}>
         <CalendarDays className="h-4 w-4 shrink-0 text-zinc-500" aria-hidden="true" />
         <span className="truncate">{value ? (large ? `Due ${label(value)}` : label(value)) : "Add a due date"}</span>
@@ -139,11 +139,11 @@ export function TodoCard({ title, onTitle, detail, dueDate, onDueDate, rolled = 
   title: string; onTitle?: (title: string) => void; detail?: string; dueDate: string; onDueDate: (value: string) => void; rolled?: boolean; large?: boolean;
 }) {
   return (
-    <div className={`flex flex-col gap-2.5 rounded-2xl border-[1.5px] border-zinc-900 ${large ? "p-3.5" : "p-3"}`}>
+    <div className={`flex flex-col gap-2.5 rounded-2xl bg-zinc-100 ${large ? "p-3.5" : "p-3"}`}>
       <div className="flex items-center gap-3">
         <span className={`flex shrink-0 items-center justify-center rounded-[10px] bg-zinc-950 text-white ${large ? "h-9 w-9" : "h-[34px] w-[34px]"}`}><Check className="h-4 w-4" aria-hidden="true" /></span>
         {onTitle ? (
-          <input value={title} onChange={(event) => onTitle(event.target.value)} aria-label="To-do" className={`min-w-0 flex-1 rounded-md bg-transparent font-semibold text-zinc-950 outline-none focus:bg-zinc-50 ${large ? "text-base" : "text-[15px]"}`} />
+          <input value={title} onChange={(event) => onTitle(event.target.value)} aria-label="To-do" className={`min-w-0 flex-1 rounded-md bg-transparent font-semibold text-zinc-950 outline-none focus:bg-white ${large ? "text-base" : "text-[15px]"}`} />
         ) : (
           <span className={`min-w-0 flex-1 truncate font-semibold text-zinc-950 ${large ? "text-base" : "text-[15px]"}`}>{title}</span>
         )}
@@ -159,8 +159,8 @@ export function TodoCard({ title, onTitle, detail, dueDate, onDueDate, rolled = 
 /** The document half of a card: its name and, in one line, what was read for it. */
 export function DocumentCard({ name, detail, large = false }: { name: string; detail?: string; large?: boolean }) {
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border-[1.5px] border-blue-600 ${large ? "p-3.5" : "p-3"}`}>
-      <span className={`flex shrink-0 items-center justify-center rounded-[10px] bg-blue-50 text-blue-700 ${large ? "h-9 w-9" : "h-[34px] w-[34px]"}`}><FileText className="h-4 w-4" aria-hidden="true" /></span>
+    <div className={`flex items-center gap-3 rounded-2xl bg-blue-50 ${large ? "p-3.5" : "p-3"}`}>
+      <span className={`flex shrink-0 items-center justify-center rounded-[10px] bg-white text-blue-700 ${large ? "h-9 w-9" : "h-[34px] w-[34px]"}`}><FileText className="h-4 w-4" aria-hidden="true" /></span>
       <span className="min-w-0 flex-1">
         <span className={`block truncate font-semibold text-zinc-950 ${large ? "text-base" : "text-[15px]"}`}>{name}</span>
         {detail && <span className="block truncate text-xs text-zinc-600">{detail}</span>}
@@ -224,8 +224,8 @@ export function FilePanel({ fileName, state, onRemove, actions, busy = false, la
         <ReadFile key={fileName} reading={reading} onRemove={onRemove} actions={actions} busy={busy} large={large} />
       ) : (
         <>
-          <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 p-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-blue-50 text-blue-700"><FileText className="h-4 w-4" aria-hidden="true" /></span>
+          <div className="flex items-center gap-3 rounded-2xl bg-zinc-100 p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-blue-700"><FileText className="h-4 w-4" aria-hidden="true" /></span>
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900">{fileName}</span>
             <button type="button" onClick={onRemove} aria-label="Remove file" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"><X className="h-4 w-4" aria-hidden="true" /></button>
           </div>
