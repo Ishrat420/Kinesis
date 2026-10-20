@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dateOrderFor, documentDateOrder, findDates, fullYear } from "@/lib/documents/extraction/dates";
 import { readLabelledFields } from "@/lib/documents/extraction/labels";
 import { looksLikeMrz, readMrz } from "@/lib/documents/extraction/mrz";
+import { renewalTodo } from "@/lib/documents/extraction/renewal";
 import { readFile, suggestFields } from "@/lib/documents/extraction/suggest";
 import { imageDimensions, sniffFileKind } from "@/lib/documents/extraction/file-kind";
 
@@ -591,5 +592,21 @@ describe("deadlines in the wording of a letter or email (KD-057)", () => {
 
   it("never turns an identity document's expiry into a to-do", () => {
     expect(readFile("NSW Driver Licence\nLicence No. 12345678\nExpires on 03/04/2027", "en-AU", undefined, today)).not.toHaveProperty("todo");
+  });
+});
+
+describe("renewalTodo: a to-do for a document that didn't ask for one (KD-057)", () => {
+  const today = "2026-10-20";
+
+  it("is due on the expiry when that's still ahead", () => {
+    expect(renewalTodo({ type: "Passport", expiryDate: "2030-05-01" }, today)).toEqual({ title: "Renew passport", dueDate: "2030-05-01" });
+  });
+
+  it("is due today, not years ago, when the document has already expired", () => {
+    expect(renewalTodo({ type: "License", expiryDate: "2019-05-20" }, today)).toEqual({ title: "Renew license", dueDate: "2026-10-20" });
+  });
+
+  it("has no date when the document has no expiry", () => {
+    expect(renewalTodo({ name: "Lease" }, today)).toEqual({ title: "Renew lease" });
   });
 });

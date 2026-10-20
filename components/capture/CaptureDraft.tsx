@@ -8,6 +8,7 @@ import type { DocumentTypeOption } from "@/app/(app)/documents/DocumentTypeSelec
 import { parseCapture } from "@/lib/capture/parse";
 import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDateInput, parseDateOnly } from "@/lib/dates";
+import { renewalTodo } from "@/lib/documents/extraction/renewal";
 import type { FieldSuggestions, FileReading, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
 import { READ_FAILURE_MESSAGE, READ_STAGE_LABEL, type DocumentRead } from "@/lib/documents/extraction/use-document-read";
 import { useFormatPreferences, useToday } from "@/lib/format/context";
@@ -176,23 +177,16 @@ export function LinkedNote() {
 /** The document's fields in one line: amount · number · dates · country. */
 function useDocumentDetail() {
   const label = useDateLabel(false);
+  const today = formatDateInput(useToday());
   return (document: FieldSuggestions, details: CustomFieldValue[] = []) => [
     details.find((detail) => detail.label === "Amount due")?.value,
     document.documentNumber,
     document.issueDate && label(document.issueDate),
-    document.expiryDate && `Expires ${label(document.expiryDate)}`,
+    document.expiryDate && `${document.expiryDate < today ? "Expired" : "Expires"} ${label(document.expiryDate)}`,
     document.country,
   ].filter(Boolean).join(" · ");
 }
 
-/**
- * For a file with no to-do of its own (a passport) when the user asks for
- * one anyway: renewing it, by its expiry.
- */
-function fallbackTodo(document: FieldSuggestions): TodoSuggestion {
-  const name = document.name ?? document.type;
-  return { title: name ? `Renew ${name.toLowerCase()}` : "", ...(document.expiryDate ? { dueDate: document.expiryDate } : {}) };
-}
 
 function payLine(details: CustomFieldValue[]) {
   const value = (label: string) => details.find((detail) => detail.label === label)?.value;
@@ -244,7 +238,8 @@ export function FilePanel({ fileName, state, onRemove, actions, busy = false, la
 
 function ReadFile({ reading, onRemove, actions, busy, large }: { reading: FileReading; onRemove: () => void; actions: FileActions; busy: boolean; large: boolean }) {
   const [saveAs, setSaveAs] = useState<SaveAs>(reading.suggested);
-  const [todo, setTodo] = useState<TodoSuggestion>(reading.todo ?? fallbackTodo(reading.document));
+  const today = formatDateInput(useToday());
+  const [todo, setTodo] = useState<TodoSuggestion>(() => reading.todo ?? renewalTodo(reading.document, today));
   const detail = useDocumentDetail()(reading.document, reading.details);
   // What paying needs, short enough for one line: "$182.40 · BPAY 23796 / 1234567890". The notes hold the rest.
   const todoDetail = payLine(reading.details ?? []);
