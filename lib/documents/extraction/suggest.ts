@@ -12,6 +12,18 @@ import { readMrz } from "./mrz";
 export type SuggestedField = "name" | "type" | "documentNumber" | "expiryDate" | "issueDate" | "country";
 export type FieldSuggestions = Partial<Record<SuggestedField, string>>;
 
+/** What the capture box offers to save a file as (KD-057, ADR-018). */
+export type SaveAs = "TODO" | "DOCUMENT" | "BOTH";
+export type TodoSuggestion = { title: string; dueDate?: string };
+
+/**
+ * A file's reading, split the way the capture box shows it: the document's
+ * fields, the to-do the file asks for (a bill to pay, a notice to act on),
+ * and which of the two -- or both -- to pre-select. A suggestion only: the
+ * user picks, and the switch says which one was suggested.
+ */
+export type FileReading = { document: FieldSuggestions; todo?: TodoSuggestion; suggested: SaveAs };
+
 type DocumentType = (typeof DEFAULT_DOCUMENT_TYPES)[number];
 
 const TYPE_KEYWORDS: [DocumentType, RegExp][] = [
@@ -23,6 +35,50 @@ const TYPE_KEYWORDS: [DocumentType, RegExp][] = [
   ["Birth Certificate", /\bbirth\s+certificate\b/i],
   ["Lease", /\b(?:lease\s+agreement|residential\s+tenancy)\b/i],
 ];
+
+/** Something to pay. */
+const BILL = /\b(?:tax\s+invoice|invoice|bill|amount\s+due|total\s+due|bpay|biller\s+code|pay\s+by|payment\s+due)\b/i;
+/** Something to renew. */
+const RENEWAL = /\brenew(?:al)?\b/i;
+/** What a bill or notice is for, named only when exactly one is mentioned ("electricity and gas" names neither). */
+const SUBJECTS: [RegExp, string][] = [
+  [/\belectricity\b/i, "Electricity"],
+  [/\bgas\b/i, "Gas"],
+  [/\bwater\b/i, "Water"],
+  [/\b(?:internet|broadband|nbn)\b/i, "Internet"],
+  [/\b(?:mobile|phone)\b/i, "Phone"],
+  [/\bcouncil\s+rates\b|\brates\s+notice\b/i, "Council rates"],
+  [/\b(?:vehicle|car|motor)\s+registration\b|\brego\b/i, "Car registration"],
+  [/\binsurance\b/i, "Insurance"],
+];
+
+function subjectOf(text: string): string | undefined {
+  const found = SUBJECTS.filter(([pattern]) => pattern.test(text));
+  return found.length === 1 ? found[0][1] : undefined;
+}
+
+/**
+ * The to-do a document asks for, when it gives a date to act by. Its title is
+ * generated ("Pay electricity bill", "Renew car registration") and shown in
+ * the card, where it can be changed before saving.
+ */
+function actionFor(text: string, dueDate: string | undefined, idType: string | undefined): { name?: string; type?: string; todo?: TodoSuggestion } {
+  if (!dueDate) return {};
+  const subject = subjectOf(text);
+  if (RENEWAL.test(text)) {
+    const thing = subject ?? (idType === "License" ? "Licence" : idType);
+    return {
+      name: thing ? `${thing} renewal notice` : "Renewal notice",
+      type: "Notice",
+      todo: { title: thing ? `Renew ${thing.toLowerCase()}` : "Renew", dueDate },
+    };
+  }
+  if (BILL.test(text)) {
+    const name = subject ? `${subject} bill` : "Bill";
+    return { name, type: "Bill", todo: { title: `Pay ${name.toLowerCase()}`, dueDate } };
+  }
+  return { todo: { title: "Follow up", dueDate } };
+}
 
 /** A type only when exactly one kind of document is named: a visa letter that mentions a passport is ambiguous. */
 function typeFromKeywords(text: string): DocumentType | undefined {
@@ -61,6 +117,11 @@ function agreed(values: (string | undefined)[]): string | undefined {
  * read from it.
  */
 export function suggestFields(text: string | string[], locale: string, mrzText?: string): FieldSuggestions {
+  return readFile(text, locale, mrzText).document;
+}
+
+/** The whole reading: document fields, the to-do the file asks for, and which to pre-select. */
+export function readFile(text: string | string[], locale: string, mrzText?: string): FileReading {
   // Three pages of OCR is a few thousand characters; anything far beyond that is not a document to fill a form from.
   const texts = (Array.isArray(text) ? text : [text]).map((reading) => reading.slice(0, MAX_TEXT_CHARACTERS));
   const all = texts.join("\n");
@@ -73,8 +134,12 @@ export function suggestFields(text: string | string[], locale: string, mrzText?:
     documentNumber: agreed(readings.map((reading) => reading.documentNumber)),
     expiryDate: agreed(readings.map((reading) => reading.expiryDate)),
     issueDate: agreed(readings.map((reading) => reading.issueDate)),
+    dueDate: agreed(readings.map((reading) => reading.dueDate)),
   };
-  const type = mrz.type ?? typeFromKeywords(all);
+  const keywordType = mrz.type ?? typeFromKeywords(all);
+  // A verified MRZ is an identity document; nothing on it is a bill.
+  const action = mrz.documentNumber || mrz.expiryDate ? {} : actionFor(all, labelled.dueDate, keywordType);
+  const type = action.type ?? keywordType;
   const documentNumber = mrz.documentNumber ?? crossChecked(labelled.documentNumber, mrz.documentNumberCandidates);
 
   // The MRZ is check-digit verified, so it wins wherever both read a field.
@@ -89,7 +154,9 @@ export function suggestFields(text: string | string[], locale: string, mrzText?:
   if (suggestions.issueDate && suggestions.expiryDate && suggestions.issueDate >= suggestions.expiryDate) {
     delete suggestions.issueDate;
   }
-  if (type) suggestions.name = mrz.country ? `${type} (${mrz.country})` : type;
+  if (action.name) suggestions.name = action.name;
+  else if (type) suggestions.name = mrz.country ? `${type} (${mrz.country})` : type;
 
-  return Object.fromEntries(Object.entries(suggestions).filter(([, value]) => value)) as FieldSuggestions;
+  const document = Object.fromEntries(Object.entries(suggestions).filter(([, value]) => value)) as FieldSuggestions;
+  return { document, ...(action.todo ? { todo: action.todo } : {}), suggested: action.todo ? "BOTH" : "DOCUMENT" };
 }

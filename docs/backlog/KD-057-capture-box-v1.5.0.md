@@ -46,3 +46,10 @@ frames), and the decisions behind it are in
   Shared pieces: `components/capture/CaptureDraft.tsx`, and the file-reading
   hook `lib/documents/extraction/use-document-read.ts` (also now used by the
   Documents page's Upload dialog).
+* **Save as** (owner's request after the first build): To-Do | Document |
+  Both, with Kinesis's suggestion marked. Bills and notices are read for a
+  date to act by and suggest Both; ID documents suggest Document. Both
+  saves a document plus a linked to-do via the Documents form ("Also create
+  a to-do"); the Documents page's own Upload gets the same section.
+  Integration tests cover the linked to-do and a refused one. Bill amount
+  left for later.

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormatPreferences } from "@/lib/format/context";
-import type { FieldSuggestions } from "./suggest";
+import type { FileReading } from "./suggest";
 import type { ExtractionFailure, ExtractionStage } from "./read-document";
 
 export const READ_STAGE_LABEL: Record<ExtractionStage, string> = {
@@ -22,7 +22,7 @@ export const READ_FAILURE_MESSAGE: Record<ExtractionFailure, string> = {
 export type DocumentRead =
   | { status: "idle" }
   | { status: "reading"; stage: ExtractionStage }
-  | { status: "read"; suggestions: FieldSuggestions }
+  | { status: "read"; reading: FileReading }
   | { status: "failed"; failure: ExtractionFailure };
 
 /**
@@ -51,12 +51,12 @@ export function useDocumentRead() {
     setState({ status: "reading", stage: "opening" });
     try {
       const { readDocument } = await import("./read-document");
-      const suggestions = await readDocument(file, {
+      const reading = await readDocument(file, {
         locale,
         signal: controller.signal,
         onStage: (stage) => { if (!controller.signal.aborted) setState({ status: "reading", stage }); },
       });
-      if (!controller.signal.aborted) setState({ status: "read", suggestions });
+      if (!controller.signal.aborted) setState({ status: "read", reading });
     } catch (error) {
       if (controller.signal.aborted) return;
       const { ExtractionError } = await import("./read-document");

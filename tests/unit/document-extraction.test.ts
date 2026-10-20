@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dateOrderFor, documentDateOrder, findDates, fullYear } from "@/lib/documents/extraction/dates";
 import { readLabelledFields } from "@/lib/documents/extraction/labels";
 import { looksLikeMrz, readMrz } from "@/lib/documents/extraction/mrz";
-import { suggestFields } from "@/lib/documents/extraction/suggest";
+import { readFile, suggestFields } from "@/lib/documents/extraction/suggest";
 import { imageDimensions, sniffFileKind } from "@/lib/documents/extraction/file-kind";
 
 /**
@@ -437,5 +437,57 @@ describe("hostile input", () => {
         return statSync(path).isDirectory() ? [entry, ...segments(path)] : [];
       });
     expect(segments("app").filter((segment) => segment.toLowerCase().startsWith("extraction"))).toEqual([]);
+  });
+});
+
+describe("bills and notices (KD-057)", () => {
+  it("reads a bill as a document and a to-do to pay it, and suggests both", () => {
+    const bill = [
+      "Electricity bill",
+      "Account number: 1234 5678 90",
+      "Bill date 15/10/2026",
+      "Amount due $182.40",
+      "Pay by 09/11/2026",
+    ].join("\n");
+    expect(readFile(bill, "en-AU")).toEqual({
+      document: { name: "Electricity bill", type: "Bill", documentNumber: "1234 5678 90", issueDate: "2026-10-15" },
+      todo: { title: "Pay electricity bill", dueDate: "2026-11-09" },
+      suggested: "BOTH",
+    });
+  });
+
+  it("reads 'Bill date / Due date' printed as columns", () => {
+    const bill = "Your water bill\nBill date        Due date\n15 Oct 2026      9 Nov 2026";
+    expect(readFile(bill, "en-AU")).toMatchObject({
+      document: { name: "Water bill", issueDate: "2026-10-15" },
+      todo: { title: "Pay water bill", dueDate: "2026-11-09" },
+    });
+  });
+
+  it("names a bill generically when it mentions more than one service", () => {
+    expect(readFile("Electricity and gas account\nTax invoice\nDue date 30/11/2026", "en-AU")).toMatchObject({
+      document: { name: "Bill" },
+      todo: { title: "Pay bill", dueDate: "2026-11-30" },
+    });
+  });
+
+  it("reads a renewal notice: the renew-by date is the to-do's, not the document's expiry", () => {
+    const notice = "Vehicle registration renewal notice\nRegistration number ABC123\nRenew by 30/11/2026";
+    expect(readFile(notice, "en-AU")).toEqual({
+      document: { name: "Car registration renewal notice", type: "Notice", documentNumber: "ABC123" },
+      todo: { title: "Renew car registration", dueDate: "2026-11-30" },
+      suggested: "BOTH",
+    });
+  });
+
+  it("drops a due date that is before the bill was issued", () => {
+    expect(readFile("Gas bill\nBill date 15/10/2026\nDue date 01/10/2026", "en-AU")).toMatchObject({ suggested: "DOCUMENT" });
+  });
+
+  it("keeps identity documents as plain documents: no to-do, suggested Document", () => {
+    expect(readFile("NSW Driver Licence\nLicence No. 12345678\nExpiry 03/04/2027", "en-AU")).toMatchObject({ suggested: "DOCUMENT" });
+    expect(readFile("LICENCE EXPIRY DATE OF BIRTH\n20-05-2019 29-07-1983", "en-AU")).not.toHaveProperty("todo");
+    const passport = `Passport\n${PASSPORT_MRZ.join("\n")}`;
+    expect(readFile(passport, "en-AU")).toMatchObject({ suggested: "DOCUMENT", document: { type: "Passport" } });
   });
 });

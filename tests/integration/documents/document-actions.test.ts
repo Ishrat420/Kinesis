@@ -59,6 +59,36 @@ describe.sequential("Documents server actions", () => {
       expect(mocks.redirect).toHaveBeenCalledWith(`/documents/${created.id}`);
     });
 
+    it("creates the linked to-do a bill asks for, when the form carries one (KD-057)", async () => {
+      const result = await createDocumentAction({}, form({
+        name: "Electricity bill", type: "Bill", issueDate: "2026-10-15", prompt: "180",
+        alsoTodoName: "Pay electricity bill", alsoTodoDueDate: "2026-11-09",
+      }));
+
+      expect(result).toBeUndefined();
+      const document = await prisma.document.findFirstOrThrow({ where: { userId: owner, name: "Electricity bill" } });
+      const todo = await prisma.todo.findFirstOrThrow({ where: { userId: owner } });
+      expect(todo).toMatchObject({ name: "Pay electricity bill", status: "TODO" });
+      expect(todo.dueDate?.toISOString()).toBe("2026-11-09T00:00:00.000Z");
+      const link = await prisma.objectRelationship.findFirst({ where: { sourceObjectId: todo.objectId, targetObjectId: document.objectId } });
+      expect(link).not.toBeNull();
+      expect(mocks.redirect).toHaveBeenCalledWith(`/documents/${document.id}`);
+    });
+
+    it("creates no to-do when the form has none", async () => {
+      await createDocumentAction({}, form({ name: "Australian passport", type: "Passport", prompt: "180" }));
+      expect(await prisma.todo.count({ where: { userId: owner } })).toBe(0);
+    });
+
+    it("refuses a bad to-do date before creating anything", async () => {
+      const result = await createDocumentAction({}, form({
+        name: "Electricity bill", type: "Bill", prompt: "180", alsoTodoName: "Pay electricity bill", alsoTodoDueDate: "2026-02-30",
+      }));
+      expect(result).toEqual({ error: expect.any(String) });
+      expect(await prisma.document.count({ where: { userId: owner } })).toBe(0);
+      expect(await prisma.todo.count({ where: { userId: owner } })).toBe(0);
+    });
+
     it("rejects a missing name or type without writing anything", async () => {
       const result = await createDocumentAction({}, form({ name: "", type: "Passport" }));
       expect(result).toEqual({ error: "Name and type are required." });

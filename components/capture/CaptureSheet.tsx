@@ -6,21 +6,21 @@ import { useRef, useState, useTransition, type RefObject } from "react";
 import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { BottomSheet } from "@/components/overlay/BottomSheet";
 import { announceCaptured } from "@/lib/capture/captured";
-import { captureCreateHref, captureTargets, DEFAULT_CAPTURE_TARGET, type CaptureTargetType } from "@/lib/capture/targets";
+import { captureCreateHref } from "@/lib/capture/targets";
 import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
-import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
-import { CaptureDocumentDialog, DocumentReadPanel, DueDateButton, RolledYearNote, useCaptureDraft } from "./CaptureDraft";
+import type { FieldSuggestions, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
+import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitch, TodoCard, useCaptureDraft } from "./CaptureDraft";
 
 /** Files the reader handles. Listing image types (not image/*) also makes iOS hand over a JPEG instead of a HEIC. */
 const DOCUMENT_TYPES = ".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
 const PHOTO_TYPES = "image/jpeg,image/png";
 
-const targets = captureTargets.filter((target) => target.promoted);
+type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion };
 
 /**
  * The phone's capture box (KD-057, ADR-018): the tab bar's + opens this sheet
- * instead of focusing the top bar, so there is room for the preview card and
- * for camera and file buttons a thumb can hit.
+ * instead of focusing the top bar, so there is room for Save as, the card,
+ * and camera and file buttons a thumb can hit.
  *
  * `inputRef` belongs to the caller, which focuses it in the same tap that
  * opens the sheet: iOS only raises the keyboard for a focus made inside the
@@ -29,7 +29,7 @@ const targets = captureTargets.filter((target) => target.promoted);
 export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClose: () => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const router = useRouter();
   const [text, setText] = useState("");
-  const [target, setTarget] = useState<CaptureTargetType>(DEFAULT_CAPTURE_TARGET);
+  const [saveAs, setSaveAs] = useState<SaveAs>("TODO");
   const [error, setError] = useState<string>();
   const [creating, startCreate] = useTransition();
   const draft = useCaptureDraft(text);
@@ -37,13 +37,13 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
   const fileRef = useRef<HTMLInputElement>(null);
   const { state: fileRead, read: readFile, cancel: cancelFile } = useDocumentRead();
   const [attached, setAttached] = useState<string | null>(null);
-  const [documentForm, setDocumentForm] = useState<{ suggestions?: FieldSuggestions } | null>(null);
+  const [documentForm, setDocumentForm] = useState<DocumentFormRequest | null>(null);
 
   const title = draft.title || text.trim();
 
   const reset = () => {
     setText("");
-    setTarget(DEFAULT_CAPTURE_TARGET);
+    setSaveAs("TODO");
     setError(undefined);
     cancelFile();
     setAttached(null);
@@ -58,21 +58,15 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
     setAttached(file.name);
     void readFile(file);
   };
-  const openDocumentForm = (suggestions?: FieldSuggestions) => {
+  const openDocumentForm = (request: DocumentFormRequest) => {
     close();
-    setDocumentForm({ suggestions });
+    setDocumentForm(request);
   };
 
-  const create = () => {
-    if (!title) return;
-    if (target !== DEFAULT_CAPTURE_TARGET) {
-      const href = captureCreateHref(target, title, { dueDate: draft.dueDate || undefined });
-      close();
-      if (href) router.push(href);
-      return;
-    }
+  const createTodo = (todo: TodoSuggestion) => {
+    if (!todo.title.trim()) return;
     startCreate(async () => {
-      const result = await captureTodoAction(title, draft.dueDate || undefined);
+      const result = await captureTodoAction(todo.title, todo.dueDate || undefined);
       if (result.error || !result.captured) return setError(result.error ?? "That didn't save. Try again.");
       // The top bar shows the confirmation, with Undo and Add details.
       announceCaptured(result.captured);
@@ -80,7 +74,18 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
     });
   };
 
-  const createLabel = target === DEFAULT_CAPTURE_TARGET ? (creating ? "Creating…" : "Create to-do") : `Continue to ${target === "DOCUMENT" ? "document" : "goal"}`;
+  /** What "Save as" says: a to-do saves here; a document opens its form to be checked, with the linked to-do for Both. */
+  const createFromText = () => {
+    if (!title) return;
+    if (saveAs === "TODO") return createTodo({ title, dueDate: draft.dueDate || undefined });
+    openDocumentForm({ capture: { title }, alsoTodo: saveAs === "BOTH" ? { title, dueDate: draft.dueDate || undefined } : undefined });
+  };
+  const createGoal = () => {
+    const href = captureCreateHref("GOAL", title, { dueDate: draft.dueDate || undefined });
+    close();
+    if (href) router.push(href);
+  };
+  const buttonLabel = saveAs === "TODO" ? (creating ? "Creating…" : "Create to-do") : saveAs === "BOTH" ? "Check & create both" : "Check & create";
 
   return (
     <>
@@ -92,7 +97,14 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
           </div>
 
           {attached ? (
-            <DocumentReadPanel large fileName={attached} state={fileRead} onCheck={(suggestions) => openDocumentForm(suggestions)} onFillIn={() => openDocumentForm()} onRemove={() => { cancelFile(); setAttached(null); }} />
+            <FilePanel
+              large fileName={attached} state={fileRead} busy={creating}
+              onRemove={() => { cancelFile(); setAttached(null); }}
+              actions={{
+                createTodo,
+                openDocument: (suggestions, alsoTodo) => openDocumentForm({ suggestions: suggestions ?? {}, alsoTodo }),
+              }}
+            />
           ) : (
             <>
               <label htmlFor="capture-sheet-text" className="sr-only">What needs doing?</label>
@@ -108,30 +120,16 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
 
               {title ? (
                 <>
-                  <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600">Will create</p>
-                    <p className="text-lg font-semibold text-zinc-950">{title}</p>
-                    <div role="group" aria-label="Create as" className="grid grid-cols-3 gap-[3px] rounded-xl bg-zinc-200 p-[3px]">
-                      {targets.map((option) => (
-                        <button
-                          key={option.type} type="button" aria-pressed={target === option.type}
-                          onClick={() => setTarget(option.type)}
-                          className={`h-10 rounded-[10px] text-sm transition ${target === option.type ? "bg-white font-semibold text-zinc-950 shadow-sm" : "font-medium text-zinc-700"}`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                    {/* A Document has no due date (its expiry is a fact, set in its own form), so none is offered. */}
-                    {target !== "DOCUMENT" && <DueDateButton large value={draft.dueDate} onChange={draft.setDueDate} />}
-                    {target !== "DOCUMENT" && draft.rolledToNextYear && <RolledYearNote />}
-                  </div>
+                  <SaveAsSwitch large value={saveAs} onChange={setSaveAs} onGoal={createGoal} />
+                  {saveAs !== "TODO" && <DocumentCard large name={title} />}
+                  {saveAs === "BOTH" && <LinkedNote />}
+                  {saveAs !== "DOCUMENT" && <TodoCard large title={title} dueDate={draft.dueDate} onDueDate={draft.setDueDate} rolled={draft.rolledToNextYear} />}
 
                   {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
 
                   <div className="flex gap-2.5">
                     <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a photo or file instead" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-900"><Paperclip className="h-5 w-5" aria-hidden="true" /></button>
-                    <button type="button" onClick={create} disabled={creating} className="h-14 flex-1 rounded-2xl bg-zinc-950 text-base font-semibold text-white disabled:opacity-60">{createLabel}</button>
+                    <button type="button" onClick={createFromText} disabled={creating} className="h-14 flex-1 rounded-2xl bg-zinc-950 text-base font-semibold text-white disabled:opacity-60">{buttonLabel}</button>
                   </div>
                 </>
               ) : (
@@ -143,11 +141,12 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
             </>
           )}
 
+          {attached && error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
           <input ref={photoRef} type="file" accept={PHOTO_TYPES} capture="environment" hidden onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ""; }} />
           <input ref={fileRef} type="file" accept={DOCUMENT_TYPES} hidden onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ""; }} />
         </div>
       </BottomSheet>
-      {documentForm && <CaptureDocumentDialog suggestions={documentForm.suggestions} onClose={() => setDocumentForm(null)} />}
+      {documentForm && <CaptureDocumentDialog {...documentForm} onClose={() => setDocumentForm(null)} />}
     </>
   );
 }

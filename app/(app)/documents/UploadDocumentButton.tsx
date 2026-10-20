@@ -6,10 +6,10 @@ import { UploadDocumentModal } from "./UploadDocumentModal";
 import { CreateDocumentDialog } from "./CreateDocumentDialog";
 import type { DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
-import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
+import type { FileReading } from "@/lib/documents/extraction/suggest";
 
 /** Upload → read on the device → the create form, pre-filled for checking (KD-016). */
-type Step = { kind: "closed" } | { kind: "upload" } | { kind: "review"; suggestions: FieldSuggestions };
+type Step = { kind: "closed" } | { kind: "upload" } | { kind: "review"; reading: FileReading };
 
 export function UploadDocumentButton({ documentTypes, linkOptions }: { documentTypes: DocumentTypeOption[]; linkOptions: KinesisLinkOption[] }) {
   const [step, setStep] = useState<Step>({ kind: "closed" });
@@ -26,8 +26,8 @@ export function UploadDocumentButton({ documentTypes, linkOptions }: { documentT
         Upload document
       </button>
 
-      {step.kind === "upload" && <UploadDocumentModal onClose={close} onRead={(suggestions) => setStep({ kind: "review", suggestions })} />}
-      {step.kind === "review" && <CreateDocumentDialog documentTypes={documentTypes} linkOptions={linkOptions} suggestions={step.suggestions} onClose={close} />}
+      {step.kind === "upload" && <UploadDocumentModal onClose={close} onRead={(reading) => setStep({ kind: "review", reading })} />}
+      {step.kind === "review" && <CreateDocumentDialog documentTypes={documentTypes} linkOptions={linkOptions} suggestions={step.reading.document} alsoTodo={step.reading.todo} onClose={close} />}
     </>
   );
 }

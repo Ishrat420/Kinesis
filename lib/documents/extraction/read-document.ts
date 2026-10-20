@@ -1,7 +1,7 @@
 import assets from "./assets.json";
 import { imageDimensions, MAX_DOCUMENT_BYTES, MAX_IMAGE_PIXELS, sniffFileKind } from "./file-kind";
 import { looksLikeMrz, readMrz } from "./mrz";
-import { suggestFields, type FieldSuggestions } from "./suggest";
+import { readFile, type FileReading } from "./suggest";
 
 /**
  * Reads a picked file in the browser and returns field suggestions (KD-016,
@@ -237,7 +237,7 @@ export async function readDocumentText(file: File, options: Options): Promise<Re
   }
 }
 
-export async function readDocument(file: File, options: Options): Promise<FieldSuggestions> {
+export async function readDocument(file: File, options: Options): Promise<FileReading> {
   const { texts, mrzText } = await readDocumentText(file, options);
-  return suggestFields(texts, options.locale, mrzText);
+  return readFile(texts, options.locale, mrzText);
 }

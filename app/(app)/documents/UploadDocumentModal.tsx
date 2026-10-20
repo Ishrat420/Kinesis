@@ -3,13 +3,13 @@
 import { FileText, LoaderCircle, UploadCloud, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/overlay/Modal";
-import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
+import type { FileReading } from "@/lib/documents/extraction/suggest";
 import { READ_FAILURE_MESSAGE, READ_STAGE_LABEL, useDocumentRead } from "@/lib/documents/extraction/use-document-read";
 
 type UploadDocumentModalProps = {
   onClose: () => void;
   /** The file has been read (or skipped): open the create form with whatever was found. */
-  onRead: (suggestions: FieldSuggestions) => void;
+  onRead: (reading: FileReading) => void;
 };
 
 /**
@@ -26,7 +26,7 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
 
   // A finished read moves straight on to the create form.
   useEffect(() => {
-    if (state.status === "read") onRead(state.suggestions);
+    if (state.status === "read") onRead(state.reading);
   }, [state, onRead]);
 
   const choose = (selected: File | undefined) => {
@@ -39,7 +39,7 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
 
   const skip = () => {
     cancel();
-    onRead({});
+    onRead({ document: {}, suggested: "DOCUMENT" });
   };
 
   const reading = state.status === "reading";

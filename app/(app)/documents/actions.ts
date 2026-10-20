@@ -7,6 +7,7 @@ import { getDocumentState, parseReminderPrompt } from "@/lib/documents/expiry";
 import { formatDateInput, parseDateOnly } from "@/lib/dates";
 import { parseCustomFields } from "@/lib/custom-fields/parse";
 import { getKinesisLinkOptions, validateKinesisTargets } from "@/lib/data/kinesis-links";
+import { createTodo } from "@/lib/data/todos";
 import { isConflictRefusal, refusalOf } from "@/lib/actions/refusal";
 import { getToday } from "@/lib/format/server";
 import { completeCaptureConversion } from "@/lib/data/capture";
@@ -113,11 +114,21 @@ export async function createDocumentAction(
   // correlation the moment its members are pulled apart.
   const form = documentData(formData, await getToday());
   if (!form.ok) return { error: form.error };
+  // KD-057: a bill or notice can be saved with the to-do it asks for ("Pay
+  // electricity bill"), linked to the new document. Checked before anything
+  // is created, so a bad to-do never leaves a document behind without it.
+  const todoName = text(formData, "alsoTodoName");
+  const todoDueValue = text(formData, "alsoTodoDueDate");
+  const todoDue = todoDueValue ? parseDateOnly(todoDueValue) : null;
+  const todoNameError = checkLength(todoName, TEXT_LIMIT, "the to-do");
+  if (todoNameError) return { error: todoNameError };
+  if (todoDueValue && !todoDue) return { error: "Enter a valid due date for the to-do." };
   const data = form.data;
   data.type = await resolveDocumentType(data.type);
   const unowned = await validateKinesisTargets(data.customFields ?? []);
   if (unowned) return { error: unowned };
   const document = await createDocument(data);
+  if (todoName) await createTodo(todoName, { dueDate: todoDue, linkObjectIds: [document.objectId] });
   // No-op unless quick capture sent the user here to turn a To-Do into this
   // document, in which case the To-Do retires now that the richer record exists.
   await completeCaptureConversion(formData);

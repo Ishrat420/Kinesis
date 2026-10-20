@@ -22,7 +22,7 @@ const label = (alternatives: string[], tail = "", flags = "giu") =>
 const EXPIRY_LABEL = label([
   // English, and the US licence code
   "date\\s+of\\s+expiry", "expiry\\s+date", "expiration\\s+date", "date\\s+of\\s+expiration", "expiry", "expires(?:\\s+on)?", "expire",
-  "expiration", "valid\\s+(?:until|to|thru|through)", "exp\\.?", "renewal\\s+date", "due\\s+for\\s+renewal",
+  "expiration", "valid\\s+(?:until|to|thru|through)", "exp\\.?",
   // Spanish
   "fecha\\s+de\\s+(?:vencimiento|expiraci[oó]n|caducidad)", "vencimiento", "v[aá]lid[oa]\\s+hasta",
   // French ("Date d'expiration" is covered by "expiration")
@@ -32,12 +32,24 @@ const EXPIRY_LABEL = label([
 ]);
 const ISSUE_LABEL = label([
   "date\\s+of\\s+issue", "issue\\s+date", "date\\s+issued", "issued\\s+on", "issued", "iss",
+  // Bills and statements (KD-057)
+  "(?:bill|invoice|statement)\\s+date", "date\\s+of\\s+(?:bill|invoice|statement)",
   "fecha\\s+de\\s+(?:emisi[oó]n|expedici[oó]n)",
   "date\\s+de\\s+d[eé]livrance", "d[eé]livr[eé]e?\\s+le",
   "ausstellungsdatum", "ausgestellt\\s+am",
 ]);
+/**
+ * The date something has to be done by (KD-057): a bill's due date, a
+ * notice's renew-by date. It becomes the to-do's due date, never the
+ * document's expiry -- "Renewal date" used to be read as an expiry, which
+ * on a renewal notice is the wrong field.
+ */
+const DUE_LABEL = label([
+  "due\\s+date", "payment\\s+due(?:\\s+date)?", "(?:please\\s+)?pay\\s+(?:by|before)", "due\\s+(?:by|on)",
+  "renew\\s+(?:by|before)", "renewal\\s+(?:date|due)", "due\\s+for\\s+renewal",
+]);
 const NUMBER_LABEL = label([
-  "(?:document|passport|licen[cs]e|card|policy|certificate|membership|registration|reference|visa|grant)\\s*(?:no\\.?|number|num\\.?|#)",
+  "(?:document|passport|licen[cs]e|card|policy|certificate|membership|registration|reference|visa|grant|account|customer|invoice|bill|client)\\s*(?:no\\.?|number|num\\.?|#)",
   "n[uú]mero\\s+(?:de\\s+)?documento", "num[eé]ro\\s+(?:du\\s+)?document", "(?:passeport|document)\\s+n[o°º]",
   "ausweisnummer", "passnummer", "dokumentennummer",
 ], "\\s*[:#.-]?\\s*");
@@ -56,7 +68,7 @@ const STANDALONE_TOKEN = /^[A-Z0-9][A-Z0-9/.-]*[A-Z0-9]$/i;
  */
 const VALUE_WINDOW = 80;
 
-type Labelled = { expiryDate?: string; issueDate?: string; documentNumber?: string };
+type Labelled = { expiryDate?: string; issueDate?: string; documentNumber?: string; dueDate?: string };
 
 type Hit = { end: number; index: number; text: string };
 
@@ -124,15 +136,17 @@ const BIRTH_LABEL = label([
  * the same order on the next. Only when the line has no date of its own and
  * the count of dates below matches the count of headers exactly.
  */
-function pairedDates(lines: string[], order: DateOrder): { issue: string[]; expiry: string[]; handled: Set<number> } {
+function pairedDates(lines: string[], order: DateOrder): { issue: string[]; expiry: string[]; due: string[]; handled: Set<number> } {
   const issue: string[] = [];
   const expiry: string[] = [];
+  const due: string[] = [];
   const handled = new Set<number>();
   lines.forEach((line, i) => {
     if (i + 1 >= lines.length || findDates(line, order).length > 0) return;
     const headers = [
       ...hits(line, ISSUE_LABEL).map((hit) => ({ ...hit, kind: "issue" as const })),
       ...hits(line, EXPIRY_LABEL).map((hit) => ({ ...hit, kind: "expiry" as const })),
+      ...hits(line, DUE_LABEL).map((hit) => ({ ...hit, kind: "due" as const })),
       ...hits(line, BIRTH_LABEL).map((hit) => ({ ...hit, kind: "birth" as const })),
     ].sort((a, b) => a.index - b.index);
     const kinds = new Set(headers.map((header) => header.kind));
@@ -143,10 +157,11 @@ function pairedDates(lines: string[], order: DateOrder): { issue: string[]; expi
     headers.forEach((header, column) => {
       if (header.kind === "issue") issue.push(below[column].iso);
       if (header.kind === "expiry") expiry.push(below[column].iso);
+      if (header.kind === "due") due.push(below[column].iso);
     });
     handled.add(i);
   });
-  return { issue, expiry, handled };
+  return { issue, expiry, due, handled };
 }
 
 const isNumberShaped = (token: string) => /\d/.test(token) && token.replace(/[\s.]/g, "").length >= 4 && token.length <= 30;
@@ -184,7 +199,10 @@ export function readLabelledFields(text: string, order: DateOrder): Labelled {
     expiryDate: agreed([...paired.expiry, ...datesFor(lines, EXPIRY_LABEL, order, paired.handled)]),
     issueDate: agreed([...paired.issue, ...datesFor(lines, ISSUE_LABEL, order, paired.handled, (label) => BARE_ISSUED.test(label.trim()))]),
     documentNumber: agreed(numbersFor(lines, order)),
+    dueDate: agreed([...paired.due, ...datesFor(lines, DUE_LABEL, order, paired.handled)]),
   };
+  // A due date before the bill was even issued was misread.
+  if (result.dueDate && result.issueDate && result.dueDate < result.issueDate) delete result.dueDate;
   // An expiry on or before the issue date means one of them was misread.
   if (result.expiryDate && result.issueDate && result.expiryDate <= result.issueDate) {
     delete result.expiryDate;

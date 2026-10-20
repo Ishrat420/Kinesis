@@ -89,6 +89,43 @@ behave:
   top bar, which shows the existing "To-Do created · Add details · Undo"
   banner rather than a second one.
 
+### Save as: Kinesis suggests, the user decides
+
+Added after the first build, when bills and notices made the type of thing
+genuinely ambiguous: the same file can be a record to keep, a thing to do,
+or both. Every capture, typed or file, now shows one switch — **To-Do |
+Document | Both** — with Goal under ⋯. Kinesis pre-selects one and marks it
+**Suggested**; one tap changes it, and the card below follows.
+
+| What was read | Suggested |
+|---|---|
+| Typed text | To-Do |
+| A file with a date to act by ("Pay by", "Due date", "Renew by") | Both |
+| Anything else, including passports and licences | Document — its expiry already drives reminders |
+
+- **Both** saves the document and a to-do linked to it (ADR-009's "a To-Do
+  concerns a Document"). It opens the Documents form, so the document's
+  fields are still checked before saving; the form shows the to-do in an
+  "Also create a to-do" section that can be edited or removed. The server
+  checks the to-do before creating anything, so a bad one never leaves a
+  document behind without it.
+- **To-Do** from a file saves straight away, like a typed one. The phone
+  says plainly that the file itself isn't kept.
+- The to-do's title is generated and editable: "Pay electricity bill",
+  "Renew car registration". A passport switched to To-Do or Both gets
+  "Renew passport", due on its expiry.
+- The bill's amount isn't captured yet (Documents have no amount field);
+  left out by the owner's call.
+- The computer's dropdown follows the phone's layout at 480 px: switch,
+  card, one button. The owner found the first, wider version cluttered.
+
+Reading rules added for this (`labels.ts`, `suggest.ts`): due/pay-by/renew-by
+labels, also in "Bill date / Due date" columns; bill, invoice and statement
+dates; account, customer and invoice numbers. "Renewal date" moved from
+expiry to the due date, which is what it means on a renewal notice. A
+service is named only when exactly one is mentioned ("electricity and gas"
+stays "Bill"), and a verified MRZ is never treated as a bill.
+
 ## Consequences
 
 - Capture reads the date most people type, with no AI, no network call and

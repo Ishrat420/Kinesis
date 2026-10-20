@@ -2,20 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Boxes, Check, Command, FileText, Landmark, ListTodo, Paperclip, Search, Target, UsersRound, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Boxes, Command, FileText, Landmark, ListTodo, Paperclip, Search, Target, UsersRound, X } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { CUSTOM_MODULE_ICONS } from "@/lib/custom-modules/icons";
 import type { SearchEntry } from "@/lib/search/types";
 import { MIN_QUERY_LENGTH } from "@/lib/search/rank";
-import { captureCreateHref, captureTargets, DEFAULT_CAPTURE_TARGET, type CaptureTargetType } from "@/lib/capture/targets";
+import { captureCreateHref } from "@/lib/capture/targets";
 import { captureTodoAction } from "@/app/(app)/todos/actions";
 import { CaptureDetailsDialog } from "./CaptureDetailsDialog";
 import { CaptureConfirmation } from "./CaptureConfirmation";
 import { searchAction } from "./search-actions";
 import { CAPTURED_EVENT, type CapturedDetail } from "@/lib/capture/captured";
 import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
-import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
-import { CaptureDocumentDialog, DocumentReadPanel, DueDateButton, RolledYearNote, useCaptureDraft } from "./CaptureDraft";
+import type { FieldSuggestions, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
+import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitch, TodoCard, useCaptureDraft } from "./CaptureDraft";
+
+/** What the Documents form opens with: a file's fields, or the typed title, and the linked to-do for Both. */
+type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion };
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 /** How long to let someone keep typing before a search actually runs. */
@@ -29,13 +32,14 @@ const kindTones = { Document: "bg-blue-50", Goal: "bg-violet-50", Finance: "bg-e
  *
  * The bar answers both "do I already have this?" and "then record it" without
  * making the user choose between them first. What the typed text will create
- * comes first -- a card with the title and the due date read from the text,
- * both changeable -- then search matches, then the other things it could
- * become. Enter takes the card, because ADR-009's whole argument is that
- * capture has to cost nothing, and picking a destination is a cost.
+ * comes first -- Save as (To-Do, Document, Both; Goal under ⋯), and a card
+ * with the title and the due date read from the text -- then search matches,
+ * then one button. Enter presses it: To-Do is the default because ADR-009's
+ * whole argument is that capture has to cost nothing.
  *
  * A file attached with the paperclip, or dropped on the bar, is read on the
- * device (ADR-017) and opens the Documents create form, pre-filled.
+ * device (ADR-017) and gets the same Save as, with Kinesis's suggestion
+ * marked; a document always opens in the Documents form to be checked.
  */
 export function CommandBar() {
   const router = useRouter();
@@ -50,22 +54,21 @@ export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const draft = useCaptureDraft(query);
+  const [saveAs, setSaveAs] = useState<SaveAs>("TODO");
   const { state: fileRead, read: readFile, cancel: cancelFile } = useDocumentRead();
   const [attached, setAttached] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [documentForm, setDocumentForm] = useState<{ suggestions?: FieldSuggestions } | null>(null);
+  const [documentForm, setDocumentForm] = useState<DocumentFormRequest | null>(null);
 
   const title = query.trim();
+  const name = draft.title || title;
   const searchable = title.length >= MIN_QUERY_LENGTH;
   // Derived, not cleared via setState: an emptied or too-short query has no
   // results the instant it is too short, rather than waiting on an effect to
   // notice and catch up. Below MIN_QUERY_LENGTH nothing is fetched at all --
-  // the create options below still work at any length, this only holds back
-  // search results themselves.
+  // the card still works at any length, this only holds back search results.
   const results = searchable ? fetchedResults : [];
   const searchUnavailable = searchable && searchFailed;
-  // The card is the default target; the rest are offered after the matches.
-  const otherTargets = useMemo(() => captureTargets.filter((target) => target.promoted && target.type !== DEFAULT_CAPTURE_TARGET), []);
   const isOpen = isFocused && title.length > 0 && attached === null;
 
   /**
@@ -95,19 +98,18 @@ export function CommandBar() {
   }, [title, searchable]);
 
   /**
-   * One list for the keyboard, in the order it reads: the card (0), then the
-   * search matches, then the other targets. ArrowDown from the card walks
-   * down into the matches.
+   * One list for the keyboard, in the order it reads: the card and its
+   * button (0), then the search matches. Enter on 0 does what the button
+   * says; ArrowDown walks into the matches.
    *
    * `highlighted` is null until the user actually moves, so the card stays
    * the default as they type. Typing clears any explicit choice, which is why
    * it is reset in the change handler and nowhere else.
    */
   const [highlighted, setHighlighted] = useState<number | null>(null);
-  const optionCount = 1 + results.length + otherTargets.length;
+  const optionCount = 1 + results.length;
   const activeIndex = Math.min(highlighted ?? 0, optionCount - 1);
-  const resultIndex = (index: number) => 1 + index;
-  const targetIndex = (index: number) => 1 + results.length + index;
+  const optionId = (index: number) => (index === 0 ? "command-capture" : `command-result-${index - 1}`);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -136,8 +138,15 @@ export function CommandBar() {
     };
   }, []);
 
+  const clear = () => {
+    setQuery("");
+    setHighlighted(null);
+    setSaveAs("TODO");
+  };
   const attach = (file: File | undefined) => {
     if (!file) return;
+    // A file takes over from anything typed: its own Save as replaces the text's.
+    clear();
     setAttached(file.name);
     void readFile(file);
   };
@@ -145,38 +154,45 @@ export function CommandBar() {
     cancelFile();
     setAttached(null);
   };
-  const openDocumentForm = (suggestions?: FieldSuggestions) => {
+  const openDocumentForm = (request: DocumentFormRequest) => {
     detach();
-    setDocumentForm({ suggestions });
+    clear();
+    setDocumentForm(request);
   };
 
   /**
-   * Creating as a To-Do happens here, and clears the bar so the next capture can
-   * start straight away. Every other target hands the title to the module that
-   * owns it, prefilled, so the user completes the fields that module genuinely
-   * requires instead of a generic form guessing at them.
+   * A to-do is saved in place, and the bar clears so the next capture can
+   * start straight away; the confirmation below offers Undo and Add details.
    */
-  const create = (target: CaptureTargetType) => {
-    const name = draft.title || title;
-    if (!name) return;
-    if (target !== DEFAULT_CAPTURE_TARGET) {
-      // A target with a date field (a Goal's target date) gets the date too; captureCreateHref drops it for one without.
-      const href = captureCreateHref(target, name, { dueDate: draft.dueDate || undefined });
-      if (href) router.push(href);
-      return;
-    }
+  const createTodo = (todo: TodoSuggestion, afterwards?: () => void) => {
+    if (!todo.title.trim()) return;
     startCapture(async () => {
-      const result = await captureTodoAction(name, draft.dueDate || undefined);
+      const result = await captureTodoAction(todo.title, todo.dueDate || undefined);
       if (result.error) return setError(result.error);
       setError(undefined);
       setCaptured(result.captured ?? null);
       setDetailsOpen(false);
-      setQuery("");
-      setHighlighted(null);
+      afterwards?.();
     });
   };
 
-  const optionId = (index: number) => (index === 0 ? "command-capture" : index <= results.length ? `command-result-${index - 1}` : `command-create-${index - 1 - results.length}`);
+  /** The card's button, and Enter: what "Save as" says (ADR-018). */
+  const createFromText = () => {
+    if (!name) return;
+    if (saveAs === "TODO") return createTodo({ title: name, dueDate: draft.dueDate || undefined }, clear);
+    // A document is checked in its own form before it's saved; Both adds the to-do, linked.
+    openDocumentForm({ capture: { title: name }, alsoTodo: saveAs === "BOTH" ? { title: name, dueDate: draft.dueDate || undefined } : undefined });
+  };
+  // A Goal's target date takes the due date; captureCreateHref drops it for a target without one.
+  const createGoal = () => {
+    const href = captureCreateHref("GOAL", name, { dueDate: draft.dueDate || undefined });
+    if (href) router.push(href);
+  };
+  const buttonLabel = saveAs === "TODO" ? (capturing ? "Creating…" : "Create to-do") : saveAs === "BOTH" ? "Check & create both" : "Check & create";
+
+  // The dropdown sits under the bar at the bar's width on a phone, and as a
+  // narrower panel centred under it on the computer, per the agreed design.
+  const panel = `absolute inset-x-0 top-[52px] ${Z_INDEX.banner} rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_20px_50px_rgb(0,0,0,0.14)] md:left-1/2 md:right-auto md:w-[480px] md:-translate-x-1/2`;
 
   return (
     <div
@@ -200,10 +216,8 @@ export function CommandBar() {
             if (event.key === "Enter") {
               event.preventDefault();
               if (!title) return;
-              if (activeIndex === 0) { create(DEFAULT_CAPTURE_TARGET); return; }
-              if (activeIndex <= results.length) { document.getElementById(optionId(activeIndex))?.click(); return; }
-              const target = otherTargets[activeIndex - 1 - results.length];
-              if (target) create(target.type);
+              if (activeIndex === 0) createFromText();
+              else document.getElementById(optionId(activeIndex))?.click();
             }
           }}
           className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 [&::-webkit-search-cancel-button]:hidden"
@@ -211,40 +225,36 @@ export function CommandBar() {
           aria-expanded={isOpen} aria-controls="command-bar-options" aria-autocomplete="list"
           aria-activedescendant={isOpen ? optionId(activeIndex) : undefined}
         />
-        {query ? <button type="button" onClick={() => { setQuery(""); setHighlighted(null); inputRef.current?.focus(); }} className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700" aria-label="Clear search"><X className="h-4 w-4" /></button>
+        {query ? <button type="button" onClick={() => { clear(); inputRef.current?.focus(); }} className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700" aria-label="Clear search"><X className="h-4 w-4" /></button>
           : <div className="hidden items-center gap-1 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 sm:flex"><Command className="h-3 w-3" aria-hidden="true" />K</div>}
         {/* Phones attach from the capture sheet (KD-057), which has room for camera and file buttons. */}
         <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a document to read" title="Attach a PDF or photo to read it, on this device" className="hidden rounded-md p-1 text-zinc-500 transition hover:bg-zinc-200/60 hover:text-zinc-800 md:block"><Paperclip className="h-4 w-4" aria-hidden="true" /></button>
         <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" hidden onChange={(event) => { attach(event.target.files?.[0]); event.target.value = ""; }} />
       </div>
 
-      {attached !== null && <div className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
-        <DocumentReadPanel fileName={attached} state={fileRead} onCheck={(suggestions) => openDocumentForm(suggestions)} onFillIn={() => openDocumentForm()} onRemove={detach} />
+      {attached !== null && <div className={panel}>
+        <FilePanel
+          fileName={attached} state={fileRead} onRemove={detach} busy={capturing}
+          actions={{
+            createTodo: (todo) => createTodo(todo, detach),
+            openDocument: (suggestions, alsoTodo) => openDocumentForm({ suggestions: suggestions ?? {}, alsoTodo }),
+          }}
+        />
       </div>}
 
-      {isOpen && <div id="command-bar-options" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_50px_rgb(0,0,0,0.14)]`}>
-        <SectionLabel>Will create</SectionLabel>
-        <div
-          id="command-capture" role="option" aria-selected={activeIndex === 0}
-          onMouseEnter={() => setHighlighted(0)}
-          className={`flex flex-col gap-3 rounded-2xl border-[1.5px] p-3.5 transition ${activeIndex === 0 ? "border-zinc-900" : "border-zinc-200"}`}
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-950 text-white"><Check className="h-4 w-4" aria-hidden="true" /></span>
-            <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-semibold text-zinc-900">{draft.title || title}</span><span className="block text-xs text-zinc-600">To-Do</span></span>
-            <button type="button" disabled={capturing} onMouseDown={(event) => event.preventDefault()} onClick={() => create(DEFAULT_CAPTURE_TARGET)} className="flex h-9 shrink-0 items-center gap-2 rounded-xl bg-zinc-950 px-3.5 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
-              {capturing ? "Creating…" : "Create"}<span className="hidden rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider sm:inline">Enter</span>
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2"><DueDateButton value={draft.dueDate} onChange={draft.setDueDate} /></div>
-          {draft.rolledToNextYear && <RolledYearNote />}
+      {isOpen && <div id="command-bar-options" className={`${panel} flex max-h-[calc(100dvh-140px)] flex-col gap-3 overflow-y-auto`}>
+        <SaveAsSwitch value={saveAs} onChange={setSaveAs} onGoal={createGoal} />
+        <div id="command-capture" role="option" aria-selected={activeIndex === 0} onMouseEnter={() => setHighlighted(0)} className="flex flex-col gap-3">
+          {saveAs !== "TODO" && <DocumentCard name={name} />}
+          {saveAs === "BOTH" && <LinkedNote />}
+          {saveAs !== "DOCUMENT" && <TodoCard title={name} dueDate={draft.dueDate} onDueDate={draft.setDueDate} rolled={draft.rolledToNextYear} />}
         </div>
 
         {results.length ? <>
           <SectionLabel>Matches</SectionLabel>
           <ul aria-label="Search results" role="listbox">{results.map((result, index) => {
             const Icon = result.kind === "Custom" && result.icon && result.icon in CUSTOM_MODULE_ICONS ? CUSTOM_MODULE_ICONS[result.icon as keyof typeof CUSTOM_MODULE_ICONS] : kindIcons[result.kind];
-            const option = resultIndex(index);
+            const option = 1 + index;
             return <li key={result.id} role="option" aria-selected={option === activeIndex}>
               {/* Unprefetched: up to ten of these render on every keystroke,
                   and scanning a dropdown isn't a signal to load all ten
@@ -262,30 +272,21 @@ export function CommandBar() {
           ? <p role="alert" className="px-4 pb-2 pt-3 text-xs font-medium text-red-600">Search isn&rsquo;t responding right now. You can still capture above.</p>
           : null}
 
-        <SectionLabel>Create as something else</SectionLabel>
-        <ul aria-label="Create as something else" role="listbox" className="flex flex-wrap gap-2 px-3 pb-2">{otherTargets.map((target, index) => {
-          const option = targetIndex(index);
-          return <li key={target.type} role="option" aria-selected={option === activeIndex}>
-            <button
-              id={`command-create-${index}`} type="button" disabled={capturing}
-              onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setHighlighted(option)}
-              onClick={() => create(target.type)}
-              className={`h-9 rounded-xl border px-3 text-[13px] font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:opacity-60 ${option === activeIndex ? "border-zinc-900 bg-zinc-50" : "border-zinc-200"}`}
-            >
-              {target.label}
-            </button>
-          </li>;
-        })}</ul>
+
+        <button type="button" disabled={capturing} onMouseDown={(event) => event.preventDefault()} onClick={createFromText} className={`flex h-[42px] items-center justify-center gap-2.5 rounded-xl bg-zinc-950 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60 ${activeIndex === 0 ? "ring-2 ring-zinc-950 ring-offset-2" : ""}`}>
+          {buttonLabel}<span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider">Enter</span>
+        </button>
       </div>}
 
       {error && <p role="alert" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 shadow-lg`}>{error}</p>}
 
       {/* Keyed on the capture, so a second one replaces the first outright
-          rather than reusing the previous confirmation's dismissal timer. */}
-      {/* It gives way while the dropdown or a file panel is showing: all three sit in the same place under the bar. */}
+          rather than reusing the previous confirmation's dismissal timer.
+          It gives way while the dropdown or a file panel is showing: all
+          three sit in the same place under the bar. */}
       {captured && !detailsOpen && !isOpen && attached === null && <CaptureConfirmation key={captured.id} todo={captured} onAddDetails={() => setDetailsOpen(true)} onUndone={() => setCaptured(null)} />}
       {captured && detailsOpen && <CaptureDetailsDialog todo={captured} onClose={() => { setDetailsOpen(false); setCaptured(null); }} />}
-      {documentForm && <CaptureDocumentDialog suggestions={documentForm.suggestions} onClose={() => setDocumentForm(null)} />}
+      {documentForm && <CaptureDocumentDialog {...documentForm} onClose={() => setDocumentForm(null)} />}
     </div>
   );
 }

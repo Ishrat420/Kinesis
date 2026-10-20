@@ -1,13 +1,13 @@
 "use client";
 
-import { Bell, Check, ChevronDown, FileText, ScanText, X } from "lucide-react";
+import { Bell, CalendarDays, Check, ChevronDown, FileText, Link2, ScanText, X } from "lucide-react";
 import { useActionState, useState } from "react";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
 import { NO_REMINDER_LABEL, NO_REMINDER_VALUE, parseReminderPrompt, REMINDER_OPTIONS, reminderLabel } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
-import type { FieldSuggestions } from "@/lib/documents/extraction/suggest";
+import type { FieldSuggestions, TodoSuggestion } from "@/lib/documents/extraction/suggest";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
 import { Modal } from "@/components/overlay/Modal";
 import { SuggestedHint } from "./SuggestedHint";
@@ -42,12 +42,15 @@ export function CreateDocumentDialog({
   linkOptions,
   capture,
   suggestions,
+  alsoTodo,
   onClose,
 }: {
   documentTypes: DocumentTypeOption[];
   linkOptions: KinesisLinkOption[];
   capture?: { title: string; from?: string };
   suggestions?: FieldSuggestions;
+  /** KD-057: the to-do to create alongside, linked to the document ("Save as: Both"). */
+  alsoTodo?: TodoSuggestion;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(createDocumentAction, initialState);
@@ -102,6 +105,8 @@ export function CreateDocumentDialog({
             />
           </div>
 
+          {alsoTodo && <AlsoTodoSection initial={alsoTodo} />}
+
           {state.error && (
             <p role="alert" className="text-sm font-medium text-red-600">
               {state.error}
@@ -128,6 +133,42 @@ export function CreateDocumentDialog({
         </div>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * The to-do saved with the document and linked to it (KD-057): a bill's
+ * "Pay …", a notice's "Renew …". Its title and date can be changed here, and
+ * removing it saves the document alone.
+ */
+function AlsoTodoSection({ initial }: { initial: TodoSuggestion }) {
+  const [kept, setKept] = useState(true);
+  if (!kept) {
+    return (
+      <button type="button" onClick={() => setKept(true)} className="text-sm font-semibold text-zinc-700 underline underline-offset-2">
+        Add the to-do back
+      </button>
+    );
+  }
+  return (
+    <fieldset className="space-y-3 rounded-2xl border-[1.5px] border-zinc-900 p-4">
+      <div className="flex items-center gap-2">
+        <legend className="flex-1 text-sm font-semibold text-zinc-900">Also create a to-do</legend>
+        <button type="button" onClick={() => setKept(false)} aria-label="Don't create the to-do" className="rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900"><X className="h-4 w-4" aria-hidden="true" /></button>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_200px]">
+        <div>
+          <label htmlFor="also-todo-name" className="sr-only">To-do</label>
+          <input id="also-todo-name" name="alsoTodoName" required defaultValue={initial.title} className={FIELD_CLASS} />
+        </div>
+        <div className="relative">
+          <label htmlFor="also-todo-due" className="sr-only">Due date</label>
+          <CalendarDays className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+          <input id="also-todo-due" name="alsoTodoDueDate" type="date" defaultValue={initial.dueDate} className={`${FIELD_CLASS} pl-10`} />
+        </div>
+      </div>
+      <p className="flex items-center gap-1.5 text-xs text-zinc-600"><Link2 className="h-3.5 w-3.5" aria-hidden="true" />Linked to this document</p>
+    </fieldset>
   );
 }
 
