@@ -111,7 +111,7 @@ export function SaveAsSwitch({ value, suggested, onChange, onGoal, large = false
           <button
             key={option} type="button" aria-pressed={value === option}
             onClick={() => onChange(option)}
-            className={`flex items-center justify-center gap-1.5 rounded-[9px] transition ${large ? "h-[42px] text-[15px]" : "h-9 text-sm"} ${value === option ? "bg-white font-semibold text-zinc-950 shadow-sm" : "font-medium text-zinc-700 hover:text-zinc-950"}`}
+            className={`flex items-center justify-center gap-1.5 rounded-[9px] outline-none transition ${large ? "h-[42px] text-[15px]" : "h-9 text-sm"} ${value === option ? "bg-white font-semibold text-zinc-950 shadow-sm focus-visible:bg-zinc-100" : "font-medium text-zinc-700 hover:text-zinc-950 focus-visible:bg-zinc-300 focus-visible:text-zinc-950"}`}
           >
             {SAVE_AS_LABEL[option]}
             {suggested === option && <span className="rounded-[5px] bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">Suggested</span>}
@@ -120,7 +120,7 @@ export function SaveAsSwitch({ value, suggested, onChange, onGoal, large = false
       </div>
       {onGoal && (
         <div className="relative">
-          <button type="button" aria-label="More types" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)} className={`flex items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200 ${large ? "h-12 w-12" : "h-[42px] w-[42px]"}`}>
+          <button type="button" aria-label="More types" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)} className={`flex items-center justify-center rounded-xl bg-zinc-100 text-zinc-700 outline-none transition hover:bg-zinc-200 focus-visible:bg-zinc-300 ${large ? "h-12 w-12" : "h-[42px] w-[42px]"}`}>
             <MoreHorizontal className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
           {moreOpen && (

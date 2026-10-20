@@ -274,7 +274,7 @@ export function CommandBar() {
           : null}
 
 
-        <button type="button" disabled={capturing} onMouseDown={(event) => event.preventDefault()} onClick={createFromText} className={`flex h-[42px] items-center justify-center gap-2.5 rounded-xl bg-zinc-950 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60 ${activeIndex === 0 ? "ring-2 ring-zinc-950 ring-offset-2" : ""}`}>
+        <button type="button" disabled={capturing} onMouseDown={(event) => event.preventDefault()} onClick={createFromText} className={`flex h-[42px] items-center justify-center gap-2.5 rounded-xl text-sm font-semibold text-white outline-none transition hover:bg-black focus-visible:bg-black disabled:opacity-60 ${activeIndex === 0 ? "bg-zinc-950" : "bg-zinc-500"}`}>
           {buttonLabel}<span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider">Enter</span>
         </button>
       </div>}
