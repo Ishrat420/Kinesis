@@ -93,9 +93,20 @@ behave:
 
 Added after the first build, when bills and notices made the type of thing
 genuinely ambiguous: the same file can be a record to keep, a thing to do,
-or both. Every capture, typed or file, now shows one switch — **To-Do |
-Document | Both** — with Goal under ⋯. Kinesis pre-selects one and marks it
-**Suggested**; one tap changes it, and the card below follows.
+or both.
+
+**Tick the cards** (second version, the owner's pick). The first build put a
+To-Do | Document | Both switch above the cards, which said everything twice.
+Now each card has a round tick on its right: both ticked is Both, and the
+button says what will happen ("Create to-do", "Check & create", "Check &
+create both"). A card Kinesis suggested stays in view, faded, when unticked
+("Not kept: the file isn't saved"); one it didn't is a single quiet line
+until added ("+ Also save as a document", "+ Add a to-do to renew it"). Goal
+moved to a ⋯ beside the button. Instead of a "Suggested" badge, one line
+above the cards gives the reason: "Ticked for you: it's a bill with a due
+date". Once the ticks change it reads "Changed from what was suggested ·
+Undo". Typed text starts with the to-do ticked and nothing else, so Enter
+still creates it at once.
 
 | What was read | Suggested |
 |---|---|
@@ -116,8 +127,10 @@ Document | Both** — with Goal under ⋯. Kinesis pre-selects one and marks it
   "Renew passport", due on its expiry.
 - A bill's payment details are read too (below), and kept on whichever is
   saved: as custom fields on the document, as notes on the to-do.
-- The computer's dropdown follows the phone's layout at 480 px: switch,
-  card, one button. The owner found the first, wider version cluttered.
+- The computer's dropdown follows the phone's layout at 480 px: cards, one
+  button. The owner found the first, wider version cluttered.
+- A renewal to-do for a document that has already expired is due today, not
+  on the expiry, and the card says "Expired".
 
 Reading rules added for this (`labels.ts`, `suggest.ts`): due/pay-by/renew-by
 labels, also in "Bill date / Due date" columns; bill, invoice and statement

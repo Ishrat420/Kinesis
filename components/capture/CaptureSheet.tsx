@@ -9,19 +9,22 @@ import { announceCaptured } from "@/lib/capture/captured";
 import { captureCreateHref } from "@/lib/capture/targets";
 import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
-import type { FieldSuggestions, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
-import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitch, TodoCard, useCaptureDraft } from "./CaptureDraft";
+import type { FieldSuggestions, TodoSuggestion } from "@/lib/documents/extraction/suggest";
+import { AddRow, CaptureDocumentDialog, createLabel, DocumentCard, FilePanel, MoreTypes, saveAsOf, TodoCard, useCaptureDraft, type Picks } from "./CaptureDraft";
 
 /** Files the reader handles. Listing image types (not image/*) also makes iOS hand over a JPEG instead of a HEIC. */
 const DOCUMENT_TYPES = ".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
 const PHOTO_TYPES = "image/jpeg,image/png";
 
+/** Typed text is a to-do unless the user ticks the document too. */
+const TYPED_PICKS: Picks = { document: false, todo: true };
+
 type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion; customFields?: CustomFieldValue[] };
 
 /**
  * The phone's capture box (KD-057, ADR-018): the tab bar's + opens this sheet
- * instead of focusing the top bar, so there is room for Save as, the card,
- * and camera and file buttons a thumb can hit.
+ * instead of focusing the top bar, so there is room for the cards, their
+ * ticks, and camera and file buttons a thumb can hit.
  *
  * `inputRef` belongs to the caller, which focuses it in the same tap that
  * opens the sheet: iOS only raises the keyboard for a focus made inside the
@@ -30,7 +33,7 @@ type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: 
 export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClose: () => void; inputRef: RefObject<HTMLTextAreaElement | null> }) {
   const router = useRouter();
   const [text, setText] = useState("");
-  const [saveAs, setSaveAs] = useState<SaveAs>("TODO");
+  const [picks, setPicks] = useState<Picks>(TYPED_PICKS);
   const [error, setError] = useState<string>();
   const [creating, startCreate] = useTransition();
   const draft = useCaptureDraft(text);
@@ -44,7 +47,7 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
 
   const reset = () => {
     setText("");
-    setSaveAs("TODO");
+    setPicks(TYPED_PICKS);
     setError(undefined);
     cancelFile();
     setAttached(null);
@@ -75,9 +78,10 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
     });
   };
 
-  /** What "Save as" says: a to-do saves here; a document opens its form to be checked, with the linked to-do for Both. */
+  /** What's ticked: a to-do saves here; a document opens its form to be checked, with the linked to-do when both are. */
+  const saveAs = saveAsOf(picks);
   const createFromText = () => {
-    if (!title) return;
+    if (!title || !saveAs) return;
     if (saveAs === "TODO") return createTodo({ title, dueDate: draft.dueDate || undefined });
     openDocumentForm({ capture: { title }, alsoTodo: saveAs === "BOTH" ? { title, dueDate: draft.dueDate || undefined } : undefined });
   };
@@ -86,7 +90,7 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
     close();
     if (href) router.push(href);
   };
-  const buttonLabel = saveAs === "TODO" ? (creating ? "Creating…" : "Create to-do") : saveAs === "BOTH" ? "Check & create both" : "Check & create";
+  const buttonLabel = createLabel(saveAs, creating);
 
   return (
     <>
@@ -121,16 +125,17 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
 
               {title ? (
                 <>
-                  <SaveAsSwitch large value={saveAs} onChange={setSaveAs} onGoal={createGoal} />
-                  {saveAs !== "TODO" && <DocumentCard large name={title} />}
-                  {saveAs === "BOTH" && <LinkedNote />}
-                  {saveAs !== "DOCUMENT" && <TodoCard large title={title} dueDate={draft.dueDate} onDueDate={draft.setDueDate} rolled={draft.rolledToNextYear} />}
+                  <TodoCard large title={title} dueDate={draft.dueDate} onDueDate={draft.setDueDate} rolled={draft.rolledToNextYear} ticked={picks.todo} onTick={() => setPicks({ ...picks, todo: !picks.todo })} />
+                  {picks.document
+                    ? <DocumentCard large name={title} onTick={() => setPicks({ ...picks, document: false })} />
+                    : <AddRow large label="Also save as a document" onClick={() => setPicks({ ...picks, document: true })} />}
 
                   {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
 
                   <div className="flex gap-2.5">
                     <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a photo or file instead" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900"><Paperclip className="h-5 w-5" aria-hidden="true" /></button>
-                    <button type="button" onClick={createFromText} disabled={creating} className="h-14 flex-1 rounded-2xl bg-zinc-950 text-base font-semibold text-white disabled:opacity-60">{buttonLabel}</button>
+                    <MoreTypes large onGoal={createGoal} />
+                    <button type="button" onClick={createFromText} disabled={creating || !saveAs} className="h-14 flex-1 rounded-2xl bg-zinc-950 text-base font-semibold text-white disabled:opacity-60">{buttonLabel}</button>
                   </div>
                 </>
               ) : (

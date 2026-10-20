@@ -15,12 +15,15 @@ import { searchAction } from "./search-actions";
 import { CAPTURED_EVENT, type CapturedDetail } from "@/lib/capture/captured";
 import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
 import type { CustomFieldValue } from "@/lib/custom-fields/types";
-import type { FieldSuggestions, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
-import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitch, TodoCard, useCaptureDraft } from "./CaptureDraft";
+import type { FieldSuggestions, TodoSuggestion } from "@/lib/documents/extraction/suggest";
+import { AddRow, CaptureDocumentDialog, createLabel, DocumentCard, FilePanel, MoreTypes, saveAsOf, TodoCard, useCaptureDraft, type Picks } from "./CaptureDraft";
 
 /** What the Documents form opens with: a file's fields, or the typed title, and the linked to-do for Both. */
 type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion; customFields?: CustomFieldValue[] };
 import { Z_INDEX } from "@/lib/layout/z-index";
+
+/** Typed text is a to-do unless the user ticks the document too. */
+const TYPED_PICKS: Picks = { document: false, todo: true };
 
 /** How long to let someone keep typing before a search actually runs. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -33,14 +36,14 @@ const kindTones = { Document: "bg-blue-50", Goal: "bg-violet-50", Finance: "bg-e
  *
  * The bar answers both "do I already have this?" and "then record it" without
  * making the user choose between them first. What the typed text will create
- * comes first -- Save as (To-Do, Document, Both; Goal under ⋯), and a card
- * with the title and the due date read from the text -- then search matches,
- * then one button. Enter presses it: To-Do is the default because ADR-009's
- * whole argument is that capture has to cost nothing.
+ * comes first -- a ticked to-do card with the title and the due date read
+ * from the text, "+ Also save as a document" under it, Goal under ⋯ -- then
+ * search matches, then one button. Enter presses it: a to-do is the default
+ * because ADR-009's whole argument is that capture has to cost nothing.
  *
  * A file attached with the paperclip, or dropped on the bar, is read on the
- * device (ADR-017) and gets the same Save as, with Kinesis's suggestion
- * marked; a document always opens in the Documents form to be checked.
+ * device (ADR-017) and gets the same cards, ticked as Kinesis suggests, with
+ * the reason; a document always opens in the Documents form to be checked.
  */
 export function CommandBar() {
   const router = useRouter();
@@ -55,7 +58,7 @@ export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const draft = useCaptureDraft(query);
-  const [saveAs, setSaveAs] = useState<SaveAs>("TODO");
+  const [picks, setPicks] = useState<Picks>(TYPED_PICKS);
   const { state: fileRead, read: readFile, cancel: cancelFile } = useDocumentRead();
   const [attached, setAttached] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -142,11 +145,11 @@ export function CommandBar() {
   const clear = () => {
     setQuery("");
     setHighlighted(null);
-    setSaveAs("TODO");
+    setPicks(TYPED_PICKS);
   };
   const attach = (file: File | undefined) => {
     if (!file) return;
-    // A file takes over from anything typed: its own Save as replaces the text's.
+    // A file takes over from anything typed: its own cards replace the text's.
     clear();
     setAttached(file.name);
     void readFile(file);
@@ -177,9 +180,10 @@ export function CommandBar() {
     });
   };
 
-  /** The card's button, and Enter: what "Save as" says (ADR-018). */
+  /** The card's button, and Enter: whatever is ticked (ADR-018). */
+  const saveAs = saveAsOf(picks);
   const createFromText = () => {
-    if (!name) return;
+    if (!name || !saveAs) return;
     if (saveAs === "TODO") return createTodo({ title: name, dueDate: draft.dueDate || undefined }, clear);
     // A document is checked in its own form before it's saved; Both adds the to-do, linked.
     openDocumentForm({ capture: { title: name }, alsoTodo: saveAs === "BOTH" ? { title: name, dueDate: draft.dueDate || undefined } : undefined });
@@ -189,7 +193,7 @@ export function CommandBar() {
     const href = captureCreateHref("GOAL", name, { dueDate: draft.dueDate || undefined });
     if (href) router.push(href);
   };
-  const buttonLabel = saveAs === "TODO" ? (capturing ? "Creating…" : "Create to-do") : saveAs === "BOTH" ? "Check & create both" : "Check & create";
+  const buttonLabel = createLabel(saveAs, capturing);
 
   // The dropdown sits under the bar at the bar's width on a phone, and as a
   // narrower panel centred under it on the computer, per the agreed design.
@@ -244,11 +248,11 @@ export function CommandBar() {
       </div>}
 
       {isOpen && <div id="command-bar-options" className={`${panel} flex max-h-[calc(100dvh-140px)] flex-col gap-3 overflow-y-auto`}>
-        <SaveAsSwitch value={saveAs} onChange={setSaveAs} onGoal={createGoal} />
-        <div id="command-capture" role="option" aria-selected={activeIndex === 0} onMouseEnter={() => setHighlighted(0)} className="flex flex-col gap-3">
-          {saveAs !== "TODO" && <DocumentCard name={name} />}
-          {saveAs === "BOTH" && <LinkedNote />}
-          {saveAs !== "DOCUMENT" && <TodoCard title={name} dueDate={draft.dueDate} onDueDate={draft.setDueDate} rolled={draft.rolledToNextYear} />}
+        <div id="command-capture" role="option" aria-selected={activeIndex === 0} onMouseEnter={() => setHighlighted(0)} className="flex flex-col gap-2.5">
+          <TodoCard title={name} dueDate={draft.dueDate} onDueDate={draft.setDueDate} rolled={draft.rolledToNextYear} ticked={picks.todo} onTick={() => setPicks({ ...picks, todo: !picks.todo })} />
+          {picks.document
+            ? <DocumentCard name={name} onTick={() => setPicks({ ...picks, document: false })} />
+            : <AddRow label="Also save as a document" onClick={() => setPicks({ ...picks, document: true })} />}
         </div>
 
         {results.length ? <>
@@ -274,9 +278,12 @@ export function CommandBar() {
           : null}
 
 
-        <button type="button" disabled={capturing} onMouseDown={(event) => event.preventDefault()} onClick={createFromText} className={`flex h-[42px] items-center justify-center gap-2.5 rounded-xl text-sm font-semibold text-white outline-none transition hover:bg-black focus-visible:bg-black disabled:opacity-60 ${activeIndex === 0 ? "bg-zinc-950" : "bg-zinc-500"}`}>
-          {buttonLabel}<span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider">Enter</span>
-        </button>
+        <div className="flex gap-2">
+          <MoreTypes onGoal={createGoal} />
+          <button type="button" disabled={capturing || !saveAs} onMouseDown={(event) => event.preventDefault()} onClick={createFromText} className={`flex h-[42px] flex-1 items-center justify-center gap-2.5 rounded-xl text-sm font-semibold text-white outline-none transition hover:bg-black focus-visible:bg-black disabled:opacity-60 ${activeIndex === 0 ? "bg-zinc-950" : "bg-zinc-500"}`}>
+            {buttonLabel}{saveAs && <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider">Enter</span>}
+          </button>
+        </div>
       </div>}
 
       {error && <p role="alert" className={`absolute inset-x-0 top-[52px] ${Z_INDEX.banner} rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 shadow-lg`}>{error}</p>}

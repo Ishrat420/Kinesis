@@ -28,8 +28,10 @@ export type TodoSuggestion = { title: string; dueDate?: string; notes?: string }
  * `details` are what a bill says beyond the document's own fields ("Amount
  * due", "Biller code"): the document keeps them as custom fields, the to-do
  * as its notes, so whichever is saved has them.
+ *
+ * `reason` says why `suggested` was picked, finishing "Ticked for you: …".
  */
-export type FileReading = { document: FieldSuggestions; details?: CustomFieldValue[]; todo?: TodoSuggestion; suggested: SaveAs };
+export type FileReading = { document: FieldSuggestions; details?: CustomFieldValue[]; todo?: TodoSuggestion; suggested: SaveAs; reason: string };
 
 type DocumentType = (typeof DEFAULT_DOCUMENT_TYPES)[number];
 
@@ -211,10 +213,18 @@ export function readFile(text: string | string[], locale: string, mrzText?: stri
   const document = Object.fromEntries(Object.entries(suggestions).filter(([, value]) => value)) as FieldSuggestions;
   const notes = details.map((detail) => `${detail.label}: ${detail.value}`).join("\n");
   const todo = action.todo && notes ? { ...action.todo, notes } : action.todo;
+  const todoOnly = "todoOnly" in action && Boolean(action.todoOnly);
+  const reason = type === "Bill" && todo ? "it’s a bill with a due date"
+    : type === "Notice" && todo ? "it’s a renewal notice with a date"
+    : todoOnly ? "it asks for something by a date"
+    : todo ? "it has a date to act by"
+    : identity ? "an ID’s expiry sets its reminders"
+    : "a file to keep as a document";
   return {
     document,
     ...(details.length > 0 ? { details } : {}),
     ...(todo ? { todo } : {}),
-    suggested: !todo ? "DOCUMENT" : "todoOnly" in action && action.todoOnly ? "TODO" : "BOTH",
+    suggested: !todo ? "DOCUMENT" : todoOnly ? "TODO" : "BOTH",
+    reason,
   };
 }

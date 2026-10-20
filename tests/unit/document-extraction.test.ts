@@ -455,6 +455,7 @@ describe("bills and notices (KD-057)", () => {
       details: [{ label: "Amount due", value: "$182.40", type: "TEXT" }],
       todo: { title: "Pay electricity bill", dueDate: "2026-11-09", notes: "Amount due: $182.40" },
       suggested: "BOTH",
+      reason: "it’s a bill with a due date",
     });
   });
 
@@ -479,6 +480,7 @@ describe("bills and notices (KD-057)", () => {
       document: { name: "Car registration renewal notice", type: "Notice", documentNumber: "ABC123" },
       todo: { title: "Renew car registration", dueDate: "2026-11-30" },
       suggested: "BOTH",
+      reason: "it’s a renewal notice with a date",
     });
   });
 
@@ -490,7 +492,7 @@ describe("bills and notices (KD-057)", () => {
     expect(readFile("NSW Driver Licence\nLicence No. 12345678\nExpiry 03/04/2027", "en-AU")).toMatchObject({ suggested: "DOCUMENT" });
     expect(readFile("LICENCE EXPIRY DATE OF BIRTH\n20-05-2019 29-07-1983", "en-AU")).not.toHaveProperty("todo");
     const passport = `Passport\n${PASSPORT_MRZ.join("\n")}`;
-    expect(readFile(passport, "en-AU")).toMatchObject({ suggested: "DOCUMENT", document: { type: "Passport" } });
+    expect(readFile(passport, "en-AU")).toMatchObject({ suggested: "DOCUMENT", document: { type: "Passport" }, reason: "an ID’s expiry sets its reminders" });
   });
 });
 
@@ -522,6 +524,7 @@ describe("bill payment details (KD-057)", () => {
         notes: "Amount due: $1,204.55\nAccount name: Ishrat Jahan\nBiller code: 23796\nBPAY reference: 1234567890",
       },
       suggested: "BOTH",
+      reason: "it’s a bill with a due date",
     });
   });
 
@@ -578,6 +581,7 @@ describe("deadlines in the wording of a letter or email (KD-057)", () => {
       document: { name: "Reply with your proxy form" },
       todo: { title: "Reply with your proxy form", dueDate: "2026-11-12" },
       suggested: "TODO",
+      reason: "it asks for something by a date",
     });
   });
 

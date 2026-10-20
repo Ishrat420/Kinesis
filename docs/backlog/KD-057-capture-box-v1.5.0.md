@@ -52,6 +52,9 @@ frames), and the decisions behind it are in
   saves a document plus a linked to-do via the Documents form ("Also create
   a to-do"); the Documents page's own Upload gets the same section.
   Integration tests cover the linked to-do and a refused one.
+* **Tick the cards** (owner's pick from the v2 mockups): the To-Do |
+  Document | Both switch replaced by a tick on each card, the "Suggested"
+  badge by one line giving the reason, with Undo once changed.
 * **Bill details and deadlines in the wording** (owner's request): "Amount
   due", "Account name", "Biller code" and the BPAY reference are read from
   bills and kept as the document's custom fields and the to-do's notes.

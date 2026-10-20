@@ -39,7 +39,7 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
 
   const skip = () => {
     cancel();
-    onRead({ document: {}, suggested: "DOCUMENT" });
+    onRead({ document: {}, suggested: "DOCUMENT", reason: "a file to keep as a document" });
   };
 
   const reading = state.status === "reading";
