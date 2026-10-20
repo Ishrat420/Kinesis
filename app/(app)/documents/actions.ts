@@ -120,7 +120,8 @@ export async function createDocumentAction(
   const todoName = text(formData, "alsoTodoName");
   const todoDueValue = text(formData, "alsoTodoDueDate");
   const todoDue = todoDueValue ? parseDateOnly(todoDueValue) : null;
-  const todoNameError = checkLength(todoName, TEXT_LIMIT, "the to-do");
+  const todoNotes = text(formData, "alsoTodoNotes");
+  const todoNameError = checkLength(todoName, TEXT_LIMIT, "the to-do") ?? checkLength(todoNotes, NOTES_LIMIT, "the to-do's notes");
   if (todoNameError) return { error: todoNameError };
   if (todoDueValue && !todoDue) return { error: "Enter a valid due date for the to-do." };
   const data = form.data;
@@ -128,7 +129,7 @@ export async function createDocumentAction(
   const unowned = await validateKinesisTargets(data.customFields ?? []);
   if (unowned) return { error: unowned };
   const document = await createDocument(data);
-  if (todoName) await createTodo(todoName, { dueDate: todoDue, linkObjectIds: [document.objectId] });
+  if (todoName) await createTodo(todoName, { dueDate: todoDue, notes: todoNotes || null, linkObjectIds: [document.objectId] });
   // No-op unless quick capture sent the user here to turn a To-Do into this
   // document, in which case the To-Do retires now that the richer record exists.
   await completeCaptureConversion(formData);

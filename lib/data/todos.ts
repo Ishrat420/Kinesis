@@ -109,11 +109,11 @@ export async function getTodoSummary() {
  * Nothing else is required, because requiring anything else is the reason the
  * user would have reached for another app instead (ADR-009).
  */
-export async function captureTodo(name: string, dueDate: Date | null = null) {
+export async function captureTodo(name: string, dueDate: Date | null = null, notes: string | null = null) {
   const user = await requireKinesisUser();
   return prisma.$transaction(async (transaction) => {
     const todo = await transaction.todo.create({
-      data: { id: crypto.randomUUID(), name, dueDate, user: { connect: { id: user.id } }, object: objectFor.todo(name, user.id) },
+      data: { id: crypto.randomUUID(), name, dueDate, notes, user: { connect: { id: user.id } }, object: objectFor.todo(name, user.id) },
       select: { id: true, name: true, objectId: true },
     });
     await recordEvent(transaction, user.id, todo.objectId, "ITEM_CREATED");

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useFormatPreferences } from "@/lib/format/context";
+import { formatDateInput } from "@/lib/dates";
+import { useFormatPreferences, useToday } from "@/lib/format/context";
 import type { FileReading } from "./suggest";
 import type { ExtractionFailure, ExtractionStage } from "./read-document";
 
@@ -33,6 +34,7 @@ export type DocumentRead =
  */
 export function useDocumentRead() {
   const { locale } = useFormatPreferences();
+  const today = formatDateInput(useToday());
   const [state, setState] = useState<DocumentRead>({ status: "idle" });
   const abortRef = useRef<AbortController | null>(null);
 
@@ -53,6 +55,7 @@ export function useDocumentRead() {
       const { readDocument } = await import("./read-document");
       const reading = await readDocument(file, {
         locale,
+        today,
         signal: controller.signal,
         onStage: (stage) => { if (!controller.signal.aborted) setState({ status: "reading", stage }); },
       });
@@ -62,7 +65,7 @@ export function useDocumentRead() {
       const { ExtractionError } = await import("./read-document");
       setState({ status: "failed", failure: error instanceof ExtractionError ? error.reason : "unreadable" });
     }
-  }, [locale]);
+  }, [locale, today]);
 
   return { state, read, cancel };
 }

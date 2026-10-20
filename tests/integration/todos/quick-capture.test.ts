@@ -11,6 +11,7 @@ import { prisma } from "@/lib/data/prisma";
 import { captureTodoAction, saveTodoDetailsAction, undoCaptureAction } from "@/app/(app)/todos/actions";
 import { getTodoLinkOptions, getTodos } from "@/lib/data/todos";
 import { completeCaptureConversion } from "@/lib/data/capture";
+import { NOTES_LIMIT } from "@/lib/validation/field-limits";
 
 /**
  * Quick capture end to end against the real database (KD-008, ADR-009).
@@ -69,6 +70,17 @@ describe.sequential("quick capture", () => {
     expect(error).toBeUndefined();
     const todo = await prisma.todo.findUniqueOrThrow({ where: { id: captured!.id } });
     expect(todo.dueDate?.toISOString()).toBe("2027-09-24T00:00:00.000Z");
+  });
+
+  it("saves the notes a file gave it: a bill's amount and how to pay (KD-057)", async () => {
+    const { captured } = await captureTodoAction("Pay electricity bill", "2026-11-09", "  Amount due: $182.40\nBPAY reference: 1234567890 ");
+    const todo = await prisma.todo.findUniqueOrThrow({ where: { id: captured!.id } });
+    expect(todo.notes).toBe("Amount due: $182.40\nBPAY reference: 1234567890");
+  });
+
+  it("refuses notes over the notes limit, and records nothing", async () => {
+    expect(await captureTodoAction("Pay electricity bill", undefined, "x".repeat(NOTES_LIMIT + 1))).toEqual({ error: expect.any(String) });
+    expect(await prisma.todo.count({ where: { userId: owner, name: "Pay electricity bill" } })).toBe(0);
   });
 
   it("refuses a due date that isn't a real day, and records nothing", async () => {

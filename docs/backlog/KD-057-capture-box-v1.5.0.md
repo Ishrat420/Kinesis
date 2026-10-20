@@ -51,5 +51,13 @@ frames), and the decisions behind it are in
   date to act by and suggest Both; ID documents suggest Document. Both
   saves a document plus a linked to-do via the Documents form ("Also create
   a to-do"); the Documents page's own Upload gets the same section.
-  Integration tests cover the linked to-do and a refused one. Bill amount
-  left for later.
+  Integration tests cover the linked to-do and a refused one.
+* **Bill details and deadlines in the wording** (owner's request): "Amount
+  due", "Account name", "Biller code" and the BPAY reference are read from
+  bills and kept as the document's custom fields and the to-do's notes.
+  Pasted emails and letters (and files of them) give up the date they ask
+  for ("by 12 Nov", "by tomorrow" counted from the Sent line, "before
+  10/23/26", "due by next week"), titled from the subject or the sentence
+  with the deadline. Rules in `lib/capture/deadline.ts` and `labels.ts`;
+  unit tests in `capture-parse.test.ts` and `document-extraction.test.ts`,
+  integration tests for the saved notes and custom fields.

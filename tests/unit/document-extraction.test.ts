@@ -451,7 +451,8 @@ describe("bills and notices (KD-057)", () => {
     ].join("\n");
     expect(readFile(bill, "en-AU")).toEqual({
       document: { name: "Electricity bill", type: "Bill", documentNumber: "1234 5678 90", issueDate: "2026-10-15" },
-      todo: { title: "Pay electricity bill", dueDate: "2026-11-09" },
+      details: [{ label: "Amount due", value: "$182.40", type: "TEXT" }],
+      todo: { title: "Pay electricity bill", dueDate: "2026-11-09", notes: "Amount due: $182.40" },
       suggested: "BOTH",
     });
   });
@@ -489,5 +490,106 @@ describe("bills and notices (KD-057)", () => {
     expect(readFile("LICENCE EXPIRY DATE OF BIRTH\n20-05-2019 29-07-1983", "en-AU")).not.toHaveProperty("todo");
     const passport = `Passport\n${PASSPORT_MRZ.join("\n")}`;
     expect(readFile(passport, "en-AU")).toMatchObject({ suggested: "DOCUMENT", document: { type: "Passport" } });
+  });
+});
+
+describe("bill payment details (KD-057)", () => {
+  const today = "2026-10-20";
+  const bpayBill = [
+    "Coastal Energy",
+    "Tax invoice",
+    "Account name: Ishrat Jahan",
+    "Account number 400 123 456",
+    "Bill date 12/10/2026",
+    "Total amount due $1,204.55",
+    "Due date 06/11/2026",
+    "BPAY  Biller code: 23796  Ref: 1234 5678 90",
+  ].join("\n");
+
+  it("reads the amount, account name, biller code and BPAY reference", () => {
+    expect(readFile(bpayBill, "en-AU", undefined, today)).toEqual({
+      document: { name: "Bill", type: "Bill", documentNumber: "400 123 456", issueDate: "2026-10-12" },
+      details: [
+        { label: "Amount due", value: "$1,204.55", type: "TEXT" },
+        { label: "Account name", value: "Ishrat Jahan", type: "TEXT" },
+        { label: "Biller code", value: "23796", type: "TEXT" },
+        { label: "BPAY reference", value: "1234567890", type: "TEXT" },
+      ],
+      todo: {
+        title: "Pay bill",
+        dueDate: "2026-11-06",
+        notes: "Amount due: $1,204.55\nAccount name: Ishrat Jahan\nBiller code: 23796\nBPAY reference: 1234567890",
+      },
+      suggested: "BOTH",
+    });
+  });
+
+  it("reads 'Amount due   Due date' printed as columns", () => {
+    const bill = "Water bill\nAmount due        Due date\n$96.10           14/11/2026";
+    expect(readFile(bill, "en-AU", undefined, today)).toMatchObject({
+      details: [{ label: "Amount due", value: "$96.10" }],
+      todo: { dueDate: "2026-11-14", notes: "Amount due: $96.10" },
+    });
+  });
+
+  it("uses a reference as the document number when nothing else numbers it and there's no BPAY", () => {
+    expect(readFile("Insurance renewal\nReference number: POL-55821\nRenew by 01/12/2026", "en-AU", undefined, today)).toMatchObject({
+      document: { documentNumber: "POL-55821" },
+    });
+    expect(readFile("Insurance renewal\nReference number: POL-55821\nRenew by 01/12/2026", "en-AU", undefined, today)).not.toHaveProperty("details");
+  });
+
+  it("keeps a BPAY reference out of the document number", () => {
+    const reading = readFile("Council rates notice\nBiller code 1234\nCRN 9876543210\nDue date 30/11/2026", "en-AU", undefined, today);
+    expect(reading.document).not.toHaveProperty("documentNumber");
+    expect(reading.details).toEqual([
+      { label: "Biller code", value: "1234", type: "TEXT" },
+      { label: "BPAY reference", value: "9876543210", type: "TEXT" },
+    ]);
+  });
+
+  it("doesn't read a date or a plain number as an amount", () => {
+    expect(readLabelledFields("Amount due by 12.11.2026", "DMY")).not.toHaveProperty("amountDue");
+    expect(readLabelledFields("Total due 3 instalments", "DMY")).not.toHaveProperty("amountDue");
+    expect(readLabelledFields("Balance owing: $0.00.", "DMY")).toMatchObject({ amountDue: "$0.00" });
+  });
+
+  it("leaves an amount blank when two readings of it disagree", () => {
+    expect(readLabelledFields("Amount due $182.40\nTotal due $128.40", "DMY")).not.toHaveProperty("amountDue");
+  });
+
+  it("stops an account name at the next label", () => {
+    expect(readLabelledFields("Account name: J & A Smith Account number 12345", "DMY")).toMatchObject({ accountName: "J & A Smith", documentNumber: "12345" });
+    expect(readLabelledFields("Customer name\nMs Priya O'Neil", "DMY")).toMatchObject({ accountName: "Ms Priya O'Neil" });
+  });
+
+  it("gives an identity document no bill details", () => {
+    expect(readFile("Passport\nReference number 12345678", "en-AU", undefined, today)).not.toHaveProperty("details");
+  });
+});
+
+describe("deadlines in the wording of a letter or email (KD-057)", () => {
+  const today = "2026-10-20";
+
+  it("finds 'please reply by 12 Nov' in a letter with no due-date label, and suggests a to-do", () => {
+    const letter = "Strata Plan 1234\nDear owner,\nThe annual general meeting is coming up. Please reply by 12 Nov with your proxy form.\nRegards";
+    expect(readFile(letter, "en-AU", undefined, today)).toMatchObject({
+      document: { name: "Reply with your proxy form" },
+      todo: { title: "Reply with your proxy form", dueDate: "2026-11-12" },
+      suggested: "TODO",
+    });
+  });
+
+  it("titles an emailed PDF from its subject and counts 'by tomorrow' from when it was sent", () => {
+    const email = "From: Leasing <leasing@example.test>\nSent: Wednesday, 14 October 2026 4:02 PM\nSubject: Signed lease\n\nCould you return the signed lease by tomorrow?";
+    expect(readFile(email, "en-AU", undefined, today)).toMatchObject({ todo: { title: "Signed lease", dueDate: "2026-10-15" } });
+  });
+
+  it("skips 'by next week' in a file that doesn't say when it was written", () => {
+    expect(readFile("Notice to residents\nThe forms are due by next week.", "en-AU", undefined, today)).not.toHaveProperty("todo");
+  });
+
+  it("never turns an identity document's expiry into a to-do", () => {
+    expect(readFile("NSW Driver Licence\nLicence No. 12345678\nExpires on 03/04/2027", "en-AU", undefined, today)).not.toHaveProperty("todo");
   });
 });

@@ -83,3 +83,73 @@ describe("parseCapture is unaffected by the device's time zone", () => {
     });
   }
 });
+
+describe("parseCapture: deadlines in long, pasted text (KD-057)", () => {
+  const today = "2026-10-20"; // a Tuesday
+  const read = (text: string, locale = "en-AU") => parseCapture(text, today, locale);
+
+  it("finds 'by 12 Nov' in a chatty email and titles it from the subject", () => {
+    const email = [
+      "From: Coastal Insurance <hello@example.test>",
+      "Sent: Monday, 19 October 2026 9:14 AM",
+      "Subject: Re: Your car insurance renewal",
+      "",
+      "Hi Ishrat,",
+      "Thanks for being with us since 3 March 2021. Your policy is coming up for renewal.",
+      "Please make the payment by 12 Nov to keep your cover going.",
+      "Kind regards, The Team",
+    ].join("\n");
+    expect(read(email)).toEqual({ title: "Your car insurance renewal", dueDate: "2026-11-12" });
+  });
+
+  it("takes the sentence with the deadline as the title when there's no subject", () => {
+    const text = "Hi team, great catch-up on 2 October. Just a reminder that the forms need to be submitted before 10/23/26. Thanks!";
+    expect(read(text)).toEqual({ title: "The forms need to be submitted", dueDate: "2026-10-23" });
+  });
+
+  it("reads 'before 10/23/26' month-first even under an Australian locale, since 23 can't be a month", () => {
+    expect(read("Hello,\nplease send it back before 10/23/26 so we can process it.")).toMatchObject({ dueDate: "2026-10-23" });
+  });
+
+  it("counts 'by tomorrow' from when the email was sent, not from today", () => {
+    const email = "Sent: Wednesday, 14 October 2026 4:02 PM\nSubject: Signed lease\n\nCould you return the signed lease by tomorrow? Thanks.";
+    expect(read(email)).toEqual({ title: "Signed lease", dueDate: "2026-10-15" });
+  });
+
+  it("counts 'due by next week' from today when the text doesn't say when it was written", () => {
+    expect(read("Quick note from the strata manager.\nThe levy payment is due by next week, please don't miss it.")).toMatchObject({ dueDate: "2026-10-27" });
+  });
+
+  it("prefers a strong cue ('due', 'pay by') over a weak one ('by')", () => {
+    const text = "We'll be in touch by 30 October about the new plan.\nYour current invoice is due 5 November.";
+    expect(read(text)).toMatchObject({ dueDate: "2026-11-05" });
+  });
+
+  it("suggests no date when equally strong deadlines disagree", () => {
+    expect(read("Part one is due 5 November.\nPart two is due 19 November.")).not.toHaveProperty("dueDate");
+  });
+
+  it("ignores dates in headers, quoted replies and in passing", () => {
+    const email = [
+      "Sent: Monday, 19 October 2026 9:14 AM",
+      "Subject: Catch up",
+      "",
+      "Lovely to see you on 3 October! No rush on anything.",
+      "",
+      "On Fri, 2 Oct 2026 at 10:00, Sam wrote:",
+      "> see you then",
+    ].join("\n");
+    expect(read(email)).toEqual({ title: "Catch up" });
+  });
+
+  it("still takes one uncued date in a short typed capture, but not in a long message", () => {
+    expect(read("call dentist tomorrow")).toMatchObject({ dueDate: "2026-10-21" });
+    expect(read("We met on 3 November last year and it was lovely, really great to catch up with everyone.\nTalk soon.")).not.toHaveProperty("dueDate");
+  });
+
+  it("keeps titles from long text readable", () => {
+    const long = `${"word ".repeat(60)}due by Friday`;
+    const { title } = read(long);
+    expect(title.length).toBeLessThanOrEqual(121);
+  });
+});

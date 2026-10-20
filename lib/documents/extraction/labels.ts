@@ -49,10 +49,36 @@ const DUE_LABEL = label([
   "renew\\s+(?:by|before)", "renewal\\s+(?:date|due)", "due\\s+for\\s+renewal",
 ]);
 const NUMBER_LABEL = label([
-  "(?:document|passport|licen[cs]e|card|policy|certificate|membership|registration|reference|visa|grant|account|customer|invoice|bill|client)\\s*(?:no\\.?|number|num\\.?|#)",
+  "(?:document|passport|licen[cs]e|card|policy|certificate|membership|registration|visa|grant|account|customer|invoice|bill|client)\\s*(?:no\\.?|number|num\\.?|#)",
   "n[uú]mero\\s+(?:de\\s+)?documento", "num[eé]ro\\s+(?:du\\s+)?document", "(?:passeport|document)\\s+n[o°º]",
   "ausweisnummer", "passnummer", "dokumentennummer",
 ], "\\s*[:#.-]?\\s*");
+/**
+ * A bill's payment details (KD-057): what to pay, whose account it is, and
+ * the BPAY biller code and reference to pay it with. Kept as the document's
+ * own fields and in the to-do's notes, so either one has what paying needs.
+ */
+const AMOUNT_LABEL = label([
+  "(?:total\\s+)?amount\\s+(?:now\\s+)?(?:due|payable|owing|to\\s+pay)", "total\\s+(?:now\\s+)?(?:due|payable|owing|to\\s+pay)",
+  "balance\\s+(?:due|owing|payable)", "(?:please\\s+)?pay\\s+this\\s+amount",
+], "\\s*[:#.-]?\\s*");
+const ACCOUNT_NAME_LABEL = label(["account\\s+name", "account\\s+holder(?:\\s+name)?", "customer\\s+name", "name\\s+on\\s+(?:the\\s+)?account"], "\\s*[:#.-]?\\s*");
+const BILLER_CODE_LABEL = label(["biller\\s+code"], "\\s*(?:no\\.?|number)?\\s*[:#.-]?\\s*");
+/** "Ref" alone, a CRN, or a reference number: on a bill with a biller code, the BPAY reference. */
+const REFERENCE_LABEL = label([
+  "(?:customer\\s+|payment\\s+|bpay\\s+)?reference(?:\\s*(?:no\\.?|number|num\\.?|#))?", "(?:bpay\\s+)?ref(?:\\s*(?:no\\.?|number|#))?\\.?", "crn",
+], "\\s*[:#.-]?\\s*");
+
+/**
+ * Money, with its currency marked ("$182.40", "AUD 1,204.00") or written to
+ * the cent ("182.40"). The leading character is consumed, not looked behind,
+ * so "12.11.2026" never reads as an amount.
+ */
+const MONEY = /(?:^|[^\d.,$])(?:(?:A?\$|AUD)\s?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)|(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2}))(?!\d|[.,]\d)/i;
+/** A name: letters and the punctuation names use, no digits. Ends where another label or a wide gap starts. */
+const NAME_VALUE = /^[\p{L}][\p{L} .,'&-]{1,59}/u;
+const NAME_STOP = /\s{2,}|\t|\s(?:account|customer|invoice|biller|reference|ref|crn|bill|due|amount|date|issue|total|balance|period|abn|tax)\b/i;
+
 /** The US licence code, upper case only ("DL 123456789"): lower-case "dl" is too common a pair of letters. */
 const DL_LABEL = label(["DLN?"], "\\s*[:#.-]?\\s*", "gu");
 
@@ -68,7 +94,10 @@ const STANDALONE_TOKEN = /^[A-Z0-9][A-Z0-9/.-]*[A-Z0-9]$/i;
  */
 const VALUE_WINDOW = 80;
 
-type Labelled = { expiryDate?: string; issueDate?: string; documentNumber?: string; dueDate?: string };
+type Labelled = {
+  expiryDate?: string; issueDate?: string; documentNumber?: string; dueDate?: string;
+  amountDue?: string; accountName?: string; billerCode?: string; reference?: string;
+};
 
 type Hit = { end: number; index: number; text: string };
 
@@ -192,6 +221,68 @@ function numbersFor(lines: string[], order: DateOrder): string[] {
   return values;
 }
 
+function moneyIn(text: string): string | undefined {
+  const match = MONEY.exec(text);
+  if (!match) return undefined;
+  return match[1] !== undefined ? `$${match[1]}` : match[2];
+}
+
+/** The amount beside its label, or -- in a column layout, "Amount due   Due date" -- the one amount on the line below. */
+function amountsFor(lines: string[]): string[] {
+  const values: string[] = [];
+  lines.forEach((line, i) => {
+    for (const hit of hits(line, AMOUNT_LABEL)) {
+      const beside = moneyIn(line.slice(hit.end, hit.end + VALUE_WINDOW));
+      if (beside) { values.push(beside); continue; }
+      const next = lines[i + 1];
+      if (next === undefined) continue;
+      const below = [...next.matchAll(new RegExp(MONEY.source, "gi"))];
+      if (below.length === 1) values.push(moneyIn(below[0][0])!);
+    }
+  });
+  return values;
+}
+
+function accountNamesFor(lines: string[]): string[] {
+  const values: string[] = [];
+  lines.forEach((line, i) => {
+    for (const hit of hits(line, ACCOUNT_NAME_LABEL)) {
+      const source = endsLine(line, hit.end) ? lines[i + 1] ?? "" : line.slice(hit.end, hit.end + VALUE_WINDOW);
+      const stop = NAME_STOP.exec(source);
+      const name = NAME_VALUE.exec((stop ? source.slice(0, stop.index) : source).trim())?.[0].replace(/[\s,.-]+$/, "").trim();
+      if (name && name.length >= 2) values.push(name);
+    }
+  });
+  return values;
+}
+
+/** A biller code is three to ten digits, beside its label or alone on the line below. */
+function billerCodesFor(lines: string[]): string[] {
+  const values: string[] = [];
+  lines.forEach((line, i) => {
+    for (const hit of hits(line, BILLER_CODE_LABEL)) {
+      const source = endsLine(line, hit.end) ? lines[i + 1] ?? "" : line.slice(hit.end, hit.end + VALUE_WINDOW);
+      const code = /^\d{3,10}(?!\d)/.exec(source.trim())?.[0];
+      if (code) values.push(code);
+    }
+  });
+  return values;
+}
+
+/** A reference keeps its letters (a policy's "AB-1234"); a digits-only one loses the spaces it was printed with. */
+function referencesFor(lines: string[]): string[] {
+  const values: string[] = [];
+  lines.forEach((line, i) => {
+    for (const hit of hits(line, REFERENCE_LABEL)) {
+      const source = endsLine(line, hit.end) ? lines[i + 1] ?? "" : line.slice(hit.end, hit.end + VALUE_WINDOW);
+      const token = NUMBER_TOKEN.exec(source.trim())?.[0].trim().replace(/\.$/, "");
+      if (!token || !isNumberShaped(token)) continue;
+      values.push(/^[\d ]+$/.test(token) ? token.replace(/ /g, "") : token.toUpperCase());
+    }
+  });
+  return values;
+}
+
 export function readLabelledFields(text: string, order: DateOrder): Labelled {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const paired = pairedDates(lines, order);
@@ -200,6 +291,10 @@ export function readLabelledFields(text: string, order: DateOrder): Labelled {
     issueDate: agreed([...paired.issue, ...datesFor(lines, ISSUE_LABEL, order, paired.handled, (label) => BARE_ISSUED.test(label.trim()))]),
     documentNumber: agreed(numbersFor(lines, order)),
     dueDate: agreed([...paired.due, ...datesFor(lines, DUE_LABEL, order, paired.handled)]),
+    amountDue: agreed(amountsFor(lines)),
+    accountName: agreed(accountNamesFor(lines)),
+    billerCode: agreed(billerCodesFor(lines)),
+    reference: agreed(referencesFor(lines)),
   };
   // A due date before the bill was even issued was misread.
   if (result.dueDate && result.issueDate && result.dueDate < result.issueDate) delete result.dueDate;

@@ -14,11 +14,12 @@ import { CaptureConfirmation } from "./CaptureConfirmation";
 import { searchAction } from "./search-actions";
 import { CAPTURED_EVENT, type CapturedDetail } from "@/lib/capture/captured";
 import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
+import type { CustomFieldValue } from "@/lib/custom-fields/types";
 import type { FieldSuggestions, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
 import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitch, TodoCard, useCaptureDraft } from "./CaptureDraft";
 
 /** What the Documents form opens with: a file's fields, or the typed title, and the linked to-do for Both. */
-type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion };
+type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion; customFields?: CustomFieldValue[] };
 import { Z_INDEX } from "@/lib/layout/z-index";
 
 /** How long to let someone keep typing before a search actually runs. */
@@ -167,7 +168,7 @@ export function CommandBar() {
   const createTodo = (todo: TodoSuggestion, afterwards?: () => void) => {
     if (!todo.title.trim()) return;
     startCapture(async () => {
-      const result = await captureTodoAction(todo.title, todo.dueDate || undefined);
+      const result = await captureTodoAction(todo.title, todo.dueDate || undefined, todo.notes);
       if (result.error) return setError(result.error);
       setError(undefined);
       setCaptured(result.captured ?? null);
@@ -237,7 +238,7 @@ export function CommandBar() {
           fileName={attached} state={fileRead} onRemove={detach} busy={capturing}
           actions={{
             createTodo: (todo) => createTodo(todo, detach),
-            openDocument: (suggestions, alsoTodo) => openDocumentForm({ suggestions: suggestions ?? {}, alsoTodo }),
+            openDocument: (suggestions, alsoTodo, customFields) => openDocumentForm({ suggestions: suggestions ?? {}, alsoTodo, customFields }),
           }}
         />
       </div>}

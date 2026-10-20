@@ -46,7 +46,7 @@ const refresh = () => revalidateShell();
  * that the user does not leave what they were doing, so the command bar shows
  * the confirmation in place and offers Undo and Add details from there.
  */
-export async function captureTodoAction(rawName: string, rawDueDate?: string): Promise<CaptureState> {
+export async function captureTodoAction(rawName: string, rawDueDate?: string, rawNotes?: string): Promise<CaptureState> {
   const name = rawName.trim();
   if (!name) return { error: "Type what you need to do." };
   if (name.length > MAX_TITLE_LENGTH) return { error: `Keep it under ${MAX_TITLE_LENGTH} characters — you can add the detail afterwards.` };
@@ -56,8 +56,12 @@ export async function captureTodoAction(rawName: string, rawDueDate?: string): P
   const dueDateValue = typeof rawDueDate === "string" ? rawDueDate.trim() : "";
   const dueDate = dueDateValue ? parseDateOnly(dueDateValue) : null;
   if (dueDateValue && !dueDate) return { error: "Enter a valid due date." };
+  // A bill's amount and how to pay it, read from the file (KD-057).
+  const notes = typeof rawNotes === "string" ? rawNotes.trim() : "";
+  const notesError = checkLength(notes, NOTES_LIMIT, "the notes");
+  if (notesError) return { error: notesError };
 
-  const todo = await captureTodo(name, dueDate);
+  const todo = await captureTodo(name, dueDate, notes || null);
   refresh();
   return { captured: todo };
 }

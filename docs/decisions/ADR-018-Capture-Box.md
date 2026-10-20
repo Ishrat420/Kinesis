@@ -114,8 +114,8 @@ Document | Both** — with Goal under ⋯. Kinesis pre-selects one and marks it
 - The to-do's title is generated and editable: "Pay electricity bill",
   "Renew car registration". A passport switched to To-Do or Both gets
   "Renew passport", due on its expiry.
-- The bill's amount isn't captured yet (Documents have no amount field);
-  left out by the owner's call.
+- A bill's payment details are read too (below), and kept on whichever is
+  saved: as custom fields on the document, as notes on the to-do.
 - The computer's dropdown follows the phone's layout at 480 px: switch,
   card, one button. The owner found the first, wider version cluttered.
 
@@ -125,6 +125,53 @@ dates; account, customer and invoice numbers. "Renewal date" moved from
 expiry to the due date, which is what it means on a renewal notice. A
 service is named only when exactly one is mentioned ("electricity and gas"
 stays "Bill"), and a verified MRZ is never treated as a bill.
+
+### Bill details, and deadlines in the wording
+
+Added at the owner's request, for both Document and To-Do:
+
+- **Labels:** "Amount due" (also total due, amount payable, balance owing),
+  "Account name" (also account holder, customer name), "Biller code", and a
+  reference ("Ref", "CRN", "Reference number"). Amounts must look like money
+  ("$182.40", "AUD 96.10", or written to the cent), so "12.11.2026" and "3
+  instalments" are not amounts. As with every field, two readings that
+  disagree leave it blank.
+- **BPAY:** with a biller code or the word BPAY on the page, the reference
+  is the **BPAY reference**, a payment detail, never the document number.
+  Without BPAY, a reference is the document number when nothing else
+  numbers the document (a policy's "Reference number: POL-55821").
+- **Where they go:** the document gets custom fields ("Amount due", "Account
+  name", "Biller code", "BPAY reference"), editable in the form like any
+  other. The to-do gets the same lines as its notes, so a to-do saved on its
+  own, without the file, still says what to pay and how. The card shows the
+  short version: "$182.40 · BPAY 23796 / 1234567890". Nothing is read from an
+  identity document.
+
+**Deadlines in the wording** (`lib/capture/deadline.ts`), for pasted text
+and for files alike: emails and letters say "by 12 Nov", "by tomorrow",
+"before 10/23/26" or "due by next week" somewhere among everything else.
+
+- A deadline is a date introduced by a cue. Strong cues ("due", "deadline",
+  "no later than", "pay by", "reply by", "renew by") beat weak ones ("by",
+  "before", "until"). If the strongest ones disagree, nothing is suggested.
+- Dates on header lines ("Sent:", "Date:", "On … wrote:") are never
+  deadlines. They are when the message was written, which is what "by
+  tomorrow" counts from: an email sent on 14 October saying "by tomorrow"
+  means 15 October, whenever it is read.
+- A date with no cue counts only in a short, one-line capture ("call dentist
+  tomorrow"), where it can't mean anything else. In a long message, a date
+  in passing ("great to see you on 3 October") is ignored.
+- Pasted messages are titled from their **Subject:** line, else the sentence
+  with the deadline in it ("The forms need to be submitted"), greetings and
+  "just a reminder that" removed.
+- In a file, which doesn't say when it was written unless it has a Sent
+  line, relative phrases ("next week") are skipped and only actual dates
+  count. A labelled due date always wins. A date in the wording is never
+  taken from an identity document, and never when it is the expiry or falls
+  before the issue date. A letter or email whose only action is such a date
+  suggests **To-Do**; kept as a document, it takes the same name.
+- US order is read when the date itself shows it ("10/23/26": 23 can't be a
+  month); otherwise the owner's locale decides, as before.
 
 ## Consequences
 

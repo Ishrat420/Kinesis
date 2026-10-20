@@ -12,6 +12,7 @@ vi.mock("next/server", () => ({ connection: vi.fn() }));
 import { prisma } from "@/lib/data/prisma";
 import { createDocumentAction, updateDocumentAction, deleteDocumentTypeAction } from "@/app/(app)/documents/actions";
 import { CUSTOM_FIELDS_FORM_KEY } from "@/lib/custom-fields/types";
+import { getDocument } from "@/lib/data/documents";
 import { LINK_LIMIT } from "@/lib/validation/field-limits";
 
 /**
@@ -73,6 +74,27 @@ describe.sequential("Documents server actions", () => {
       const link = await prisma.objectRelationship.findFirst({ where: { sourceObjectId: todo.objectId, targetObjectId: document.objectId } });
       expect(link).not.toBeNull();
       expect(mocks.redirect).toHaveBeenCalledWith(`/documents/${document.id}`);
+    });
+
+    it("saves a bill's payment details on the document and in the to-do's notes (KD-057)", async () => {
+      const data = form({
+        name: "Electricity bill", type: "Bill", prompt: "180",
+        alsoTodoName: "Pay electricity bill", alsoTodoDueDate: "2026-11-09", alsoTodoNotes: "Amount due: $182.40\nBiller code: 23796",
+      });
+      data.set(CUSTOM_FIELDS_FORM_KEY, JSON.stringify([
+        { label: "Amount due", value: "$182.40", type: "TEXT" },
+        { label: "Biller code", value: "23796", type: "TEXT" },
+      ]));
+      expect(await createDocumentAction({}, data)).toBeUndefined();
+
+      const created = await prisma.document.findFirstOrThrow({ where: { userId: owner, name: "Electricity bill" } });
+      const document = await getDocument(created.id);
+      expect(document?.customFields).toEqual([
+        expect.objectContaining({ label: "Amount due", value: "$182.40" }),
+        expect.objectContaining({ label: "Biller code", value: "23796" }),
+      ]);
+      const todo = await prisma.todo.findFirstOrThrow({ where: { userId: owner } });
+      expect(todo.notes).toBe("Amount due: $182.40\nBiller code: 23796");
     });
 
     it("creates no to-do when the form has none", async () => {

@@ -41,6 +41,8 @@ const MRZ_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<";
 
 type Options = {
   locale: string;
+  /** The owner's day, YYYY-MM-DD, for dates written without a year or as "tomorrow". */
+  today?: string;
   signal?: AbortSignal;
   onStage?: (stage: ExtractionStage) => void;
 };
@@ -239,5 +241,5 @@ export async function readDocumentText(file: File, options: Options): Promise<Re
 
 export async function readDocument(file: File, options: Options): Promise<FileReading> {
   const { texts, mrzText } = await readDocumentText(file, options);
-  return readFile(texts, options.locale, mrzText);
+  return readFile(texts, options.locale, mrzText, options.today);
 }

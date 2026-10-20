@@ -27,7 +27,7 @@ export function UploadDocumentButton({ documentTypes, linkOptions }: { documentT
       </button>
 
       {step.kind === "upload" && <UploadDocumentModal onClose={close} onRead={(reading) => setStep({ kind: "review", reading })} />}
-      {step.kind === "review" && <CreateDocumentDialog documentTypes={documentTypes} linkOptions={linkOptions} suggestions={step.reading.document} alsoTodo={step.reading.todo} onClose={close} />}
+      {step.kind === "review" && <CreateDocumentDialog documentTypes={documentTypes} linkOptions={linkOptions} suggestions={step.reading.document} alsoTodo={step.reading.todo} customFields={step.reading.details} onClose={close} />}
     </>
   );
 }

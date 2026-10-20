@@ -6,7 +6,7 @@ import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
 import { NO_REMINDER_LABEL, NO_REMINDER_VALUE, parseReminderPrompt, REMINDER_OPTIONS, reminderLabel } from "@/lib/documents/expiry";
 import { DocumentTypeSelect, type DocumentTypeOption } from "./DocumentTypeSelect";
-import type { KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 import type { FieldSuggestions, TodoSuggestion } from "@/lib/documents/extraction/suggest";
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
 import { Modal } from "@/components/overlay/Modal";
@@ -43,6 +43,7 @@ export function CreateDocumentDialog({
   capture,
   suggestions,
   alsoTodo,
+  customFields,
   onClose,
 }: {
   documentTypes: DocumentTypeOption[];
@@ -51,6 +52,8 @@ export function CreateDocumentDialog({
   suggestions?: FieldSuggestions;
   /** KD-057: the to-do to create alongside, linked to the document ("Save as: Both"). */
   alsoTodo?: TodoSuggestion;
+  /** KD-057: a bill's payment details read from the file ("Amount due", "Biller code"), as starting custom fields. */
+  customFields?: CustomFieldValue[];
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(createDocumentAction, initialState);
@@ -101,6 +104,7 @@ export function CreateDocumentDialog({
               linkOptions={linkOptions}
               afterDates={<ReminderField />}
               values={{ expiryDate: suggestions?.expiryDate, issueDate: suggestions?.issueDate, documentNumber: suggestions?.documentNumber, country: suggestions?.country }}
+              initialCustomFields={customFields}
               suggested={suggested}
             />
           </div>
@@ -138,8 +142,8 @@ export function CreateDocumentDialog({
 
 /**
  * The to-do saved with the document and linked to it (KD-057): a bill's
- * "Pay …", a notice's "Renew …". Its title and date can be changed here, and
- * removing it saves the document alone.
+ * "Pay …", a notice's "Renew …". Its title, date and notes (the amount and
+ * how to pay it) can be changed here, and removing it saves the document alone.
  */
 function AlsoTodoSection({ initial }: { initial: TodoSuggestion }) {
   const [kept, setKept] = useState(true);
@@ -167,6 +171,12 @@ function AlsoTodoSection({ initial }: { initial: TodoSuggestion }) {
           <input id="also-todo-due" name="alsoTodoDueDate" type="date" defaultValue={initial.dueDate} className={`${FIELD_CLASS} pl-10`} />
         </div>
       </div>
+      {initial.notes !== undefined && (
+        <div>
+          <label htmlFor="also-todo-notes" className="sr-only">To-do notes</label>
+          <textarea id="also-todo-notes" name="alsoTodoNotes" rows={Math.min(4, initial.notes.split("\n").length)} defaultValue={initial.notes} className="w-full rounded-xl border-[1.5px] border-zinc-200 bg-white px-3.5 py-2.5 text-base text-zinc-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 sm:text-sm" />
+        </div>
+      )}
       <p className="flex items-center gap-1.5 text-xs text-zinc-600"><Link2 className="h-3.5 w-3.5" aria-hidden="true" />Linked to this document</p>
     </fieldset>
   );

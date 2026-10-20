@@ -8,6 +8,7 @@ import { BottomSheet } from "@/components/overlay/BottomSheet";
 import { announceCaptured } from "@/lib/capture/captured";
 import { captureCreateHref } from "@/lib/capture/targets";
 import { useDocumentRead } from "@/lib/documents/extraction/use-document-read";
+import type { CustomFieldValue } from "@/lib/custom-fields/types";
 import type { FieldSuggestions, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
 import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitch, TodoCard, useCaptureDraft } from "./CaptureDraft";
 
@@ -15,7 +16,7 @@ import { CaptureDocumentDialog, DocumentCard, FilePanel, LinkedNote, SaveAsSwitc
 const DOCUMENT_TYPES = ".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
 const PHOTO_TYPES = "image/jpeg,image/png";
 
-type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion };
+type DocumentFormRequest = { suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion; customFields?: CustomFieldValue[] };
 
 /**
  * The phone's capture box (KD-057, ADR-018): the tab bar's + opens this sheet
@@ -66,7 +67,7 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
   const createTodo = (todo: TodoSuggestion) => {
     if (!todo.title.trim()) return;
     startCreate(async () => {
-      const result = await captureTodoAction(todo.title, todo.dueDate || undefined);
+      const result = await captureTodoAction(todo.title, todo.dueDate || undefined, todo.notes);
       if (result.error || !result.captured) return setError(result.error ?? "That didn't save. Try again.");
       // The top bar shows the confirmation, with Undo and Add details.
       announceCaptured(result.captured);
@@ -102,7 +103,7 @@ export function CaptureSheet({ open, onClose, inputRef }: { open: boolean; onClo
               onRemove={() => { cancelFile(); setAttached(null); }}
               actions={{
                 createTodo,
-                openDocument: (suggestions, alsoTodo) => openDocumentForm({ suggestions: suggestions ?? {}, alsoTodo }),
+                openDocument: (suggestions, alsoTodo, customFields) => openDocumentForm({ suggestions: suggestions ?? {}, alsoTodo, customFields }),
               }}
             />
           ) : (

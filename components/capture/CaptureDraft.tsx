@@ -6,7 +6,7 @@ import { CreateDocumentDialog } from "@/app/(app)/documents/CreateDocumentDialog
 import { documentFormOptionsAction } from "@/app/(app)/documents/actions";
 import type { DocumentTypeOption } from "@/app/(app)/documents/DocumentTypeSelect";
 import { parseCapture } from "@/lib/capture/parse";
-import type { KinesisLinkOption } from "@/lib/custom-fields/types";
+import type { CustomFieldValue, KinesisLinkOption } from "@/lib/custom-fields/types";
 import { formatDateInput, parseDateOnly } from "@/lib/dates";
 import type { FieldSuggestions, FileReading, SaveAs, TodoSuggestion } from "@/lib/documents/extraction/suggest";
 import { READ_FAILURE_MESSAGE, READ_STAGE_LABEL, type DocumentRead } from "@/lib/documents/extraction/use-document-read";
@@ -135,8 +135,8 @@ export function SaveAsSwitch({ value, suggested, onChange, onGoal, large = false
 }
 
 /** The to-do half of a card. The title is an input when it was generated (a file's "Pay …"), plain text when it came from what was typed. */
-export function TodoCard({ title, onTitle, dueDate, onDueDate, rolled = false, large = false }: {
-  title: string; onTitle?: (title: string) => void; dueDate: string; onDueDate: (value: string) => void; rolled?: boolean; large?: boolean;
+export function TodoCard({ title, onTitle, detail, dueDate, onDueDate, rolled = false, large = false }: {
+  title: string; onTitle?: (title: string) => void; detail?: string; dueDate: string; onDueDate: (value: string) => void; rolled?: boolean; large?: boolean;
 }) {
   return (
     <div className={`flex flex-col gap-2.5 rounded-2xl border-[1.5px] border-zinc-900 ${large ? "p-3.5" : "p-3"}`}>
@@ -149,6 +149,7 @@ export function TodoCard({ title, onTitle, dueDate, onDueDate, rolled = false, l
         )}
         {!large && <DueDateButton value={dueDate} onChange={onDueDate} />}
       </div>
+      {detail && <p className="truncate pl-12 text-xs text-zinc-600">{detail}</p>}
       {large && <DueDateButton large value={dueDate} onChange={onDueDate} />}
       {rolled && <RolledYearNote />}
     </div>
@@ -172,10 +173,11 @@ export function LinkedNote() {
   return <p className="flex items-center gap-1.5 pl-3.5 text-xs text-zinc-600"><Link2 className="h-3.5 w-3.5" aria-hidden="true" />and a to-do, linked to it</p>;
 }
 
-/** The document's fields in one line: number · dates · country. */
+/** The document's fields in one line: amount · number · dates · country. */
 function useDocumentDetail() {
   const label = useDateLabel(false);
-  return (document: FieldSuggestions) => [
+  return (document: FieldSuggestions, details: CustomFieldValue[] = []) => [
+    details.find((detail) => detail.label === "Amount due")?.value,
     document.documentNumber,
     document.issueDate && label(document.issueDate),
     document.expiryDate && `Expires ${label(document.expiryDate)}`,
@@ -192,11 +194,19 @@ function fallbackTodo(document: FieldSuggestions): TodoSuggestion {
   return { title: name ? `Renew ${name.toLowerCase()}` : "", ...(document.expiryDate ? { dueDate: document.expiryDate } : {}) };
 }
 
+function payLine(details: CustomFieldValue[]) {
+  const value = (label: string) => details.find((detail) => detail.label === label)?.value;
+  const biller = value("Biller code");
+  const reference = value("BPAY reference") ?? value("Reference");
+  const pay = biller ? `BPAY ${biller}${reference ? ` / ${reference}` : ""}` : reference && `Ref ${reference}`;
+  return [value("Amount due"), pay].filter(Boolean).join(" · ") || undefined;
+}
+
 export type FileActions = {
   /** Save the to-do on its own, straight away. */
   createTodo: (todo: TodoSuggestion) => void;
   /** Open the document form, pre-filled, with the linked to-do when there is one. */
-  openDocument: (document: FieldSuggestions | undefined, alsoTodo?: TodoSuggestion) => void;
+  openDocument: (document: FieldSuggestions | undefined, alsoTodo?: TodoSuggestion, details?: CustomFieldValue[]) => void;
 };
 
 /**
@@ -235,14 +245,16 @@ export function FilePanel({ fileName, state, onRemove, actions, busy = false, la
 function ReadFile({ reading, onRemove, actions, busy, large }: { reading: FileReading; onRemove: () => void; actions: FileActions; busy: boolean; large: boolean }) {
   const [saveAs, setSaveAs] = useState<SaveAs>(reading.suggested);
   const [todo, setTodo] = useState<TodoSuggestion>(reading.todo ?? fallbackTodo(reading.document));
-  const detail = useDocumentDetail()(reading.document);
+  const detail = useDocumentDetail()(reading.document, reading.details);
+  // What paying needs, short enough for one line: "$182.40 · BPAY 23796 / 1234567890". The notes hold the rest.
+  const todoDetail = payLine(reading.details ?? []);
   const name = reading.document.name ?? "Document";
   const showDocument = saveAs !== "TODO";
   const showTodo = saveAs !== "DOCUMENT";
 
   const primary = () => {
     if (saveAs === "TODO") actions.createTodo(todo);
-    else actions.openDocument(reading.document, saveAs === "BOTH" ? todo : undefined);
+    else actions.openDocument(reading.document, saveAs === "BOTH" ? todo : undefined, reading.details);
   };
   const primaryLabel = saveAs === "TODO" ? (busy ? "Creating…" : "Create to-do") : saveAs === "BOTH" ? "Check & create both" : "Check & create";
 
@@ -251,7 +263,7 @@ function ReadFile({ reading, onRemove, actions, busy, large }: { reading: FileRe
       <SaveAsSwitch value={saveAs} suggested={reading.suggested} onChange={setSaveAs} large={large} />
       {showDocument && <DocumentCard name={name} detail={detail || undefined} large={large} />}
       {saveAs === "BOTH" && <LinkedNote />}
-      {showTodo && <TodoCard title={todo.title} onTitle={(title) => setTodo({ ...todo, title })} dueDate={todo.dueDate ?? ""} onDueDate={(dueDate) => setTodo({ ...todo, dueDate: dueDate || undefined })} large={large} />}
+      {showTodo && <TodoCard title={todo.title} onTitle={(title) => setTodo({ ...todo, title })} detail={todo.notes ? todoDetail : undefined} dueDate={todo.dueDate ?? ""} onDueDate={(dueDate) => setTodo({ ...todo, dueDate: dueDate || undefined })} large={large} />}
       {saveAs === "TODO" && large && (
         <p className="rounded-xl bg-zinc-100 px-3 py-2.5 text-[13px] text-zinc-700">Just the to-do: the file itself isn&apos;t kept. Choose <strong>Both</strong> to keep it as a document too.</p>
       )}
@@ -270,8 +282,8 @@ function ReadFile({ reading, onRemove, actions, busy, large }: { reading: FileRe
  * The Documents create form, opened from anywhere. Its type list and link
  * options are fetched when it opens, since the capture box doesn't carry them.
  */
-export function CaptureDocumentDialog({ suggestions, capture, alsoTodo, onClose }: {
-  suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion; onClose: () => void;
+export function CaptureDocumentDialog({ suggestions, capture, alsoTodo, customFields, onClose }: {
+  suggestions?: FieldSuggestions; capture?: { title: string }; alsoTodo?: TodoSuggestion; customFields?: CustomFieldValue[]; onClose: () => void;
 }) {
   const [options, setOptions] = useState<{ documentTypes: DocumentTypeOption[]; linkOptions: KinesisLinkOption[] } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -294,5 +306,5 @@ export function CaptureDocumentDialog({ suggestions, capture, alsoTodo, onClose 
     );
   }
   if (!options) return null;
-  return <CreateDocumentDialog documentTypes={options.documentTypes} linkOptions={options.linkOptions} suggestions={suggestions} capture={capture} alsoTodo={alsoTodo} onClose={onClose} />;
+  return <CreateDocumentDialog documentTypes={options.documentTypes} linkOptions={options.linkOptions} suggestions={suggestions} capture={capture} alsoTodo={alsoTodo} customFields={customFields} onClose={onClose} />;
 }
