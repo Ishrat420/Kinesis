@@ -169,7 +169,8 @@ export function MoreTypes({ onGoal, large = false }: { onGoal: () => void; large
         <MoreHorizontal className="h-[18px] w-[18px]" aria-hidden="true" />
       </button>
       {open && (
-        <div role="menu" className={`absolute right-0 z-10 min-w-36 rounded-xl border border-zinc-200 bg-white p-1 shadow-lg ${large ? "bottom-full mb-1" : "top-full mt-1"}`}>
+        // Upwards, from ⋯'s left edge: it sits at the bottom left of a dropdown that scrolls, so opening down would be clipped.
+        <div role="menu" className="absolute bottom-full left-0 z-10 mb-1 min-w-36 rounded-xl border border-zinc-200 bg-white p-1 shadow-lg">
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onGoal(); }} className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-900 hover:bg-zinc-50">Goal</button>
         </div>
       )}
