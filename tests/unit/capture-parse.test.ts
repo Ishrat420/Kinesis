@@ -153,3 +153,39 @@ describe("parseCapture: deadlines in long, pasted text (KD-057)", () => {
     expect(title.length).toBeLessThanOrEqual(121);
   });
 });
+
+describe("parseCapture: real-world phrasing (KD-057)", () => {
+  const today = "2026-10-22"; // a Thursday
+  const read = (text: string) => parseCapture(text, today, "en-AU");
+
+  it("reads 'by mid next week' in a long work email, titled from the ask it refers to", () => {
+    const email = [
+      "Hi Sam,",
+      "",
+      "Jo recently sent a message out to all staff regarding the yearly performance evaluations (PE). I'm attaching the template so you have visibility into what is included.",
+      "",
+      "Can you each take some time to consider how you think you've performed in the last 12 months. 2 topics to specifically consider:",
+      "1. Areas for development",
+      "2. Strengths",
+      "",
+      "For each of these topics, can you please send me your feedback in relation to yourself. I will try to incorporate it into what I have written.",
+      "",
+      "If you can get them to me by mid next week, that would be great.",
+      "",
+      "Thanks,",
+      "Alex",
+    ].join("\n");
+    expect(read(email)).toEqual({ title: "Send me your feedback in relation to yourself", dueDate: "2026-10-28" });
+  });
+
+  it("knows the parts of a week chrono doesn't", () => {
+    expect(read("call bank early next week")).toEqual({ title: "Call bank", dueDate: "2026-10-26" });
+    expect(read("finish slides by end of this week")).toEqual({ title: "Finish slides", dueDate: "2026-10-23" });
+    expect(read("book venue mid-next week")).toMatchObject({ dueDate: "2026-10-28" });
+  });
+
+  it("reads past office shorthand between the cue and the date", () => {
+    expect(read("send report by COB Friday")).toEqual({ title: "Send report", dueDate: "2026-10-23" });
+    expect(read("Thanks for today.\nPlease send the signed form by EOD tomorrow.")).toMatchObject({ dueDate: "2026-10-23" });
+  });
+});

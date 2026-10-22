@@ -48,12 +48,53 @@ const pad = (value: number) => String(value).padStart(2, "0");
 const MONTH_THEN_NUMBER = /^[a-z]{3,9}\.?\s+(\d{1,2})$/i;
 const MONTH_NAME = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/i;
 
+/** "by COB Friday", "by EOD tomorrow": office shorthand between a cue and its date. */
+const END_OF_DAY = "(?:(?:cob|eod|close\\s+of\\s+business|end\\s+of\\s+(?:the\\s+)?day)\\s+(?:on\\s+)?)?";
 /** Before the date phrase, within a few words of it. */
-const STRONG_CUE = /\b(?:due(?:\s+(?:date|by|on|before))?|deadline(?:\s+is)?|no\s+later\s+than|on\s+or\s+before|(?:pay|payment|renew|renewal|reply|respond|submit|lodge|return|complete|send|register)(?:\s+(?:is\s+)?(?:due\s+)?(?:by|before|on))|expires?(?:\s+on)?|expiring(?:\s+on)?|closes?(?:\s+on)?)\s*[:,–-]?\s*(?:the\s+|is\s+)?$/i;
-const WEAK_CUE = /\b(?:by|before|until|till)\s*[:,]?\s*(?:the\s+)?$/i;
+const STRONG_CUE = new RegExp(`\\b(?:due(?:\\s+(?:date|by|on|before))?|deadline(?:\\s+is)?|no\\s+later\\s+than|on\\s+or\\s+before|(?:pay|payment|renew|renewal|reply|respond|submit|lodge|return|complete|send|register)(?:\\s+(?:is\\s+)?(?:due\\s+)?(?:by|before|on))|expires?(?:\\s+on)?|expiring(?:\\s+on)?|closes?(?:\\s+on)?)\\s*[:,–-]?\\s*(?:the\\s+|is\\s+)?${END_OF_DAY}$`, "i");
+const WEAK_CUE = new RegExp(`\\b(?:by|before|until|till)\\s*[:,]?\\s*(?:the\\s+)?${END_OF_DAY}$`, "i");
 
-/** Header lines whose date is when the message was written, not a deadline. */
-const HEADER_LINE = /^[ \t>]*(?:(?:sent|date|received)\s*:.*|on\s+.+\bwrote\s*:?)[ \t]*$/gim;
+/**
+ * Header lines whose date is when the message was written, not a deadline:
+ * Outlook's "Sent:", "Date:", a reply's "On … wrote:", and Gmail's sender
+ * line, which prints the date beside the address ("Sam Lee <sam@x.com>
+ * Fri, Oct 16, 2026 at 10:23 AM").
+ */
+const HEADER_LINE = /^[ \t>]*(?:(?:sent|date|received)\s*:.*|on\s+.+\bwrote\s*:?|.*<[^<>\s@]+@[^<>\s]+>[ \t]+(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?[ \t].*\d{4}.*)[ \t]*$/gim;
+/**
+ * The header and footer a browser prints on each page: "10/22/26, 12:24 PM
+ * Gmail - <subject>". Its date is when it was printed, so it is neither a
+ * deadline nor what "next week" counts from; its title is the subject.
+ */
+const PRINT_LINE = /^[ \t]*\d{1,2}\/\d{1,2}\/\d{2,4},[ \t]+\d{1,2}:\d{2}[ \t]*[ap]m\b[ \t]*(.*)$/gim;
+
+/**
+ * "mid next week", "early next week", "end of this week": parts of a week
+ * that chrono doesn't know (it reads "mid next week" as "next week", seven
+ * days on). Mid is the Wednesday, early the Monday, the end the Friday --
+ * the working week, since that is what such emails mean.
+ */
+const WEEK_PART = /\b(mid-?|middle\s+of|early|start\s+of|beginning\s+of|end\s+of|late)\s*(?:the\s+)?(next|this|the)?\s*week\b/i;
+const weekPartParser = {
+  pattern: () => WEEK_PART,
+  extract: (context: chrono.ParsingContext, match: RegExpMatchArray) => {
+    const reference = context.reference.instant;
+    const part = match[1].toLowerCase();
+    const next = match[2]?.toLowerCase() === "next";
+    // Monday of the week meant.
+    const monday = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate() - ((reference.getDay() + 6) % 7) + (next ? 7 : 0), 12);
+    const offset = part.startsWith("mid") ? 2 : part === "early" || part.startsWith("start") || part.startsWith("beginning") ? 0 : 4;
+    const day = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + offset, 12);
+    return { day: day.getDate(), month: day.getMonth() + 1, year: day.getFullYear() };
+  },
+};
+const withWeekParts = (base: chrono.Chrono) => {
+  const parser = base.clone();
+  parser.parsers.unshift(weekPartParser);
+  return parser;
+};
+const MONTH_FIRST = withWeekParts(chrono.en.casual);
+const DAY_FIRST = withWeekParts(chrono.en.GB);
 
 /** Real calendar days only: 31 February is not a due date. */
 export function isRealDate(iso: string) {
@@ -98,7 +139,7 @@ function noonOf(iso: string) {
 }
 
 export function parserFor(text: string, locale: string) {
-  return documentDateOrder(text, dateOrderFor(locale)) === "MDY" ? chrono.en : chrono.en.GB;
+  return documentDateOrder(text, dateOrderFor(locale)) === "MDY" ? MONTH_FIRST : DAY_FIRST;
 }
 
 type Candidate = { iso: string; rolled: boolean; index: number; end: number; strength: 0 | 1 | 2 };
@@ -106,16 +147,15 @@ type Candidate = { iso: string; rolled: boolean; index: number; end: number; str
 export function findDeadline(text: string, { today, locale, allowUncued = false, relativeNeedsAnchor = false }: Options): Deadline | undefined {
   const parser = parserFor(text, locale);
 
-  // When the message was written, and where its header lines are.
-  const headers: [number, number][] = [];
+  // When the message was written -- the latest sent date, in a thread -- and where its header lines are.
+  const headers: [number, number][] = [...text.matchAll(PRINT_LINE)].map((match) => [match.index, match.index + match[0].length]);
   let anchor: string | undefined;
   for (const match of text.matchAll(HEADER_LINE)) {
     headers.push([match.index, match.index + match[0].length]);
-    if (!anchor) {
-      const sent = parser.parse(match[0], noonOf(today))[0];
-      if (sent && sent.start.isCertain("year") && sent.start.isCertain("day")) {
-        anchor = `${sent.start.get("year")}-${pad(sent.start.get("month")!)}-${pad(sent.start.get("day")!)}`;
-      }
+    const sent = parser.parse(match[0], noonOf(today))[0];
+    if (sent && sent.start.isCertain("year") && sent.start.isCertain("day")) {
+      const iso = `${sent.start.get("year")}-${pad(sent.start.get("month")!)}-${pad(sent.start.get("day")!)}`;
+      if (!anchor || iso > anchor) anchor = iso;
     }
   }
   const reference = anchor ?? today;
@@ -156,14 +196,16 @@ export function findDeadline(text: string, { today, locale, allowUncued = false,
 }
 
 /** Said before the action itself; never part of a to-do's name. */
-const LEADING_FILLER = /^(?:(?:hi|hello|hey|dear)\b[^,.!\n]{0,40}[,!]\s*)?(?:(?:just\s+)?(?:a\s+)?(?:friendly\s+)?reminder(?:\s+that)?[:,]?\s*)?(?:please\s+|kindly\s+)?(?:(?:i\s+)?(?:really\s+)?(?:need|have|got|want)\s+to\s+|gotta\s+|must\s+|remember\s+to\s+|remind\s+me\s+to\s+|don'?t\s+forget\s+to\s+|to-?do:?\s+|todo:?\s+)?/i;
+const LEADING_FILLER = /^(?:(?:hi|hello|hey|dear)\b[^,.!\n]{0,40}[,!]\s*)?(?:(?:just\s+)?(?:a\s+)?(?:friendly\s+)?reminder(?:\s+that)?[:,]?\s*)?(?:(?:if\s+you\s+(?:can|could)|(?:can|could|would)\s+you(?:\s+each)?)(?:\s+please)?\s+)?(?:please\s+|kindly\s+)?(?:(?:i\s+)?(?:really\s+)?(?:need|have|got|want)\s+to\s+|gotta\s+|must\s+|remember\s+to\s+|remind\s+me\s+to\s+|don'?t\s+forget\s+to\s+|to-?do:?\s+|todo:?\s+)?/i;
+/** Politeness after the ask: "…, that would be great", "…, thanks". */
+const TRAILING_FILLER = /[\s,;:-]+(?:that\s+would\s+be\s+(?:great|good|ideal|appreciated|perfect)|thanks?(?:\s+(?:so\s+much|you))?|cheers|if\s+possible|please)\b[\s\S]*$/i;
 /** Words that only introduce the date: "by Sept 24th", "on Friday", "due tomorrow". */
-const TRAILING_CONNECTOR = /\s+(?:by|on|before|due|until|till|for|at|from|due\s+by|no\s+later\s+than|on\s+or\s+before)\s*$/i;
+const TRAILING_CONNECTOR = /(?:\s+(?:by|on|before|due|until|till|for|at|from|due\s+by|no\s+later\s+than|on\s+or\s+before))?(?:\s+(?:cob|eod|close\s+of\s+business|end\s+of\s+(?:the\s+)?day)(?:\s+on)?)?\s*$/i;
 /** Long enough to read in a list; anything longer is the body of a message, not its title. */
 const MAX_TITLE = 120;
 
 export function cleanTitle(text: string) {
-  let title = text.replace(/\s+/g, " ").trim().replace(LEADING_FILLER, "").replace(/[\s,;:.-]+$/, "").trim();
+  let title = text.replace(/\s+/g, " ").trim().replace(LEADING_FILLER, "").replace(TRAILING_FILLER, "").replace(/[\s,;:.?!-]+$/, "").trim();
   if (title.length > MAX_TITLE) title = `${title.slice(0, title.lastIndexOf(" ", MAX_TITLE) > 40 ? title.lastIndexOf(" ", MAX_TITLE) : MAX_TITLE)}…`;
   return title.charAt(0).toLocaleUpperCase() + title.slice(1);
 }
@@ -174,12 +216,21 @@ export function withoutDate(text: string, deadline: { index: number; end: number
   return `${before} ${text.slice(deadline.end)}`.replace(/\s+/g, " ").trim();
 }
 
+/** A short title that only points at something said before it. */
+const VAGUE = /^.{0,40}\b(?:it|them|this|these|those)\b.{0,20}$/i;
+/** An ask, from its verb on: "can you please send me your feedback" → "send me your feedback". */
+const REQUEST = /\b(?:(?:can|could|would)\s+you(?:\s+(?:each|all))?(?:\s+please)?|please)\s+([a-z][^.?!\n]{5,})/gi;
+
 /**
  * A title for a long piece of text: its subject line when it has one,
  * otherwise the sentence the deadline is in, otherwise its first line.
  */
 export function titleOf(text: string, deadline?: { index: number; end: number }) {
-  const subject = /^[ \t]*subject\s*:\s*(.+)$/im.exec(text)?.[1].replace(/^(?:(?:re|fwd?|fw)\s*:\s*)+/i, "").trim();
+  // A "Subject:" line, else the subject a browser prints in its page header ("10/22/26, 12:24 PM   Gmail - <subject>").
+  PRINT_LINE.lastIndex = 0;
+  const printed = PRINT_LINE.exec(text)?.[1].replace(/^.*?\s-\s/, "");
+  PRINT_LINE.lastIndex = 0;
+  const subject = (/^[ \t]*subject\s*:\s*(.+)$/im.exec(text)?.[1] ?? printed)?.replace(/^(?:(?:re|fwd?|fw)\s*:\s*)+/i, "").trim();
   if (subject) return cleanTitle(subject);
   if (deadline) {
     // The sentence around the date, without lookbehind (older iOS Safari can't parse it).
@@ -187,8 +238,13 @@ export function titleOf(text: string, deadline?: { index: number; end: number })
     while (from > 0 && !/[.!?\n]/.test(text[from - 1])) from--;
     let to = deadline.end;
     while (to < text.length && !/[.!?\n]/.test(text[to])) to++;
-    const sentence = withoutDate(text.slice(from, to), { index: deadline.index - from, end: deadline.end - from });
-    if (sentence.length >= 3) return cleanTitle(sentence);
+    const sentence = cleanTitle(withoutDate(text.slice(from, to), { index: deadline.index - from, end: deadline.end - from }));
+    // "Get them to me": what "them" is was asked for earlier -- "can you please send me your feedback".
+    if (VAGUE.test(sentence)) {
+      const asked = [...text.slice(0, from).matchAll(REQUEST)].pop()?.[1];
+      if (asked) return cleanTitle(asked);
+    }
+    if (sentence.length >= 3) return sentence;
   }
   const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find((line) => line && !HEADER_LINE.test(line)) ?? text;
   HEADER_LINE.lastIndex = 0;

@@ -183,6 +183,18 @@ and for files alike: emails and letters say "by 12 Nov", "by tomorrow",
   taken from an identity document, and never when it is the expiry or falls
   before the issue date. A letter or email whose only action is such a date
   suggests **To-Do**; kept as a document, it takes the same name.
+- Gmail print-outs (tried on the owner's own emails): the sent date is on
+  the sender line ("Name <address>  Fri, Oct 16, 2026 at 10:23 AM"), not a
+  "Sent:" line, and the browser's page header ("10/22/26, 12:24 PM  Gmail -
+  <subject>") is when it was printed. The sender line anchors relative
+  dates; the print header is ignored as a date and gives the subject. In a
+  thread, the latest sent date anchors.
+- Phrases chrono doesn't know: "mid next week" (Wednesday), "early next
+  week" (Monday), "end of this week" (Friday). Office shorthand may sit
+  between the cue and the date: "by COB Friday", "by EOD tomorrow".
+- A deadline sentence that only points back ("If you can get them to me by
+  mid next week") is titled from the ask before it ("Send me your
+  feedback…"); politeness ("…, that would be great") is dropped.
 - US order is read when the date itself shows it ("10/23/26": 23 can't be a
   month); otherwise the owner's locale decides, as before.
 

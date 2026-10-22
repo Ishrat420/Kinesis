@@ -614,3 +614,44 @@ describe("renewalTodo: a to-do for a document that didn't ask for one (KD-057)",
     expect(renewalTodo({ name: "Lease" }, today)).toEqual({ title: "Renew lease" });
   });
 });
+
+describe("Gmail print-outs, as pdf.js reads them (KD-057)", () => {
+  const today = "2026-10-22";
+
+  it("counts 'mid next week' from Gmail's sender line, and takes the subject from the print header", () => {
+    const text = [
+      "Sam Lee <sam.lee@example.test>",
+      "Performance Evaluations 2026",
+      "Alex Hart   <alex@example.test>   Fri, Oct 16, 2026 at 10:23 AM",
+      "To: Sam Lee <sam.lee@example.test>",
+      "Hi Sam,",
+      "For each of these topics, can you please send me your feedback in relation to yourself.",
+      "If you can get them to me by mid next week, that would be great.",
+      "Thanks,",
+      "Alex",
+      "10/22/26, 12:24 PM   Example Mail - Performance Evaluations 2026",
+      "https://mail.example.test/mail/u/0/?view=pt   1/1",
+    ].join("\n");
+    expect(readFile(text, "en-AU", undefined, today)).toMatchObject({
+      todo: { title: "Performance Evaluations 2026", dueDate: "2026-10-21" },
+      suggested: "TODO",
+    });
+  });
+
+  it("reads 'expire in 30 days' from the sent date, not the date it was printed", () => {
+    const text = [
+      "Sam Lee <sam@example.test>",
+      "Condition Report Returned | 1/23 Example St, Box Hill 3128",
+      "Pat Doe   <messaging@example.test>   Wed, Oct 21, 2026 at 9:59 PM",
+      "Dear Sam",
+      "Please click on the link below to download the report for your records.",
+      "Please use the following code to access your document:   143296",
+      "This link will expire in   30 days .",
+      "10/22/26, 12:32 PM   Gmail - Condition Report Returned | 1/23 Example St, Box Hill 3128",
+      "https://mail.example.test/mail/u/0/?view=pt   1/2",
+    ].join("\n");
+    expect(readFile(text, "en-AU", undefined, today)).toMatchObject({
+      todo: { title: "Condition Report Returned | 1/23 Example St, Box Hill 3128", dueDate: "2026-11-20" },
+    });
+  });
+});
