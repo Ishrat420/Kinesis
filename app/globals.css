@@ -141,7 +141,35 @@ html {
   100% { transform: scale(1); }
 }
 
+@keyframes launch-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+@keyframes launch-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.94); opacity: 0.8; }
+}
+
 @layer components {
+  /* The launch screen (components/layout/LaunchScreen.tsx): a bar sweeping
+     across its track and the icon breathing, so a slow cold open reads as
+     working rather than stuck. Still for anyone who asks for less motion. */
+  .launch-bar {
+    animation: launch-bar 1.1s ease-in-out infinite;
+  }
+
+  .launch-breathe {
+    animation: launch-breathe 1.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .launch-bar,
+    .launch-breathe {
+      animation: none;
+    }
+  }
+
   /* A short, overshooting pop so marking something complete reads as a
      satisfying, immediate response rather than a flat icon swap -- applied
      to the checkmark the instant it appears (a fresh element every toggle,

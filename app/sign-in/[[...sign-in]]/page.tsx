@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { SignIn } from "@clerk/nextjs";
+import { ClerkLoading, SignIn } from "@clerk/nextjs";
 import kinesisIcon from "@/app/icon.png";
 
 const clerkAppearance = {
@@ -38,6 +38,17 @@ export default function SignInPage() {
           <h1 className="mt-6 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">Log in to Kinesis</h1>
           <p className="mt-2 text-lg font-medium text-zinc-400">Get your life in motion.</p>
         </div>
+
+        {/* Clerk's form arrives with its script, so until then hold its place
+            instead of leaving an empty gap under the heading. */}
+        <ClerkLoading>
+          <div role="status" aria-label="Loading sign-in" className="animate-pulse space-y-4 px-2 pt-1 pb-3">
+            <div className="h-12 rounded-xl bg-zinc-100" />
+            <div className="mx-auto h-3 w-10 rounded-full bg-zinc-100" />
+            <div className="h-12 rounded-xl bg-zinc-100" />
+            <div className="h-12 rounded-xl bg-zinc-200" />
+          </div>
+        </ClerkLoading>
 
         <SignIn path="/sign-in" routing="path" appearance={clerkAppearance} />
       </section>
