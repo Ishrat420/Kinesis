@@ -6,6 +6,7 @@ import { isSupportedCurrency, isSupportedLocale, isSupportedTimeZone } from "@/l
 import { DELETE_ALL_CONFIRMATION } from "./constants";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { resolveDashboardOrder } from "@/lib/dashboard/module-order";
+import { isValidOverdueReminderInterval, OVERDUE_REMINDER_INTERVAL } from "@/lib/push/overdue-reminder";
 
 export type SettingsActionState = { error?: string; message?: string };
 
@@ -42,6 +43,10 @@ export async function updateSettingsAction(
   if (!Number.isInteger(todoReminderLeadDays) || todoReminderLeadDays < 0 || todoReminderLeadDays > 365) {
     return { error: "Enter a number of days between 0 and 365 for to-dos." };
   }
+  const overdueReminderIntervalDays = Number(formData.get("overdueReminderIntervalDays"));
+  if (!isValidOverdueReminderInterval(overdueReminderIntervalDays)) {
+    return { error: `Enter a number of days between ${OVERDUE_REMINDER_INTERVAL.min} and ${OVERDUE_REMINDER_INTERVAL.max} for overdue reminders.` };
+  }
 
   const data = {
     locale,
@@ -53,6 +58,8 @@ export async function updateSettingsAction(
     relationshipReminderLeadDays,
     customItemReminderLeadDays,
     todoReminderLeadDays,
+    overdueRemindersEnabled: formData.get("overdueRemindersEnabled") === "on",
+    overdueReminderIntervalDays,
   };
   await prisma.userSettings.upsert({
     where: { userId: user.id },

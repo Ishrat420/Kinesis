@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-ADR-009 describes Kinesis as having an awareness layer: the person captures something, and Kinesis surfaces it back at the moment it matters. That layer is now nine surfaces: The notification bell, Upcoming & Due, Needs Attention, the calendar, the Expiring soon and Milestones widgets, the two "see all" pages behind them, and Goals at risk. Each was built when it was needed. In future we might provide greater customization through KD-005-customisable-module-widgets, so user is able to add/remove certain widgets as they see fit. 
+ADR-009 describes Kinesis as having an awareness layer: the person captures something, and Kinesis surfaces it back at the moment it matters. That layer is now ten surfaces: The notification bell, Upcoming & Due, Needs Attention, the calendar, the Expiring soon and Milestones widgets, the two "see all" pages behind them, Goals at risk, and the overdue reminder push (KD-058). Each was built when it was needed. In future we might provide greater customization through KD-005-customisable-module-widgets, so user is able to add/remove certain widgets as they see fit. 
 
 Two different kinds of thing get drawn on those surfaces.
 
@@ -172,6 +172,23 @@ Deliberate exceptions, with the reason attached:
 
 *archive is a hide verb, complete is a finish verb. Archiving means hiding related information, removing the pin from calender makes sense in that context. Completing means "I did the work" the date it fell due/expired is still a fact, and the relabelled pin is the record. 
  
+### Overdue reminder push (KD-058)
+
+1. Every N days (`overdueReminderIntervalDays`, 1–30, default 3), while anything is overdue, the daily push run sends one push: "X things need your attention". It names no items.
+
+2. Tapping it opens the dashboard with the Needs Attention popup showing (`/?attention=open`). Nothing is marked read.
+
+Deliberate exceptions, with the reason attached:
+- The count is Needs Attention's, not the bell's. It uses the same `< today` rule and leaves out dismissed items, so the number in the push always matches the dashboard tile. A to-do due today gets its own `TODO_DUE` push that morning, but is not counted here until tomorrow.
+- One cycle per account, not per item. It sends when something is overdue and at least N days have passed since the last one (`overdueReminderLastSentOn`). An item going overdue mid-cycle joins the next count rather than starting its own. Changing N counts from the last one sent.
+- It is sent on top of the bell item pushes, not instead of them. KD-053's push-each-item-once rule is unchanged.
+- Never gated on `remindersEnabled`, the same reasoning `EXPIRED`/`TODO_DUE` get: overdue is a statement of fact, not advance notice.
+- All or nothing. There is no per-module choice: it covers every kind Needs Attention shows.
+
+|  | `In-app notification is not ticked` | `reminders is not ticked` | `Overdue reminders is not ticked` | Nothing overdue |
+| --- | --- | --- | --- | --- |
+| Overdue reminder push | blocks | **survives** | blocks | blocks |
+
 ## Other Exceptions
 
 1. **Relationship important dates are never overdue anywhere.** Deliberate and documented in `occurrence.ts` - They're the only reminder source absent from Needs Attention.

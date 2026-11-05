@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BellRing, FileText, Flag, ListTodo, Pencil, Target, X } from "lucide-react";
 import { CustomModuleIcon } from "@/lib/custom-modules/icons";
 import { DismissButton } from "./DismissButton";
@@ -14,6 +14,7 @@ import { useFormatPreferences, useToday } from "@/lib/format/context";
 import { Modal } from "@/components/overlay/Modal";
 import { ResolveActions } from "./ResolveActions";
 import { GoalOverdueActions } from "./GoalOverdueActions";
+import { NEEDS_ATTENTION_OPEN_PARAM } from "@/lib/push/overdue-reminder";
 import { STAT_TILE_BODY_CLASS, STAT_TILE_CLASS, STAT_TILE_HEADER_CLASS, STAT_TILE_ICON_BOX_CLASS, STAT_TILE_ICON_CLASS, STAT_TILE_LABEL_CLASS, STAT_TILE_SEE_ALL_CLASS, STAT_TILE_TITLE_CLASS, STAT_TILE_VALUE_CLASS } from "./stat-tile-styles";
 
 // Documents' and To-Dos' own module icons; a milestone belongs to a Goal, so
@@ -41,10 +42,22 @@ function AttentionIcon({ item }: { item: AttentionItem }) {
   const Icon = icons[item.kind];
   return <span className={attentionBadgeClass}><Icon className="h-5 w-5" /></span>;
 }
-export function NeedsAttentionCard({ items }: { items: AttentionItem[] }) {
+/**
+ * `initiallyOpen` is set when the overdue reminder push (KD-058) was tapped:
+ * the dashboard opens with this list already showing. The parameter is taken
+ * back out of the address bar straight away, so going back or refreshing
+ * doesn't open it again.
+ */
+export function NeedsAttentionCard({ items, initiallyOpen = false }: { items: AttentionItem[]; initiallyOpen?: boolean }) {
   const today = useToday();
   const { locale } = useFormatPreferences();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
+  useEffect(() => {
+    if (!initiallyOpen) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(NEEDS_ATTENTION_OPEN_PARAM);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [initiallyOpen]);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const visible = items.filter((item) => !dismissed.includes(item.key));
   return <>

@@ -77,6 +77,7 @@ describe("updateSettingsAction", () => {
     relationshipReminderLeadDays: "14",
     customItemReminderLeadDays: "7",
     todoReminderLeadDays: "0",
+    overdueReminderIntervalDays: "3",
   });
   const form = (overrides: Partial<Record<string, string>> = {}) => {
     const data = new FormData();
@@ -139,17 +140,23 @@ describe("updateSettingsAction", () => {
     expect(mocks.settingsUpsert).not.toHaveBeenCalled();
   });
 
+  it.each(["0", "31", "1.5", "often"])("rejects an overdue reminder interval of %s", async (value) => {
+    await expect(updateSettingsAction({}, form({ overdueReminderIntervalDays: value }))).resolves.toEqual({ error: "Enter a number of days between 1 and 30 for overdue reminders." });
+    expect(mocks.settingsUpsert).not.toHaveBeenCalled();
+  });
+
   it.each([0, 365])("accepts a lead-day value at the %i boundary", async (days) => {
     await expect(updateSettingsAction({}, form({ milestoneReminderLeadDays: String(days) }))).resolves.toEqual({ message: "Settings saved." });
     expect(mocks.settingsUpsert).toHaveBeenCalledOnce();
   });
 
   it("saves valid settings and turns the checkbox fields on", async () => {
-    await expect(updateSettingsAction({}, form({ notificationsEnabled: "on", remindersEnabled: "on" }))).resolves.toEqual({ message: "Settings saved." });
+    await expect(updateSettingsAction({}, form({ notificationsEnabled: "on", remindersEnabled: "on", overdueRemindersEnabled: "on" }))).resolves.toEqual({ message: "Settings saved." });
     const data = {
       locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY, timeZone: DEFAULT_TIME_ZONE,
       notificationsEnabled: true, remindersEnabled: true,
       milestoneReminderLeadDays: 30, relationshipReminderLeadDays: 14, customItemReminderLeadDays: 7, todoReminderLeadDays: 0,
+      overdueRemindersEnabled: true, overdueReminderIntervalDays: 3,
     };
     expect(mocks.settingsUpsert).toHaveBeenCalledWith({ where: { userId: "owner-id" }, create: { userId: "owner-id", ...data }, update: data });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
@@ -158,7 +165,7 @@ describe("updateSettingsAction", () => {
   it("treats an absent checkbox field as turned off", async () => {
     await updateSettingsAction({}, form());
     expect(mocks.settingsUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      update: expect.objectContaining({ notificationsEnabled: false, remindersEnabled: false }),
+      update: expect.objectContaining({ notificationsEnabled: false, remindersEnabled: false, overdueRemindersEnabled: false }),
     }));
   });
 });

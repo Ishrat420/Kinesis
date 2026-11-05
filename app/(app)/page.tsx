@@ -15,8 +15,11 @@ import { getMonthlyCashFlow } from "@/lib/finance";
 import { getToday } from "@/lib/format/server";
 import { getSettings } from "@/lib/data/settings";
 import { getReminderLeadDays } from "@/lib/reminders/policy";
+import { NEEDS_ATTENTION_OPEN_PARAM } from "@/lib/push/overdue-reminder";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // The overdue reminder push (KD-058) opens the dashboard with Needs Attention showing.
+  const attentionOpen = (await searchParams)[NEEDS_ATTENTION_OPEN_PARAM] === "open";
   const [upcomingItems, user, milestonesDueSoon, expiringDocuments, attentionItems, goalSummary, activity, financeItems, settings] = await Promise.all([
     getUpcomingAndDue(),
     getCurrentUser(),
@@ -59,6 +62,7 @@ export default async function Home() {
         milestoneLeadDays={milestoneLeadDays}
         expiringSoon={expiringDocuments.upcoming.length}
         attentionItems={attentionItems}
+        attentionOpen={attentionOpen}
         goalsAtRisk={goalSummary.atRisk}
         netCashFlow={getMonthlyCashFlow(financeItems, await getToday()).netCashFlow}
       />

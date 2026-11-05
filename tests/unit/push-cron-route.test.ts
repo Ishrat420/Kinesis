@@ -16,14 +16,14 @@ const call = (authorization?: string) =>
 describe("the daily push cron route", () => {
   beforeEach(() => {
     vi.stubEnv("CRON_SECRET", "the-secret");
-    mocks.runDailyPush.mockResolvedValue({ configured: true, users: 1, pushed: 2, removedDevices: 0 });
+    mocks.runDailyPush.mockResolvedValue({ configured: true, users: 1, pushed: 2, overdueReminders: 1, removedDevices: 0 });
   });
   afterEach(() => vi.unstubAllEnvs());
 
   it("runs for Vercel Cron's bearer token", async () => {
     const response = await call("Bearer the-secret");
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ configured: true, users: 1, pushed: 2, removedDevices: 0 });
+    await expect(response.json()).resolves.toEqual({ configured: true, users: 1, pushed: 2, overdueReminders: 1, removedDevices: 0 });
   });
 
   it("refuses a missing or wrong token without running", async () => {
@@ -40,7 +40,7 @@ describe("the daily push cron route", () => {
   });
 
   it("reports when push isn't configured", async () => {
-    mocks.runDailyPush.mockResolvedValue({ configured: false, users: 0, pushed: 0, removedDevices: 0 });
+    mocks.runDailyPush.mockResolvedValue({ configured: false, users: 0, pushed: 0, overdueReminders: 0, removedDevices: 0 });
     expect((await call("Bearer the-secret")).status).toBe(503);
   });
 });

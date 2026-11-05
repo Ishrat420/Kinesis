@@ -61,6 +61,13 @@ model UserSettings {
   // behave like every other one's out of the box, not need to be found and
   // turned up before it does anything.
   todoReminderLeadDays         Int      @default(30)
+  // KD-058: a push every N days (1-30) saying how many things need attention,
+  // for as long as anything is overdue. One cycle per account, counted from
+  // the last one sent -- `overdueReminderLastSentOn` is the owner's local day
+  // it went out, and is state the daily run writes, not a setting.
+  overdueRemindersEnabled      Boolean  @default(true)
+  overdueReminderIntervalDays  Int      @default(3)
+  overdueReminderLastSentOn    DateTime?
   // The dashboard's Module Shortcuts grid (KD-005): the four system module
   // ids ("documents", "goals", "finance", "relationships") always present,
   // in whatever order the owner dragged them into, plus up to

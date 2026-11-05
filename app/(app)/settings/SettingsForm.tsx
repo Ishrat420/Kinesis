@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Bell, Check, ChevronDown, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
+import { Bell, BellRing, Check, ChevronDown, Clock3, Coins, Globe, MapPin, Save } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format/numbers";
 import { SUPPORTED_CURRENCIES, SUPPORTED_LOCALES, supportedTimeZones } from "@/lib/format/preferences";
@@ -9,6 +9,7 @@ import { updateSettingsAction, type SettingsActionState } from "./actions";
 import { PushToggle } from "@/components/pwa/PushToggle";
 import { keepFormValues } from "@/components/ui/keep-form-values";
 import { CHECKBOX_INPUT_CLASS, FIELD_INPUT_CLASS } from "@/components/custom-fields/field-styles";
+import { OVERDUE_REMINDER_INTERVAL } from "@/lib/push/overdue-reminder";
 
 type Settings = {
   locale: string;
@@ -20,6 +21,8 @@ type Settings = {
   relationshipReminderLeadDays: number;
   customItemReminderLeadDays: number;
   todoReminderLeadDays: number;
+  overdueRemindersEnabled: boolean;
+  overdueReminderIntervalDays: number;
 };
 
 // A day past the twelfth would not reveal whether the day or the month leads,
@@ -98,6 +101,25 @@ export function SettingsForm({ settings, pushPublicKey }: { settings: Settings; 
         <div className="mt-5 divide-y divide-zinc-100">
           <Toggle name="notificationsEnabled" defaultChecked={settings.notificationsEnabled} icon={Bell} title="In-app notifications" description="Show updates and alerts in Kinesis." />
           <PushToggle publicKey={pushPublicKey} inAppEnabled={settings.notificationsEnabled} />
+          {/* KD-058: rides on push, so it sits under it. One switch for every kind of overdue item. */}
+          <Toggle name="overdueRemindersEnabled" defaultChecked={settings.overdueRemindersEnabled} icon={BellRing} title="Overdue reminders" description="A push saying how many things need your attention, while anything is overdue." />
+          <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
+            <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about overdue items</span><span className="mt-1 block text-zinc-500">How often to send the overdue reminder, counted from the last one.</span></span>
+            <span className="flex items-center gap-2">
+              <span className="text-zinc-500">every</span>
+              <input
+                name="overdueReminderIntervalDays"
+                type="number"
+                min={OVERDUE_REMINDER_INTERVAL.min}
+                max={OVERDUE_REMINDER_INTERVAL.max}
+                step={1}
+                defaultValue={settings.overdueReminderIntervalDays}
+                aria-label="Days between overdue reminders"
+                className={LEAD_DAYS_INPUT_CLASS}
+              />
+              <span className="text-zinc-500">days</span>
+            </span>
+          </label>
           <Toggle name="remindersEnabled" defaultChecked={settings.remindersEnabled} icon={Clock3} title="Reminders" description="Get advance notice for upcoming dates." />
           <label className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 py-4 text-sm">
             <span className="min-w-[15rem] flex-1"><span className="font-medium text-zinc-800">Remind me about milestones</span><span className="mt-1 block text-zinc-500">How far ahead of a milestone&rsquo;s due date to start reminding you.</span></span>

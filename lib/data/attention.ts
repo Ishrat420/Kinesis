@@ -50,10 +50,18 @@ function toAttentionItem(record: NeedsAttentionEligible): AttentionItem {
 export async function getNeedsAttention(now = new Date()): Promise<AttentionItem[]> {
   await connection();
   const user = await requireKinesisUser();
-  const today = await getToday(now);
+  return getNeedsAttentionFor(user.id, await getToday(now));
+}
+
+/**
+ * The same list for a given owner and day, with no session -- for the daily
+ * push run's overdue reminder (KD-058), so its count is exactly what the
+ * dashboard shows. `today` is the owner's own day, resolved by the caller.
+ */
+export async function getNeedsAttentionFor(userId: string, today: Date): Promise<AttentionItem[]> {
   const [records, dismissals] = await Promise.all([
-    getAttentionRecords(),
-    prisma.attentionDismissal.findMany({ where: { userId: user.id }, select: { itemKey: true } }),
+    getAttentionRecords({ userId }),
+    prisma.attentionDismissal.findMany({ where: { userId }, select: { itemKey: true } }),
   ]);
   const dismissed = new Set(dismissals.map(({ itemKey }) => itemKey));
 

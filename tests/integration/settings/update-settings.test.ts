@@ -28,6 +28,7 @@ const validFields: Record<string, string> = {
   relationshipReminderLeadDays: "3",
   customItemReminderLeadDays: "5",
   todoReminderLeadDays: "1",
+  overdueReminderIntervalDays: "3",
 };
 
 const form = (overrides: Record<string, string> = {}, extra: Record<string, string> = {}) => {
@@ -59,6 +60,7 @@ describe.sequential("updateSettingsAction", () => {
       locale: "en-AU", currency: "AUD", timeZone: "Australia/Sydney",
       milestoneReminderLeadDays: 7, relationshipReminderLeadDays: 3, customItemReminderLeadDays: 5, todoReminderLeadDays: 1,
       notificationsEnabled: true, remindersEnabled: false,
+      overdueRemindersEnabled: false, overdueReminderIntervalDays: 3,
     });
   });
 
@@ -88,6 +90,15 @@ describe.sequential("updateSettingsAction", () => {
     await expect(updateSettingsAction({}, form({ [field]: "366" }))).resolves.toEqual({ error: message });
     await expect(updateSettingsAction({}, form({ [field]: "3.5" }))).resolves.toEqual({ error: message });
     await expect(updateSettingsAction({}, form({ [field]: "not a number" }))).resolves.toEqual({ error: message });
+  });
+
+  it("bounds the overdue reminder interval to 1-30 days, whole numbers only (KD-058)", async () => {
+    const message = "Enter a number of days between 1 and 30 for overdue reminders.";
+    for (const value of ["0", "31", "2.5", "", "not a number"]) {
+      await expect(updateSettingsAction({}, form({ overdueReminderIntervalDays: value }))).resolves.toEqual({ error: message });
+    }
+    await updateSettingsAction({}, form({ overdueReminderIntervalDays: "30" }, { overdueRemindersEnabled: "on" }));
+    await expect(prisma.userSettings.findUniqueOrThrow({ where: { userId: owner } })).resolves.toMatchObject({ overdueRemindersEnabled: true, overdueReminderIntervalDays: 30 });
   });
 
   it("saves each owner's settings independently", async () => {

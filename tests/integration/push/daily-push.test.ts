@@ -12,6 +12,7 @@ vi.mock("@/lib/push/sender", () => ({ getVapidPublicKey: () => "test-public-key"
 import { prisma } from "@/lib/data/prisma";
 import { markPushedNotificationOpened, runDailyPush, savePushSubscription } from "@/lib/data/push";
 import { PUSH_OPEN_PARAM } from "@/lib/push/payload";
+import { NEEDS_ATTENTION_URL, OVERDUE_REMINDER_TAG } from "@/lib/push/overdue-reminder";
 
 /**
  * KD-053 against a real database: the daily run pushes exactly what the bell
@@ -46,11 +47,12 @@ describe.sequential("the daily push run", () => {
     mocks.sendPush.mockResolvedValue("sent");
     await prisma.user.deleteMany({ where: { id: owner } });
     await prisma.user.create({ data: { id: owner, firstName: "Push", lastName: "Owner", email: "push@example.test" } });
+    // The item pushes on their own; the overdue reminder (KD-058) has its own block below.
+    await prisma.userSettings.create({ data: { userId: owner, overdueRemindersEnabled: false } });
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
     await prisma.user.deleteMany({ where: { id: owner } });
-    await prisma.$disconnect();
   });
 
   it("doesn't push what was already on the bell when push was turned on", async () => {
@@ -132,7 +134,7 @@ describe.sequential("the daily push run", () => {
 
   it("pushes nothing while in-app notifications are off, since the bell is hidden", async () => {
     await savePushSubscription(device("phone"), "Phone");
-    await prisma.userSettings.create({ data: { userId: owner, notificationsEnabled: false } });
+    await prisma.userSettings.update({ where: { userId: owner }, data: { notificationsEnabled: false } });
     await todo("hidden", day("2030-01-05"));
 
     await expect(runDailyPush(RUN_AT)).resolves.toMatchObject({ users: 0, pushed: 0 });
@@ -183,7 +185,7 @@ describe.sequential("the daily push run", () => {
     await savePushSubscription(device("phone"), "Phone");
     await todo("unconfigured", day("2030-01-05"));
 
-    await expect(runDailyPush(RUN_AT)).resolves.toEqual({ configured: false, users: 0, pushed: 0, removedDevices: 0 });
+    await expect(runDailyPush(RUN_AT)).resolves.toEqual({ configured: false, users: 0, pushed: 0, overdueReminders: 0, removedDevices: 0 });
     expect(mocks.sendPush).not.toHaveBeenCalled();
   });
 
@@ -201,5 +203,114 @@ describe.sequential("the daily push run", () => {
 
     const reads = await prisma.notificationRead.findMany({ where: { userId: owner }, select: { itemKey: true, todoId: true } });
     expect(reads).toEqual([{ itemKey: "todo:tapped:TODO_DUE:2020-01-01", todoId: "tapped" }]);
+  });
+});
+
+/**
+ * KD-058: "N things need your attention", every N days while anything is
+ * overdue. One cycle per account, counted from the last one sent.
+ */
+describe.sequential("the overdue reminder", () => {
+  const reminders = () => mocks.sendPush.mock.calls.map(([, payload]) => payload).filter((payload) => payload.tag === OVERDUE_REMINDER_TAG);
+  const lastSentOn = async () => (await prisma.userSettings.findUnique({ where: { userId: owner } }))?.overdueReminderLastSentOn ?? null;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.stubEnv("VAPID_PRIVATE_KEY", "test-private-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.test");
+    mocks.requireKinesisUser.mockResolvedValue({ id: owner });
+    mocks.sendPush.mockResolvedValue("sent");
+    await prisma.user.deleteMany({ where: { id: owner } });
+    await prisma.user.create({ data: { id: owner, firstName: "Push", lastName: "Owner", email: "push@example.test" } });
+    await savePushSubscription(device("phone"), "Phone");
+  });
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await prisma.user.deleteMany({ where: { id: owner } });
+    await prisma.$disconnect();
+  });
+
+  it("is on by default and counts everything overdue, sent after the item pushes", async () => {
+    await todo("one", day("2030-01-05"));
+    await todo("two", day("2030-01-07"));
+
+    await expect(runDailyPush(RUN_AT)).resolves.toMatchObject({ pushed: 2, overdueReminders: 1 });
+    expect(mocks.sendPush.mock.calls.at(-1)?.[1]).toEqual({
+      title: "2 things need your attention",
+      body: "Tap to see what's overdue.",
+      url: NEEDS_ATTENTION_URL,
+      tag: OVERDUE_REMINDER_TAG,
+      badge: 2,
+    });
+    await expect(lastSentOn()).resolves.toEqual(RUN_AT);
+  });
+
+  it("counts what Needs Attention counts: not something due today", async () => {
+    await todo("today", RUN_AT);
+    await runDailyPush(RUN_AT);
+    expect(reminders()).toEqual([]);
+  });
+
+  it("sends nothing when nothing is overdue, and keeps the last-sent day", async () => {
+    await runDailyPush(RUN_AT);
+    expect(reminders()).toEqual([]);
+    await expect(lastSentOn()).resolves.toBeNull();
+  });
+
+  it("runs one cycle for the account, so an item going overdue mid-cycle joins the next count", async () => {
+    await prisma.userSettings.create({ data: { userId: owner, overdueReminderIntervalDays: 4 } });
+    await todo("y", day("2030-01-01"));
+    await runDailyPush(day("2030-01-02"));
+    await todo("z", day("2030-01-03"));
+
+    for (const date of ["2030-01-03", "2030-01-04", "2030-01-05"]) await runDailyPush(day(date));
+    expect(reminders().map(({ title }) => title)).toEqual(["1 thing needs your attention"]);
+
+    await runDailyPush(day("2030-01-06"));
+    expect(reminders().map(({ title }) => title)).toEqual(["1 thing needs your attention", "2 things need your attention"]);
+  });
+
+  it("counts a changed interval from the last one sent", async () => {
+    await prisma.userSettings.create({ data: { userId: owner, overdueReminderIntervalDays: 4 } });
+    await todo("late", day("2030-01-01"));
+    await runDailyPush(day("2030-01-02"));
+
+    await prisma.userSettings.update({ where: { userId: owner }, data: { overdueReminderIntervalDays: 6 } });
+    await runDailyPush(day("2030-01-07"));
+    expect(reminders()).toHaveLength(1);
+    await runDailyPush(day("2030-01-08"));
+    expect(reminders()).toHaveLength(2);
+  });
+
+  it("leaves out what was dismissed in Needs Attention", async () => {
+    await prisma.object.create({ data: { id: "object-old-doc", type: "DOCUMENT", name: "Old licence", userId: owner } });
+    await prisma.document.create({ data: {
+      id: "old-doc", name: "Old licence", type: "Licence", status: "Active", owner: "Push",
+      userId: owner, objectId: "object-old-doc", expiryDate: day("2030-01-01"), prompt: null,
+    } });
+    await prisma.attentionDismissal.create({ data: { id: "old-doc-dismissal", userId: owner, documentId: "old-doc", itemKey: "document:old-doc:EXPIRED:2030-01-01" } });
+
+    await runDailyPush(RUN_AT);
+    expect(reminders()).toEqual([]);
+  });
+
+  it("stays quiet while switched off, or while in-app notifications are off", async () => {
+    await todo("late", day("2030-01-05"));
+    await prisma.userSettings.create({ data: { userId: owner, overdueRemindersEnabled: false } });
+    await runDailyPush(RUN_AT);
+
+    await prisma.userSettings.update({ where: { userId: owner }, data: { overdueRemindersEnabled: true, notificationsEnabled: false } });
+    await runDailyPush(RUN_AT);
+    expect(reminders()).toEqual([]);
+  });
+
+  it("isn't recorded as sent when no device accepted it, so the next run tries again", async () => {
+    await todo("late", day("2030-01-05"));
+    mocks.sendPush.mockResolvedValue("failed");
+    await expect(runDailyPush(RUN_AT)).resolves.toMatchObject({ overdueReminders: 0 });
+    await expect(lastSentOn()).resolves.toBeNull();
+
+    mocks.sendPush.mockResolvedValue("sent");
+    await expect(runDailyPush(day("2030-01-11"))).resolves.toMatchObject({ overdueReminders: 1 });
   });
 });

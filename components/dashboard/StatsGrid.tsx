@@ -9,7 +9,7 @@ import { formatMoney } from "@/lib/format/numbers";
 import { MILESTONES_DUE_SOON_HREF, milestoneDueSoonLabel } from "@/lib/goals/milestone-window";
 import { STAT_TILE_BODY_CLASS, STAT_TILE_CLASS, STAT_TILE_HEADER_CLASS, STAT_TILE_ICON_BOX_CLASS, STAT_TILE_ICON_CLASS, STAT_TILE_LABEL_CLASS, STAT_TILE_SEE_ALL_CLASS, STAT_TILE_TITLE_CLASS, STAT_TILE_VALUE_CLASS } from "./stat-tile-styles";
 
-export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, attentionItems, goalsAtRisk, netCashFlow }: { milestonesDueSoon: number; milestoneLeadDays: number; expiringSoon: number; attentionItems: AttentionItem[]; goalsAtRisk: number; netCashFlow: number }) {
+export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, attentionItems, attentionOpen = false, goalsAtRisk, netCashFlow }: { milestonesDueSoon: number; milestoneLeadDays: number; expiringSoon: number; attentionItems: AttentionItem[]; attentionOpen?: boolean; goalsAtRisk: number; netCashFlow: number }) {
   const { locale, currency } = useFormatPreferences();
   const stats = [
     { icon: Calendar, title: "Expiring soon", value: String(expiringSoon), label: "documents", tone: "bg-blue-50", href: "/documents/expiring-soon" },
@@ -22,7 +22,7 @@ export function StatsGrid({ milestonesDueSoon, milestoneLeadDays, expiringSoon, 
   // instead of five full-width cards a screen and a half tall. The whole tile
   // is the link, so "See all" is left to wider screens. From sm up, as before.
   return <div className="mt-6 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-4 md:grid-cols-2 xl:grid-cols-5">
-    <NeedsAttentionCard items={attentionItems} />
+    <NeedsAttentionCard items={attentionItems} initiallyOpen={attentionOpen} />
     {stats.map((stat) => { const Icon = stat.icon; return <Link key={stat.title} href={stat.href} className={STAT_TILE_CLASS}><div className={STAT_TILE_HEADER_CLASS}><div className={`${STAT_TILE_ICON_BOX_CLASS} ${stat.tone}`}><Icon className={STAT_TILE_ICON_CLASS} /></div><p className={STAT_TILE_TITLE_CLASS}>{stat.title}</p></div><div className={STAT_TILE_BODY_CLASS}><p className={STAT_TILE_VALUE_CLASS}>{stat.value}</p><p className={STAT_TILE_LABEL_CLASS}>{stat.label}</p></div><p className={STAT_TILE_SEE_ALL_CLASS}>See all →</p></Link>; })}
   </div>;
 }

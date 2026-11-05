@@ -5,8 +5,12 @@ import { requireKinesisUser } from "@/lib/auth";
 import { collectNotifications, markNotificationRead } from "./notifications";
 import { notificationRecordLink, parseNotificationKey } from "@/lib/notifications/identity";
 import type { DerivedNotification } from "@/lib/notifications/engine";
-import { selectNotificationsToPush, toPushPayload } from "@/lib/push/payload";
-import { getVapidPublicKey, sendPush } from "@/lib/push/sender";
+import { selectNotificationsToPush, toPushPayload, type PushPayload } from "@/lib/push/payload";
+import { getVapidPublicKey, sendPush, type PushOutcome } from "@/lib/push/sender";
+import { isOverdueReminderDue, OVERDUE_REMINDER_INTERVAL, toOverdueReminderPayload } from "@/lib/push/overdue-reminder";
+import { resolveFormatPreferences } from "@/lib/format/preferences";
+import { startOfDayIn } from "@/lib/dates";
+import { getNeedsAttentionFor } from "./attention";
 
 /** The parts of a browser `PushSubscription` (its `toJSON()`) that get stored. */
 export type PushSubscriptionInput = { endpoint: string; keys: { p256dh: string; auth: string } };
@@ -98,7 +102,7 @@ export async function markPushedNotificationOpened(key: string) {
   await markNotificationRead(key, parsed.source, parsed.sourceId);
 }
 
-export type DailyPushSummary = { configured: boolean; users: number; pushed: number; removedDevices: number };
+export type DailyPushSummary = { configured: boolean; users: number; pushed: number; overdueReminders: number; removedDevices: number };
 
 /**
  * The daily run (KD-053): for every owner with a device, push each bell item
@@ -117,22 +121,28 @@ export type DailyPushSummary = { configured: boolean; users: number; pushed: num
  *
  * An item is recorded as pushed once at least one device accepted it. If
  * every device failed, it is tried again on the next run.
+ *
+ * After the items, the overdue reminder (KD-058): "N things need your
+ * attention", counted from Needs Attention, every `overdueReminderIntervalDays`
+ * while anything is overdue. Sent last, so it sits on top of the morning's
+ * item pushes. Its day is recorded only once a device accepted it, the same
+ * rule as an item.
  */
 export async function runDailyPush(now = new Date()): Promise<DailyPushSummary> {
   if (!getVapidPublicKey() || !process.env.VAPID_PRIVATE_KEY?.trim() || !process.env.VAPID_SUBJECT?.trim()) {
-    return { configured: false, users: 0, pushed: 0, removedDevices: 0 };
+    return { configured: false, users: 0, pushed: 0, overdueReminders: 0, removedDevices: 0 };
   }
 
   const owners = await prisma.user.findMany({
     where: { pushSubscriptions: { some: {} } },
     select: {
       id: true,
-      settings: { select: { notificationsEnabled: true } },
+      settings: { select: { notificationsEnabled: true, timeZone: true, overdueRemindersEnabled: true, overdueReminderIntervalDays: true, overdueReminderLastSentOn: true } },
       pushSubscriptions: { select: { id: true, endpoint: true, p256dh: true, auth: true } },
     },
   });
 
-  const summary: DailyPushSummary = { configured: true, users: 0, pushed: 0, removedDevices: 0 };
+  const summary: DailyPushSummary = { configured: true, users: 0, pushed: 0, overdueReminders: 0, removedDevices: 0 };
   for (const owner of owners) {
     // No settings row yet means every default, and in-app notifications default on.
     if (owner.settings && !owner.settings.notificationsEnabled) continue;
@@ -151,24 +161,50 @@ export async function runDailyPush(now = new Date()): Promise<DailyPushSummary> 
     const unreadCount = notifications.filter((notification) => !notification.readAt).length;
 
     let devices = owner.pushSubscriptions;
-    for (const notification of toPush) {
-      if (!devices.length) break;
-      const payload = toPushPayload(notification, unreadCount);
+    // Sends to every device still subscribed, and drops the ones the push
+    // service says are gone so they aren't tried again.
+    const sendToDevices = async (payload: PushPayload): Promise<PushOutcome[]> => {
       const outcomes = await Promise.all(devices.map((device) => sendPush(device, payload)));
-
       const gone = devices.filter((_, index) => outcomes[index] === "gone");
       if (gone.length) {
         await prisma.webPushSubscription.deleteMany({ where: { id: { in: gone.map((device) => device.id) } } });
         summary.removedDevices += gone.length;
         devices = devices.filter((_, index) => outcomes[index] !== "gone");
       }
+      return outcomes;
+    };
 
+    for (const notification of toPush) {
+      if (!devices.length) break;
+      const outcomes = await sendToDevices(toPushPayload(notification, unreadCount));
       if (outcomes.includes("sent")) {
         // Recorded one at a time rather than after the loop, so a run cut
         // short part way through doesn't resend what it already delivered.
         await prisma.notificationPushed.createMany({ data: pushedMarkers(owner.id, [notification]), skipDuplicates: true });
         summary.pushed += 1;
       }
+    }
+
+    // No settings row yet means every default: on, every 3 days.
+    const settings = owner.settings;
+    if (!devices.length || (settings && !settings.overdueRemindersEnabled)) continue;
+    const today = startOfDayIn(resolveFormatPreferences(settings).timeZone, now);
+    const overdueCount = (await getNeedsAttentionFor(owner.id, today)).length;
+    const due = isOverdueReminderDue({
+      overdueCount,
+      today,
+      lastSentOn: settings?.overdueReminderLastSentOn ?? null,
+      intervalDays: settings?.overdueReminderIntervalDays ?? OVERDUE_REMINDER_INTERVAL.default,
+    });
+    if (!due) continue;
+    const outcomes = await sendToDevices(toOverdueReminderPayload(overdueCount, unreadCount));
+    if (outcomes.includes("sent")) {
+      await prisma.userSettings.upsert({
+        where: { userId: owner.id },
+        create: { userId: owner.id, overdueReminderLastSentOn: today },
+        update: { overdueReminderLastSentOn: today },
+      });
+      summary.overdueReminders += 1;
     }
   }
   return summary;
