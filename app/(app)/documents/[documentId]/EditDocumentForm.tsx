@@ -22,6 +22,7 @@ import { ObjectHistory, type ObjectHistoryEntry } from "@/components/history/Obj
 import { keepFormValues } from "@/components/ui/keep-form-values";
 import { followingOccurrence, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 import { Snackbar } from "@/components/ui/Snackbar";
+import { CopyButton } from "@/components/ui/CopyButton";
 
 const initialState: DocumentActionState = {};
 const EMPTY_VALUE = "—";
@@ -115,7 +116,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, pre
         </div>
         <dl className="mt-6 grid gap-x-8 gap-y-5 border-t border-zinc-100 pt-6 sm:grid-cols-2 lg:grid-cols-3">
           <Metadata label={document.issueDateLabel} value={displayDate(document.issueDate, locale)} />
-          <Metadata label={document.documentNumberLabel} value={document.documentNumber} />
+          <Metadata label={document.documentNumberLabel} value={document.documentNumber} copyable />
           <Metadata label="Document type" value={document.type} />
           <Metadata label={document.countryLabel} value={document.country} />
           <Metadata label="Owner" value={ownerName} />
@@ -261,7 +262,19 @@ function ExpiryField({ document, expiryLabel, expiryUrgency, locale, onRenewed }
 }
 const DETAIL_TONES: Record<ExpiryUrgency, string> = { neutral: "bg-zinc-100 text-zinc-600", safe: "bg-emerald-50 text-emerald-700", soon: "bg-amber-50 text-amber-700", expired: "bg-red-50 text-red-700", archived: "bg-zinc-200 text-zinc-700" };
 function lowerFirst(text: string) { return text.charAt(0).toLowerCase() + text.slice(1); }
-function Metadata({ label, value, link = false }: { label: string; value?: string; link?: boolean }) { const shown = value || EMPTY_VALUE; return <div><dt className="text-xs font-medium text-zinc-400">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-zinc-700">{link && value ? <a href={value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a> : shown}</dd></div>; }
+function Metadata({ label, value, link = false, copyable = false }: { label: string; value?: string; link?: boolean; copyable?: boolean }) {
+  const shown = value || EMPTY_VALUE;
+  return (
+    <div>
+      <dt className="text-xs font-medium text-zinc-400">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium text-zinc-700">
+        {link && value ? <a href={value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 hover:underline">{value}<ExternalLink className="h-3.5 w-3.5 shrink-0" /></a>
+          : copyable && value ? <span className="inline-flex items-center gap-1"><span className="break-all">{value}</span><CopyButton value={value} label={label.toLowerCase()} /></span>
+          : shown}
+      </dd>
+    </div>
+  );
+}
 function Field({ label, name, value, required }: { label: string; name: string; value: string; required?: boolean }) {
   return (
     <div>
