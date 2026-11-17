@@ -10,6 +10,7 @@ vi.mock("@clerk/nextjs/server", () => ({
     const pathname = new URL(request.url).pathname;
     return patterns.some((pattern) => {
       if (pattern === "/sign-in(.*)") return pathname.startsWith("/sign-in");
+      if (!pattern.includes("(")) return pathname === pattern;
       if (pattern === "/api(.*)") return pathname.startsWith("/api");
       if (pattern === "/trpc(.*)") return pathname.startsWith("/trpc");
       return false;
@@ -73,7 +74,23 @@ describe("authentication proxy", () => {
     expect(clerk.auth).toHaveBeenCalled();
   });
 
-  it.each(["/sign-in", "/sign-in/factor-one"])("allows public exception %s through", async (path) => {
+  it("shows the public home page at / when signed out, without changing the address", async () => {
+    const response = await invoke("/");
+    expect(response?.headers.get("x-middleware-rewrite")).toBe("https://kinesis.test/welcome");
+    expect(response?.headers.get("location")).toBeNull();
+  });
+
+  it("shows the dashboard at / when signed in", async () => {
+    clerk.auth.mockResolvedValue({ userId: "user_owner" });
+    await expect(invoke("/")).resolves.toBeUndefined();
+  });
+
+  it("keeps pages under the public ones private", async () => {
+    const response = await invoke("/privacy/anything");
+    expect(response?.headers.get("location")).toBe("https://kinesis.test/sign-in");
+  });
+
+  it.each(["/sign-in", "/sign-in/factor-one", "/welcome", "/privacy"])("allows public exception %s through", async (path) => {
     await expect(invoke(path)).resolves.toBeUndefined();
     expect(clerk.auth).not.toHaveBeenCalled();
   });

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { ClerkLoading, SignIn } from "@clerk/nextjs";
 import kinesisIcon from "@/app/icon.png";
 
@@ -51,6 +52,12 @@ export default function SignInPage() {
         </ClerkLoading>
 
         <SignIn path="/sign-in" routing="path" appearance={clerkAppearance} />
+
+        <p className="mt-6 text-center text-sm text-zinc-400">
+          <Link href="/welcome" className="hover:text-zinc-700">About Kinesis</Link>
+          <span aria-hidden="true" className="mx-2">·</span>
+          <Link href="/privacy" className="hover:text-zinc-700">Privacy policy</Link>
+        </p>
       </section>
     </main>
   );

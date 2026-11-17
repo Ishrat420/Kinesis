@@ -1,7 +1,9 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
+// /welcome and /privacy are the public home page and privacy policy, which
+// Google's OAuth branding review must be able to open (KD-059).
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/welcome", "/privacy"]);
 const isApiRoute = createRouteMatcher(["/api(.*)", "/trpc(.*)"]);
 // Called by Vercel Cron, which has no Clerk session: each route under here
 // authenticates the request itself with CRON_SECRET.
@@ -18,6 +20,10 @@ export default clerkMiddleware(
     // invitation -- see docs/security/clerk-configuration.md.
     const { userId } = await auth();
     if (!userId) {
+      // Signed out, the home address shows the public home page (still at
+      // "/", so it can be given to Google as the app's home page). Signed in,
+      // "/" is the dashboard.
+      if (new URL(request.url).pathname === "/") return NextResponse.rewrite(new URL("/welcome", request.url));
       if (!isApiRoute(request)) return NextResponse.redirect(new URL("/sign-in", request.url));
       return new NextResponse("Unauthorized", { status: 401 });
     }
