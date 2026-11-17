@@ -27,9 +27,26 @@ export default function TermsPage() {
       <h2>Your account</h2>
       <ul>
         <li>Kinesis is invitation-only. An account is for one person and must not be shared.</li>
-        <li>You are responsible for keeping your sign-in secure, and for what happens in your account.</li>
+        <li>You are responsible for what happens in your account.</li>
         <li>You must be at least 16 years old to use Kinesis.</li>
       </ul>
+
+      <h2>Keeping your account secure</h2>
+      <p>
+        You are solely responsible for keeping the means of accessing your account secure. In particular, you are
+        responsible for:
+      </p>
+      <ul>
+        <li>keeping your password confidential, choosing one that is strong and not used elsewhere, and not sharing it with anyone;</li>
+        <li>the security of any email account, Google account or other sign-in method linked to Kinesis, since anyone with access to it may be able to access your Kinesis account;</li>
+        <li>the security of every device you use to sign in to Kinesis, or that has access to your email or other linked accounts, including keeping it locked, up to date and free of malicious software, and signing out of devices you do not control.</li>
+      </ul>
+      <p>
+        Kinesis is not responsible for any loss, disclosure or misuse of your data that results from your password,
+        linked accounts or devices being compromised, shared or left unsecured. If you believe your account or any of
+        these has been compromised, change your password, secure the affected account or device, and contact us
+        promptly.
+      </p>
 
       <h2>Your content</h2>
       <ul>
