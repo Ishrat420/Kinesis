@@ -92,6 +92,18 @@ connected account. Their Kinesis login doesn't change.
    With only `drive.file` this is a brand review, not a security review. It
    usually takes a few days.
 
+### Setup progress (17 Nov 2026)
+
+- [x] Clerk production instance uses its own Google credentials
+  (`clerk.mykinesis.app`); scopes left at openid/email/profile on purpose.
+- [x] Google Cloud project `kinesis`: Google Drive API enabled.
+- [x] `drive.file` added under Data access, listed as non-sensitive.
+- [x] OAuth clients exist for both Clerk instances ("Kinesis dev
+  production", "Kinesis Personal Production").
+- [ ] Confirm the Clerk development instance uses the dev client.
+- [ ] Owner added as a test user while the app is in Testing.
+- [ ] Branding filled in and app published, before inviting anyone.
+
 ## Settings
 
 **Google Drive**, in Settings:
