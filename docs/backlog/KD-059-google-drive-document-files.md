@@ -104,9 +104,19 @@ connected account. Their Kinesis login doesn't change.
 ## Decisions
 
 - **Google access through Clerk.** Kinesis gets the Drive token from Clerk
-  (`getUserOauthAccessToken`) and does not run its own OAuth flow. Still to
-  confirm while building: Clerk can add the `drive.file` scope to an existing
-  Google connection without a fresh sign-in.
+  (`getUserOauthAccessToken`) and does not run its own OAuth flow. Confirmed
+  in the installed `@clerk/nextjs` 7.8 SDK:
+  - `externalAccount.reauthorize({ additionalScopes })` adds a scope to an
+    existing Google connection; the person sees Google's consent screen once,
+    with no fresh Kinesis sign-in;
+  - `user.createExternalAccount({ strategy: "oauth_google", additionalScopes })`
+    connects Google for someone who signs in with email;
+  - `externalAccount.approvedScopes` tells whether Drive was granted;
+  - `clerkClient.users.getUserOauthAccessToken(userId, "google")` returns a
+    fresh access token on the server, refreshed by Clerk.
+
+  Needs the deployment's **own** Google OAuth credentials in Clerk (Clerk's
+  shared development credentials do not allow extra scopes).
 - **Folder layout: one flat folder, `Kinesis/Documents`.**
   - Kinesis finds files by Drive ID, not by path, so folders are only there
     for someone browsing Drive. Kinesis is where files get organised.
