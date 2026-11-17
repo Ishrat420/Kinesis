@@ -35,6 +35,21 @@ export default function PrivacyPage() {
       </ul>
       <p>We do not use analytics or advertising trackers, and we do not sell, rent or share your data.</p>
 
+      <h2>How we use your data</h2>
+      <p>We use the data above only to provide Kinesis to you:</p>
+      <ul>
+        <li>to show you your own documents, to-dos, goals, finances and people, and keep them in sync across your devices;</li>
+        <li>to work out what is due, expiring or overdue, and send the reminders and notifications you have turned on;</li>
+        <li>to keep files you choose to save in your own Google Drive, and open them again;</li>
+        <li>to keep your account secure, for example by recording when your data is exported or deleted;</li>
+        <li>to find and fix problems with Kinesis.</li>
+      </ul>
+      <p>
+        We do not use your data for advertising, sell it, share it with data brokers, use it to train AI models, or use it
+        to make automated decisions about you. People do not read your data, except when you ask us for help, to keep
+        Kinesis secure, or when the law requires it.
+      </p>
+
       <h2>Documents you scan</h2>
       <p>
         When you upload a document to fill in its details, Kinesis reads the file <strong>on your own device</strong>, in
@@ -79,11 +94,30 @@ export default function PrivacyPage() {
       </ul>
       <p>Data is sent over encrypted connections. Sign-in cookies are used only to keep you logged in.</p>
 
-      <h2>Your choices</h2>
+      <h2>How long we keep your data</h2>
       <ul>
-        <li><strong>Export:</strong> download all of your data from Settings → Data &amp; privacy.</li>
-        <li><strong>Delete:</strong> delete all of your data from the same place. It is removed straight away and cannot be recovered.</li>
-        <li><strong>Close your account:</strong> email us and we will delete your account and everything in it.</li>
+        <li><strong>Your Kinesis data</strong> (everything you enter, its history, and your settings) is kept for as long as your account is open, until you delete it.</li>
+        <li><strong>An item you delete</strong>, such as a document or a to-do, is removed from our database straight away, together with its history and any Google Drive details stored for it.</li>
+        <li><strong>Push notification addresses</strong> are removed when you turn notifications off on a device, or delete your data.</li>
+        <li><strong>Google Drive files</strong> are kept by Google, in your own Drive, for as long as you keep them there. Kinesis never deletes them.</li>
+        <li><strong>Your account&apos;s security record</strong> (the times your data was exported or deleted) is kept until your account is closed.</li>
+        <li><strong>Security reports</strong> from browsers are not linked to your account.</li>
+        <li><strong>Backups:</strong> our database provider keeps routine backups to recover from failures. Deleted data can remain in those backups for a limited period until they expire, and is not used for anything else in the meantime.</li>
+      </ul>
+
+      <h2>Deleting your data</h2>
+      <ul>
+        <li><strong>Delete everything:</strong> Settings → Data &amp; privacy → Delete your data removes all of your Kinesis data at once: documents, to-dos, goals, finances, people, history, settings and notification devices. It is removed straight away and cannot be recovered. Your login and the security record of the deletion remain, so you can keep using Kinesis.</li>
+        <li><strong>Close your account:</strong> email us from the address you sign in with and we will delete your account, your login details held by Clerk, and everything in it, within 30 days.</li>
+        <li><strong>Google Drive:</strong> disconnect it in Settings to stop Kinesis using it, and remove Kinesis from your{" "}
+          <a href="https://myaccount.google.com/connections" target="_blank" rel="noreferrer">Google account&apos;s third-party connections</a>{" "}
+          to withdraw its permission entirely. Files in your Drive are yours to keep or delete.</li>
+      </ul>
+
+      <h2>Your other choices</h2>
+      <ul>
+        <li><strong>Export:</strong> download all of your data, as a file, from Settings → Data &amp; privacy.</li>
+        <li><strong>Correct:</strong> edit anything you have entered at any time.</li>
         <li><strong>Notifications:</strong> turn push notifications off in Settings, or in your browser.</li>
       </ul>
 
