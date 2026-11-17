@@ -103,7 +103,7 @@ connected account. Their Kinesis login doesn't change.
 - [ ] Confirm the Clerk development instance uses the dev client.
 - [ ] Owner added as a test user while the app is in Testing.
 - [x] Public home page (`https://mykinesis.app/`, shown to signed-out
-  visitors; also `/welcome`) and privacy policy (`/privacy`) built.
+  visitors; also `/welcome`) privacy policy (`/privacy`) and terms of service (`/terms`) built.
 - [ ] `PRIVACY_CONTACT_EMAIL` in `lib/legal.ts` set to a real, monitored inbox.
 - [ ] Branding filled in and app published, before inviting anyone.
 

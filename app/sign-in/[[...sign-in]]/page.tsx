@@ -57,6 +57,8 @@ export default function SignInPage() {
           <Link href="/welcome" className="hover:text-zinc-700">About Kinesis</Link>
           <span aria-hidden="true" className="mx-2">·</span>
           <Link href="/privacy" className="hover:text-zinc-700">Privacy policy</Link>
+          <span aria-hidden="true" className="mx-2">·</span>
+          <Link href="/terms" className="hover:text-zinc-700">Terms</Link>
         </p>
       </section>
     </main>

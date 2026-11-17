@@ -3,9 +3,9 @@ import Link from "next/link";
 import kinesisIcon from "@/app/icon.png";
 
 /**
- * Pages anyone can open without signing in: the public home page and the
- * privacy policy. Google's OAuth branding review checks both (KD-059), so they
- * must not depend on a Clerk session or any account data.
+ * Pages anyone can open without signing in: the public home page, privacy
+ * policy and terms of service. Google's OAuth branding review checks all three
+ * (KD-059), so they must not depend on a Clerk session or any account data.
  */
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -30,6 +30,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           <nav className="flex gap-5">
             <Link href="/welcome" className="hover:text-zinc-900">Home</Link>
             <Link href="/privacy" className="hover:text-zinc-900">Privacy policy</Link>
+            <Link href="/terms" className="hover:text-zinc-900">Terms</Link>
           </nav>
         </div>
       </footer>

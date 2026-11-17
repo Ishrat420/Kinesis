@@ -90,7 +90,7 @@ describe("authentication proxy", () => {
     expect(response?.headers.get("location")).toBe("https://kinesis.test/sign-in");
   });
 
-  it.each(["/sign-in", "/sign-in/factor-one", "/welcome", "/privacy"])("allows public exception %s through", async (path) => {
+  it.each(["/sign-in", "/sign-in/factor-one", "/welcome", "/privacy", "/terms"])("allows public exception %s through", async (path) => {
     await expect(invoke(path)).resolves.toBeUndefined();
     expect(clerk.auth).not.toHaveBeenCalled();
   });

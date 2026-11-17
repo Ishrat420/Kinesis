@@ -1,9 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-// /welcome and /privacy are the public home page and privacy policy, which
+// /welcome, /privacy and /terms are the public home page, privacy policy and
+// terms of service, which
 // Google's OAuth branding review must be able to open (KD-059).
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/welcome", "/privacy"]);
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/welcome", "/privacy", "/terms"]);
 const isApiRoute = createRouteMatcher(["/api(.*)", "/trpc(.*)"]);
 // Called by Vercel Cron, which has no Clerk session: each route under here
 // authenticates the request itself with CRON_SECRET.
