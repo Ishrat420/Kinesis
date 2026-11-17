@@ -101,12 +101,32 @@ connected account. Their Kinesis login doesn't change.
   Documents keep their file name, shown as unavailable. Reconnecting the same
   Google account restores access.
 
-## Open questions
+## Decisions
 
-- Should the Google access token come from Clerk
-  (`getUserOauthAccessToken`), or should Kinesis run its own OAuth flow? Clerk
-  is simpler and is the current plan. Confirm that Clerk can add the scope to
-  an existing connection without forcing a fresh sign-in.
-- Folder layout: one flat `Kinesis` folder, or one sub-folder per document
-  type?
-- Is a new ADR needed, extending ADR-017 to say where files may live?
+- **Google access through Clerk.** Kinesis gets the Drive token from Clerk
+  (`getUserOauthAccessToken`) and does not run its own OAuth flow. Still to
+  confirm while building: Clerk can add the `drive.file` scope to an existing
+  Google connection without a fresh sign-in.
+- **Folder layout: one flat folder, `Kinesis/Documents`.**
+  - Kinesis finds files by Drive ID, not by path, so folders are only there
+    for someone browsing Drive. Kinesis is where files get organised.
+  - Folders per document type would go stale. Changing a document's type, or
+    renaming a type, would mean moving files in someone's Drive, which is
+    slow and fails silently when access was lost.
+  - The `Documents` level leaves room for other modules to keep files later
+    (for example Finance receipts) without mixing them in.
+  - Files are named `<document name> — <original file name>`, for example
+    `Passport — scan_0412.pdf`, so they still make sense in Drive. Kinesis
+    names the file once, on upload, and never renames it afterwards.
+- **No new ADR; amend ADR-017 instead.** ADR-017's rule holds: Kinesis's
+  server never receives, processes or stores the file. Reading still happens
+  on the device, and nothing leaves the device while reading. What changes is
+  that, once the person saves and has chosen to connect Drive, the browser
+  sends the file to *their own* Drive. ADR-017 needs an addendum saying so,
+  because some of its wording becomes too absolute:
+  - "documents never leave the device" (Consequences);
+  - the create-form banner saying the file was "not uploaded or stored".
+
+  The banner becomes: "Read on this device. Kinesis doesn't keep your file;
+  it's saved to your Google Drive." Without Drive connected, it stays as it is
+  today.
