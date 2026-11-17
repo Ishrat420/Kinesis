@@ -1,6 +1,6 @@
 # KD-059 — Keep Document Files in Google Drive
 
-**Status:** Accepted
+**Status:** In Progress — built on `v1.5.0`; to test on production with the owner's account
 **Priority:** Medium
 **Tags:** Integration / Data Model / Security / UX / UI
 
@@ -36,8 +36,10 @@ ADR-017 makes.
   Drive. It is a non-sensitive scope, so the Google app needs no security
   assessment.
 - **Document page.** The "File / document location" box shows the file name,
-  with **Open in Drive**, plus a thumbnail where Drive provides one. Without a
-  file it offers **Add file**, which uses the same upload.
+  with **Open in Drive** and **Replace file**. Without a file it offers
+  **Add file**, which uses the same upload. (Thumbnails moved to Later: Drive's
+  thumbnail links are short-lived and often need the viewer's own Google
+  session.)
 - **Data model.** New nullable fields on `Document`: `driveFileId`,
   `driveFileName`, `driveMimeType`, `driveWebViewLink`. The ID is what counts:
   the file is still found after it is renamed or moved inside Drive. The
@@ -51,6 +53,8 @@ ADR-017 makes.
   Drive and stays listed in the document's history.
 
 ## Later (not v1)
+
+- Thumbnails of the file on the document page.
 
 - **Choose from Drive**, using the Google Picker to attach a file that is
   already in Drive. It works under the same `drive.file` scope.
@@ -115,6 +119,30 @@ connected account. Their Kinesis login doesn't change.
 - **Disconnect**: Kinesis stops uploading and loses access to the files.
   Documents keep their file name, shown as unavailable. Reconnecting the same
   Google account restores access.
+
+## What was built
+
+- **Schema:** `Document.driveFileId/driveFileName/driveMimeType/driveWebViewLink`
+  (all set or all null, enforced by a check constraint) and
+  `UserSettings.googleDriveEnabled` (migration `20261117000000_google_drive_files`).
+- **`lib/google-drive/`:** `shared.ts` (scope, folder, naming, parsing),
+  `server.ts` (connection state from Clerk, access token, Drive metadata
+  lookup, `attachDriveFile`), `upload.ts` (browser upload into
+  `Kinesis/Documents` with a resumable session).
+- **`app/(app)/documents/drive-actions.ts`:** upload token, attach a file,
+  check a file is still there, Connect/Disconnect.
+- **Create form:** with Drive connected and a file picked, Create uploads
+  first, then saves with the Drive file ID. On failure: try again, or create
+  without the file. If the server can't confirm the file, the document is
+  still saved and its page says the file didn't reach Drive.
+- **Document page:** `DriveFileBox` (Open in Drive, Replace/Add file, file
+  gone from Drive, Drive disconnected).
+- **Settings → Integrations:** `GoogleDriveSettings` (Connect, Disconnect,
+  Reconnect; link to remove the permission at Google).
+- **History:** attaching or replacing a file records a "File" field change.
+- **ADR-017** amended; CSP allows `www.googleapis.com`.
+- **Tests:** `tests/unit/google-drive.test.ts`,
+  `tests/integration/documents/drive-file.test.ts`.
 
 ## Decisions
 

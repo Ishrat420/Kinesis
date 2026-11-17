@@ -15,6 +15,7 @@ import { getToday } from "@/lib/format/server";
 import { documentUpcomingPhase } from "@/lib/attention/items";
 import { diffObjectFields, recordArchivedChanged, recordDocumentRenewed, recordEvent, recordFieldChanges, recordStatusChanged, type FieldChange } from "./object-events";
 import { formatDateInput } from "@/lib/dates";
+import type { DriveFileRecord } from "@/lib/google-drive/shared";
 import { buildRecurrence, nextDueAfterCompletion, recurrenceColumns, recurrenceFromColumns, recurrenceLabel, type Recurrence } from "@/lib/recurrence";
 
 export type DocumentInput = {
@@ -416,6 +417,33 @@ export async function renewDocument(id: string, expectedExpiry: Date) {
     await recordDocumentRenewed(transaction, user.id, document.objectId, formatDateInput(document.expiryDate), formatDateInput(next));
     return transaction.document.findUniqueOrThrow({ where: { id }, select: { expiryDate: true, updatedAt: true } });
   });
+}
+
+/**
+ * KD-059: records which Google Drive file holds this document's file. The
+ * caller has already confirmed with Drive that the file exists and is the
+ * person's, so what is stored is Drive's own answer, never a browser's claim.
+ * Replacing a file leaves the old one in Drive; History keeps both names.
+ */
+export async function setDocumentDriveFile(id: string, file: DriveFileRecord) {
+  const user = await requireKinesisUser();
+  return prisma.$transaction(async (transaction) => {
+    const document = await transaction.document.findFirst({ where: { id, userId: user.id }, select: { objectId: true, driveFileId: true, driveFileName: true } });
+    if (!document) refuse("This document no longer exists.");
+    if (document.driveFileId === file.id) return;
+    await transaction.document.update({
+      where: { id },
+      data: { driveFileId: file.id, driveFileName: file.name, driveMimeType: file.mimeType, driveWebViewLink: file.webViewLink },
+    });
+    await recordFieldChanges(transaction, user.id, document.objectId, [{ fieldKey: "driveFile", fieldLabel: "File", oldValue: document.driveFileName, newValue: file.name }]);
+  });
+}
+
+/** The Drive file this document has, if any. */
+export async function getDocumentDriveFileId(id: string) {
+  const user = await requireKinesisUser();
+  const document = await prisma.document.findFirst({ where: { id, userId: user.id }, select: { driveFileId: true } });
+  return document?.driveFileId ?? null;
 }
 
 export async function deleteDocument(id: string) {

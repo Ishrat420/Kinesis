@@ -8,8 +8,10 @@ import { READ_FAILURE_MESSAGE, READ_STAGE_LABEL, useDocumentRead } from "@/lib/d
 
 type UploadDocumentModalProps = {
   onClose: () => void;
-  /** The file has been read (or skipped): open the create form with whatever was found. */
-  onRead: (reading: FileReading) => void;
+  /** The file has been read (or skipped): open the create form with whatever was found, and the file (KD-059: kept in Google Drive on save). */
+  onRead: (reading: FileReading, file: File | null) => void;
+  /** KD-059: the file will be kept in the person's Google Drive when they save. */
+  driveConnected?: boolean;
 };
 
 /**
@@ -18,7 +20,7 @@ type UploadDocumentModalProps = {
  * then checks and saves are sent anywhere. The extraction code is loaded only
  * once a file is actually being read, so the Documents page carries none of it.
  */
-export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProps) {
+export function UploadDocumentModal({ onClose, onRead, driveConnected = false }: UploadDocumentModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -26,8 +28,8 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
 
   // A finished read moves straight on to the create form.
   useEffect(() => {
-    if (state.status === "read") onRead(state.reading);
-  }, [state, onRead]);
+    if (state.status === "read") onRead(state.reading, file);
+  }, [state, onRead, file]);
 
   const choose = (selected: File | undefined) => {
     if (!selected) return;
@@ -39,7 +41,7 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
 
   const skip = () => {
     cancel();
-    onRead({ document: {}, suggested: "DOCUMENT", reason: "a file to keep as a document" });
+    onRead({ document: {}, suggested: "DOCUMENT", reason: "a file to keep as a document" }, file);
   };
 
   const reading = state.status === "reading";
@@ -57,7 +59,9 @@ export function UploadDocumentModal({ onClose, onRead }: UploadDocumentModalProp
             </h2>
 
             <p className="mt-1 text-sm text-zinc-500">
-              We&apos;ll read the details on this device. Your file isn&apos;t uploaded or stored.
+              {driveConnected
+                ? "We'll read the details on this device. Your file is kept in your own Google Drive, never by Kinesis."
+                : "We'll read the details on this device. Your file isn't uploaded or stored."}
             </p>
           </div>
 

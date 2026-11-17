@@ -68,6 +68,9 @@ model UserSettings {
   overdueRemindersEnabled      Boolean  @default(true)
   overdueReminderIntervalDays  Int      @default(3)
   overdueReminderLastSentOn    DateTime?
+  // KD-059: "Disconnect" in Settings. Kinesis stops using Google Drive even
+  // while Google still holds the permission; Connect sets it back.
+  googleDriveEnabled           Boolean  @default(true)
   // The dashboard's Module Shortcuts grid (KD-005): the four system module
   // ids ("documents", "goals", "finance", "relationships") always present,
   // in whatever order the owner dragged them into, plus up to
@@ -129,6 +132,14 @@ model Document {
   country             String?
   notes               String?
   link                String?
+  // KD-059: the document's file, kept in the owner's own Google Drive. Kinesis
+  // never stores the file; it keeps Drive's ID (what finds the file again after
+  // a rename or move) and what was true of it when attached. All four are set
+  // together or all null.
+  driveFileId         String?
+  driveFileName       String?
+  driveMimeType       String?
+  driveWebViewLink    String?
   userId              String
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   objectId            String               @unique

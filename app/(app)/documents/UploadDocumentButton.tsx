@@ -7,11 +7,12 @@ import { CreateDocumentDialog } from "./CreateDocumentDialog";
 import type { DocumentTypeOption } from "./DocumentTypeSelect";
 import type { KinesisLinkOption } from "@/lib/custom-fields/types";
 import type { FileReading } from "@/lib/documents/extraction/suggest";
+import type { DriveConnectionState } from "@/lib/google-drive/shared";
 
 /** Upload → read on the device → the create form, pre-filled for checking (KD-016). */
-type Step = { kind: "closed" } | { kind: "upload" } | { kind: "review"; reading: FileReading };
+type Step = { kind: "closed" } | { kind: "upload" } | { kind: "review"; reading: FileReading; file: File | null };
 
-export function UploadDocumentButton({ documentTypes, linkOptions }: { documentTypes: DocumentTypeOption[]; linkOptions: KinesisLinkOption[] }) {
+export function UploadDocumentButton({ documentTypes, linkOptions, driveState }: { documentTypes: DocumentTypeOption[]; linkOptions: KinesisLinkOption[]; driveState: DriveConnectionState }) {
   const [step, setStep] = useState<Step>({ kind: "closed" });
   const close = () => setStep({ kind: "closed" });
 
@@ -26,8 +27,8 @@ export function UploadDocumentButton({ documentTypes, linkOptions }: { documentT
         Upload document
       </button>
 
-      {step.kind === "upload" && <UploadDocumentModal onClose={close} onRead={(reading) => setStep({ kind: "review", reading })} />}
-      {step.kind === "review" && <CreateDocumentDialog documentTypes={documentTypes} linkOptions={linkOptions} suggestions={step.reading.document} alsoTodo={step.reading.todo} customFields={step.reading.details} onClose={close} />}
+      {step.kind === "upload" && <UploadDocumentModal onClose={close} driveConnected={driveState === "connected"} onRead={(reading, file) => setStep({ kind: "review", reading, file })} />}
+      {step.kind === "review" && <CreateDocumentDialog documentTypes={documentTypes} linkOptions={linkOptions} suggestions={step.reading.document} alsoTodo={step.reading.todo} customFields={step.reading.details} file={step.file ?? undefined} driveState={driveState} onClose={close} />}
     </>
   );
 }

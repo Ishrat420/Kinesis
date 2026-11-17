@@ -14,6 +14,9 @@ import { completeCaptureConversion } from "@/lib/data/capture";
 import { revalidateShell } from "@/lib/actions/revalidate";
 import { checkLength, LINK_LIMIT, NOTES_LIMIT, TEXT_LIMIT } from "@/lib/validation/field-limits";
 import { readRepeatInputs } from "@/lib/recurrence";
+import { requireKinesisUser } from "@/lib/auth";
+import { attachDriveFile } from "@/lib/google-drive/server";
+import { DRIVE_FILE_FAILED_PARAM } from "@/lib/google-drive/shared";
 
 export type DocumentActionState = { error?: string; success?: boolean; conflict?: boolean; updatedAt?: string };
 export type CreateDocumentState = DocumentActionState;
@@ -133,8 +136,17 @@ export async function createDocumentAction(
   // No-op unless quick capture sent the user here to turn a To-Do into this
   // document, in which case the To-Do retires now that the richer record exists.
   await completeCaptureConversion(formData);
+  // KD-059: the browser already put the file in the person's Google Drive and
+  // sends its ID. The document is saved either way; if Drive can't confirm
+  // the file, the document page says so and offers to add it again.
+  const driveFileId = text(formData, "driveFileId");
+  let driveFailed = text(formData, "driveUploadFailed") === "true";
+  if (driveFileId) {
+    const attached = await attachDriveFile((await requireKinesisUser()).id, document.id, driveFileId);
+    driveFailed = !("ok" in attached);
+  }
   revalidateShell();
-  redirect(`/documents/${document.id}`);
+  redirect(`/documents/${document.id}${driveFailed ? `?${DRIVE_FILE_FAILED_PARAM}=1` : ""}`);
 }
 
 export async function updateDocumentAction(

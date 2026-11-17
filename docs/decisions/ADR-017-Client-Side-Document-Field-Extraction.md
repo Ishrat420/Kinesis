@@ -7,6 +7,9 @@ specimen documents and given a security review. Testing with the owner's
 own documents is still to come; its results may tune the rules below but
 are not expected to change the design.
 
+Amended 17 November 2026 by KD-059: see "Addendum: files kept in Google
+Drive" below.
+
 This record replaces the original proposal (commit `d26adf4`). It
 describes what was built, the decisions behind it, and what testing
 changed. The proposal and the notes from each round of testing remain in
@@ -335,8 +338,11 @@ are passports whose MRZ needs all three readings.
 
 ## Consequences
 
-- **Privacy:** documents never leave the device. There's no server change
-  and no stored-file risk; confirmed values are saved like typed ones.
+- **Privacy:** documents never reach Kinesis's server. Reading happens on
+  the device and nothing leaves it while reading. There's no stored-file
+  risk on Kinesis's side; confirmed values are saved like typed ones. With
+  Google Drive connected (KD-059), the person's own browser then sends the
+  file to their own Drive when they save; see the addendum.
 - **Accuracy:** good on passports and ID cards with a valid MRZ, and on
   PDFs that contain text. Moderate on photographed cards. The design
   depends on "blank, not wrong" and on the user confirming.
@@ -346,9 +352,39 @@ are passports whose MRZ needs all three readings.
   client-side and independent of it. Storage must not quietly become "OCR
   on the server".
 
+## Addendum: files kept in Google Drive (KD-059)
+
+The rule this record makes is unchanged: **Kinesis's server never receives,
+processes or stores a document's file.** What changes is where the file
+can go once the person has finished with it.
+
+- **Opt-in, per person.** Only someone who has connected Google Drive in
+  Settings has their file kept. Everyone else gets exactly the behaviour
+  above: read, pre-fill, save the details, discard the file.
+- **Reading is untouched.** The file is read on the device as before, and
+  no request leaves the origin while it is read. The upload happens only
+  after the person presses Create.
+- **Browser to Drive.** The browser uploads the file straight to
+  `www.googleapis.com` with a short-lived access token from the server. The
+  server's part is handing out that token (through Clerk, which holds the
+  Google connection) and afterwards asking Drive for the file's metadata, so
+  what Kinesis records is Drive's answer rather than the browser's claim. It
+  never requests the file's contents.
+- **What Kinesis stores** is the Drive file's ID, name, type and link, on
+  the document. No Google token is stored by Kinesis.
+- **Narrowest permission.** Only `drive.file`: Kinesis can see the files it
+  saved to Drive and nothing else there.
+- **Wording.** The create form's banner now says the file is saved to the
+  person's Google Drive when Drive is connected, and keeps "wasn't uploaded
+  or stored" otherwise. The upload dialog's subtitle does the same.
+- **CSP.** `connect-src` allows `https://www.googleapis.com` for the upload.
+- **Extraction stays client-side.** Drive is storage, not processing. It
+  must not become a route to reading files on a server.
+
 ## Related
 
 - KD-016 (the ticket)
+- KD-059 (files kept in Google Drive)
 - ADR-003 (Documents module)
 - ADR-015 (field limits, which apply to suggested values)
 - OPS-002 (the existing audit item)

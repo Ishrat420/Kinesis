@@ -22,7 +22,9 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // Google Drive (KD-059): the browser uploads a document's file straight to
+  // the owner's own Drive, so the file never passes through Kinesis.
+  "connect-src 'self' https://www.googleapis.com",
   // The push service worker, public/sw.js (KD-053).
   "worker-src 'self'",
   "object-src 'none'",

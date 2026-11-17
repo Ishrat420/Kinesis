@@ -1,7 +1,8 @@
 "use client";
 
-import { Bell, CalendarDays, Check, ChevronDown, FileText, Link2, ScanText, X } from "lucide-react";
-import { useActionState, useState } from "react";
+import { Bell, CalendarDays, Check, ChevronDown, FileText, Link2, ScanText, TriangleAlert, X } from "lucide-react";
+import { useActionState, useRef, useState, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { createDocumentAction, type CreateDocumentState } from "./actions";
 import { DocumentFields } from "./DocumentFields";
 import { NO_REMINDER_LABEL, NO_REMINDER_VALUE, parseReminderPrompt, REMINDER_OPTIONS, reminderLabel } from "@/lib/documents/expiry";
@@ -11,6 +12,9 @@ import type { FieldSuggestions, TodoSuggestion } from "@/lib/documents/extractio
 import { CAPTURE_SOURCE_PARAM } from "@/lib/capture/targets";
 import { Modal } from "@/components/overlay/Modal";
 import { SuggestedHint } from "./SuggestedHint";
+import { getDriveUploadTokenAction } from "./drive-actions";
+import { driveFileName, type DriveConnectionState } from "@/lib/google-drive/shared";
+import { DriveUploadError, uploadToDrive } from "@/lib/google-drive/upload";
 
 const initialState: CreateDocumentState = {};
 
@@ -36,6 +40,11 @@ const FIELD_LABEL_CLASS = "mb-2 flex items-center gap-1.5 text-sm font-semibold 
  * `suggestions` are values read from an uploaded file. They are only ever
  * starting values: each is marked for checking, and they save through the same
  * action and validation as anything typed.
+ *
+ * `file` is that uploaded file. With Google Drive connected (KD-059), Create
+ * first puts it in the person's own Drive, straight from the browser, then
+ * saves the document with the Drive file's ID. If Drive fails, the person can
+ * try again or create the document without the file.
  */
 export function CreateDocumentDialog({
   documentTypes,
@@ -44,6 +53,8 @@ export function CreateDocumentDialog({
   suggestions,
   alsoTodo,
   customFields,
+  file,
+  driveState,
   onClose,
 }: {
   documentTypes: DocumentTypeOption[];
@@ -54,9 +65,40 @@ export function CreateDocumentDialog({
   alsoTodo?: TodoSuggestion;
   /** KD-057: a bill's payment details read from the file ("Amount due", "Biller code"), as starting custom fields. */
   customFields?: CustomFieldValue[];
+  file?: File;
+  driveState?: DriveConnectionState;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(createDocumentAction, initialState);
+  const keepInDrive = file !== undefined && driveState === "connected";
+  const [drive, setDrive] = useState<{ phase: "idle" | "uploading" | "failed" | "skipped"; fileId?: string; error?: string }>({ phase: "idle" });
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Runs after the browser's own checks, before the save. Uploads once: a
+  // save refused for another reason (a missing field) reuses the same file.
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    if (!keepInDrive || drive.fileId || drive.phase === "skipped") return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    setDrive({ phase: "uploading" });
+    try {
+      const access = await getDriveUploadTokenAction();
+      if ("error" in access) throw new DriveUploadError(access.error, "permission");
+      const name = String(new FormData(form).get("name") ?? "");
+      const fileId = await uploadToDrive(file, driveFileName(name, file.name), access.token);
+      flushSync(() => setDrive({ phase: "idle", fileId }));
+      form.requestSubmit();
+    } catch (error) {
+      setDrive({ phase: "failed", error: error instanceof DriveUploadError ? error.message : "Google Drive couldn't save the file." });
+    }
+  };
+
+  const createWithoutFile = () => {
+    flushSync(() => setDrive({ phase: "skipped" }));
+    formRef.current?.requestSubmit();
+  };
+
+  const uploading = drive.phase === "uploading";
   const fromUpload = suggestions !== undefined;
   const suggested = new Set(Object.keys(suggestions ?? {}));
 
@@ -79,7 +121,9 @@ export function CreateDocumentDialog({
         </button>
       </div>
 
-      <form autoComplete="off" spellCheck={false} action={formAction}>
+      <form ref={formRef} autoComplete="off" spellCheck={false} action={formAction} onSubmit={onSubmit}>
+        {drive.fileId && <input type="hidden" name="driveFileId" value={drive.fileId} />}
+        {drive.phase === "skipped" && <input type="hidden" name="driveUploadFailed" value="true" />}
         {capture?.from && <input type="hidden" name={CAPTURE_SOURCE_PARAM} value={capture.from} />}
         <div className="space-y-5 px-2.5 py-5 sm:px-5">
           {fromUpload && (
@@ -87,8 +131,8 @@ export function CreateDocumentDialog({
               <ScanText className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
               <p>
                 {suggested.size > 0
-                  ? "Read on this device. Your file wasn't uploaded or stored. Check each field marked “From your document” before saving."
-                  : "We couldn't find any details we were sure of in this file, so nothing has been filled in. Your file wasn't uploaded or stored."}
+                  ? `Read on this device. ${keepInDrive ? "Kinesis doesn't keep your file; it's saved to your Google Drive when you create the document." : "Your file wasn't uploaded or stored."} Check each field marked “From your document” before saving.`
+                  : `We couldn't find any details we were sure of in this file, so nothing has been filled in. ${keepInDrive ? "Your file will be saved to your Google Drive when you create the document." : "Your file wasn't uploaded or stored."}`}
               </p>
             </div>
           )}
@@ -111,6 +155,19 @@ export function CreateDocumentDialog({
 
           {alsoTodo && <AlsoTodoSection initial={alsoTodo} />}
 
+          {drive.phase === "failed" && (
+            <div role="alert" className="flex gap-3 rounded-xl bg-amber-50 px-3.5 py-3 text-sm text-amber-950">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">Your file wasn&apos;t saved to Google Drive.</p>
+                <p className="mt-0.5">{drive.error}</p>
+                <button type="button" onClick={createWithoutFile} className="mt-2 font-semibold underline underline-offset-2">
+                  Create without the file
+                </button>
+              </div>
+            </div>
+          )}
+
           {state.error && (
             <p role="alert" className="text-sm font-medium text-red-600">
               {state.error}
@@ -128,11 +185,11 @@ export function CreateDocumentDialog({
           </button>
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || uploading}
             className="flex h-12 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
           >
             <Check className="h-4 w-4" aria-hidden="true" />
-            {pending ? "Creating…" : "Create document"}
+            {uploading ? "Saving file to Drive…" : pending ? "Creating…" : drive.phase === "failed" ? "Try again" : "Create document"}
           </button>
         </div>
       </form>

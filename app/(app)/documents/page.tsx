@@ -12,16 +12,19 @@ import { DocumentsList } from "./DocumentsList";
 import { getKinesisLinkOptions } from "@/lib/data/kinesis-links";
 import { getFormatPreferences } from "@/lib/format/server";
 import { readCaptureParams } from "@/lib/capture/params";
+import { requireKinesisUser } from "@/lib/auth";
+import { getDriveConnection } from "@/lib/google-drive/server";
 
 
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [capture, documents, documentTypes, documentSummary, linkOptions, { locale }] = await Promise.all([
+  const [capture, documents, documentTypes, documentSummary, linkOptions, { locale }, drive] = await Promise.all([
     searchParams.then(readCaptureParams),
     getDocuments(),
     getDocumentTypes(),
     getDocumentSummary(),
     getKinesisLinkOptions(),
     getFormatPreferences(),
+    requireKinesisUser().then((user) => getDriveConnection(user.id)),
   ]);
 
   return (
@@ -32,7 +35,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         actions={
           <>
             <ManualDocumentButton documentTypes={documentTypes} linkOptions={linkOptions} capture={capture} />
-            <UploadDocumentButton documentTypes={documentTypes} linkOptions={linkOptions} />
+            <UploadDocumentButton documentTypes={documentTypes} linkOptions={linkOptions} driveState={drive.state} />
           </>
         }
       />

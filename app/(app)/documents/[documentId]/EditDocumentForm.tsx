@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Clock3, ExternalLink, FileText, Pencil, Repeat2, Save, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock3, ExternalLink, Pencil, Repeat2, Save, X } from "lucide-react";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ModuleHeader } from "@/components/layout/ModuleHeader";
@@ -53,8 +53,10 @@ export type EditableDocument = {
   updatedAt: string;
 };
 
-export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, recentEvents, history, initialEditing = false, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction }: {
-  document: EditableDocument; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; history: ObjectHistoryEntry[]; initialEditing?: boolean;
+export function DocumentDetailRecord({ document, documentTypes, ownerName, linkOptions, previews, recentEvents, history, initialEditing = false, kinesisLinks, addKinesisLinkAction, updateKinesisLinkAction, removeKinesisLinkAction, fileBox }: {
+  document: EditableDocument;
+  /** KD-059: the "File / document location" box, rendered by the page (DriveFileBox). */
+  fileBox: React.ReactNode; documentTypes: DocumentTypeOption[]; ownerName: string; linkOptions: KinesisLinkOption[]; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; history: ObjectHistoryEntry[]; initialEditing?: boolean;
   kinesisLinks: KinesisLink[];
   addKinesisLinkAction: (state: KinesisLinkActionState, data: FormData) => Promise<KinesisLinkActionState>;
   updateKinesisLinkAction: (linkId: string, data: FormData) => Promise<void>;
@@ -90,7 +92,7 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
       {editing ? (
         <EditForm document={document} updatedAt={updatedAt} documentTypes={documentTypes} ownerName={ownerName} linkOptions={linkOptions} previews={previews} addKinesisLinkAction={addKinesisLinkAction} kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction} onCancel={() => setEditing(false)} onSaved={(newUpdatedAt) => { setSavedUpdatedAt(newUpdatedAt); setEditing(false); }} />
       ) : (
-        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} recentEvents={recentEvents} history={history} onRenewed={setSavedUpdatedAt}
+        <ReadView document={document} ownerName={ownerName} expiryLabel={expiry.label} expiryUrgency={expiry.urgency} locale={locale} previews={previews} recentEvents={recentEvents} history={history} onRenewed={setSavedUpdatedAt} fileBox={fileBox}
           kinesisLinks={kinesisLinks} updateKinesisLinkAction={updateKinesisLinkAction} removeKinesisLinkAction={removeKinesisLinkAction}
         />
       )}
@@ -98,7 +100,8 @@ export function DocumentDetailRecord({ document, documentTypes, ownerName, linkO
   );
 }
 
-function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, recentEvents, history, onRenewed, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction }: {
+function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, previews, recentEvents, history, onRenewed, kinesisLinks, updateKinesisLinkAction, removeKinesisLinkAction, fileBox }: {
+  fileBox: React.ReactNode;
   document: EditableDocument; ownerName: string; expiryLabel: string; expiryUrgency: ExpiryUrgency; locale: string; previews: Record<string, KinesisLinkPreviewStat[]>; recentEvents: Record<string, KinesisLinkRecentEvent>; history: ObjectHistoryEntry[];
   /** KD-056: renewing moves `updatedAt` on, so a later Edit must save against the new stamp. */
   onRenewed: (updatedAt: string) => void;
@@ -133,10 +136,7 @@ function ReadView({ document, ownerName, expiryLabel, expiryUrgency, locale, pre
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
           <h2 className="text-lg font-semibold">File / document location</h2>
-          <div className="mt-4 flex min-h-32 items-center gap-4 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-zinc-400 shadow-sm"><FileText className="h-6 w-6" /></span>
-            <div><p className="text-sm font-medium text-zinc-600">File has not been uploaded for this document</p>{document.link && <a href={document.link} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-900 hover:underline">Open external location <ExternalLink className="h-3.5 w-3.5" /></a>}</div>
-          </div>
+          {fileBox}
         </section>
         <section className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
           <h2 className="text-lg font-semibold">Notes</h2>

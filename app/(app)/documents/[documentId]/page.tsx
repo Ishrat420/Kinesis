@@ -9,11 +9,18 @@ import { getKinesisLinks } from "@/lib/data/object-relationships";
 import { addKinesisLinkAction, removeKinesisLinkAction, updateKinesisLinkAction } from "@/app/actions";
 import { formatDateInput } from "@/lib/dates";
 import { recurrenceFromColumns } from "@/lib/recurrence";
+import { requireKinesisUser } from "@/lib/auth";
+import { getDriveConnection } from "@/lib/google-drive/server";
+import { DRIVE_FILE_FAILED_PARAM } from "@/lib/google-drive/shared";
+import { DriveFileBox } from "./DriveFileBox";
 
-export default async function DocumentDetailPage({ params, searchParams }: { params: Promise<{ documentId: string }>; searchParams: Promise<{ edit?: string }> }) {
+export default async function DocumentDetailPage({ params, searchParams }: { params: Promise<{ documentId: string }>; searchParams: Promise<{ edit?: string; [DRIVE_FILE_FAILED_PARAM]?: string }> }) {
   const { documentId } = await params;
-  const { edit } = await searchParams;
-  const [document, documentTypes, user] = await Promise.all([getDocument(documentId), getDocumentTypes(), getCurrentUser()]);
+  const { edit, [DRIVE_FILE_FAILED_PARAM]: driveFailed } = await searchParams;
+  const [document, documentTypes, user, drive] = await Promise.all([
+    getDocument(documentId), getDocumentTypes(), getCurrentUser(),
+    requireKinesisUser().then((kinesisUser) => getDriveConnection(kinesisUser.id)),
+  ]);
 
   // One answer for a missing record across every module -- see app/(app)/not-found.tsx.
   if (!document) notFound();
@@ -47,6 +54,14 @@ export default async function DocumentDetailPage({ params, searchParams }: { par
     addKinesisLinkAction={addKinesisLinkAction.bind(null, document.objectId)}
     updateKinesisLinkAction={updateKinesisLinkAction.bind(null, document.objectId)}
     removeKinesisLinkAction={removeKinesisLinkAction.bind(null, document.objectId)}
+    fileBox={<DriveFileBox
+      documentId={document.id}
+      documentName={document.name}
+      file={document.driveFileId && document.driveFileName && document.driveWebViewLink ? { name: document.driveFileName, webViewLink: document.driveWebViewLink } : null}
+      driveState={drive.state}
+      link={document.link ?? ""}
+      uploadFailed={driveFailed === "1" && !document.driveFileId}
+    />}
   /></ModuleContent>;
 }
 
